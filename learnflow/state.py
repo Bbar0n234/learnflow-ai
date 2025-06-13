@@ -1,0 +1,65 @@
+"""
+Модели состояния для LangGraph workflow.
+Адаптированы из utils.py для production архитектуры.
+"""
+
+import operator
+from typing import List, Any, Annotated, Literal, Optional
+from pydantic import BaseModel, Field
+
+
+class GapQuestions(BaseModel):
+    """Модель для начальной генерации gap questions"""
+    
+    gap_questions: List[str] = Field(
+        ...,
+        description="Questions relevant to the exam question, which is either absent or insufficiently covered in the student's study material."
+    )
+
+
+class GapQuestionsHITL(BaseModel):
+    """Модель для HITL refinement gap questions"""
+    
+    next_step: Literal["clarify", "finalize"] = Field(
+        ...,
+        description="Indicates whether further clarification is needed (clarify) or if the questions are ready for use (finalize)."
+    )
+    gap_questions: List[str] = Field(
+        ..., 
+        description="Refined questions relevant to the exam question, which is either absent or insufficiently covered in the student's study material."
+    )
+
+
+class ExamState(BaseModel):
+    """
+    Основное состояние для workflow обработки экзаменационных материалов.
+    Адаптировано из GeneralState с расширениями для production.
+    """
+    
+    # Входные данные
+    exam_question: str = Field(default="", description="Исходный экзаменационный вопрос")
+    
+    # Генерированный контент
+    generated_material: str = Field(default="", description="Сгенерированный обучающий материал")
+    
+    # Gap questions
+    gap_questions: List[str] = Field(default_factory=list, description="Список дополнительных вопросов")
+    
+    # Аккумулирующие поля (используют operator.add для объединения)
+    gap_q_n_a: Annotated[List[str], operator.add] = Field(
+        default_factory=list,
+        description="Список сгенерированных вопросов и ответов"
+    )
+    
+    # HITL feedback
+    feedback_messages: List[Any] = Field(
+        default_factory=list,
+        description="История сообщений для HITL взаимодействия"
+    )
+    
+    # GitHub artifacts (optional)
+    github_folder_path: Optional[str] = Field(default=None, description="Путь к папке в GitHub репозитории")
+    github_learning_material_url: Optional[str] = Field(default=None, description="URL к обучающему материалу в GitHub")
+    github_folder_url: Optional[str] = Field(default=None, description="URL к папке в GitHub")
+    github_questions_url: Optional[str] = Field(default=None, description="URL к вопросам и ответам в GitHub")
+    learning_material_link_sent: bool = Field(default=False, description="Флаг отправки ссылки на материал")

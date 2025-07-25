@@ -8,7 +8,6 @@ import logging
 from typing import Dict, Any, Literal
 from langchain_core.messages import SystemMessage, AIMessage, HumanMessage
 from langchain_openai import ChatOpenAI
-from langfuse.langchain import CallbackHandler
 from langgraph.constants import Send
 from langgraph.types import Command
 
@@ -31,14 +30,12 @@ class QuestionGenerationNode(FeedbackNode):
         super().__init__(logger)
         self.settings = get_settings()
         self.config = Config()
-        self.langfuse_handler = CallbackHandler()
         
         # Инициализация модели с LangFuse
         self.model = ChatOpenAI(
             model=self.settings.model_name,
             temperature=self.settings.temperature,
             openai_api_key=self.settings.openai_api_key,
-            callbacks=[self.langfuse_handler]
         )
 
     def is_initial(self, state: ExamState) -> bool:

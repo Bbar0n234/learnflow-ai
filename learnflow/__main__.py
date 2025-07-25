@@ -11,5 +11,4 @@ if __name__ == "__main__":
         "learnflow.main:app",
         host=settings.host,
         port=settings.port,
-        reload=True
     ) 

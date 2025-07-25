@@ -11,14 +11,21 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from langfuse import get_client
+from langfuse import Langfuse
 
 from .graph_manager import GraphManager
 from .settings import get_settings
 
 
 # Настройка логирования
-logging.basicConfig(level=get_settings().log_level)
+logging.basicConfig(
+    level=get_settings().log_level,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),  # Консоль
+        logging.FileHandler('learnflow.log', encoding='utf-8')  # Файл
+    ]
+)
 logger = logging.getLogger(__name__)
 
 # Глобальный экземпляр менеджера
@@ -56,7 +63,7 @@ async def lifespan(app: FastAPI):
     
     # Проверка LangFuse подключения
     try:
-        langfuse = get_client()
+        langfuse = Langfuse()
         if langfuse.auth_check():
             logger.info("LangFuse client authenticated successfully")
         else:

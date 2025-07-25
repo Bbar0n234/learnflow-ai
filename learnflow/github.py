@@ -6,6 +6,7 @@ import os
 import base64
 import httpx
 import logging
+import re
 from datetime import datetime
 from typing import Dict, Any, Optional
 from pydantic import BaseModel
@@ -37,6 +38,8 @@ class GitHubArtifactPusher:
             "User-Agent": "LearnFlow-AI/1.0"
         }
     
+
+    
     async def push_learning_material(
         self,
         thread_id: str,
@@ -55,9 +58,9 @@ class GitHubArtifactPusher:
             Dict с информацией о созданном файле
         """
         try:
-            # Создаем папку с датой и временем
+            # Создаем папку на основе exam_question с временной меткой
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            folder_path = f"{self.config.base_path}/{timestamp}_{thread_id}"
+            folder_path = f"{self.config.base_path}/{exam_question}"
             
             # Подготавливаем содержимое markdown файла
             markdown_content = self._create_learning_material_content(
@@ -75,7 +78,7 @@ class GitHubArtifactPusher:
                     client=client,
                     file_path=file_path,
                     content=markdown_content,
-                    commit_message=f"Add learning material for thread {thread_id} ({timestamp})"
+                    commit_message=f"Add learning material: {exam_question} ({timestamp})"
                 )
             
             logger.info(f"Successfully pushed learning material for thread {thread_id} to {file_path}")

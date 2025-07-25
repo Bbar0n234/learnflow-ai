@@ -1,0 +1,18 @@
+FROM python:3.13-slim
+
+WORKDIR /app
+
+# Устанавливаем poetry
+RUN pip install --no-cache-dir poetry
+
+# Копируем только файлы, необходимые для установки зависимостей
+COPY pyproject.toml poetry.lock ./
+
+# Создаем requirements.txt только с зависимостями для бота
+RUN poetry config virtualenvs.create false && poetry install --no-root --only bot
+
+# Копируем код бота
+COPY bot/ ./bot/
+
+# Команда для запуска бота
+CMD ["python", "-m", "bot.main"]

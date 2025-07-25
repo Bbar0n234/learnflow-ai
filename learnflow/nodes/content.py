@@ -8,7 +8,6 @@ import logging
 from typing import Literal
 from langchain_core.messages import SystemMessage
 from langchain_openai import ChatOpenAI
-from langfuse.langchain import CallbackHandler
 from langgraph.types import Command
 
 from ..state import ExamState
@@ -28,14 +27,12 @@ class ContentGenerationNode:
     def __init__(self):
         self.settings = get_settings()
         self.config = Config()
-        self.langfuse_handler = CallbackHandler()
         
         # Инициализация модели с LangFuse
         self.model = ChatOpenAI(
             model=self.settings.model_name,
             temperature=self.settings.temperature,
             openai_api_key=self.settings.openai_api_key,
-            callbacks=[self.langfuse_handler]
         )
         
         # Загрузка шаблона промпта
@@ -59,28 +56,23 @@ class ContentGenerationNode:
         thread_id = config["configurable"]["thread_id"]
         logger.info(f"Starting content generation for thread {thread_id}")
         
-        try:
-            # Формируем промпт
-            prompt_content = self.prompt_template.render(
-                exam_question=state.exam_question
-            )
+        # Формируем промпт
+        prompt_content = self.prompt_template.render(
+            exam_question=state.exam_question
+        )
+        
+        messages = [SystemMessage(content=prompt_content)]
+        
+        # Генерируем материал
+        logger.debug(f"Generating content for question: {state.exam_question[:100]}...")
+        response = await self.model.ainvoke(messages)
+        
+        logger.info(f"Content generated successfully for thread {thread_id}")
+        
+        return Command(
+            goto="generating_questions",
+            update={
+                "generated_material": response.content,
+            }
+        )
             
-            messages = [SystemMessage(content=prompt_content)]
-            
-            # Генерируем материал
-            logger.debug(f"Generating content for question: {state.exam_question[:100]}...")
-            response = await self.model.ainvoke(messages)
-            
-            logger.info(f"Content generated successfully for thread {thread_id}")
-            
-            return Command(
-                goto="generating_questions",
-                update={
-                    "generated_material": response.content,
-                }
-            )
-            
-        except Exception as e:
-            logger.error(f"Error in content generation for thread {thread_id}: {str(e)}")
-            # В production можно добавить более изощренную обработку ошибок
-            raise e 

@@ -4,9 +4,54 @@
 # All other components are bound to localhost (127.0.0.1) to only accept connections from the local machine.
 # External connections from other machines will not be able to reach these services directly.
 services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    environment:
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - LEARNFLOW_HOST=${LEARNFLOW_HOST}
+      - LEARNFLOW_PORT=${LEARNFLOW_PORT}
+    restart: always
+    depends_on:
+      - graph
+    volumes:
+      - ./logs:/app/logs
+      - ./configs:/app/configs
+
+  graph:
+    depends_on:
+      - langfuse-web
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY}
+      - LANGFUSE_HOST=${LANGFUSE_HOST}
+      - LOCALMAIN_DIR_API_BASE=${MAIN_DIR}
+      - PROMPTS_CONFIG_PATH=${PROMPTS_CONFIG_PATH}
+      - GRAPH_CONFIG_PATH=${GRAPH_CONFIG_PATH}
+      - LEARNFLOW_HOST=${LEARNFLOW_HOST}
+      - LEARNFLOW_PORT=${LEARNFLOW_PORT}
+      - LOG_LEVEl=${LOG_LEVEl}
+      - DATABASE_URL=${DATABASE_URL}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - GITHUB_REPOSITORY=${GITHUB_REPOSITORY}
+      - GITHUB_BRANCH=${GITHUB_BRANCH}
+      - GITHUB_BASE_PATH=${GITHUB_BASE_PATH}
+      
+    ports:
+      - "8000:8000"
+    restart: always
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - ./configs:/app/configs
+
   langfuse-worker:
     image: langfuse/langfuse-worker:3
-    restart: always
     depends_on: &langfuse-depends-on
       postgres:
         condition: service_healthy
@@ -65,7 +110,6 @@ services:
 
   langfuse-web:
     image: langfuse/langfuse:3
-    restart: always
     depends_on: *langfuse-depends-on
     ports:
       - 3000:3000
@@ -85,7 +129,6 @@ services:
 
   clickhouse:
     image: clickhouse/clickhouse-server
-    restart: always
     user: "101:101"
     environment:
       CLICKHOUSE_DB: default
@@ -106,7 +149,6 @@ services:
 
   minio:
     image: minio/minio
-    restart: always
     entrypoint: sh
     # create the 'langfuse' bucket before starting the service
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
@@ -127,7 +169,6 @@ services:
 
   redis:
     image: redis:7
-    restart: always
     # CHANGEME: row below to secure redis password
     command: >
       --requirepass ${REDIS_AUTH:-myredissecret}
@@ -141,7 +182,6 @@ services:
 
   postgres:
     image: postgres:${POSTGRES_VERSION:-latest}
-    restart: always
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 3s

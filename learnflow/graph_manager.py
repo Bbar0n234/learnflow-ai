@@ -5,9 +5,11 @@ GraphManager – единая оболочка вокруг LangGraph workflow.
 • запуск / продолжение графа
 • передачу сообщений HITL-узлов наружу
 • пуш артефактов (опционально) в GitHub
+• трассировку в LangFuse
 
 Адаптирован из project_documentation.md для ExamState.
 """
+import time
 
 import os
 import uuid
@@ -16,6 +18,7 @@ from typing import Dict, Any, Optional
 
 from langgraph.types import Command
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from langfuse.callback import CallbackHandler
 
 from .graph import create_workflow
 from .state import ExamState
@@ -44,6 +47,13 @@ class GraphManager:
         self.settings = get_settings()
 
         self._setup_done = False            # чтобы инициализацию БД делать один раз
+
+        # LangFuse integration
+        self.langfuse_handler = CallbackHandler()
+        
+        # Словарь для хранения session_id для каждого пользователя
+        # Ключ - thread_id, значение - session_id
+        self.user_sessions: Dict[str, str] = {}
 
         # GitHub integration (необязательно)
         self.github_pusher: Optional[GitHubArtifactPusher] = None
@@ -107,7 +117,50 @@ class GraphManager:
         if thread_id in self.github_data:
             del self.github_data[thread_id]
             
+        # Также удаляем session_id для этого пользователя
+        self.delete_session(thread_id)
+            
         logger.info(f"Thread {thread_id} deleted successfully")
+
+    # ---------- langfuse session management ----------
+    
+    def create_new_session(self, thread_id: str) -> str:
+        """
+        Создает новый session_id для пользователя.
+        
+        Args:
+            thread_id: Идентификатор потока
+            
+        Returns:
+            str: Новый session_id
+        """
+        session_id = str(uuid.uuid4())
+        self.user_sessions[thread_id] = session_id
+        logger.info(f"Created new session '{session_id}' for user {thread_id}")
+        return session_id
+    
+    def get_session_id(self, thread_id: str) -> Optional[str]:
+        """
+        Получает текущий session_id для пользователя.
+        
+        Args:
+            thread_id: Идентификатор потока
+            
+        Returns:
+            Optional[str]: session_id или None, если сессии нет
+        """
+        return self.user_sessions.get(thread_id)
+    
+    def delete_session(self, thread_id: str) -> None:
+        """
+        Удаляет session_id для пользователя.
+        
+        Args:
+            thread_id: Идентификатор потока
+        """
+        if thread_id in self.user_sessions:
+            session_id = self.user_sessions.pop(thread_id)
+            logger.info(f"Deleted session '{session_id}' for user {thread_id}")
 
     # ---------- github artifacts (отключено для упрощения) ----------
 
@@ -182,7 +235,7 @@ class GraphManager:
             return None
 
         # Проверяем, что есть папка для пуша
-        folder_path = state_vals.get('github_folder_path', '')
+        folder_path = self.github_data.get(thread_id, {}).get('github_folder_path', '')
         if not folder_path:
             logger.warning(f"No GitHub folder path found for thread {thread_id}, skipping questions push")
             return None
@@ -224,8 +277,6 @@ class GraphManager:
             logger.error(f"Error pushing questions and answers to GitHub for thread {thread_id}: {e}")
             return None
 
-    # ---------- public API ----------
-
     async def process_step(self, thread_id: str, query: str) -> Dict[str, Any]:
         """
         Единственный entry-point:
@@ -238,15 +289,28 @@ class GraphManager:
             logger.info(f"Created new thread: {thread_id}")
 
         state = await self._get_state(thread_id)
-        cfg = {"configurable": {"thread_id": thread_id}}
 
-        # определяем input_state
+        # определяем input_state и session_id для LangFuse
         if not state.values:                           # fresh run
             logger.info(f"Starting fresh run for thread {thread_id}")
             input_state = ExamState(exam_question=query)
+            # Создаем новый session_id для нового диалога
+            session_id = self.create_new_session(thread_id)
         else:                                          # continue
             logger.info(f"Continuing run for thread {thread_id}")
             input_state = Command(resume=query)
+            # Используем существующий session_id
+            session_id = self.get_session_id(thread_id) or self.create_new_session(thread_id)
+
+        # конфигурация с LangFuse трассировкой
+        cfg = {
+            "configurable": {"thread_id": thread_id},
+            "callbacks": [self.langfuse_handler],
+            "metadata": {
+                "langfuse_session_id": session_id,
+                "langfuse_user_id": thread_id,
+            }
+        }
 
         # запускаем/продолжаем граф
         await self._ensure_setup()
@@ -261,41 +325,45 @@ class GraphManager:
                 # HITL сообщения наружу
                 logger.debug(f"Event: {event}")
                 
-                updated_state = await self._get_state(thread_id)
-
-                logger.debug(f"updated github_folder_path: {updated_state.values.get('github_folder_path')}")
-                logger.debug(f"updated github_learning_material_url: {updated_state.values.get('github_learning_material_url')}")
-                logger.debug(f"updated github_folder_url: {updated_state.values.get('github_folder_url')}")
-                
                 for node_name, node_data in event.items():
-                    logger.debug(f"Node: {node_name}, Data type: {type(node_data)}, Data: {node_data}")
-                    
                     # Пуш обучающего материала после завершения generating_content
                     if node_name == "generating_content":
                         logger.info(f"Content generation completed for thread {thread_id}, pushing to GitHub...")
                         current_state = await self._get_state(thread_id)
-                        github_data = await self._push_learning_material_to_github(thread_id, current_state.values)
+                        github_data = await self._push_learning_material_to_github(thread_id, {
+                            "exam_question": current_state.values.get("exam_question"),
+                            "generated_material": node_data.get("generated_material"),
+                        })
                         if github_data:
                             await self._update_state(thread_id, github_data)
 
         # после завершения / остановки
         final_state = await self._get_state(thread_id)
+
+        print(f"final_state interrupts: {final_state.interrupts}")
+
         if final_state.interrupts:
             interrupt_data = final_state.interrupts[0].value
             logger.debug(f"Interrupt data: {interrupt_data}")
             msgs = interrupt_data.get("message", [str(interrupt_data)])
             
             # Добавляем ссылку на обучающий материал, если это первый interrupt после generating_questions
-
-            logger.debug(f"learning_material_link_sent: {final_state.values.get('learning_material_link_sent')}")
-            if not final_state.values.get("learning_material_link_sent"):
+            learning_material_link_sent = self.github_data.get(thread_id, {}).get("learning_material_link_sent", False)
+            logger.debug(f"learning_material_link_sent: {learning_material_link_sent}")
+            if not learning_material_link_sent:
                 learning_material_url = self.github_data.get(thread_id, {}).get("github_learning_material_url")
                 logger.debug(f"learning_material_url: {learning_material_url}")
                 if learning_material_url:
+                    logger.debug(f"final_state.next: {final_state.next}")
                     msgs.append(f"📚 Обучающий материал доступен: {learning_material_url}")
-                    await self._update_state(thread_id, {"learning_material_link_sent": True})
+                    # Помечаем, что ссылка уже отправлена
+                    if thread_id not in self.github_data:
+                        self.github_data[thread_id] = {}
+                    self.github_data[thread_id]["learning_material_link_sent"] = True
+                    logger.debug(f"Marked learning_material_link_sent=True for thread {thread_id}")
             
             logger.info(f"Workflow interrupted for thread {thread_id}")
+
             return {"thread_id": thread_id, "result": msgs}
 
         # happy path – всё закончено
@@ -304,23 +372,24 @@ class GraphManager:
         # Пуш вопросов и ответов в GitHub перед удалением thread
         final_state_values = final_state.values if final_state else {}
         questions_github_data = await self._push_questions_to_github(thread_id, final_state_values)
-        if questions_github_data:
-            await self._update_state(thread_id, questions_github_data)
 
         # Формируем финальное сообщение со ссылкой на GitHub директорию (до удаления thread'а)
-        final_message = "Готово 🎉 – присылайте следующий экзаменационный вопрос!"
+        final_message = ["Готово 🎉 – присылайте следующий экзаменационный вопрос!"]
         
         github_folder_url = self.github_data.get(thread_id, {}).get("github_folder_url")
         if github_folder_url:
-            final_message = f"Готово 🎉\n\n📁 Все материалы сохранены: {github_folder_url}\n\nПрисылайте следующий экзаменационный вопрос!"
+            final_message.append(f"📁 Все материалы сохранены: {github_folder_url}\n\nПрисылайте следующий экзаменационный вопрос!")
 
         await self.delete_thread(thread_id)
-        logger.info(f"Thread {thread_id} deleted successfully")
 
-        return {
+        return_data = {
             "thread_id": thread_id,
             "result": final_message
         }
+
+        logger.debug(f"return_data: {return_data}")
+
+        return return_data
 
     async def get_current_step(self, thread_id: str) -> Dict[str, str]:
         """Получение текущего шага workflow"""

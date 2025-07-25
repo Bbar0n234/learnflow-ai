@@ -13,7 +13,7 @@ class AppSettings(BaseSettings):
     
     # OpenAI settings
     openai_api_key: str = Field(..., env="OPENAI_API_KEY", description="OpenAI API ключ")
-    model_name: str = Field(default="gpt-4.1-mini", description="Модель для LLM")
+    model_name: str = Field(default="gpt-4.1", description="Модель для LLM")
     temperature: float = Field(default=0.1, description="Temperature для генерации")
     
     # PostgreSQL settings для AsyncPostgresSaver
@@ -22,8 +22,8 @@ class AppSettings(BaseSettings):
     )
     
     # LangFuse settings
-    langfuse_public_key: str = Field(..., env="LANGFUSE_PUBLIC_KEY", description="LangFuse public key")
-    langfuse_secret_key: str = Field(..., env="LANGFUSE_SECRET_KEY", description="LangFuse secret key")
+    langfuse_public_key: Optional[str] = Field(default=None, env="LANGFUSE_PUBLIC_KEY", description="LangFuse public key")
+    langfuse_secret_key: Optional[str] = Field(default=None, env="LANGFUSE_SECRET_KEY", description="LangFuse secret key")
     langfuse_host: str = Field(default="https://cloud.langfuse.com", env="LANGFUSE_HOST", description="LangFuse host")
     
     # Пути к конфигурационным файлам
@@ -50,6 +50,10 @@ class AppSettings(BaseSettings):
     def is_github_configured(self) -> bool:
         """Проверка настройки GitHub интеграции"""
         return bool(self.github_token and self.github_repository)
+    
+    def is_langfuse_configured(self) -> bool:
+        """Проверка настройки LangFuse интеграции"""
+        return bool(self.langfuse_public_key and self.langfuse_secret_key)
 
     class Config:
         env_file = ".env"

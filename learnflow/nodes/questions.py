@@ -3,18 +3,15 @@
 Адаптирован из generating_questions_node в main.ipynb с использованием FeedbackNode паттерна.
 """
 
-import json
 import logging
-from typing import Dict, Any, Literal
-from langchain_core.messages import SystemMessage, AIMessage, HumanMessage
-from langchain_openai import ChatOpenAI
+from typing import Dict, Any
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.constants import Send
 from langgraph.types import Command
 
 from .base import FeedbackNode
 from ..state import ExamState, GapQuestions, GapQuestionsHITL
-from ..settings import get_settings
-from ..utils import get_prompt_template, Config, pretty_print_pydantic
+from ..utils import Config, pretty_print_pydantic
 
 
 logger = logging.getLogger(__name__)
@@ -28,15 +25,12 @@ class QuestionGenerationNode(FeedbackNode):
     
     def __init__(self):
         super().__init__(logger)
-        self.settings = get_settings()
         self.config = Config()
-        
-        # Инициализация модели с LangFuse
-        self.model = ChatOpenAI(
-            model=self.settings.model_name,
-            temperature=self.settings.temperature,
-            openai_api_key=self.settings.openai_api_key,
-        )
+        self.model = self.create_model()
+    
+    def get_node_name(self) -> str:
+        """Возвращает имя узла для поиска конфигурации"""
+        return "generating_questions"
 
     def is_initial(self, state: ExamState) -> bool:
         """Проверяет, нужно ли делать первую генерацию"""
@@ -48,12 +42,15 @@ class QuestionGenerationNode(FeedbackNode):
 
     def get_prompt_kwargs(self, state: ExamState, user_feedback: str = None, config=None) -> Dict[str, Any]:
         """Возвращает параметры для промпта в зависимости от варианта"""
+        # Используем synthesized_material если есть, иначе generated_material как fallback
+        study_material = state.synthesized_material or state.generated_material
+        
         if user_feedback is None:
-            # Первичная генерация (initial variant)
+            # Первичная генерация (initial variant) # TODO: почему Code in unreachable?
             self._current_stage = "initial"
             return {
                 "exam_question": state.exam_question,
-                "study_material": state.generated_material,
+                "study_material": study_material,
                 "json_schema": pretty_print_pydantic(GapQuestions)
             }
         else:
@@ -61,7 +58,7 @@ class QuestionGenerationNode(FeedbackNode):
             self._current_stage = "refine"
             return {
                 "exam_question": state.exam_question,
-                "study_material": state.generated_material,
+                "study_material": study_material,
                 "current_questions": state.gap_questions,
                 "json_schema": pretty_print_pydantic(GapQuestionsHITL)
             }

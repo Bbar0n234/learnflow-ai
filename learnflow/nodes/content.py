@@ -2,47 +2,39 @@
 Узел генерации обучающего материала.
 Адаптирован из generating_content_node в main.ipynb для production архитектуры.
 """
-
-import json
 import logging
-from typing import Literal
+from typing import Literal, Union
 from langchain_core.messages import SystemMessage
-from langchain_openai import ChatOpenAI
 from langgraph.types import Command
 
 from ..state import ExamState
-from ..settings import get_settings
-from ..utils import get_prompt_template, Config
+from ..utils import render_system_prompt
+from .base import BaseWorkflowNode
 
 
 logger = logging.getLogger(__name__)
 
 
-class ContentGenerationNode:
+class ContentGenerationNode(BaseWorkflowNode):
     """
     Узел генерации обучающего материала на основе экзаменационного вопроса.
-    Без HITL - прямой переход к следующему узлу.
+    Определяет следующий переход: если есть изображения - в recognition, если нет - в generating_questions.
     """
     
     def __init__(self):
-        self.settings = get_settings()
-        self.config = Config()
-        
-        # Инициализация модели с LangFuse
-        self.model = ChatOpenAI(
-            model=self.settings.model_name,
-            temperature=self.settings.temperature,
-            openai_api_key=self.settings.openai_api_key,
-        )
-        
-        # Загрузка шаблона промпта
-        self.prompt_template = get_prompt_template('generating_content_system_prompt', self.config)
+        super().__init__(logger)
+        self.model = self.create_model()
+    
+    def get_node_name(self) -> str:
+        """Возвращает имя узла для поиска конфигурации"""
+        return "generating_content"
         
 
-
-
-
-    async def __call__(self, state: ExamState, config) -> Command[Literal["generating_questions"]]:
+    async def __call__(
+        self, 
+        state: ExamState, 
+        config
+    ) -> Union[Command[Literal["recognition_handwritten"]], Command[Literal["generating_questions"]]]:
         """
         Генерирует обучающий материал на основе экзаменационного вопроса.
         
@@ -51,13 +43,14 @@ class ContentGenerationNode:
             config: Конфигурация LangGraph
             
         Returns:
-            Command с переходом к генерации вопросов и обновленным состоянием
+            Command с переходом к распознаванию изображений или генерации вопросов
         """
         thread_id = config["configurable"]["thread_id"]
         logger.info(f"Starting content generation for thread {thread_id}")
         
         # Формируем промпт
-        prompt_content = self.prompt_template.render(
+        prompt_content = render_system_prompt(
+            template_type='generating_content',
             exam_question=state.exam_question
         )
         
@@ -69,8 +62,18 @@ class ContentGenerationNode:
         
         logger.info(f"Content generated successfully for thread {thread_id}")
         
+        # Определяем следующий узел на основе наличия изображений
+        has_images = bool(state.image_paths)
+        
+        if has_images:
+            logger.info(f"Found {len(state.image_paths)} images, proceeding to recognition")
+            next_node = "recognition_handwritten"
+        else:
+            logger.info(f"No images found, proceeding directly to question generation")
+            next_node = "generating_questions"
+        
         return Command(
-            goto="generating_questions",
+            goto=next_node,
             update={
                 "generated_material": response.content,
             }

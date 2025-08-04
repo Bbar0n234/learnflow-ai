@@ -2,22 +2,15 @@ import os
 import yaml
 import json
 from pathlib import Path
-from typing import Dict, Any, List, Literal, Annotated, Union
-from dotenv import load_dotenv
-from langchain_core.messages import AIMessage, HumanMessage
+from typing import Dict, Any
 from jinja2 import Template
-from pydantic import BaseModel, Field
-import operator
-
-# Загрузка переменных окружения
-load_dotenv()
 
 class Config:
     """Класс для загрузки и управления конфигурацией"""
     
     def __init__(self):
-        self.prompts_config_path = os.getenv('PROMPTS_CONFIG_PATH', './config/prompts.yaml')
-        self.graph_config_path = os.getenv('GRAPH_CONFIG_PATH', './config/graph.yaml')
+        self.prompts_config_path = os.getenv('PROMPTS_CONFIG_PATH', './configs/prompts.yaml')
+        self.graph_config_path = os.getenv('GRAPH_CONFIG_PATH', './configs/graph.yaml')
         self.main_dir = os.getenv('MAIN_DIR', './data')
         
     def load_prompts(self) -> Dict[str, str]:
@@ -33,41 +26,12 @@ class Config:
     def get_model_name(self) -> str:
         """Возвращает имя модели из graph.yaml"""
         graph_conf = self.load_graph_config()
-        return graph_conf.get('model_config', {}).get('name', 'gpt-4o')
+        return graph_conf.get('model_config', {}).get('name', 'gpt-4.1-mini')
     
     def ensure_directories(self):
         """Создает необходимые директории"""
         Path(self.main_dir).mkdir(exist_ok=True)
         Path(f"{self.main_dir}/outputs").mkdir(exist_ok=True)
-
-class GapQuestions(BaseModel):
-    gap_questions: List[str] = Field(
-        ...,
-        description="Questions relevant to the exam question, which is either absent or insufficiently covered in the student's study material."
-    )
-
-class GapQuestionsHITL(BaseModel):
-    next_step: Literal["clarify", "finalize"] = Field(
-        ...,
-        description="Indicates whether further clarification is needed (clarify) or if the questions are ready for use (finalize)."
-    )
-    refined_gap_questions: List[str] = Field(
-        ...,
-        description="Refined questions relevant to the exam question, which is either absent or insufficiently covered in the student's study material."
-    )
-
-class GeneralState(BaseModel):
-    """Общее состояние для обработки"""
-    exam_question: str
-    gap_questions: List[str] = []
-    gap_q_n_a: Annotated[List[str], operator.add] = []
-    generated_material: str = ""
-    feedback_messages: List[Union[AIMessage, HumanMessage]] = []
-
-def get_prompt_template(prompt_name: str, config: Config) -> Template:
-    """Возвращает шаблон промпта по имени"""
-    prompts = config.load_prompts()
-    return Template(prompts[prompt_name])
 
 def pretty_print_pydantic(pydantic_model) -> str:
     """Красиво форматирует JSON схему Pydantic модели"""
@@ -90,3 +54,36 @@ def save_general_state_to_markdown(state: Dict[str, Any]) -> str:
         md.append("")
 
     return "\n".join(md) 
+
+def render_system_prompt(template_type: str, template_variant: str = "initial", **kwargs: Any) -> str:
+    """
+    Рендерит системный промпт на основе типа шаблона и варианта.
+    
+    Args:
+        template_type: Тип шаблона (например, 'generating_content')
+        template_variant: Вариант шаблона ('initial' или 'further')
+        **kwargs: Параметры для подстановки в шаблон
+    
+    Returns:
+        Отрендеренный промпт
+    """
+    config = Config()
+    prompts_config = config.load_prompts()
+    
+    # Формируем ключ для поиска шаблона
+    if template_variant == "initial":
+        template_key = f"{template_type}_system_prompt"
+    else:
+        template_key = f"{template_type}_{template_variant}_system_prompt"
+    
+    # Если специфичный вариант не найден, используем базовый
+    if template_key not in prompts_config:
+        template_key = f"{template_type}_system_prompt"
+    
+    if template_key not in prompts_config:
+        raise KeyError(f"Template '{template_key}' not found in prompts config")
+    
+    template_content = prompts_config[template_key]
+    template = Template(template_content)
+    
+    return template.render(**kwargs) 

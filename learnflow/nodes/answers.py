@@ -6,36 +6,28 @@
 import logging
 from typing import Dict, Any, Literal
 from langchain_core.messages import SystemMessage
-from langchain_openai import ChatOpenAI
 from langgraph.types import Command
 
-from ..state import ExamState
-from ..settings import get_settings
-from ..utils import get_prompt_template, Config
+from ..utils import render_system_prompt
+from .base import BaseWorkflowNode
 
 
 logger = logging.getLogger(__name__)
 
 
-class AnswerGenerationNode:
+class AnswerGenerationNode(BaseWorkflowNode):
     """
     Узел для генерации ответов на отдельные gap questions.
     Используется в параллельных задачах через Send.
     """
     
     def __init__(self):
-        self.settings = get_settings()
-        self.config = Config()
-        
-        # Инициализация модели с LangFuse
-        self.model = ChatOpenAI(
-            model=self.settings.model_name,
-            temperature=self.settings.temperature,
-            openai_api_key=self.settings.openai_api_key,
-        )
-        
-        # Загрузка шаблона промпта
-        self.prompt_template = get_prompt_template('gen_answer_system_prompt', self.config)
+        super().__init__(logger)
+        self.model = self.create_model()
+    
+    def get_node_name(self) -> str:
+        """Возвращает имя узла для поиска конфигурации"""
+        return "answer_question"
 
     async def __call__(self, data: Dict[str, Any], config=None) -> Command[Literal["__end__"]]:
         """
@@ -59,7 +51,8 @@ class AnswerGenerationNode:
         
         try:
             # Формируем промпт для генерации ответа
-            prompt_content = self.prompt_template.render(
+            prompt_content = render_system_prompt(
+                template_type="gen_answer",
                 exam_question=question
             )
             

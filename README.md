@@ -92,7 +92,7 @@ questions = [
 
 ### Настройка промптов
 
-Отредактируйте `config/prompts.yaml` для изменения системных промптов:
+Отредактируйте `configs/prompts.yaml` для изменения системных промптов:
 
 - `generating_content_system_prompt` - для генерации основного материала
 - `gen_question_system_prompt` - для создания дополнительных вопросов  

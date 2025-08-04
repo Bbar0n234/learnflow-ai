@@ -6,10 +6,15 @@ from .base import FeedbackNode
 from .content import ContentGenerationNode
 from .questions import QuestionGenerationNode
 from .answers import AnswerGenerationNode
+from .input_processing import InputProcessingNode
+from .recognition import RecognitionNode
+from .synthesis import SynthesisNode
 
 __all__ = [
-    "FeedbackNode",
     "ContentGenerationNode",
     "QuestionGenerationNode", 
-    "AnswerGenerationNode"
+    "AnswerGenerationNode",
+    "InputProcessingNode",
+    "RecognitionNode",
+    "SynthesisNode"
 ] 

@@ -39,6 +39,20 @@ class ExamState(BaseModel):
     # Входные данные
     exam_question: str = Field(default="", description="Исходный экзаменационный вопрос")
     
+    # Новые поля для работы с изображениями
+    image_paths: List[str] = Field(
+        default_factory=list, 
+        description="Пути к загруженным изображениям конспектов (пустой список = нет изображений)"
+    )
+    recognized_notes: str = Field(
+        default="", 
+        description="Распознанный текст из рукописных конспектов"
+    )
+    synthesized_material: str = Field(
+        default="", 
+        description="Финальный синтезированный материал, объединяющий generated_material и recognized_notes"
+    )
+    
     # Генерированный контент
     generated_material: str = Field(default="", description="Сгенерированный обучающий материал")
     

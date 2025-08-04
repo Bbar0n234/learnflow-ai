@@ -3,7 +3,7 @@
 """
 
 import os
-from typing import Optional
+from typing import Optional, List
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
@@ -13,8 +13,6 @@ class AppSettings(BaseSettings):
     
     # OpenAI settings
     openai_api_key: str = Field(..., env="OPENAI_API_KEY", description="OpenAI API ключ")
-    model_name: str = Field(default="gpt-4.1", description="Модель для LLM")
-    temperature: float = Field(default=0.1, description="Temperature для генерации")
     
     # PostgreSQL settings для AsyncPostgresSaver
     database_url: str = Field(
@@ -24,12 +22,21 @@ class AppSettings(BaseSettings):
     # LangFuse settings
     langfuse_public_key: Optional[str] = Field(default=None, env="LANGFUSE_PUBLIC_KEY", description="LangFuse public key")
     langfuse_secret_key: Optional[str] = Field(default=None, env="LANGFUSE_SECRET_KEY", description="LangFuse secret key")
-    langfuse_host: str = Field(default="https://cloud.langfuse.com", env="LANGFUSE_HOST", description="LangFuse host")
+    langfuse_host: str = Field(default="https://localhost:3000", env="LANGFUSE_HOST", description="LangFuse host")
     
     # Пути к конфигурационным файлам
-    prompts_config_path: str = Field(default="./config/prompts.yaml", env="PROMPTS_CONFIG_PATH", description="Путь к промптам")
-    graph_config_path: str = Field(default="./config/graph.yaml", env="GRAPH_CONFIG_PATH", description="Путь к конфигурации графа")
+    prompts_config_path: str = Field(default="./configs/prompts.yaml", env="PROMPTS_CONFIG_PATH", description="Путь к промптам")
+    graph_config_path: str = Field(default="./configs/graph.yaml", env="GRAPH_CONFIG_PATH", description="Путь к конфигурации графа")
     main_dir: str = Field(default="./data", env="MAIN_DIR", description="Рабочая директория")
+    
+    # Настройки для работы с изображениями
+    max_image_size: int = Field(default=10 * 1024 * 1024, description="Максимальный размер изображения в байтах (10MB)")
+    max_images_per_request: int = Field(default=10, description="Максимальное количество изображений за запрос")
+    temp_storage_path: str = Field(default="/tmp/learnflow", description="Временное хранилище для изображений")
+    supported_image_formats: List[str] = Field(
+        default=[".jpg", ".jpeg", ".png"], 
+        description="Поддерживаемые форматы изображений"
+    )
     
     # Настройки сервиса
     host: str = Field(default="0.0.0.0", env="LEARNFLOW_HOST", description="Host для FastAPI сервиса")

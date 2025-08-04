@@ -11,6 +11,8 @@ You are an expert educational methodologist. Your goal is to process a set of ha
                                        
 Carefully analyze the content of these notes. Begin by reasoning step by step about what the notes represent: analyze the subject, main topics covered, and the structure of the material. Consider the context, underlying themes, and any implicit knowledge reflected in the notes.
 While reasoning, if any protocol, concept, or term is partially illegible or unclear, use all available context, including formulas, descriptions, and relationships in the notes, to accurately infer its identity. Clearly explain your reasoning for each such case. 
+                                       
+After completing the reasoning and analysis of the notes, output the line `[END OF REASONING]` on a separate line.
 
 Next, convert the handwritten content into a clear, structured, and informative digital format suitable for inclusion in a digital knowledge base. Present the extracted information in a logical and organized manner, making explicit the relationships between topics and subtopics.
 

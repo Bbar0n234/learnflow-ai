@@ -1,26 +1,42 @@
-model_config:
-  name: "gpt-4.1-mini"
-  temperature: 0.1
-  max_tokens: 4000
-
-graph_config:
-  nodes:
-    - name: "generating_content"
-      type: "content_generator"
-    - name: "generating_questions" 
-      type: "question_generator"
-    - name: "answer_question"
-      type: "answer_generator"
+# LangGraph workflow configuration with LLM model settings
+models:
+  # Default model configuration used as fallback
+  default:
+    model_name: "gpt-4.1-mini"
+    temperature: 0.1
+    max_tokens: 4000
   
-  edges:
-    - from: "START"
-      to: "generating_content"
-    - from: "generating_content"
-      to: "generating_questions"
-    - from: "generating_questions"
-      to: "answer_question"
-    - from: "answer_question"
-      to: "END"
+  # Node-specific model configurations
+  nodes:
+    input_processing:
+      model_name: "gpt-4.1-mini"
+      temperature: 0.0
+      max_tokens: 1500
+    
+    generating_content:
+      model_name: "gpt-4.1-mini"
+      temperature: 0.2
+      max_tokens: 8000
+    
+    recognition_handwritten:
+      model_name: "gpt-4.1-mini"
+      temperature: 0.1
+      max_tokens: 6000
+    
+    synthesis_material:
+      model_name: "gpt-4.1-mini"
+      temperature: 0.1
+      max_tokens: 8000
+    
+    generating_questions:
+      model_name: "gpt-4.1-mini"
+      temperature: 0.3
+      max_tokens: 3000
+    
+    answer_question:
+      model_name: "gpt-4.1-mini"
+      temperature: 0.2
+      max_tokens: 6000
 
 output_config:
   save_format: "markdown"

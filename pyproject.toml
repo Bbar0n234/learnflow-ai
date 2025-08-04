@@ -9,7 +9,6 @@ license = {text = "Apache 2.0"}
 readme = "README.md"
 requires-python = ">=3.13, <4.0"
 dependencies = [
-    "pillow (>=11.3.0,<12.0.0)"
 ]
 
 
@@ -34,4 +33,6 @@ langgraph-checkpoint-postgres = "^2.0.21"
 httpx = "^0.28.1"
 langchain = "^0.3.27"
 langfuse = "2.60.0"
+python-multipart = "^0.0.20"
+pillow = "^11.3.0"
 

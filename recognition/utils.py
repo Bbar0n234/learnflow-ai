@@ -2,9 +2,6 @@ import os
 import base64
 from typing import List
 from openai import OpenAI
-from dotenv import load_dotenv
-
-load_dotenv()
 
 def get_image_list(input_folder: str, ext: str = '.png') -> List[str]:
     """

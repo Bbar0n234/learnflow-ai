@@ -1,0 +1,155 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+LearnFlow AI is a LangGraph-based educational content generation system for cryptography exam preparation. It processes exam questions and handwritten note images to generate comprehensive study materials with gap analysis questions and answers. The system consists of:
+
+- **FastAPI service** (`learnflow/`) - REST API for processing exam materials
+- **Telegram bot** (`bot/`) - User interface for interacting with the system
+- **LangGraph workflow** - Multi-node processing pipeline with HITL (Human-in-the-Loop) capabilities
+- **Image recognition module** - OCR and handwritten text recognition for student notes
+- **GitHub integration** - Automatic artifact storage and sharing
+
+## Development Commands
+
+### Environment Setup
+```bash
+# Copy and configure environment variables
+cp env.example .env
+# Edit .env with your API keys
+
+# Install dependencies using Poetry
+poetry install --group core --group learnflow --group bot
+
+# Quick startup script (starts both FastAPI service and Telegram bot)
+./run.sh
+```
+
+### Running Services
+
+#### FastAPI Service Only
+```bash
+poetry run python -m learnflow.main
+# Service available at http://localhost:8000
+# API docs at http://localhost:8000/docs
+```
+
+#### Telegram Bot Only
+```bash
+poetry run python -m bot.main
+```
+
+#### Docker Compose (Full Stack with LangFuse)
+```bash
+docker-compose up
+# Includes: FastAPI, Bot, LangFuse, PostgreSQL, Redis, ClickHouse, MinIO
+```
+
+### Development Tools
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# View logs
+tail -f learnflow.log
+```
+
+## Architecture
+
+### Core Components
+
+#### LangGraph Workflow Pipeline
+The system uses a multi-node workflow defined in `learnflow/graph.py`:
+
+1. **input_processing** - Analyzes user input and determines processing path
+2. **generating_content** - Generates comprehensive study material from exam questions
+3. **recognition_handwritten** - OCR processing of handwritten notes with HITL refinement
+4. **synthesis_material** - Combines generated content with recognized notes
+5. **generating_questions** - Creates gap analysis questions with HITL review
+6. **answer_question** - Generates detailed answers for gap questions
+
+#### State Management
+- **ExamState** (`learnflow/state.py`) - Typed state model for workflow data
+- Supports image paths, recognized text, synthesized materials, and HITL feedback
+- Uses Pydantic for validation and LangGraph annotations for accumulation
+
+#### Node Architecture
+All processing nodes extend `BaseWorkflowNode` (`learnflow/nodes/base.py`):
+- Structured logging with trace IDs
+- Error handling and state validation
+- LangFuse integration for observability
+- HITL interaction patterns
+
+### Key Modules
+
+#### Image Processing (`learnflow/file_utils.py`)
+- Thread-based temporary storage for uploaded images
+- Image validation (size, format, content type)
+- Cleanup utilities for temporary files
+
+#### GitHub Integration (`learnflow/github.py`)
+- Automatic artifact storage in specified repository
+- Branch and path management
+- Markdown file creation and updates
+
+#### Settings (`learnflow/settings.py`)
+- Pydantic-based configuration management
+- Environment variable loading with validation
+- Service-specific settings (file limits, ports, etc.)
+
+### Configuration Files
+
+#### Prompts (`configs/prompts.yaml`)
+Contains all system prompts for different workflow nodes:
+- `generating_content_system_prompt` - Comprehensive material generation
+- `recognition_system_prompt` - Handwritten notes processing
+- `synthesize_system_prompt` - Content synthesis logic
+- `gen_question_system_prompt` - Gap question generation
+- `gen_answer_system_prompt` - Answer generation
+
+#### Environment Variables (`.env`)
+Required API keys and configuration:
+- `OPENAI_API_KEY` - Primary LLM provider
+- `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` - Observability
+- `TELEGRAM_TOKEN` - Bot integration
+- `GITHUB_TOKEN` - Repository access for artifacts
+- Database and service configuration
+
+## Development Guidelines
+
+### Working with LangGraph Nodes
+- Extend `BaseWorkflowNode` for consistent behavior
+- Use `@trace_node` decorator for observability
+- Implement proper state validation in `validate_input_state()`
+- Handle HITL interactions through `Command` objects
+
+### API Development
+- FastAPI endpoints are in `learnflow/main.py`
+- Use Pydantic models for request/response validation
+- Implement proper error handling with meaningful HTTP status codes
+- Thread-based processing for concurrent requests
+
+### Testing Images
+Sample images for recognition testing are in `images/`:
+- `raw/` - Original handwritten notes
+- `clipped/` - Processed/cropped versions
+
+### Deployment
+- Production deployment uses Docker Compose with full LangFuse stack
+- Health checks available at `/health` endpoint
+- Logs are structured with timestamp and trace ID correlation
+
+## Troubleshooting
+
+### Common Issues
+- **Port conflicts**: Check if 8000 (FastAPI) or 3000 (LangFuse) are occupied
+- **API key errors**: Verify all required keys are set in `.env`
+- **Poetry dependencies**: Run `poetry lock --no-update && poetry install` if conflicts occur
+- **Docker volumes**: Use `docker-compose down -v` to reset persistent data
+
+### Debugging
+- Enable DEBUG logging via `LOG_LEVEL=DEBUG` in `.env`
+- LangFuse tracing provides detailed workflow execution logs
+- FastAPI has automatic interactive docs at `/docs` endpoint

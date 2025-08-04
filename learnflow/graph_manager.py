@@ -14,7 +14,7 @@ import time
 import os
 import uuid
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from langgraph.types import Command
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
@@ -27,7 +27,10 @@ from .github import GitHubArtifactPusher, GitHubConfig
 
 
 NODE_DESCRIPTIONS = {
+    "input_processing":      "Обработка пользовательского ввода",
     "generating_content":    "Генерация обучающего материала",
+    "recognition_handwritten": "Распознавание рукописных конспектов",
+    "synthesis_material":    "Синтез финального материала",
     "generating_questions":  "Генерация и правка gap questions",
     "answer_question":       "Генерация ответов на вопросы",
     None:                    "Готов к новому экзаменационному вопросу",
@@ -219,9 +222,10 @@ class GraphManager:
             logger.error(f"Error pushing learning material to GitHub for thread {thread_id}: {e}")
             return None
     
-    async def _push_questions_to_github(self, thread_id: str, state_vals: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def _push_complete_materials_to_github(self, thread_id: str, state_vals: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Пушит вопросы и ответы в GitHub перед удалением thread.
+        Пушит все материалы в GitHub в конце workflow.
+        Работает корректно как с изображениями/синтезом, так и без них.
         
         Args:
             thread_id: Идентификатор потока
@@ -231,55 +235,217 @@ class GraphManager:
             Словарь с данными для обновления состояния или None
         """
         if not self.github_pusher:
-            logger.debug("GitHub pusher not configured, skipping questions push")
-            return None
-
-        # Проверяем, что есть папка для пуша
-        folder_path = self.github_data.get(thread_id, {}).get('github_folder_path', '')
-        if not folder_path:
-            logger.warning(f"No GitHub folder path found for thread {thread_id}, skipping questions push")
-            return None
-
-        # Извлекаем данные о вопросах и ответах
-        gap_questions = state_vals.get('gap_questions', [])
-        gap_q_n_a = state_vals.get('gap_q_n_a', [])
-        
-        if not gap_questions and not gap_q_n_a:
-            logger.warning(f"No questions or answers found for thread {thread_id}, skipping GitHub push")
+            logger.debug("GitHub pusher not configured, skipping complete materials push")
             return None
 
         try:
-            # Пушим вопросы и ответы
-            result = await self.github_pusher.push_questions_and_answers(
-                folder_path=folder_path,
-                gap_questions=gap_questions,
-                gap_q_n_a=gap_q_n_a,
+            # Извлекаем все материалы из состояния
+            exam_question = state_vals.get('exam_question', '')
+            generated_material = state_vals.get('generated_material', '')
+            recognized_notes = state_vals.get('recognized_notes', '')
+            synthesized_material = state_vals.get('synthesized_material', '') 
+            image_paths = state_vals.get('image_paths', [])
+            gap_questions = state_vals.get('gap_questions', [])
+            gap_q_n_a = state_vals.get('gap_q_n_a', [])
+            
+            # Подготавливаем данные для комплексного пуша
+            all_materials = {
+                "generated_material": generated_material,
+                "recognized_notes": recognized_notes,
+                "synthesized_material": synthesized_material,
+                "image_paths": image_paths,
+                "gap_questions": gap_questions,
+                "gap_q_n_a": gap_q_n_a
+            }
+            
+            # Используем комплексный метод GitHub pusher
+            result = await self.github_pusher.push_complete_materials(
                 thread_id=thread_id,
+                exam_question=exam_question,
+                all_materials=all_materials
             )
             
             if result.get('success'):
-                logger.info(f"Successfully pushed questions and answers for thread {thread_id} to GitHub: {result.get('file_path')}")
+                logger.info(f"Successfully pushed complete materials for thread {thread_id} to GitHub")
                 
-                # Данные для обновления состояния
-                github_data = {"github_questions_url": result.get("html_url")}
-                
-                # Сохраняем данные в словарь GraphManager
+                # Обновляем данные в словаре GraphManager
                 if thread_id not in self.github_data:
                     self.github_data[thread_id] = {}
-                self.github_data[thread_id].update(github_data)
+                self.github_data[thread_id].update({
+                    "github_folder_path": result.get("folder_path"),
+                    "github_folder_url": result.get("folder_url")
+                })
                 
-                return github_data
+                return result
             else:
-                logger.error(f"Failed to push questions and answers for thread {thread_id}: {result.get('error')}")
+                logger.error(f"Failed to push complete materials for thread {thread_id}: {result.get('error')}")
                 return None
                 
         except Exception as e:
-            logger.error(f"Error pushing questions and answers to GitHub for thread {thread_id}: {e}")
+            logger.error(f"Error pushing complete materials to GitHub for thread {thread_id}: {e}")
             return None
+    
+    async def _push_questions_to_github(self, thread_id: str, state_vals: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Пушит вопросы и ответы в GitHub перед удалением thread.
+        DEPRECATED: Теперь используется _push_complete_materials_to_github
+        
+        Args:
+            thread_id: Идентификатор потока
+            state_vals: Значения состояния графа
+            
+        Returns:
+            Словарь с данными для обновления состояния или None
+        """
+        # Используем комплексный метод вместо отдельного пуша вопросов
+        return await self._push_complete_materials_to_github(thread_id, state_vals)
+
+    async def process_step_with_images(
+        self, 
+        thread_id: str, 
+        query: str, 
+        image_paths: List[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Entry-point для обработки с изображениями:
+        • создаёт новый thread если нужно
+        • инициализирует состояние с exam_question и image_paths
+        • запускает workflow с поддержкой изображений
+        
+        Args:
+            thread_id: Идентификатор потока
+            query: Экзаменационный вопрос
+            image_paths: Список путей к изображениям (может быть пустым)
+            
+        Returns:
+            Dict с результатом обработки
+        """
+        if not thread_id:
+            thread_id = str(uuid.uuid4())
+            logger.info(f"Created new thread for images: {thread_id}")
+
+        # Валидируем image_paths
+        image_paths = image_paths or []
+        logger.info(f"Processing with {len(image_paths)} images for thread {thread_id}")
+
+        state = await self._get_state(thread_id)
+        
+        # ИСПРАВЛЕНИЕ: При загрузке изображений всегда начинаем новый workflow # TODO: сравнить с эталонной логикой graph manager
+        # Очищаем существующее состояние если оно есть
+        if state and state.values:
+            logger.info(f"Found existing state for thread {thread_id}, clearing it for new workflow with images")
+            await self.delete_thread(thread_id)
+            state = await self._get_state(thread_id)  # Получаем пустое состояние
+
+        # определяем input_state и session_id для LangFuse
+        if not state.values:                           # fresh run
+            logger.info(f"Starting fresh run with images for thread {thread_id}")
+            input_state = ExamState(
+                exam_question=query,
+                image_paths=image_paths
+            )
+            # Создаем новый session_id для нового диалога
+            session_id = self.create_new_session(thread_id)
+        else:                                          # continue
+            logger.info(f"Continuing run for thread {thread_id}")
+            input_state = Command(resume=query)
+            # Используем существующий session_id
+            session_id = self.get_session_id(thread_id) or self.create_new_session(thread_id)
+
+        # конфигурация с LangFuse трассировкой
+        cfg = {
+            "configurable": {"thread_id": thread_id},
+            "callbacks": [self.langfuse_handler],
+            "metadata": {
+                "langfuse_session_id": session_id,
+                "langfuse_user_id": thread_id,
+                "has_images": len(image_paths) > 0,
+                "images_count": len(image_paths)
+            }
+        }
+
+        # запускаем/продолжаем граф
+        await self._ensure_setup()
+        async with AsyncPostgresSaver.from_conn_string(
+            self.settings.database_url
+        ) as saver:
+            graph = self.workflow.compile(checkpointer=saver)
+            
+            async for event in graph.astream(
+                input_state, cfg, stream_mode="updates"
+            ):
+                # HITL сообщения наружу
+                logger.debug(f"Event: {event}")
+                
+                for node_name, node_data in event.items():
+                    # Пуш обучающего материала после завершения generating_content
+                    if node_name == "generating_content":
+                        logger.info(f"Content generation completed for thread {thread_id}, pushing to GitHub...")
+                        current_state = await self._get_state(thread_id)
+                        github_data = await self._push_learning_material_to_github(thread_id, {
+                            "exam_question": current_state.values.get("exam_question"),
+                            "generated_material": node_data.get("generated_material"),
+                        })
+                        if github_data:
+                            await self._update_state(thread_id, github_data)
+
+        # после завершения / остановки
+        final_state = await self._get_state(thread_id)
+
+        print(f"final_state interrupts: {final_state.interrupts}")
+
+        if final_state.interrupts:
+            interrupt_data = final_state.interrupts[0].value
+            logger.debug(f"Interrupt data: {interrupt_data}")
+            msgs = interrupt_data.get("message", [str(interrupt_data)])
+            
+            # Добавляем ссылку на обучающий материал, если это первый interrupt после generating_questions
+            learning_material_link_sent = self.github_data.get(thread_id, {}).get("learning_material_link_sent", False)
+            logger.debug(f"learning_material_link_sent: {learning_material_link_sent}")
+            if not learning_material_link_sent:
+                learning_material_url = self.github_data.get(thread_id, {}).get("github_learning_material_url")
+                logger.debug(f"learning_material_url: {learning_material_url}")
+                if learning_material_url:
+                    logger.debug(f"final_state.next: {final_state.next}")
+                    msgs.append(f"📚 Обучающий материал доступен: {learning_material_url}")
+                    # Помечаем, что ссылка уже отправлена
+                    if thread_id not in self.github_data:
+                        self.github_data[thread_id] = {}
+                    self.github_data[thread_id]["learning_material_link_sent"] = True
+                    logger.debug(f"Marked learning_material_link_sent=True for thread {thread_id}")
+            
+            logger.info(f"Workflow interrupted for thread {thread_id}")
+
+            return {"thread_id": thread_id, "result": msgs}
+
+        # happy path – всё закончено
+        logger.info(f"Workflow completed for thread {thread_id}")
+
+        # Пуш всех материалов в GitHub перед удалением thread
+        final_state_values = final_state.values if final_state else {}
+        complete_materials_github_data = await self._push_complete_materials_to_github(thread_id, final_state_values)
+
+        # Формируем финальное сообщение со ссылкой на GitHub директорию (до удаления thread'а)
+        final_message = ["Готово 🎉 – присылайте следующий экзаменационный вопрос!"]
+        
+        github_folder_url = self.github_data.get(thread_id, {}).get("github_folder_url")
+        if github_folder_url:
+            final_message.append(f"📁 Все материалы сохранены: {github_folder_url}\n\nПрисылайте следующий экзаменационный вопрос!")
+
+        await self.delete_thread(thread_id)
+
+        return_data = {
+            "thread_id": thread_id,
+            "result": final_message
+        }
+
+        logger.debug(f"return_data: {return_data}")
+
+        return return_data
 
     async def process_step(self, thread_id: str, query: str) -> Dict[str, Any]:
         """
-        Единственный entry-point:
+        Единственный entry-point для обычной обработки:
         • если thread_id пуст – создаёт новый
         • если в состоянии нет values – стартует новый run
         • иначе – продолжает через Command(resume=…)
@@ -369,9 +535,9 @@ class GraphManager:
         # happy path – всё закончено
         logger.info(f"Workflow completed for thread {thread_id}")
 
-        # Пуш вопросов и ответов в GitHub перед удалением thread
+        # Пуш всех материалов в GitHub перед удалением thread
         final_state_values = final_state.values if final_state else {}
-        questions_github_data = await self._push_questions_to_github(thread_id, final_state_values)
+        complete_materials_github_data = await self._push_complete_materials_to_github(thread_id, final_state_values)
 
         # Формируем финальное сообщение со ссылкой на GitHub директорию (до удаления thread'а)
         final_message = ["Готово 🎉 – присылайте следующий экзаменационный вопрос!"]

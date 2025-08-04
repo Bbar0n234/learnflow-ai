@@ -1,25 +1,53 @@
 """
-Базовый FeedbackNode класс для HITL узлов.
-Полный код взят из project_documentation.md без изменений.
+Базовые классы для узлов workflow с поддержкой конфигурации LLM моделей.
 """
 
 from abc import ABC, abstractmethod
 from langchain_core.runnables.config import RunnableConfig
 from langgraph.types import interrupt, Command
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_openai import ChatOpenAI
 from typing import Any, Dict
 import logging
-from learnflow.prompts import render_system_prompt
+from ..utils import render_system_prompt
+from ..model_factory import create_model_for_node
+from ..config_models import ModelConfig
+from ..settings import get_settings
 
 
-class FeedbackNode(ABC):
+class BaseWorkflowNode(ABC):
+    """
+    Базовый класс для всех узлов workflow с поддержкой конфигурации LLM моделей.
+    """
+    
+    def __init__(self, logger: logging.Logger = None):
+        self.logger = logger or logging.getLogger(self.__class__.__name__)
+        self.settings = get_settings()
+    
+    @abstractmethod
+    def get_node_name(self) -> str:
+        """Возвращает имя узла для поиска конфигурации в graph.yaml"""
+        pass
+    
+    def get_model_config(self) -> ModelConfig:
+        """Получает конфигурацию модели для этого узла"""
+        from ..config_manager import get_config_manager
+        config_manager = get_config_manager()
+        return config_manager.get_model_config(self.get_node_name())
+    
+    def create_model(self) -> ChatOpenAI:
+        """Создает модель на основе конфигурации для этого узла"""
+        return create_model_for_node(self.get_node_name(), self.settings.openai_api_key)
+
+
+class FeedbackNode(BaseWorkflowNode):
     """
     Абстрактный базовый класс для узлов, реализующих паттерн
     «генерация — обратная связь — правка — завершение».
     """
 
-    def __init__(self, logger: logging.Logger):
-        self.logger = logger
+    def __init__(self, logger: logging.Logger = None):
+        super().__init__(logger)
 
     @abstractmethod
     def is_initial(self, state) -> bool:

@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
 
 WORKDIR /app
 
@@ -7,20 +7,18 @@ RUN apt-get update && apt-get install -y \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Устанавливаем poetry
-RUN pip install --no-cache-dir poetry
+# Copy the workspace configuration
+COPY pyproject.toml uv.lock ./
+COPY learnflow/pyproject.toml ./learnflow/
 
-# Копируем только файлы, необходимые для установки зависимостей
-COPY pyproject.toml poetry.lock ./
+# Install dependencies
+RUN uv sync --package learnflow-core --no-dev --frozen
 
-# Устанавливаем зависимости (без разработческих)
-RUN poetry config virtualenvs.create false && poetry install --no-root --only learnflow
-
-# Копируем код сервиса
+# Copy the application code
 COPY learnflow/ ./learnflow/
 
-# Порт для FastAPI
+# Expose port for FastAPI
 EXPOSE 8000
 
-# Запуск API
-CMD ["python", "-m", "learnflow"] 
+# Run the application
+CMD ["uv", "run", "--package", "learnflow-core", "python", "-m", "learnflow"] 

@@ -1,0 +1,41 @@
+[project]
+name = "learnflow-core"
+version = "0.1.0"
+description = "AI-powered learning flow core functionality"
+authors = [
+    {name = "Bbar0n234", email = "vilnus1337@mail.ru"}
+]
+license = {text = "Apache 2.0"}
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.116.1",
+    "httpx>=0.28.1",
+    "jinja2>=3.1.6",
+    "langchain>=0.3.27",
+    "langchain-openai>=0.3.28",
+    "langfuse==2.60.0",
+    "langgraph>=0.6.3",
+    "langgraph-checkpoint-postgres>=2.0.23",
+    "pillow>=11.3.0",
+    "pydantic-settings>=2.10.1",
+    "python-multipart>=0.0.20",
+    "uvicorn>=0.35.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "mypy>=1.17.1",
+    "ruff>=0.12.7",
+]
+test = [
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+]

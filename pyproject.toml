@@ -1,3 +1,7 @@
 [tool.uv.workspace]
-members = ["bot", "learnflow"]
+members = [
+    "bot",
+ "learnflow",
+ "artifacts-service",
+]
 

@@ -50,6 +50,28 @@ services:
       - ./data:/app/data
       - ./configs:/app/configs
 
+  artifacts-service:
+    build:
+      context: ./artifacts-service
+      dockerfile: Dockerfile
+    environment:
+      - ARTIFACTS_HOST=0.0.0.0
+      - ARTIFACTS_PORT=8001
+      - ARTIFACTS_DATA_PATH=/app/data/artifacts
+      - ARTIFACTS_MAX_FILE_SIZE=10485760
+      - ARTIFACTS_MAX_FILES_PER_THREAD=100
+    ports:
+      - "8001:8001"
+    restart: always
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8001/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 5s
+      retries: 3
+
   langfuse-worker:
     image: langfuse/langfuse-worker:3
     depends_on: &langfuse-depends-on

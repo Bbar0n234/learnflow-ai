@@ -1,0 +1,172 @@
+/* LearnFlow AI Design Tokens */
+
+:root {
+  /* Light theme (fallback) */
+  --color-bg: #FFFFFF;
+  --color-elev: #F5F7FB;
+  --color-ink: #0E1116;
+  --color-muted: #5A6474;
+  --color-border: #D8DEE9;
+  --color-primary: #4A5CFF;
+  --color-primary-ink: #FFFFFF;
+  --color-info: #1479E9;
+  --color-success: #1EAD7F;
+  --color-warn: #C7901E;
+  --color-danger: #D84B4B;
+  --focus-ring: #4A5CFF;
+
+  /* Radii */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+
+  /* Shadows (light theme) */
+  --shadow-sm: 0 1px 0 0 rgba(0,0,0,0.06);
+  --shadow-md: 0 6px 18px -8px rgba(0,0,0,0.10);
+  --shadow-lg: 0 18px 32px -12px rgba(0,0,0,0.14);
+
+  /* Typography */
+  --text-h1: 32px;
+  --text-h1-line: 40px;
+  --text-h1-weight: 700;
+  --text-h1-spacing: -0.02em;
+  
+  --text-h2: 24px;
+  --text-h2-line: 32px;
+  --text-h2-weight: 700;
+  
+  --text-h3: 20px;
+  --text-h3-line: 28px;
+  --text-h3-weight: 600;
+  
+  --text-body-lg: 16px;
+  --text-body-lg-line: 24px;
+  --text-body-lg-weight: 500;
+  
+  --text-body: 15px;
+  --text-body-line: 22px;
+  --text-body-weight: 400;
+  
+  --text-caption: 12px;
+  --text-caption-line: 16px;
+  --text-caption-weight: 500;
+
+  /* Spacing Scale (8px grid system) */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+  --spacing-16: 64px;
+
+  /* Content Width Tokens */
+  --content-width-narrow: 720px;
+  --content-width-default: 1040px;
+  --content-width-wide: 1200px;
+  --sidebar-width: 320px;
+  --header-height: 56px;
+
+  /* Transparency Layers */
+  --border-opacity-40: 0.4;
+  --border-opacity-60: 0.6;
+  --bg-overlay-light: rgba(255, 255, 255, 0.05);
+  --bg-overlay-medium: rgba(255, 255, 255, 0.1);
+  --bg-overlay-strong: rgba(255, 255, 255, 0.2);
+
+  /* Animation */
+  --duration-fast: 120ms;
+  --duration-normal: 150ms;
+  --duration-slow: 200ms;
+  --easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --easing-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* Dark theme (default via prefers-color-scheme) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #0E1116;
+    --color-elev: #151923;
+    --color-ink: #E7EAF0;
+    --color-muted: #9AA3B2;
+    --color-border: #242B38;
+    --color-primary: #6A7BFF;
+    --color-primary-ink: #0E1116;
+    --color-info: #3CA6FF;
+    --color-success: #37D399;
+    --color-warn: #F4C152;
+    --color-danger: #FF7676;
+    --focus-ring: #6A7BFF;
+
+    /* Enhanced shadows for dark theme */
+    --shadow-sm: 0 1px 0 0 rgba(0,0,0,0.25);
+    --shadow-md: 0 6px 18px -8px rgba(0,0,0,0.35);
+    --shadow-lg: 0 18px 32px -12px rgba(0,0,0,0.45);
+  }
+}
+
+/* Manual dark mode override */
+.dark {
+  color-scheme: dark;
+  --color-bg: #0E1116;
+  --color-elev: #151923;
+  --color-ink: #E7EAF0;
+  --color-muted: #9AA3B2;
+  --color-border: #242B38;
+  --color-primary: #6A7BFF;
+  --color-primary-ink: #0E1116;
+  --color-info: #3CA6FF;
+  --color-success: #37D399;
+  --color-warn: #F4C152;
+  --color-danger: #FF7676;
+  --focus-ring: #6A7BFF;
+
+  --shadow-sm: 0 1px 0 0 rgba(0,0,0,0.25);
+  --shadow-md: 0 6px 18px -8px rgba(0,0,0,0.35);
+  --shadow-lg: 0 18px 32px -12px rgba(0,0,0,0.45);
+}
+
+/* Manual light mode override (forces light even if system is dark) */
+.light {
+  color-scheme: light;
+  --color-bg: #FFFFFF;
+  --color-elev: #F5F7FB;
+  --color-ink: #0E1116;
+  --color-muted: #5A6474;
+  --color-border: #D8DEE9;
+  --color-primary: #4A5CFF;
+  --color-primary-ink: #FFFFFF;
+  --color-info: #1479E9;
+  --color-success: #1EAD7F;
+  --color-warn: #C7901E;
+  --color-danger: #D84B4B;
+  --focus-ring: #4A5CFF;
+
+  --shadow-sm: 0 1px 0 0 rgba(0,0,0,0.06);
+  --shadow-md: 0 6px 18px -8px rgba(0,0,0,0.10);
+  --shadow-lg: 0 18px 32px -12px rgba(0,0,0,0.14);
+}
+
+/* Base styling */
+html, 
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+  transition: background-color var(--duration-normal) var(--easing), color var(--duration-normal) var(--easing);
+}
+
+/* Focus styles */
+*:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Selection styles */
+::selection {
+  background: var(--color-primary);
+  color: var(--color-primary-ink);
+}

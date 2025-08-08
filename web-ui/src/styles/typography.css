@@ -1,0 +1,118 @@
+/* LearnFlow AI Typography System */
+
+/* Font family utilities */
+.font-display {
+  font-family: 'Manrope', 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Consolas', 'Liberation Mono', 'Menlo', monospace;
+}
+
+/* Content-specific typography */
+.content-text {
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--color-ink);
+}
+
+.content-text h1 {
+  font-size: 34px;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  color: var(--color-ink);
+  margin-bottom: 1.75rem;
+  margin-top: 2rem;
+}
+
+.content-text h1:first-child {
+  margin-top: 0;
+}
+
+.content-text h2 {
+  font-size: 26px;
+  line-height: 1.33;
+  font-weight: 700;
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  color: var(--color-ink);
+  margin-bottom: 1.25rem;
+  margin-top: 1.75rem;
+}
+
+.content-text h2:first-child {
+  margin-top: 0;
+}
+
+.content-text h3 {
+  font-size: 21px;
+  line-height: 1.4;
+  font-weight: 600;
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  color: var(--color-ink);
+  margin-bottom: 1rem;
+  margin-top: 1.5rem;
+}
+
+.content-text h3:first-child {
+  margin-top: 0;
+}
+
+.content-text p {
+  color: var(--color-ink);
+  margin-bottom: 1.25rem;
+  line-height: 1.75;
+}
+
+.content-text code {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.875rem;
+  background: var(--color-elev);
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--color-border);
+}
+
+.content-text pre {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.875rem;
+  background: var(--color-elev);
+  padding: 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  overflow-x: auto;
+}
+
+.content-text pre code {
+  background: transparent;
+  padding: 0;
+  border: 0;
+}
+
+/* Mathematical content */
+.math-content {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: max(15px, 1em);
+  line-height: 1.4;
+}
+
+/* Reading optimizations */
+.reading-content {
+  max-width: 65ch;
+  margin: 0 auto;
+}
+
+.reading-content p {
+  margin-bottom: 1.5rem;
+  text-align: left;
+}
+
+/* Muted text utilities */
+.text-muted-light {
+  color: color-mix(in srgb, var(--color-muted) 70%, transparent);
+}
+
+.text-muted-strong {
+  color: color-mix(in srgb, var(--color-muted) 90%, var(--color-ink) 10%);
+}

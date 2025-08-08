@@ -1,0 +1,377 @@
+/* LearnFlow AI - Animation System */
+
+/* =================
+   Keyframe Definitions
+   ================= */
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInFromBottom {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInFromTop {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInFromLeft {
+  0% {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInFromRight {
+  0% {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scaleIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes scaleOut {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-2px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(2px);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes bounce {
+  0%, 20%, 53%, 80%, 100% {
+    animation-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
+    transform: translate3d(0, 0, 0);
+  }
+  40%, 43% {
+    animation-timing-function: cubic-bezier(0.755, 0.05, 0.855, 0.06);
+    transform: translate3d(0, -8px, 0);
+  }
+  70% {
+    animation-timing-function: cubic-bezier(0.755, 0.05, 0.855, 0.06);
+    transform: translate3d(0, -4px, 0);
+  }
+  90% {
+    transform: translate3d(0, -1px, 0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+/* =================
+   Animation Utilities
+   ================= */
+
+.animate-fade-in {
+  animation: fadeIn var(--duration-normal) var(--easing);
+}
+
+.animate-fade-in-fast {
+  animation: fadeIn var(--duration-fast) var(--easing);
+}
+
+.animate-slide-in-bottom {
+  animation: slideInFromBottom var(--duration-normal) var(--easing);
+}
+
+.animate-slide-in-top {
+  animation: slideInFromTop var(--duration-normal) var(--easing);
+}
+
+.animate-slide-in-left {
+  animation: slideInFromLeft var(--duration-normal) var(--easing);
+}
+
+.animate-slide-in-right {
+  animation: slideInFromRight var(--duration-normal) var(--easing);
+}
+
+.animate-scale-in {
+  animation: scaleIn var(--duration-fast) var(--easing);
+}
+
+.animate-scale-out {
+  animation: scaleOut var(--duration-fast) var(--easing);
+}
+
+.animate-shake {
+  animation: shake 0.5s var(--easing);
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.animate-bounce {
+  animation: bounce 1s infinite;
+}
+
+/* =================
+   Staggered Animations
+   ================= */
+
+.stagger-fade-in > * {
+  opacity: 0;
+  animation: fadeIn var(--duration-normal) var(--easing) forwards;
+}
+
+.stagger-fade-in > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.stagger-fade-in > *:nth-child(2) {
+  animation-delay: 50ms;
+}
+
+.stagger-fade-in > *:nth-child(3) {
+  animation-delay: 100ms;
+}
+
+.stagger-fade-in > *:nth-child(4) {
+  animation-delay: 150ms;
+}
+
+.stagger-fade-in > *:nth-child(5) {
+  animation-delay: 200ms;
+}
+
+.stagger-fade-in > *:nth-child(6) {
+  animation-delay: 250ms;
+}
+
+.stagger-fade-in > *:nth-child(7) {
+  animation-delay: 300ms;
+}
+
+.stagger-fade-in > *:nth-child(8) {
+  animation-delay: 350ms;
+}
+
+.stagger-fade-in > *:nth-child(9) {
+  animation-delay: 400ms;
+}
+
+.stagger-fade-in > *:nth-child(10) {
+  animation-delay: 450ms;
+}
+
+/* =================
+   Hover Effects
+   ================= */
+
+.hover-lift {
+  transition: transform var(--duration-fast) var(--easing);
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+}
+
+.hover-scale {
+  transition: transform var(--duration-fast) var(--easing);
+}
+
+.hover-scale:hover {
+  transform: scale(1.02);
+}
+
+.hover-glow {
+  transition: box-shadow var(--duration-fast) var(--easing);
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 20px rgba(106, 123, 255, 0.3);
+}
+
+/* =================
+   Loading Skeletons
+   ================= */
+
+.skeleton-shimmer {
+  background: linear-gradient(90deg, var(--color-border) 25%, var(--color-border)/50 50%, var(--color-border) 75%);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* =================
+   Page Transitions
+   ================= */
+
+.page-enter {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity var(--duration-slow) var(--easing),
+              transform var(--duration-slow) var(--easing);
+}
+
+.page-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.page-exit-active {
+  opacity: 0;
+  transform: translateY(-20px);
+  transition: opacity var(--duration-normal) var(--easing),
+              transform var(--duration-normal) var(--easing);
+}
+
+/* =================
+   Modal Animations
+   ================= */
+
+.modal-backdrop-enter {
+  opacity: 0;
+}
+
+.modal-backdrop-enter-active {
+  opacity: 1;
+  transition: opacity var(--duration-normal) var(--easing);
+}
+
+.modal-backdrop-exit {
+  opacity: 1;
+}
+
+.modal-backdrop-exit-active {
+  opacity: 0;
+  transition: opacity var(--duration-normal) var(--easing);
+}
+
+.modal-enter {
+  opacity: 0;
+  transform: scale(0.9) translateY(-10px);
+}
+
+.modal-enter-active {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  transition: opacity var(--duration-normal) var(--easing),
+              transform var(--duration-normal) var(--easing);
+}
+
+.modal-exit {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+.modal-exit-active {
+  opacity: 0;
+  transform: scale(0.9) translateY(-10px);
+  transition: opacity var(--duration-fast) var(--easing),
+              transform var(--duration-fast) var(--easing);
+}
+
+/* =================
+   Reduce Motion
+   ================= */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-spin {
+    animation: none !important;
+  }
+
+  .animate-bounce {
+    animation: none !important;
+  }
+
+  .animate-pulse {
+    animation: none !important;
+  }
+}

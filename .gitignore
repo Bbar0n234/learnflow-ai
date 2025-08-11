@@ -196,3 +196,5 @@ cython_debug/
 
 images/
 logs/
+
+.claude/

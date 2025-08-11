@@ -71,9 +71,10 @@ class ExamState(BaseModel):
         description="История сообщений для HITL взаимодействия"
     )
     
-    # GitHub artifacts (optional)
-    github_folder_path: Optional[str] = Field(default=None, description="Путь к папке в GitHub репозитории")
-    github_learning_material_url: Optional[str] = Field(default=None, description="URL к обучающему материалу в GitHub")
-    github_folder_url: Optional[str] = Field(default=None, description="URL к папке в GitHub")
-    github_questions_url: Optional[str] = Field(default=None, description="URL к вопросам и ответам в GitHub")
+    # Local artifacts storage
+    local_session_path: Optional[str] = Field(default=None, description="Путь к сессии в локальном хранилище")
+    local_thread_path: Optional[str] = Field(default=None, description="Путь к потоку в локальном хранилище")
+    session_id: Optional[str] = Field(default=None, description="Идентификатор сессии")
+    local_learning_material_path: Optional[str] = Field(default=None, description="Путь к обучающему материалу")
+    local_folder_path: Optional[str] = Field(default=None, description="Путь к папке сессии")
     learning_material_link_sent: bool = Field(default=False, description="Флаг отправки ссылки на материал")

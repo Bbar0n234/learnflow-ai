@@ -42,21 +42,17 @@ class AppSettings(BaseSettings):
     host: str = Field(default="0.0.0.0", env="LEARNFLOW_HOST", description="Host для FastAPI сервиса")
     port: int = Field(default=8000, env="LEARNFLOW_PORT", description="Port для FastAPI сервиса")
     
-    # GitHub integration (optional)
-    github_token: Optional[str] = Field(default=None, description="GitHub token для пуша артефактов")
-    github_repository: Optional[str] = Field(default=None, description="GitHub репозиторий")
-    github_branch: str = Field(default="main", description="GitHub ветка")
-    github_base_path: str = Field(default="artifacts", description="Базовый путь в репозитории")
-    github_artifacts_base_url: str = Field(
-        default="https://github.com",
-        description="Базовый URL для артефактов"
-    )
+    # Local artifacts storage
+    artifacts_base_path: str = Field(default="data/artifacts", description="Базовый путь для локальных артефактов")
+    artifacts_ensure_permissions: bool = Field(default=True, description="Обеспечение прав доступа для файлов")
+    artifacts_max_file_size: int = Field(default=10 * 1024 * 1024, description="Максимальный размер файла артефакта (10MB)")
+    artifacts_atomic_writes: bool = Field(default=True, description="Использовать атомарную запись файлов")
 
     log_level: str = Field(default="DEBUG", env="LOG_LEVEL", description="Уровень логирования")
     
-    def is_github_configured(self) -> bool:
-        """Проверка настройки GitHub интеграции"""
-        return bool(self.github_token and self.github_repository)
+    def is_artifacts_configured(self) -> bool:
+        """Проверка настройки локального хранилища артефактов"""
+        return bool(self.artifacts_base_path)
     
     def is_langfuse_configured(self) -> bool:
         """Проверка настройки LangFuse интеграции"""

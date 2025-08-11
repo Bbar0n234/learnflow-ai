@@ -23,7 +23,7 @@ from langfuse.callback import CallbackHandler
 from .graph import create_workflow
 from .state import ExamState
 from .settings import get_settings
-from .github import GitHubArtifactPusher, GitHubConfig
+from .artifacts_manager import LocalArtifactsManager, ArtifactsConfig
 
 
 NODE_DESCRIPTIONS = {
@@ -58,22 +58,22 @@ class GraphManager:
         # Ключ - thread_id, значение - session_id
         self.user_sessions: Dict[str, str] = {}
 
-        # GitHub integration (необязательно)
-        self.github_pusher: Optional[GitHubArtifactPusher] = None
-        if self.settings.is_github_configured():
-            cfg = GitHubConfig(
-                token=self.settings.github_token,
-                repository=self.settings.github_repository,
-                branch=self.settings.github_branch,
-                base_path=self.settings.github_base_path,
+        # Local artifacts manager
+        self.artifacts_manager: Optional[LocalArtifactsManager] = None
+        if self.settings.is_artifacts_configured():
+            cfg = ArtifactsConfig(
+                base_path=self.settings.artifacts_base_path,
+                ensure_permissions=self.settings.artifacts_ensure_permissions,
+                atomic_writes=self.settings.artifacts_atomic_writes,
+                max_file_size=self.settings.artifacts_max_file_size,
             )
-            self.github_pusher = GitHubArtifactPusher(cfg)
+            self.artifacts_manager = LocalArtifactsManager(cfg)
 
         # хранилище пользовательских настроек
         self.user_settings: Dict[str, Dict[str, Any]] = {}
         
-        # хранилище GitHub данных по thread_id
-        self.github_data: Dict[str, Dict[str, Any]] = {}
+        # хранилище артефактов данных по thread_id
+        self.artifacts_data: Dict[str, Dict[str, Any]] = {}
 
     # ---------- internal helpers ----------
 
@@ -116,9 +116,9 @@ class GraphManager:
         ) as saver:
             await saver.adelete_thread(thread_id)
         
-        # Очищаем GitHub данные из словаря
-        if thread_id in self.github_data:
-            del self.github_data[thread_id]
+        # Очищаем артефакты данные из словаря
+        if thread_id in self.artifacts_data:
+            del self.artifacts_data[thread_id]
             
         # Также удаляем session_id для этого пользователя
         self.delete_session(thread_id)
@@ -165,11 +165,11 @@ class GraphManager:
             session_id = self.user_sessions.pop(thread_id)
             logger.info(f"Deleted session '{session_id}' for user {thread_id}")
 
-    # ---------- github artifacts (отключено для упрощения) ----------
+    # ---------- local artifacts management ----------
 
-    async def _push_learning_material_to_github(self, thread_id: str, state_vals: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def _push_learning_material_to_artifacts(self, thread_id: str, state_vals: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Пушит обучающий материал в GitHub после генерации контента.
+        Пушит обучающий материал в локальное хранилище после генерации контента.
         
         Args:
             thread_id: Идентификатор потока
@@ -178,8 +178,8 @@ class GraphManager:
         Returns:
             Словарь с данными для обновления состояния или None
         """
-        if not self.github_pusher:
-            logger.debug("GitHub pusher not configured, skipping learning material push")
+        if not self.artifacts_manager:
+            logger.debug("Artifacts manager not configured, skipping learning material push")
             return None
 
         # Проверяем, что есть необходимые данные
@@ -192,39 +192,41 @@ class GraphManager:
 
         try:
             # Пушим обучающий материал
-            result = await self.github_pusher.push_learning_material(
+            result = await self.artifacts_manager.push_learning_material(
                 thread_id=thread_id,
                 exam_question=exam_question,
                 generated_material=generated_material,
             )
             
             if result.get('success'):
-                logger.info(f"Successfully pushed learning material for thread {thread_id} to GitHub: {result.get('file_path')}")
+                logger.info(f"Successfully pushed learning material for thread {thread_id} to local storage: {result.get('file_path')}")
                 
                 # Данные для обновления состояния
-                github_data = {
-                    "github_folder_path": result.get("folder_path"),
-                    "github_learning_material_url": result.get("learning_material_url"),
-                    "github_folder_url": result.get("folder_url")
+                artifacts_data = {
+                    "local_session_path": result.get("folder_path"),
+                    "local_thread_path": result.get("thread_path"),
+                    "session_id": result.get("session_id"),
+                    "local_learning_material_path": result.get("file_path"),
+                    "local_folder_path": result.get("folder_path")
                 }
                 
                 # Сохраняем данные в словарь GraphManager
-                if thread_id not in self.github_data:
-                    self.github_data[thread_id] = {}
-                self.github_data[thread_id].update(github_data)
+                if thread_id not in self.artifacts_data:
+                    self.artifacts_data[thread_id] = {}
+                self.artifacts_data[thread_id].update(artifacts_data)
                 
-                return github_data
+                return artifacts_data
             else:
                 logger.error(f"Failed to push learning material for thread {thread_id}: {result.get('error')}")
                 return None
                 
         except Exception as e:
-            logger.error(f"Error pushing learning material to GitHub for thread {thread_id}: {e}")
+            logger.error(f"Error pushing learning material to local storage for thread {thread_id}: {e}")
             return None
     
-    async def _push_complete_materials_to_github(self, thread_id: str, state_vals: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def _push_complete_materials_to_artifacts(self, thread_id: str, state_vals: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Пушит все материалы в GitHub в конце workflow.
+        Пушит все материалы в локальное хранилище в конце workflow.
         Работает корректно как с изображениями/синтезом, так и без них.
         
         Args:
@@ -234,8 +236,8 @@ class GraphManager:
         Returns:
             Словарь с данными для обновления состояния или None
         """
-        if not self.github_pusher:
-            logger.debug("GitHub pusher not configured, skipping complete materials push")
+        if not self.artifacts_manager:
+            logger.debug("Artifacts manager not configured, skipping complete materials push")
             return None
 
         try:
@@ -258,22 +260,22 @@ class GraphManager:
                 "gap_q_n_a": gap_q_n_a
             }
             
-            # Используем комплексный метод GitHub pusher
-            result = await self.github_pusher.push_complete_materials(
+            # Используем комплексный метод Artifacts manager
+            result = await self.artifacts_manager.push_complete_materials(
                 thread_id=thread_id,
                 exam_question=exam_question,
                 all_materials=all_materials
             )
             
             if result.get('success'):
-                logger.info(f"Successfully pushed complete materials for thread {thread_id} to GitHub")
+                logger.info(f"Successfully pushed complete materials for thread {thread_id} to local storage")
                 
                 # Обновляем данные в словаре GraphManager
-                if thread_id not in self.github_data:
-                    self.github_data[thread_id] = {}
-                self.github_data[thread_id].update({
-                    "github_folder_path": result.get("folder_path"),
-                    "github_folder_url": result.get("folder_url")
+                if thread_id not in self.artifacts_data:
+                    self.artifacts_data[thread_id] = {}
+                self.artifacts_data[thread_id].update({
+                    "local_session_path": result.get("folder_path"),
+                    "local_folder_path": result.get("folder_path")
                 })
                 
                 return result
@@ -282,13 +284,13 @@ class GraphManager:
                 return None
                 
         except Exception as e:
-            logger.error(f"Error pushing complete materials to GitHub for thread {thread_id}: {e}")
+            logger.error(f"Error pushing complete materials to local storage for thread {thread_id}: {e}")
             return None
     
-    async def _push_questions_to_github(self, thread_id: str, state_vals: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def _push_questions_to_artifacts(self, thread_id: str, state_vals: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Пушит вопросы и ответы в GitHub перед удалением thread.
-        DEPRECATED: Теперь используется _push_complete_materials_to_github
+        Пушит вопросы и ответы в локальное хранилище перед удалением thread.
+        DEPRECATED: Теперь используется _push_complete_materials_to_artifacts
         
         Args:
             thread_id: Идентификатор потока
@@ -298,7 +300,7 @@ class GraphManager:
             Словарь с данными для обновления состояния или None
         """
         # Используем комплексный метод вместо отдельного пуша вопросов
-        return await self._push_complete_materials_to_github(thread_id, state_vals)
+        return await self._push_complete_materials_to_artifacts(thread_id, state_vals)
 
     async def process_step_with_images(
         self, 
@@ -382,12 +384,12 @@ class GraphManager:
                     if node_name == "generating_content":
                         logger.info(f"Content generation completed for thread {thread_id}, pushing to GitHub...")
                         current_state = await self._get_state(thread_id)
-                        github_data = await self._push_learning_material_to_github(thread_id, {
+                        artifacts_data = await self._push_learning_material_to_artifacts(thread_id, {
                             "exam_question": current_state.values.get("exam_question"),
                             "generated_material": node_data.get("generated_material"),
                         })
-                        if github_data:
-                            await self._update_state(thread_id, github_data)
+                        if artifacts_data:
+                            await self._update_state(thread_id, artifacts_data)
 
         # после завершения / остановки
         final_state = await self._get_state(thread_id)
@@ -400,18 +402,18 @@ class GraphManager:
             msgs = interrupt_data.get("message", [str(interrupt_data)])
             
             # Добавляем ссылку на обучающий материал, если это первый interrupt после generating_questions
-            learning_material_link_sent = self.github_data.get(thread_id, {}).get("learning_material_link_sent", False)
+            learning_material_link_sent = self.artifacts_data.get(thread_id, {}).get("learning_material_link_sent", False)
             logger.debug(f"learning_material_link_sent: {learning_material_link_sent}")
             if not learning_material_link_sent:
-                learning_material_url = self.github_data.get(thread_id, {}).get("github_learning_material_url")
-                logger.debug(f"learning_material_url: {learning_material_url}")
-                if learning_material_url:
+                learning_material_path = self.artifacts_data.get(thread_id, {}).get("local_learning_material_path")
+                logger.debug(f"learning_material_path: {learning_material_path}")
+                if learning_material_path:
                     logger.debug(f"final_state.next: {final_state.next}")
-                    msgs.append(f"📚 Обучающий материал доступен: {learning_material_url}")
+                    msgs.append(f"📚 Обучающий материал сохранён: {learning_material_path}")
                     # Помечаем, что ссылка уже отправлена
-                    if thread_id not in self.github_data:
-                        self.github_data[thread_id] = {}
-                    self.github_data[thread_id]["learning_material_link_sent"] = True
+                    if thread_id not in self.artifacts_data:
+                        self.artifacts_data[thread_id] = {}
+                    self.artifacts_data[thread_id]["learning_material_link_sent"] = True
                     logger.debug(f"Marked learning_material_link_sent=True for thread {thread_id}")
             
             logger.info(f"Workflow interrupted for thread {thread_id}")
@@ -423,14 +425,14 @@ class GraphManager:
 
         # Пуш всех материалов в GitHub перед удалением thread
         final_state_values = final_state.values if final_state else {}
-        complete_materials_github_data = await self._push_complete_materials_to_github(thread_id, final_state_values)
+        complete_materials_artifacts_data = await self._push_complete_materials_to_artifacts(thread_id, final_state_values)
 
         # Формируем финальное сообщение со ссылкой на GitHub директорию (до удаления thread'а)
         final_message = ["Готово 🎉 – присылайте следующий экзаменационный вопрос!"]
         
-        github_folder_url = self.github_data.get(thread_id, {}).get("github_folder_url")
-        if github_folder_url:
-            final_message.append(f"📁 Все материалы сохранены: {github_folder_url}\n\nПрисылайте следующий экзаменационный вопрос!")
+        local_folder_path = self.artifacts_data.get(thread_id, {}).get("local_folder_path")
+        if local_folder_path:
+            final_message.append(f"📁 Все материалы сохранены: {local_folder_path}\n\nПрисылайте следующий экзаменационный вопрос!")
 
         await self.delete_thread(thread_id)
 
@@ -496,12 +498,12 @@ class GraphManager:
                     if node_name == "generating_content":
                         logger.info(f"Content generation completed for thread {thread_id}, pushing to GitHub...")
                         current_state = await self._get_state(thread_id)
-                        github_data = await self._push_learning_material_to_github(thread_id, {
+                        artifacts_data = await self._push_learning_material_to_artifacts(thread_id, {
                             "exam_question": current_state.values.get("exam_question"),
                             "generated_material": node_data.get("generated_material"),
                         })
-                        if github_data:
-                            await self._update_state(thread_id, github_data)
+                        if artifacts_data:
+                            await self._update_state(thread_id, artifacts_data)
 
         # после завершения / остановки
         final_state = await self._get_state(thread_id)
@@ -514,18 +516,18 @@ class GraphManager:
             msgs = interrupt_data.get("message", [str(interrupt_data)])
             
             # Добавляем ссылку на обучающий материал, если это первый interrupt после generating_questions
-            learning_material_link_sent = self.github_data.get(thread_id, {}).get("learning_material_link_sent", False)
+            learning_material_link_sent = self.artifacts_data.get(thread_id, {}).get("learning_material_link_sent", False)
             logger.debug(f"learning_material_link_sent: {learning_material_link_sent}")
             if not learning_material_link_sent:
-                learning_material_url = self.github_data.get(thread_id, {}).get("github_learning_material_url")
-                logger.debug(f"learning_material_url: {learning_material_url}")
-                if learning_material_url:
+                learning_material_path = self.artifacts_data.get(thread_id, {}).get("local_learning_material_path")
+                logger.debug(f"learning_material_path: {learning_material_path}")
+                if learning_material_path:
                     logger.debug(f"final_state.next: {final_state.next}")
-                    msgs.append(f"📚 Обучающий материал доступен: {learning_material_url}")
+                    msgs.append(f"📚 Обучающий материал сохранён: {learning_material_path}")
                     # Помечаем, что ссылка уже отправлена
-                    if thread_id not in self.github_data:
-                        self.github_data[thread_id] = {}
-                    self.github_data[thread_id]["learning_material_link_sent"] = True
+                    if thread_id not in self.artifacts_data:
+                        self.artifacts_data[thread_id] = {}
+                    self.artifacts_data[thread_id]["learning_material_link_sent"] = True
                     logger.debug(f"Marked learning_material_link_sent=True for thread {thread_id}")
             
             logger.info(f"Workflow interrupted for thread {thread_id}")
@@ -537,14 +539,14 @@ class GraphManager:
 
         # Пуш всех материалов в GitHub перед удалением thread
         final_state_values = final_state.values if final_state else {}
-        complete_materials_github_data = await self._push_complete_materials_to_github(thread_id, final_state_values)
+        complete_materials_artifacts_data = await self._push_complete_materials_to_artifacts(thread_id, final_state_values)
 
         # Формируем финальное сообщение со ссылкой на GitHub директорию (до удаления thread'а)
         final_message = ["Готово 🎉 – присылайте следующий экзаменационный вопрос!"]
         
-        github_folder_url = self.github_data.get(thread_id, {}).get("github_folder_url")
-        if github_folder_url:
-            final_message.append(f"📁 Все материалы сохранены: {github_folder_url}\n\nПрисылайте следующий экзаменационный вопрос!")
+        local_folder_path = self.artifacts_data.get(thread_id, {}).get("local_folder_path")
+        if local_folder_path:
+            final_message.append(f"📁 Все материалы сохранены: {local_folder_path}\n\nПрисылайте следующий экзаменационный вопрос!")
 
         await self.delete_thread(thread_id)
 

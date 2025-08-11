@@ -7,8 +7,8 @@ from typing import Literal, Union
 from langchain_core.messages import SystemMessage
 from langgraph.types import Command
 
-from ..state import ExamState
-from ..utils import render_system_prompt
+from ..core.state import ExamState
+from ..utils.utils import render_system_prompt
 from .base import BaseWorkflowNode
 
 

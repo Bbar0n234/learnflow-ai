@@ -7,7 +7,7 @@ import logging
 from langgraph.graph import StateGraph, START, END
 
 from .state import ExamState
-from .nodes import (
+from ..nodes import (
     InputProcessingNode, 
     ContentGenerationNode, 
     RecognitionNode,

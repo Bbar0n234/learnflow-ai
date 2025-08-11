@@ -8,7 +8,7 @@ from typing import Dict, Any, Literal
 from langchain_core.messages import SystemMessage
 from langgraph.types import Command
 
-from ..utils import render_system_prompt
+from ..utils.utils import render_system_prompt
 from .base import BaseWorkflowNode
 
 

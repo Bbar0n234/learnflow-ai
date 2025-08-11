@@ -9,10 +9,10 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_openai import ChatOpenAI
 from typing import Any, Dict
 import logging
-from ..utils import render_system_prompt
-from ..model_factory import create_model_for_node
-from ..config_models import ModelConfig
-from ..settings import get_settings
+from ..utils.utils import render_system_prompt
+from ..models.model_factory import create_model_for_node
+from ..config.config_models import ModelConfig
+from ..config.settings import get_settings
 
 
 class BaseWorkflowNode(ABC):

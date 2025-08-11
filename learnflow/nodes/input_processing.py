@@ -8,8 +8,8 @@ from typing import Literal
 from langgraph.types import Command
 from pathlib import Path
 
-from ..state import ExamState
-from ..file_utils import ImageFileManager
+from ..core.state import ExamState
+from ..services.file_utils import ImageFileManager
 from .base import BaseWorkflowNode
 
 

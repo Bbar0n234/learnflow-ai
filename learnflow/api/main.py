@@ -13,11 +13,11 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from langfuse import Langfuse
 
-from .graph_manager import GraphManager
-from .settings import get_settings
-from .file_utils import ImageFileManager, ensure_temp_storage
-from .config_manager import initialize_config_manager
-from .model_factory import initialize_model_factory
+from ..core.graph_manager import GraphManager
+from ..config.settings import get_settings
+from ..services.file_utils import ImageFileManager, ensure_temp_storage
+from ..config.config_manager import initialize_config_manager
+from ..models.model_factory import initialize_model_factory
 
 
 # Настройка логирования

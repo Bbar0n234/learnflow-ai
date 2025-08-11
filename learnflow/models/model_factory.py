@@ -7,8 +7,8 @@ from typing import Optional
 
 from langchain_openai import ChatOpenAI
 
-from .config_manager import get_config_manager
-from .config_models import ModelConfig
+from ..config.config_manager import get_config_manager
+from ..config.config_models import ModelConfig
 
 
 logger = logging.getLogger(__name__)

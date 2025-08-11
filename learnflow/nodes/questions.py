@@ -10,8 +10,8 @@ from langgraph.constants import Send
 from langgraph.types import Command
 
 from .base import FeedbackNode
-from ..state import ExamState, GapQuestions, GapQuestionsHITL
-from ..utils import Config, pretty_print_pydantic
+from ..core.state import ExamState, GapQuestions, GapQuestionsHITL
+from ..utils.utils import Config, pretty_print_pydantic
 
 
 logger = logging.getLogger(__name__)

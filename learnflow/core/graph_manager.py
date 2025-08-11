@@ -22,8 +22,8 @@ from langfuse.callback import CallbackHandler
 
 from .graph import create_workflow
 from .state import ExamState
-from .settings import get_settings
-from .artifacts_manager import LocalArtifactsManager, ArtifactsConfig
+from ..config.settings import get_settings
+from ..services.artifacts_manager import LocalArtifactsManager, ArtifactsConfig
 
 
 NODE_DESCRIPTIONS = {

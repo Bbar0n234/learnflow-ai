@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import List, Optional
 from PIL import Image
 
-from .settings import get_settings
+from ..config.settings import get_settings
 
 
 logger = logging.getLogger(__name__)

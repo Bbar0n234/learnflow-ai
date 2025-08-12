@@ -1,0 +1,25 @@
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    libpq-dev \
+    gcc \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the workspace configuration
+COPY pyproject.toml uv.lock ./
+COPY artifacts-service/pyproject.toml ./artifacts-service/
+
+# Install dependencies
+RUN uv sync --package artifacts-service --no-dev --frozen
+
+# Copy the application code
+COPY artifacts-service/ ./artifacts-service/
+
+# Expose port
+EXPOSE 8001
+
+# Run the application
+CMD ["uv", "run", "--package", "artifacts-service", "python", "-m", "artifacts-service"]

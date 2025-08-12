@@ -1,6 +1,6 @@
 [tool.uv.workspace]
 members = [
-    "bot",
+ "bot",
  "learnflow",
  "artifacts-service",
 ]

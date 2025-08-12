@@ -1,4 +1,4 @@
-.PHONY: install sync-bot sync-learnflow run-bot run-learnflow test-bot test-learnflow test-all lint format clean
+.PHONY: install sync-bot sync-learnflow run-bot run-learnflow test-bot test-learnflow test-all lint format clean dev-services
 
 # Installation commands
 install:
@@ -34,6 +34,10 @@ lint:
 format:
 	uv run --group dev black .
 	uv run --group dev ruff format .
+
+# Docker commands
+dev-services:
+	docker compose down -v && docker compose up --build bot graph artifacts-service web-ui postgres
 
 # Cleanup
 clean:

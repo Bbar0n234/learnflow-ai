@@ -231,7 +231,7 @@ def main():
     import uvicorn
     
     uvicorn.run(
-        "app.main:app",
+        "artifacts-service.main:app",
         host=settings.host,
         port=settings.port,
         reload=True

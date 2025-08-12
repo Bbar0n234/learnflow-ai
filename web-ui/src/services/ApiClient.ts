@@ -12,7 +12,7 @@ export class ApiClient {
   private baseURL: string;
   private axiosInstance: AxiosInstance;
 
-  constructor(baseURL: string = '/api') {
+  constructor(baseURL: string = import.meta.env.VITE_ARTIFACTS_API_URL || '/api') {
     this.baseURL = baseURL;
     this.axiosInstance = axios.create({
       baseURL: this.baseURL,

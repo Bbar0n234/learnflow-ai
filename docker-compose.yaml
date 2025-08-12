@@ -20,8 +20,6 @@ services:
       - ./configs:/app/configs
 
   graph:
-    depends_on:
-      - langfuse-web
     build:
       context: .
       dockerfile: Dockerfile
@@ -51,8 +49,8 @@ services:
 
   artifacts-service:
     build:
-      context: ./artifacts-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Dockerfile.artifacts-service
     environment:
       - ARTIFACTS_HOST=0.0.0.0
       - ARTIFACTS_PORT=8001
@@ -65,7 +63,31 @@ services:
     volumes:
       - ./data:/app/data
     healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8001/health')"]
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 15s
+      timeout: 10s
+      start_period: 5s
+      retries: 30
+
+  web-ui:
+    build:
+      context: ./web-ui
+      dockerfile: Dockerfile
+    environment:
+      - VITE_ARTIFACTS_API_URL=${VITE_ARTIFACTS_API_URL}
+      - VITE_LEARNFLOW_API_URL=${VITE_LEARNFLOW_API_URL}
+    ports:
+      - "3001:3001"
+    depends_on:
+      artifacts-service:
+        condition: service_healthy
+      graph:
+        condition: service_started
+    restart: always
+    volumes:
+      - ./data:/app/data:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/"]
       interval: 30s
       timeout: 10s
       start_period: 5s
@@ -216,6 +238,7 @@ services:
       - 127.0.0.1:5433:5432
     volumes:
       - langfuse_postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
 
 volumes:
   langfuse_postgres_data:

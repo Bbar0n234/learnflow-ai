@@ -198,3 +198,4 @@ images/
 logs/
 
 .claude/
+data/*

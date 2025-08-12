@@ -9,16 +9,20 @@
 ## Цель
 Заменить GitHub‑интеграцию на локальный менеджер артефактов и обеспечить сохранение/чтение всех артефактов из `data/artifacts/` так, чтобы Web UI отображал живой сквозной поток.
 
-## План (см. IP)
-- IP‑01 — Ввести `learnflow/artifacts_manager.py` вместо `github.py` — `impl/IP-01-artifacts-manager.md`
-- IP‑02 — Обновить `ExamState` (заменить `github_*` на `artifacts_*`) — `impl/IP-02-exam-state-migration.md`
-- IP‑03 — Обновить workflow‑узлы для сохранения артефактов: generated, recognized, synthesized, gap_q, answers — `impl/IP-03-workflow-nodes-io.md`
-- IP‑04 — (при необходимости) Расширить Artifacts Service для метаданных треда — `impl/IP-04-artifacts-service-thread-metadata.md`
+## Реализованные компоненты
+- ✅ IP‑01 — Локальный менеджер артефактов (`learnflow/artifacts_manager.py`) — [Завершено](impl/IP-01-post-implementation-summary.md)
+  - Полная замена GitHub integration
+  - Миграция состояния ExamState  
+  - Интеграция с GraphManager
+  - Метаданные тредов и сессий
+
+## Текущая работа
+- IP‑05 — Интеграция Web UI с артефактами — `impl/IP-05-web-ui-artifacts-integration.md`
 
 ## DoD
-- Все узлы workflow сохраняют артефакты в локальное хранилище.
-- Web UI отображает реальные файлы от живого workflow.
-- Метаданные треда доступны через API (если требуются).
+- ✅ Все узлы workflow сохраняют артефакты в локальное хранилище
+- ✅ Метаданные треда доступны через локальные JSON файлы
+- ⏳ Web UI отображает реальные файлы от живого workflow
 
 ## Ссылки
 - Инициатива: `../INIT-UI-001-react-spa-platform/README.md`

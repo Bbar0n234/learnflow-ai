@@ -2,10 +2,11 @@
 
 | Milestone | Период | Цели | Ключевые инициативы | Статус |
 | --- | --- | --- | --- | --- |
-| Pre‑OSS Release | Qx | Сквозной поток через React SPA; замена GitHub → локальные артефакты; базовые правки с подтверждением; подготовка к релизу | INIT‑UI‑001 (FEAT‑UI‑103), FEAT‑AI‑201, REL‑OSS‑001 | Active |
-| OSS Launch | Qx | Публичный релиз с документацией и лицензией | REL‑OSS‑001 | Planned |
-| UI V1 | Qx | Real‑time обновления и более удобный UI | FEAT‑UI‑104, FEAT‑UI‑105 | Planned |
-| Post‑OSS: Telegram‑first | Qx+1 | Основной UX в Telegram; экспорт в заметки | TG‑UX‑001, EXP‑NOTE‑001 | Future |
+| Pre‑OSS Release | Q1 2025 | Docker Compose деплой; поддержка локальных LLM; Guardrails для безопасности; английский README с демо; минимальные тесты | INIT‑UI‑001, FEAT‑AI‑201, SEC‑LLM‑001, FEAT‑LLM‑301, REL‑OSS‑001 | Active |
+| OSS Launch | Q1 2025 | Публичный релиз; статическая библиотека промптов; issue templates; демо-видео | REL‑OSS‑001, FEAT‑PROMPT‑401, COMM‑OSS‑501 | Planned |
+| UI V1 | Q2 2025 | Real‑time обновления; продвинутый UI; экспорт PDF/DOCX | FEAT‑UI‑104, FEAT‑UI‑105, EXP‑DOC‑001 | Planned |
+| Community Growth | Q2-Q3 2025 | YouTube контент; Jupyter демо; динамические промпты; активное сообщество | COMM‑OSS‑502, FEAT‑PROMPT‑402, DEV‑JUPYTER‑001 | Future |
+| Post‑OSS: Telegram‑first | Q3 2025 | Основной UX в Telegram; экспорт в заметки | TG‑UX‑001, EXP‑NOTE‑001 | Future |
 
 См. инициативы в `docs/backlog/` и ADR для детальной декомпозиции.
 
@@ -40,6 +41,26 @@
   - FEAT‑UI‑104 — Real‑time обновления (WebSocket) (`docs/backlog/current/FEAT-UI-104-realtime-updates.md`)
   - FEAT‑UI‑105 — Продвинутый UI (редактор, dnd, аннотации) (`docs/backlog/current/FEAT-UI-105-advanced-ui.md`)
 
+### SEC‑LLM‑001 — Guardrails для защиты LLM
+- Статус: Active; Milestone: Pre‑OSS Release
+- Цель: Защита от prompt injection и jailbreak атак
+- План:
+  - Валидация входных запросов на подозрительные паттерны
+  - Логирование и мониторинг подозрительных промптов
+  - Изоляция опасных запросов в отдельную обработку
+  - Интеграция с LangFuse для трекинга
+- DoD: система блокирует > 95% известных injection паттернов
+
+### FEAT‑LLM‑301 — Поддержка локальных LLM
+- Статус: Active; Milestone: Pre‑OSS Release
+- Цель: Работа с любыми OpenAI-совместимыми API
+- Поддержка:
+  - Ollama (с автоопределением моделей)
+  - LM Studio
+  - Dockerized models (llama.cpp, vLLM)
+  - Настройка через переменные окружения
+- DoD: успешная работа с минимум 3 локальными провайдерами
+
 ### FEAT‑AI‑201 — Правки с подтверждением (HITL)
 - Когда: после этапа синтеза (готов `synthesized_material`, собранный из конспектов и сгенерированного текста).
 - Что делает пользователь: даёт обратную связь — где дополнить, сократить, переписать или уточнить. Может выделить место (строка/абзац/пара абзацев) или описать его.
@@ -63,10 +84,60 @@
 ### REL‑OSS‑001 — Подготовка к публикации кода и лицензирование
 - Задача: привести репозиторий к публичному релизу (лицензия + доки)
 - План:
-  - Лицензия с запретом монетизации (это не OSI‑open source, а «source‑available»). Варианты: PolyForm Noncommercial, Prosperity, BUSL‑1.1, Apache‑2.0 + Commons Clause. Выбрать и зафиксировать в ADR.
-  - Оформить базовые файлы: `LICENSE`, `README`, `CONTRIBUTING`, `CODE_OF_CONDUCT`, `SECURITY`, шаблоны Issue/PR
-  - Проверить запуск по инструкции (Docker Compose), актуализировать `env.example` и `changelog`
-- Готово, если: лицензия и ADR в репо, инструкция по запуску работает «с нуля»
+  - Лицензия Apache 2.0 + Commons Clause (зафиксировать в ADR‑003)
+  - README на английском с архитектурной диаграммой и демо
+  - Базовые файлы: `CONTRIBUTING`, `CODE_OF_CONDUCT`, `SECURITY`
+  - GitHub: topics, badges, issue templates, good first issues
+  - Docker Compose с опцией локальной LLM по умолчанию
+  - Минимальные pytest для критических компонентов
+- Готово, если: проект запускается через `docker compose up`, README впечатляет
+
+### FEAT‑PROMPT‑401 — Статическая библиотека промптов
+- Статус: Planned; Milestone: OSS Launch
+- Цель: Поддержка разных дисциплин из коробки
+- План:
+  - Промпты для: криптографии, математики, физики, программирования
+  - YAML конфигурация с переключением через ENV
+  - Документация по добавлению новых дисциплин
+- DoD: минимум 5 дисциплин с примерами
+
+### COMM‑OSS‑501 — Community Engagement (запуск)
+- Статус: Planned; Milestone: OSS Launch
+- План:
+  - Демо-видео/GIF в README
+  - Посты: LinkedIn, Reddit (r/MachineLearning, r/opensource), HackerNews
+  - Telegram-каналы: AI/ML сообщества
+  - Подготовка к YouTube серии
+- DoD: 100+ stars в первую неделю
+
+## Запланированные инициативы (Community Growth)
+
+### COMM‑OSS‑502 — YouTube контент
+- Статус: Future; Milestone: Community Growth
+- План серии видео:
+  1. Обзор проекта для пользователей (5-10 мин)
+  2. Архитектура на LangGraph для инженеров (15-20 мин)
+  3. AI-driven development процесс (10-15 мин)
+  4. Настройка с локальными LLM (туториал)
+- DoD: 1000+ просмотров, 50+ подписчиков
+
+### FEAT‑PROMPT‑402 — Динамическое формирование промптов
+- Статус: Future; Milestone: Community Growth
+- Цель: Автоматическая адаптация под дисциплину
+- План: RAG система для выбора оптимальных промптов
+- DoD: точность определения дисциплины > 90%
+
+### DEV‑JUPYTER‑001 — Jupyter демо notebook
+- Статус: Future; Milestone: Community Growth
+- Цель: Интерактивная демонстрация возможностей
+- План: Google Colab совместимый notebook с примерами
+- DoD: запускается в Colab без установки
+
+### EXP‑DOC‑001 — Экспорт в PDF/DOCX
+- Статус: Planned; Milestone: UI V1
+- Цель: Профессиональное оформление материалов
+- План: Pandoc интеграция, шаблоны оформления
+- DoD: экспорт с сохранением форматирования и формул
 
 ## Запланированные инициативы (после OSS)
 
@@ -83,7 +154,10 @@
 ## Риски и зависимости
 - Большие файлы (OCR/рендер) могут замедлять обработку — следить и оптимизировать
 - Real‑time: нужен простой и стабильный формат событий WS (`/ws/{thread_id}`)
-- Лицензия с «некоммерческим» ограничением — оформить как source‑available и явно описать условия
+- Лицензия Apache 2.0 + Commons Clause — явно описать как source-available
+- Guardrails могут влиять на производительность — профилирование и оптимизация
+- Поддержка разных LLM — тестирование совместимости и fallback стратегии
+- Community engagement требует постоянных усилий — планировать контент заранее
 
 ## Ссылки
 - Обзор: `docs/overview.md`

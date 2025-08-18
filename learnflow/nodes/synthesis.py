@@ -31,7 +31,7 @@ class SynthesisNode(BaseWorkflowNode):
         """Возвращает имя узла для поиска конфигурации"""
         return "synthesis_material"
 
-    async def __call__(self, state: ExamState, config) -> Command[Literal["generating_questions"]]:
+    async def __call__(self, state: ExamState, config) -> Command[Literal["edit_material"]]:
         """
         Синтезирует финальный материал из generated_material и recognized_notes.
         
@@ -49,7 +49,7 @@ class SynthesisNode(BaseWorkflowNode):
         if state.synthesized_material:
             logger.info(f"Synthesized material already set for thread {thread_id}, skipping synthesis")
             return Command(
-                goto="generating_questions",
+                goto="edit_material",
                 update={}  # Ничего не обновляем, материал уже есть
             )
         
@@ -94,6 +94,6 @@ class SynthesisNode(BaseWorkflowNode):
                    f"Had notes: {has_recognized_notes}")
         
         return Command(
-            goto="generating_questions",
+            goto="edit_material",
             update=update_data
         ) 

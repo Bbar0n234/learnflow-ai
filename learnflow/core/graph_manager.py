@@ -31,6 +31,7 @@ NODE_DESCRIPTIONS = {
     "generating_content":    "Генерация обучающего материала",
     "recognition_handwritten": "Распознавание рукописных конспектов",
     "synthesis_material":    "Синтез финального материала",
+    "edit_material":         "Итеративное редактирование материала",
     "generating_questions":  "Генерация и правка gap questions",
     "answer_question":       "Генерация ответов на вопросы",
     None:                    "Готов к новому экзаменационному вопросу",
@@ -390,6 +391,38 @@ class GraphManager:
                         })
                         if artifacts_data:
                             await self._update_state(thread_id, artifacts_data)
+                    
+                    elif node_name == "synthesis_material" and node_data.get("synthesized_material"):
+                        logger.info(f"Synthesis completed for thread {thread_id}, pushing to artifacts...")
+                        if self.artifacts_manager:
+                            local_folder = self.artifacts_data.get(thread_id, {}).get("local_folder_path")
+                            if local_folder:
+                                try:
+                                    await self.artifacts_manager.push_synthesized_material(
+                                        folder_path=local_folder,
+                                        synthesized_material=node_data.get("synthesized_material"),
+                                        thread_id=thread_id
+                                    )
+                                    logger.info(f"Auto-saved edited material to {local_folder}")
+                                except Exception as e:
+                                    logger.error(f"Failed to auto-save edited material: {e}")
+                    
+                    # Автосохранение после каждой правки в edit_material
+                    elif node_name == "edit_material" and node_data.get("last_action") == "edit":
+                        logger.info(f"Edit applied in thread {thread_id}, auto-saving to artifacts...")
+                        if self.artifacts_manager:
+                            current_state = await self._get_state(thread_id)
+                            local_folder = self.artifacts_data.get(thread_id, {}).get("local_folder_path")
+                            if local_folder and current_state.values.get("synthesized_material"):
+                                try:
+                                    await self.artifacts_manager.push_synthesized_material(
+                                        folder_path=local_folder,
+                                        synthesized_material=current_state.values.get("synthesized_material"),
+                                        thread_id=thread_id
+                                    )
+                                    logger.info(f"Auto-saved edited material to {local_folder}")
+                                except Exception as e:
+                                    logger.error(f"Failed to auto-save edited material: {e}")
 
         # после завершения / остановки
         final_state = await self._get_state(thread_id)
@@ -504,6 +537,23 @@ class GraphManager:
                         })
                         if artifacts_data:
                             await self._update_state(thread_id, artifacts_data)
+                    
+                    # Автосохранение после каждой правки в edit_material
+                    elif node_name == "edit_material" and node_data.get("last_action") == "edit":
+                        logger.info(f"Edit applied in thread {thread_id}, auto-saving to artifacts...")
+                        if self.artifacts_manager:
+                            current_state = await self._get_state(thread_id)
+                            local_folder = self.artifacts_data.get(thread_id, {}).get("local_folder_path")
+                            if local_folder and current_state.values.get("synthesized_material"):
+                                try:
+                                    await self.artifacts_manager.push_synthesized_material(
+                                        folder_path=local_folder,
+                                        synthesized_material=current_state.values.get("synthesized_material"),
+                                        thread_id=thread_id
+                                    )
+                                    logger.info(f"Auto-saved edited material to {local_folder}")
+                                except Exception as e:
+                                    logger.error(f"Failed to auto-save edited material: {e}")
 
         # после завершения / остановки
         final_state = await self._get_state(thread_id)

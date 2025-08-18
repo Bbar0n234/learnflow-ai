@@ -12,6 +12,7 @@ from ..nodes import (
     ContentGenerationNode, 
     RecognitionNode,
     SynthesisNode,
+    EditMaterialNode,
     QuestionGenerationNode, 
     AnswerGenerationNode
 )
@@ -24,14 +25,15 @@ def create_workflow() -> StateGraph:
     """
     Создает и настраивает LangGraph workflow для обработки экзаменационных материалов.
     
-    Новый поток выполнения с поддержкой изображений:
+    Новый поток выполнения с поддержкой изображений и редактирования:
     1. START -> input_processing (анализ пользовательского ввода)
     2. input_processing -> generating_content (генерация обучающего материала)
     3. generating_content -> recognition_handwritten (распознавание конспектов с HITL)
     4. recognition_handwritten -> synthesis_material (синтез финального материала)
-    5. synthesis_material -> generating_questions (генерация gap questions с HITL)
-    6. generating_questions -> answer_question (параллельная генерация ответов)
-    7. answer_question -> END
+    5. synthesis_material -> edit_material (итеративное редактирование с HITL)
+    6. edit_material -> generating_questions (генерация gap questions с HITL)
+    7. generating_questions -> answer_question (параллельная генерация ответов)
+    8. answer_question -> END
     
     Returns:
         StateGraph: Настроенный граф workflow
@@ -46,6 +48,7 @@ def create_workflow() -> StateGraph:
     content_node = ContentGenerationNode()
     recognition_node = RecognitionNode()
     synthesis_node = SynthesisNode()
+    edit_material_node = EditMaterialNode()
     questions_node = QuestionGenerationNode()
     answers_node = AnswerGenerationNode()
     
@@ -54,6 +57,7 @@ def create_workflow() -> StateGraph:
     workflow.add_node("generating_content", content_node)
     workflow.add_node("recognition_handwritten", recognition_node)
     workflow.add_node("synthesis_material", synthesis_node)
+    workflow.add_node("edit_material", edit_material_node)
     workflow.add_node("generating_questions", questions_node)
     workflow.add_node("answer_question", answers_node)
     
@@ -64,7 +68,9 @@ def create_workflow() -> StateGraph:
     # - input_processing -> generating_content (Command)
     # - generating_content -> recognition_handwritten (Command)
     # - recognition_handwritten -> synthesis_material (Command, с HITL циклом)
-    # - synthesis_material -> generating_questions (Command)
+    # - synthesis_material -> edit_material (Command)
+    # - edit_material -> edit_material (HITL цикл для итеративных правок)
+    # - edit_material -> generating_questions (Command после завершения)
     # - generating_questions -> generating_questions (HITL цикл через Command)
     # - generating_questions -> answer_question (параллельные Send через Command)
     # - answer_question -> END (Command)

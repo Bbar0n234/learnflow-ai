@@ -63,7 +63,6 @@ class BaseWorkflowNode(ABC):
         """Main processing logic"""
         pass
     
-    @trace_node
     async def __call__(self, state: ExamState) -> ExamState:
         """Orchestrate validation, processing, and error handling"""
         if not await self.validate_input_state(state):

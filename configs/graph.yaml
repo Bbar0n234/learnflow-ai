@@ -38,6 +38,11 @@ models:
       temperature: 0.2
       max_tokens: 6000
 
+    edit_material:
+      model_name: "gpt-4.1-mini"
+      temperature: 0.2
+      max_tokens: 6000
+      
 output_config:
   save_format: "markdown"
   output_directory: "./data/outputs" 

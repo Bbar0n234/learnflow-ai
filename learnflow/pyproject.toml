@@ -9,6 +9,7 @@ license = {text = "Apache 2.0"}
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.116.1",
+    "fuzzysearch>=0.8.0",
     "httpx>=0.28.1",
     "jinja2>=3.1.6",
     "langchain>=0.3.27",

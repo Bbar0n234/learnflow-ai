@@ -78,3 +78,32 @@ class ExamState(BaseModel):
     local_learning_material_path: Optional[str] = Field(default=None, description="Путь к обучающему материалу")
     local_folder_path: Optional[str] = Field(default=None, description="Путь к папке сессии")
     learning_material_link_sent: bool = Field(default=False, description="Флаг отправки ссылки на материал")
+    
+    # Edit agent fields (minimal for MVP)
+    edit_count: int = Field(default=0, description="Total number of edits performed")
+    needs_user_input: bool = Field(default=True, description="Flag for HITL interaction")
+    agent_message: Optional[str] = Field(default=None, description="Message from edit agent to user")
+    last_action: Optional[str] = Field(default=None, description="Type of last action (edit/message/complete)")
+
+
+# Edit agent structured output models
+class ActionDecision(BaseModel):
+    """Решение о типе действия для edit agent"""
+    action_type: Literal["edit", "message", "complete"] = Field(
+        description="Type of action to perform"
+    )
+
+
+class EditDetails(BaseModel):
+    """Детали для действия редактирования"""
+    old_text: str = Field(description="Exact text to replace")
+    new_text: str = Field(description="Replacement text")
+    continue_editing: bool = Field(
+        default=True,
+        description="Continue editing autonomously after this edit"
+    )
+
+
+class EditMessageDetails(BaseModel):
+    """Детали для сообщения пользователю от edit agent"""
+    content: str = Field(description="Message to send to user")

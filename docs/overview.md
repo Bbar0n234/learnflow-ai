@@ -171,7 +171,7 @@ DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/learnflow
 
 1. **Установка зависимостей:**
 ```bash
-poetry install --group core --group learnflow --group bot
+uv sync
 ```
 
 2. **Настройка окружения:**
@@ -183,10 +183,10 @@ cp env.example .env
 3. **Запуск сервисов:**
 ```bash
 # Только FastAPI
-poetry run python -m learnflow.main
+uv run --package learnflow python -m learnflow.main
 
 # Только бот
-poetry run python -m bot.main
+uv run --package bot python -m bot.main
 
 # Оба сервиса (рекомендуется)
 ./run.sh
@@ -263,7 +263,7 @@ docker-compose up
 
 ### Требования к системе
 - **Python** 3.13+
-- **Poetry** для управления зависимостями
+- **UV** для управления зависимостями
 - **PostgreSQL** для checkpoint хранения
 - **Redis** для LangFuse
 - **OpenAI API** доступ

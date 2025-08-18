@@ -1,7 +1,7 @@
 # FEAT-AI-201: HITL Editing - Правки с подтверждением
 
 ## Статус
-Active
+✅ **COMPLETED** (August 2025)
 
 ## Milestone
 Pre-OSS Release
@@ -31,7 +31,9 @@ synthesis_material -> edit_material (optional) -> generating_questions
 ## План реализации
 
 ### Основной план
-Детальный план реализации: [impl/IP-01-edit-agent-integration.md](impl/IP-01-edit-agent-integration.md)
+~~Детальный план реализации:~~ [IP-01-edit-agent-integration.md](../../archive/IP-01-edit-agent-integration.md) *(archived)*
+
+**Post-Implementation Summary**: [impl/post-implementation-summary.md](impl/post-implementation-summary.md)
 
 ### Краткая сводка (4-6 дней)
 1. **День 1-2**: Портирование fuzzy matcher из Jupyter notebook
@@ -41,13 +43,13 @@ synthesis_material -> edit_material (optional) -> generating_questions
 
 ## Definition of Done
 
-- [ ] EditMaterialNode успешно интегрирован в workflow
-- [ ] Fuzzy matching работает с точностью >85%
-- [ ] HITL взаимодействие через Telegram бот функционирует
-- [ ] Каждая правка автоматически сохраняется в artifacts
-- [ ] Feature flag позволяет включать/выключать функционал
-- [ ] Базовое тестирование покрывает основные сценарии
-- [ ] Документация обновлена
+- [x] EditMaterialNode успешно интегрирован в workflow
+- [x] Fuzzy matching работает с точностью >85%
+- [x] HITL взаимодействие через Telegram бот функционирует
+- [x] Каждая правка автоматически сохраняется в artifacts
+- [x] Feature flag позволяет включать/выключать функционал
+- [x] Базовое тестирование покрывает основные сценарии
+- [x] Документация обновлена
 
 ## Зависимости
 - Существующая HITL инфраструктура (из recognition/questions nodes)
@@ -67,5 +69,6 @@ synthesis_material -> edit_material (optional) -> generating_questions
 
 ## Связанные документы
 - [ADR-001: Architecture Overview](../../../ADR/001-architecture-overview.md)
-- [План реализации IP-01](impl/IP-01-edit-agent-integration.md)
+- [~~План реализации IP-01~~](../../archive/IP-01-edit-agent-integration.md) *(archived)*
+- [Post-Implementation Summary](impl/post-implementation-summary.md)
 - [Roadmap](../../../planning/roadmap.md)

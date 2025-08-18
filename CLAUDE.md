@@ -20,8 +20,22 @@ LearnFlow AI is a LangGraph-based educational content generation system for cryp
 cp env.example .env
 # Edit .env with your API keys
 
-# Install dependencies using Poetry
-poetry install --group core --group learnflow --group bot
+# Install dependencies using UV workspace
+# Install all packages and groups
+uv sync
+
+# Install specific packages
+uv sync --package learnflow  # Only learnflow service dependencies
+uv sync --package bot        # Only bot service dependencies
+
+# Install with specific groups
+uv sync --group dev          # Development tools (ruff, mypy, etc.)
+uv sync --group test         # Testing dependencies (pytest, etc.)
+uv sync --group dev --group test  # Multiple groups
+
+# Install specific package with specific group
+uv sync --package learnflow --group dev   # Dev tools for learnflow only
+uv sync --package bot --group test        # Test deps for bot only
 
 # Quick startup script (starts both FastAPI service and Telegram bot)
 ./run.sh
@@ -31,14 +45,14 @@ poetry install --group core --group learnflow --group bot
 
 #### FastAPI Service Only
 ```bash
-poetry run python -m learnflow.main
+uv run --package learnflow python -m learnflow.main
 # Service available at http://localhost:8000
 # API docs at http://localhost:8000/docs
 ```
 
 #### Telegram Bot Only
 ```bash
-poetry run python -m bot.main
+uv run --package bot python -m bot.main
 ```
 
 #### Docker Compose (Full Stack with LangFuse)
@@ -121,7 +135,6 @@ Required API keys and configuration:
 
 ### Working with LangGraph Nodes
 - Extend `BaseWorkflowNode` for consistent behavior
-- Use `@trace_node` decorator for observability
 - Implement proper state validation in `validate_input_state()`
 - Handle HITL interactions through `Command` objects
 
@@ -146,7 +159,7 @@ Sample images for recognition testing are in `images/`:
 ### Common Issues
 - **Port conflicts**: Check if 8000 (FastAPI) or 3000 (LangFuse) are occupied
 - **API key errors**: Verify all required keys are set in `.env`
-- **Poetry dependencies**: Run `poetry lock --no-update && poetry install` if conflicts occur
+- **UV dependencies**: Run `uv sync --upgrade` to update dependencies or `uv sync` to reinstall if conflicts occur
 - **Docker volumes**: Use `docker-compose down -v` to reset persistent data
 
 ### Debugging

@@ -16,6 +16,7 @@ LearnFlow AI demonstrates modern AI-driven development practices while solving a
 ### Key Features
 
 - **🔄 LangGraph Workflow Pipeline** - Multi-node processing with HITL (Human-in-the-Loop) capabilities
+- **✏️ Interactive Material Editing** - Iterative refinement of synthesized content with fuzzy text matching
 - **🛡️ LLM Security** - Built-in Guardrails against prompt injection and jailbreak attacks
 - **🤖 Universal LLM Support** - Works with any OpenAI-compatible API (including local models)
 - **📝 OCR & Handwriting Recognition** - Process both typed and handwritten materials
@@ -82,13 +83,15 @@ graph TD
     B --> D[Handwriting Recognition]
     D --> E[Material Synthesis]
     C --> E
-    E --> F[Gap Analysis]
-    F --> G[Answer Generation]
-    G --> H[Artifacts Storage]
+    E --> F[Edit Material]
+    F --> G[Gap Analysis]
+    G --> H[Answer Generation]
+    H --> I[Artifacts Storage]
     
     style B fill:#f9f,stroke:#333,stroke-width:2px
     style E fill:#bbf,stroke:#333,stroke-width:2px
-    style F fill:#bfb,stroke:#333,stroke-width:2px
+    style F fill:#fcf,stroke:#333,stroke-width:2px
+    style G fill:#bfb,stroke:#333,stroke-width:2px
 ```
 
 ### Core Components
@@ -139,27 +142,27 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 ### Local Setup
 
 ```bash
-# Install dependencies with Poetry
-poetry install --all-extras
+# Install dependencies with UV
+uv sync
 
 # Run tests
-poetry run pytest
+uv run pytest
 
 # Start development server
-poetry run python -m learnflow.main
+uv run --package learnflow python -m learnflow.main
 ```
 
 ### Running Tests
 
 ```bash
 # Unit tests
-poetry run pytest tests/unit
+uv run pytest tests/unit
 
 # Integration tests
-poetry run pytest tests/integration
+uv run pytest tests/integration
 
 # Coverage report
-poetry run pytest --cov=learnflow --cov-report=html
+uv run pytest --cov=learnflow --cov-report=html
 ```
 
 ## 📊 Metrics & Monitoring

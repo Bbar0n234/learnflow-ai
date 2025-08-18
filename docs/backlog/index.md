@@ -3,10 +3,7 @@
 ## Текущие (current)
 
 ### Активные инициативы (август 2025)
-- `FEAT-AI-201-hitl-editing/` - 🚧 In Progress: HITL редактирование материалов
-  - `impl/IP-01-edit-agent-integration.md` - План реализации edit агента
-- `SEC-LLM-001-guardrails/` - 📋 Planned: Защита от prompt injection
-  - `impl/IP-01-security-guard-implementation.md` - План реализации guardrails
+- В настоящее время нет активных основных инициатив
 
 ### UI инициативы
 - `INIT-UI-001-react-spa-platform/` - React SPA платформа и артефакты
@@ -22,4 +19,6 @@
 ## Архив (archive)
 - `FEAT-UI-102-react-spa-basics.md` - ✅ Completed: Базовый React SPA
 - `IP-01-artifacts-manager.md` - ✅ Completed: Local Artifacts Manager implementation
+- `IP-01-enhanced-guardrails-integration.md` - ✅ Completed: Enhanced Guardrails Integration (SEC-LLM-001)
+- `IP-01-edit-agent-integration.md` - ✅ Completed: Edit Agent Integration (FEAT-AI-201)
 

@@ -42,6 +42,11 @@ models:
       model_name: "gpt-4.1-mini"
       temperature: 0.2
       max_tokens: 6000
+
+    security_guard:
+      model_name: "gpt-4o-mini"
+      temperature: 0.0
+      max_tokens: 1000
       
 output_config:
   save_format: "markdown"

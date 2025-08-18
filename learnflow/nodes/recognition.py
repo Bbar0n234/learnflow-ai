@@ -196,6 +196,10 @@ class RecognitionNode(BaseWorkflowNode):
             if "[END OF REASONING]" in content:
                 content = content.split("[END OF REASONING]")[1].strip()
             
+            # Валидация распознанного текста из рукописных конспектов
+            if self.security_guard and content:
+                content = await self.validate_input(content)
+            
             return content
             
         except Exception as e:

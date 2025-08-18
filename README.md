@@ -104,13 +104,14 @@ graph TD
 
 ## 🛡️ Security Features
 
-LearnFlow AI takes LLM security seriously:
+LearnFlow AI includes comprehensive prompt injection protection:
 
-- **Input Validation** - Pattern-based detection of suspicious prompts
-- **Threat Isolation** - Dangerous requests handled in sandboxed environment
-- **Audit Logging** - Complete trace of all LLM interactions
-- **Rate Limiting** - Protection against resource exhaustion
-- **Configurable Policies** - Customizable security rules via YAML
+- **Universal Input Validation** - LLM-based detection with structured output across all entry points
+- **Graceful Degradation** - Security never blocks workflow execution, always maintains user experience
+- **Fuzzy Content Cleaning** - Smart removal of malicious content while preserving legitimate educational material
+- **Educational Context Aware** - Reduces false positives for cryptography and security topics
+- **Configuration-Driven** - Security prompts and settings managed through YAML configs
+- **Complete Coverage** - Protects exam questions, OCR content, HITL feedback, and edit requests
 
 ## 📚 Documentation
 

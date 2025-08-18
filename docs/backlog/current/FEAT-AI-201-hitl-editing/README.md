@@ -33,7 +33,7 @@ synthesis_material -> edit_material (optional) -> generating_questions
 ### Основной план
 ~~Детальный план реализации:~~ [IP-01-edit-agent-integration.md](../../archive/IP-01-edit-agent-integration.md) *(archived)*
 
-**Post-Implementation Summary**: [impl/post-implementation-summary.md](impl/post-implementation-summary.md)
+**Post-Implementation Summary**: [impl/POST-IMPLEMENTATION-SUMMARY.md](impl/POST-IMPLEMENTATION-SUMMARY.md)
 
 ### Краткая сводка (4-6 дней)
 1. **День 1-2**: Портирование fuzzy matcher из Jupyter notebook
@@ -70,5 +70,5 @@ synthesis_material -> edit_material (optional) -> generating_questions
 ## Связанные документы
 - [ADR-001: Architecture Overview](../../../ADR/001-architecture-overview.md)
 - [~~План реализации IP-01~~](../../archive/IP-01-edit-agent-integration.md) *(archived)*
-- [Post-Implementation Summary](impl/post-implementation-summary.md)
+- [Post-Implementation Summary](impl/POST-IMPLEMENTATION-SUMMARY.md)
 - [Roadmap](../../../planning/roadmap.md)

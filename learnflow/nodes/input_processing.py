@@ -24,7 +24,7 @@ class InputProcessingNode(BaseWorkflowNode):
     """
     
     def __init__(self):
-        super().__init__(logger)
+        super().__init__(logger=logger)
         self.file_manager = ImageFileManager()
     
     def get_node_name(self) -> str:
@@ -50,6 +50,14 @@ class InputProcessingNode(BaseWorkflowNode):
         if not exam_question:
             logger.error(f"Empty exam question for thread {thread_id}")
             raise ValueError("Экзаменационный вопрос не может быть пустым")
+        
+        # Валидация exam_question на самом входе в систему
+        logger.debug(f"Security guard status: {self.security_guard is not None}")
+        if self.security_guard:
+            logger.info(f"Validating exam question for security threats")
+            exam_question = await self.validate_input(exam_question)
+        else:
+            logger.warning("Security guard not initialized - skipping validation")
         
         # Валидируем и обрабатываем изображения
         validated_image_paths = []

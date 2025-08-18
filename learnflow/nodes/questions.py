@@ -8,10 +8,11 @@ from typing import Dict, Any
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.constants import Send
 from langgraph.types import Command
+from langchain_core.utils.function_calling import convert_to_openai_function
 
 from .base import FeedbackNode
 from ..core.state import ExamState, GapQuestions, GapQuestionsHITL
-from ..utils.utils import Config, pretty_print_pydantic
+from ..utils.utils import Config
 
 
 logger = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ class QuestionGenerationNode(FeedbackNode):
             return {
                 "exam_question": state.exam_question,
                 "study_material": study_material,
-                "json_schema": pretty_print_pydantic(GapQuestions)
+                "json_schema": convert_to_openai_function(GapQuestions)
             }
         else:
             # Уточнение на основе feedback (further variant)
@@ -60,7 +61,7 @@ class QuestionGenerationNode(FeedbackNode):
                 "exam_question": state.exam_question,
                 "study_material": study_material,
                 "current_questions": state.gap_questions,
-                "json_schema": pretty_print_pydantic(GapQuestionsHITL)
+                "json_schema": convert_to_openai_function(GapQuestionsHITL)
             }
 
     def get_model(self):

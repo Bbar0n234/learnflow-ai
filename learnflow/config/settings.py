@@ -50,6 +50,11 @@ class AppSettings(BaseSettings):
 
     log_level: str = Field(default="DEBUG", env="LOG_LEVEL", description="Уровень логирования")
     
+    # Security settings
+    security_enabled: bool = Field(default=True, env="SECURITY_ENABLED", description="Включить систему защиты от prompt injection")
+    security_fuzzy_threshold: float = Field(default=0.85, env="SECURITY_FUZZY_THRESHOLD", description="Порог fuzzy matching для очистки")
+    security_min_content_length: int = Field(default=10, env="SECURITY_MIN_CONTENT_LENGTH", description="Минимальная длина контента для валидации")
+    
     def is_artifacts_configured(self) -> bool:
         """Проверка настройки локального хранилища артефактов"""
         return bool(self.artifacts_base_path)

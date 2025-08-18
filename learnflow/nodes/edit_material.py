@@ -217,6 +217,10 @@ class EditMaterialNode(BaseWorkflowNode):
             user_feedback = interrupt(interrupt_data)
             
             if user_feedback:
+                # Валидация запроса на редактирование в HITL цикле
+                if self.security_guard:
+                    user_feedback = await self.validate_input(user_feedback)
+                
                 messages.append(HumanMessage(content=user_feedback))
                 
                 # Сбрасываем флаги и продолжаем обработку

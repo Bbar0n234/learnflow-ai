@@ -13,8 +13,10 @@
 - `FEAT-UI-106-web-ui-improvements/` - Web UI улучшения
 
 ### Другие инициативы
+- `FEAT-AI-202-configurable-hitl/` - Конфигурируемый HITL
 - `FEAT-LLM-301-local-llm-support.md` - Поддержка локальных LLM
-- `FEAT-PROMPT-401-static-prompt-library.md` - Статическая библиотека промптов
+- `FEAT-PROMPT-401-prompt-configuration-service.md` - Prompt Configuration Service (MVP до OSS релиза)
+- `FEAT-PROMPT-402-dynamic-prompt-generation.md` - Динамическая генерация промптов (после OSS релиза)
 - `COMM-OSS-501-community-engagement.md` - Community engagement
 
 ## Архив (archive)

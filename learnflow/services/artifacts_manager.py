@@ -70,7 +70,7 @@ class LocalArtifactsManager:
             
             # Set permissions if configured
             if self.config.ensure_permissions:
-                os.chmod(file_path, 0o644)
+                os.chmod(file_path, 0o666)
             
             logger.debug(f"File written atomically: {file_path}")
             
@@ -103,13 +103,14 @@ class LocalArtifactsManager:
             "user_info": None
         }
     
-    def _create_session_metadata(self, session_id: str, thread_id: str, exam_question: str) -> Dict[str, Any]:
+    def _create_session_metadata(self, session_id: str, thread_id: str, exam_question: str, display_name: Optional[str] = None) -> Dict[str, Any]:
         """Создание session-level metadata.json"""
         now = datetime.now().isoformat()
         return {
             "session_id": session_id,
             "thread_id": thread_id,
             "exam_question": exam_question,
+            "display_name": display_name,
             "created": now,
             "modified": now,
             "status": "active",
@@ -254,6 +255,7 @@ class LocalArtifactsManager:
         thread_id: str,
         exam_question: str,
         generated_material: str,
+        display_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Создает session и сохраняет generated_material.md
@@ -283,7 +285,7 @@ class LocalArtifactsManager:
             self._atomic_write_file(thread_metadata_file, json.dumps(thread_metadata, indent=2, ensure_ascii=False))
             
             # Create session metadata
-            session_metadata = self._create_session_metadata(session_id, thread_id, exam_question)
+            session_metadata = self._create_session_metadata(session_id, thread_id, exam_question, display_name)
             session_metadata_file = session_path / "session_metadata.json"
             self._atomic_write_file(session_metadata_file, json.dumps(session_metadata, indent=2, ensure_ascii=False))
             

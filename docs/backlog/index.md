@@ -10,6 +10,7 @@
 - `FEAT-UI-103-learnflow-integration/` - Интеграция с LearnFlow
 - `FEAT-UI-104-realtime-updates.md` - Real-time обновления
 - `FEAT-UI-105-advanced-ui.md` - Продвинутый UI
+- `FEAT-UI-106-web-ui-improvements/` - Web UI улучшения
 
 ### Другие инициативы
 - `FEAT-LLM-301-local-llm-support.md` - Поддержка локальных LLM
@@ -21,4 +22,5 @@
 - `IP-01-artifacts-manager.md` - ✅ Completed: Local Artifacts Manager implementation
 - `IP-01-enhanced-guardrails-integration.md` - ✅ Completed: Enhanced Guardrails Integration (SEC-LLM-001)
 - `IP-01-edit-agent-integration.md` - ✅ Completed: Edit Agent Integration (FEAT-AI-201)
+- `IP-01-simplified-ui-improvements.md` - ✅ Completed: UI улучшения (FEAT-UI-106) - UI enhahced (small fixes)
 

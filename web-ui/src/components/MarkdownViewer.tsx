@@ -1,7 +1,9 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
+import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
+import rehypeRaw from 'rehype-raw';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useTheme } from '../hooks/useTheme';
@@ -33,8 +35,8 @@ export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
   return (
     <div className={`prose max-w-none space-y-8 ${className}`}>
       <ReactMarkdown
-        remarkPlugins={[remarkMath]}
-        rehypePlugins={[rehypeKatex]}
+        remarkPlugins={[remarkMath, remarkGfm]}
+        rehypePlugins={[rehypeRaw, rehypeKatex]}
         components={{
           code({ node, inline, className, children, ...props }: any) {
             const match = /language-(\w+)/.exec(className || '');
@@ -60,86 +62,33 @@ export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
               </code>
             );
           },
-          h1: ({ children }) => {
-            const text = String(children);
-            const { difficulty, topics } = extractMetadata(text);
-            
-            return (
-              <div className="section-divider first:mt-0 first:pt-0">
-                <h1 className="display-h1 mb-6">
-                  {children}
-                </h1>
-                {(difficulty || topics) && (
-                  <div className="flex flex-wrap gap-2 mb-8">
-                    {difficulty && (
-                      <span className="chip-warn">
-                        Difficulty: {difficulty}
-                      </span>
-                    )}
-                    {topics?.map((topic, idx) => (
-                      <span key={idx} className="chip-info">
-                        {topic}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          },
-          h2: ({ children }) => {
-            const text = String(children);
-            const isQuestion = isQuestionHeading(text);
-            const { difficulty, topics } = extractMetadata(text);
-            
-            if (isQuestion) {
-              return (
-                <div className="card-base p-7 my-10 animate-fade-in">
-                  <div className="flex items-start justify-between mb-5">
-                    <h2 className="display-h2 flex-1">
-                      {children}
-                    </h2>
-                    {difficulty && (
-                      <span className="chip-warn ml-4">
-                        {difficulty}
-                      </span>
-                    )}
-                  </div>
-                  {topics && topics.length > 0 && (
-                    <div className="flex flex-wrap gap-3">
-                      {topics.map((topic, idx) => (
-                        <span key={idx} className="chip-info">
-                          {topic}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            }
-            
-            return (
-              <h2 className="display-h2 section-divider">
-                {children}
-              </h2>
-            );
-          },
+          h1: ({ children }) => (
+            <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '1.5rem', marginTop: '2rem' }}>
+              {children}
+            </h1>
+          ),
+          h2: ({ children }) => (
+            <h2 style={{ fontSize: '1.75rem', fontWeight: '600', marginBottom: '1.25rem', marginTop: '1.75rem' }}>
+              {children}
+            </h2>
+          ),
           h3: ({ children }) => (
-            <h3 className="display-h3 mb-5">
+            <h3 style={{ fontSize: '1.375rem', fontWeight: '600', marginBottom: '1rem', marginTop: '1.5rem' }}>
               {children}
             </h3>
           ),
           p: ({ children }) => (
-            <p className="body-default mb-6 leading-relaxed">
+            <p className="text-lg mb-6 leading-relaxed">
               {children}
             </p>
           ),
           ul: ({ children }) => (
-            <ul className="mb-8 pl-6 space-y-3 body-default list-disc">
+            <ul className="mb-8 pl-6 space-y-3 text-lg list-disc">
               {children}
             </ul>
           ),
           ol: ({ children }) => (
-            <ol className="mb-8 pl-6 space-y-3 body-default list-decimal">
+            <ol className="mb-8 pl-6 space-y-3 text-lg list-decimal">
               {children}
             </ol>
           ),
@@ -149,8 +98,8 @@ export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
             </li>
           ),
           blockquote: ({ children }) => (
-            <div className="card-base p-5 my-8 border-l-4 border-primary bg-primary/5">
-              <div className="body-default">
+            <div className="pl-6 my-8 border-l-4 border-primary">
+              <div className="text-lg italic opacity-90">
                 {children}
               </div>
             </div>
@@ -185,18 +134,16 @@ export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
             </tbody>
           ),
           th: ({ children }) => (
-            <th className="px-4 py-3 text-left caption-text font-semibold">
+            <th className="px-4 py-3 text-left font-semibold" style={{ fontSize: '1.125rem' }}>
               {children}
             </th>
           ),
           td: ({ children }) => (
-            <td className="px-4 py-3 body-default">
+            <td className="px-4 py-3 text-base align-top" style={{ whiteSpace: 'pre-wrap' }}>
               {children}
             </td>
           ),
-          hr: () => (
-            <div className="divider-horizontal my-8" />
-          ),
+          hr: () => null,
         }}
       >
         {content}

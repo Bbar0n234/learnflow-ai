@@ -11,7 +11,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, sidebar }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-bg transition-colors duration-200">
+    <div className="h-screen overflow-hidden bg-bg transition-colors duration-200">
       {/* Minimal Header */}
       <header className="sticky top-0 z-30 bg-elev/80 backdrop-blur-sm px-4 py-0" style={{ height: 'var(--header-height)' }}>
         <div className="flex items-center justify-between max-w-content mx-auto h-full">
@@ -47,7 +47,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, sidebar }) => {
         </div>
       </header>
 
-      <div className="flex">
+      <div className="flex" style={{ height: 'calc(100vh - var(--header-height))' }}>
         {/* Sidebar */}
         {sidebar && (
           <>
@@ -60,17 +60,15 @@ export const Layout: React.FC<LayoutProps> = ({ children, sidebar }) => {
             )}
             
             {/* Sidebar container */}
-            <aside className={`sidebar-container ${sidebarOpen ? 'sidebar-mobile open' : 'sidebar-mobile'}`}>
-              <div className="h-full overflow-y-auto scrollbar-thin py-4">
-                {sidebar}
-              </div>
+            <aside className={`sidebar-container scrollbar-thin ${sidebarOpen ? 'sidebar-mobile open' : 'sidebar-mobile'}`}>
+              {sidebar}
             </aside>
           </>
         )}
 
         {/* Main Content */}
-        <main className="main-content">
-          <div className="content-container min-h-[calc(100vh-var(--header-height))] py-6">
+        <main className="main-content scrollbar-thin">
+          <div className="content-container py-6">
             {children}
           </div>
         </main>

@@ -162,6 +162,7 @@ class ArtifactsStorage:
                         sessions.append(SessionInfo(
                             session_id=session_metadata.session_id,
                             exam_question=session_metadata.exam_question,
+                            display_name=session_metadata.display_name,
                             created=session_metadata.created,
                             modified=session_metadata.modified,
                             status=session_metadata.status,

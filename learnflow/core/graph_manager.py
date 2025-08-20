@@ -6,7 +6,6 @@ GraphManager – единая оболочка вокруг LangGraph workflow.
 • передачу сообщений HITL-узлов наружу
 • пуш артефактов (опционально) в GitHub
 • трассировку в LangFuse
-
 Адаптирован из project_documentation.md для ExamState.
 """
 import time
@@ -186,6 +185,7 @@ class GraphManager:
         # Проверяем, что есть необходимые данные
         exam_question = state_vals.get('exam_question', '')
         generated_material = state_vals.get('generated_material', '')
+        display_name = state_vals.get('display_name')  # Получаем display_name из состояния
         
         if not exam_question or not generated_material:
             logger.warning(f"Missing learning material data for thread {thread_id}, skipping GitHub push")
@@ -197,6 +197,7 @@ class GraphManager:
                 thread_id=thread_id,
                 exam_question=exam_question,
                 generated_material=generated_material,
+                display_name=display_name,
             )
             
             if result.get('success'):
@@ -388,6 +389,7 @@ class GraphManager:
                         artifacts_data = await self._push_learning_material_to_artifacts(thread_id, {
                             "exam_question": current_state.values.get("exam_question"),
                             "generated_material": node_data.get("generated_material"),
+                            "display_name": current_state.values.get("display_name"),
                         })
                         if artifacts_data:
                             await self._update_state(thread_id, artifacts_data)
@@ -534,6 +536,7 @@ class GraphManager:
                         artifacts_data = await self._push_learning_material_to_artifacts(thread_id, {
                             "exam_question": current_state.values.get("exam_question"),
                             "generated_material": node_data.get("generated_material"),
+                            "display_name": current_state.values.get("display_name"),
                         })
                         if artifacts_data:
                             await self._update_state(thread_id, artifacts_data)

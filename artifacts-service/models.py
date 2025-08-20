@@ -31,6 +31,10 @@ class SessionInfo(BaseModel):
     """Information about a session."""
     session_id: str = Field(description="Unique session identifier")
     exam_question: str = Field(description="Exam question text")
+    display_name: Optional[str] = Field(
+        default=None,
+        description="Short display name (3-5 words) for the session"
+    )
     created: datetime = Field(description="Session creation time")
     modified: datetime = Field(description="Last modification time")
     status: str = Field(description="Session status (active, completed, failed)")
@@ -42,6 +46,10 @@ class SessionMetadata(BaseModel):
     session_id: str = Field(description="Unique session identifier")
     thread_id: str = Field(description="Thread identifier")
     exam_question: str = Field(description="Exam question text")
+    display_name: Optional[str] = Field(
+        default=None,
+        description="Short display name (3-5 words) for the session"
+    )
     created: datetime = Field(description="Session creation time")
     modified: datetime = Field(description="Last modification time")
     status: str = Field(

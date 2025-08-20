@@ -134,7 +134,8 @@
   background: var(--bg-overlay-light);
 }
 
-.sidebar-item.active {
+.sidebar-item.active,
+.sidebar-item-active {
   background: color-mix(in srgb, var(--color-primary) 12%, transparent);
   color: var(--color-primary);
   border-left: 2px solid var(--color-primary);
@@ -243,17 +244,33 @@
 .sidebar-container {
   width: var(--sidebar-width);
   flex-shrink: 0;
-  position: sticky;
-  top: var(--header-height);
-  height: calc(100vh - var(--header-height));
-  overflow-y: hidden;
+  position: relative;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
   border-right: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
   background: color-mix(in srgb, var(--color-elev) 50%, transparent);
+}
+
+/* Accordion Sidebar Styles */
+.accordion-sidebar {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.accordion-sidebar .sidebar-section-header {
+  background: var(--color-elev);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .main-content {
   flex: 1;
   min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: 100%;
 }
 
 /* =================

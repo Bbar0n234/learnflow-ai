@@ -12,11 +12,11 @@ export interface Session {
   created: string;
   modified: string;
   exam_question?: string;
+  display_name?: string | null;
   status?: string;
 }
 
 export interface FileInfo {
-  name: string;
   path: string;
   size: number;
   modified: string;
@@ -28,8 +28,11 @@ export interface ThreadsListResponse {
 }
 
 export interface ThreadDetailResponse {
-  thread: Thread;
+  thread_id: string;
   sessions: Session[];
+  created: string;
+  last_activity: string;
+  sessions_count: number;
 }
 
 export interface SessionFilesResponse {

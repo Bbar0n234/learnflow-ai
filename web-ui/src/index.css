@@ -14,11 +14,14 @@
 
   html {
     scroll-behavior: smooth;
+    height: 100%;
+    overflow: hidden;
   }
 
   body {
     margin: 0;
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
     font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu, Cantarell, 'Noto Sans', Arial, 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
     font-synthesis: none;
     text-rendering: optimizeLegibility;
@@ -46,22 +49,6 @@
     color: var(--color-ink);
     line-height: 1.7;
     max-width: none;
-    font-size: 1rem;
-  }
-
-  .prose h1,
-  .prose h2,
-  .prose h3,
-  .prose h4,
-  .prose h5,
-  .prose h6 {
-    color: var(--color-ink);
-    font-family: 'Manrope', 'Inter', system-ui, sans-serif;
-  }
-
-  .prose p {
-    color: var(--color-ink);
-    margin-bottom: 1.25rem;
   }
 
   .prose code {

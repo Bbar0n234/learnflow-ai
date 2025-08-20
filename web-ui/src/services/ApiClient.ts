@@ -3,6 +3,7 @@ import type { AxiosInstance, AxiosError } from 'axios';
 import type {
   Thread,
   ThreadsListResponse,
+  ThreadDetailResponse,
   SessionFilesResponse,
   FileOperationResponse,
   ApiError
@@ -44,8 +45,8 @@ export class ApiClient {
     return response.data;
   }
 
-  async getThread(threadId: string): Promise<Thread> {
-    const response = await this.axiosInstance.get<Thread>(`/threads/${threadId}`);
+  async getThread(threadId: string): Promise<ThreadDetailResponse> {
+    const response = await this.axiosInstance.get<ThreadDetailResponse>(`/threads/${threadId}`);
     return response.data;
   }
 

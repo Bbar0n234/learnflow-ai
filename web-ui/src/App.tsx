@@ -1,12 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Layout } from './components/Layout';
-import { ThreadsList } from './components/ThreadsList';
-import { SessionsList } from './components/SessionsList';
-import { FileExplorer } from './components/FileExplorer';
+import { AccordionSidebar } from './components/AccordionSidebar';
 import { MarkdownViewer } from './components/MarkdownViewer';
 import { apiClient } from './services/ApiClient';
 import { useApi } from './hooks/useApi';
-import type { AppState } from './services/types';
+import type { AppState, Thread, FileInfo } from './services/types';
 
 function App() {
   const [appState, setAppState] = useState<AppState>({
@@ -17,47 +15,88 @@ function App() {
     isLoading: false,
     error: null,
   });
+  
+  const [threads, setThreads] = useState<Thread[]>([]);
+  const [sessionFiles, setSessionFiles] = useState<Map<string, FileInfo[]>>(new Map());
+  const [threadsLoading, setThreadsLoading] = useState(true);
 
   const { executeRequest } = useApi();
 
-  const handleThreadSelect = (threadId: string) => {
+  // Load threads on mount
+  useEffect(() => {
+    loadThreads();
+  }, []);
+
+  const loadThreads = async () => {
+    setThreadsLoading(true);
+    try {
+      const response = await executeRequest(apiClient.getThreads());
+      if (response?.threads) {
+        // Load thread details with sessions for each thread
+        const threadsWithSessions = await Promise.all(
+          response.threads.map(async (thread: Thread) => {
+            const detail = await executeRequest(apiClient.getThread(thread.thread_id));
+            return {
+              ...thread,
+              sessions: detail?.sessions || []
+            };
+          })
+        );
+        setThreads(threadsWithSessions);
+      }
+    } catch (error) {
+      console.error('Failed to load threads:', error);
+    } finally {
+      setThreadsLoading(false);
+    }
+  };
+
+  const handleSelect = async (threadId: string, sessionId?: string, filePath?: string) => {
+    // Update selection state
     setAppState(prev => ({
       ...prev,
       selectedThread: threadId,
-      selectedSession: null,
-      selectedFile: null,
+      selectedSession: sessionId || null,
+      selectedFile: filePath || null,
       currentFileContent: null,
     }));
-  };
 
-  const handleSessionSelect = (sessionId: string) => {
-    setAppState(prev => ({
-      ...prev,
-      selectedSession: sessionId,
-      selectedFile: null,
-      currentFileContent: null,
-    }));
-  };
+    // Load session files if session is selected and not already loaded
+    if (sessionId && !sessionFiles.has(`${threadId}/${sessionId}`)) {
+      try {
+        const files = await executeRequest(apiClient.getSessionFiles(threadId, sessionId));
+        if (files?.files) {
+          setSessionFiles(prev => {
+            const newMap = new Map(prev);
+            newMap.set(`${threadId}/${sessionId}`, files.files);
+            return newMap;
+          });
+        }
+      } catch (error) {
+        console.error('Failed to load session files:', error);
+      }
+    }
 
-  const handleFileSelect = async (filePath: string) => {
-    if (!appState.selectedThread || !appState.selectedSession) return;
-
-    setAppState(prev => ({
-      ...prev,
-      selectedFile: filePath,
-      isLoading: true,
-      error: null,
-    }));
-
-    const content = await executeRequest(
-      apiClient.getFileContent(appState.selectedThread, appState.selectedSession, filePath)
-    );
-
-    setAppState(prev => ({
-      ...prev,
-      currentFileContent: content,
-      isLoading: false,
-    }));
+    // Load file content if file is selected
+    if (filePath && sessionId) {
+      setAppState(prev => ({ ...prev, isLoading: true, error: null }));
+      try {
+        const content = await executeRequest(
+          apiClient.getFileContent(threadId, sessionId, filePath)
+        );
+        setAppState(prev => ({
+          ...prev,
+          currentFileContent: content,
+          isLoading: false,
+        }));
+      } catch (error) {
+        setAppState(prev => ({
+          ...prev,
+          error: 'Failed to load file content',
+          isLoading: false,
+        }));
+      }
+    }
   };
 
   const renderMainContent = () => {
@@ -75,28 +114,7 @@ function App() {
     if (appState.selectedFile && appState.currentFileContent) {
       return (
         <div className="animate-fade-in">
-          {/* Document Header */}
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="status-dot-success"></div>
-              <h1 className="display-h2">
-                {appState.selectedFile?.split('/').pop() || appState.selectedFile}
-              </h1>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="chip-info">
-                Thread: {appState.selectedThread?.slice(0, 8)}...
-              </span>
-              <span className="chip-primary">
-                Session: {appState.selectedSession?.slice(0, 12)}...
-              </span>
-            </div>
-          </div>
-          
-          {/* Content */}
-          <div className="section-divider">
-            <MarkdownViewer content={appState.currentFileContent} />
-          </div>
+          <MarkdownViewer content={appState.currentFileContent} />
         </div>
       );
     }
@@ -136,39 +154,22 @@ function App() {
     );
   };
 
-  const sidebar = (
-    <div className="h-full flex flex-col">
-      <div className="sidebar-section">
-        <div className="sidebar-section-header">
-          Navigation
-        </div>
-        <div className="space-y-6">
-          <ThreadsList
-            selectedThread={appState.selectedThread}
-            onThreadSelect={handleThreadSelect}
-          />
-          {appState.selectedThread && (
-            <div className="animate-fade-in">
-              <SessionsList
-                threadId={appState.selectedThread}
-                selectedSession={appState.selectedSession}
-                onSessionSelect={handleSessionSelect}
-              />
-            </div>
-          )}
-          {appState.selectedThread && appState.selectedSession && (
-            <div className="animate-fade-in">
-              <FileExplorer
-                threadId={appState.selectedThread}
-                sessionId={appState.selectedSession}
-                selectedFile={appState.selectedFile}
-                onFileSelect={handleFileSelect}
-              />
-            </div>
-          )}
-        </div>
+  const sidebar = threadsLoading ? (
+    <div className="flex items-center justify-center h-full">
+      <div className="text-center">
+        <div className="skeleton w-12 h-12 rounded-full mx-auto mb-4 animate-pulse"></div>
+        <p className="text-muted text-sm">Loading threads...</p>
       </div>
     </div>
+  ) : (
+    <AccordionSidebar
+      threads={threads}
+      sessionFiles={sessionFiles}
+      selectedThread={appState.selectedThread}
+      selectedSession={appState.selectedSession}
+      selectedFile={appState.selectedFile}
+      onSelect={handleSelect}
+    />
   );
 
   return (

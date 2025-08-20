@@ -25,7 +25,7 @@
   --shadow-md: 0 6px 18px -8px rgba(0,0,0,0.10);
   --shadow-lg: 0 18px 32px -12px rgba(0,0,0,0.14);
 
-  /* Typography */
+  /* Typography - Enhanced for better readability */
   --text-h1: 32px;
   --text-h1-line: 40px;
   --text-h1-weight: 700;
@@ -39,19 +39,35 @@
   --text-h3-line: 28px;
   --text-h3-weight: 600;
   
-  --text-body-lg: 16px;
-  --text-body-lg-line: 24px;
+  --text-body-lg: 17px;  /* Increased from 16px */
+  --text-body-lg-line: 26px;
   --text-body-lg-weight: 500;
   
   --text-body: 15px;
   --text-body-line: 22px;
   --text-body-weight: 400;
   
-  --text-caption: 12px;
-  --text-caption-line: 16px;
+  --text-caption: 13px;  /* Increased from 12px */
+  --text-caption-line: 18px;
   --text-caption-weight: 500;
+  
+  /* Additional text sizes for better hierarchy */
+  --text-xs: 13px;   /* 0.8125rem */
+  --text-sm: 15px;   /* 0.9375rem */
+  --text-base: 17px; /* 1.0625rem */
+  --text-lg: 20px;   /* 1.25rem */
+  
+  /* Modular spacing unit */
+  --spacing-unit: 8px;
 
   /* Spacing Scale (8px grid system) */
+  --spacing-xs: calc(var(--spacing-unit) * 0.5);  /* 4px */
+  --spacing-sm: var(--spacing-unit);               /* 8px */
+  --spacing-md: calc(var(--spacing-unit) * 2);     /* 16px */
+  --spacing-lg: calc(var(--spacing-unit) * 3);     /* 24px */
+  --spacing-xl: calc(var(--spacing-unit) * 4);     /* 32px */
+  
+  /* Legacy spacing tokens for compatibility */
   --spacing-1: 4px;
   --spacing-2: 8px;
   --spacing-3: 12px;

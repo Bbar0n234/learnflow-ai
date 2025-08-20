@@ -38,6 +38,7 @@ class ExamState(BaseModel):
     
     # Входные данные
     exam_question: str = Field(default="", description="Исходный экзаменационный вопрос")
+    display_name: Optional[str] = Field(default=None, description="Краткое название сессии (3-5 слов)")
     
     # Новые поля для работы с изображениями
     image_paths: List[str] = Field(

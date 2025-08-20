@@ -1,0 +1,17 @@
+{
+  "files": {
+    "generated_document.md": "Сгенерированный документ",
+    "synthesized_material.md": "Синтезированный материал",
+    "final_answer.md": "Финальный ответ",
+    "recognized_text.md": "Распознанный текст",
+    "gap_questions.md": "Вопросы для проверки",
+    "generated_material.md": "Сгенерированный материал",
+    "recognized_notes.md": "Распознанные заметки"
+  },
+  "folders": {
+    "answers": "Ответы на вопросы"
+  },
+  "patterns": {
+    "answer_\\d{3}\\.md": "Ответ на вопрос {{number}}"
+  }
+}

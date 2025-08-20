@@ -59,6 +59,32 @@ class InputProcessingNode(BaseWorkflowNode):
         else:
             logger.warning("Security guard not initialized - skipping validation")
         
+        # Генерируем краткое название для сессии
+        display_name = None
+        try:
+            model = self.create_model()
+            display_name_prompt = f"""Создай краткое название (3-5 слов) для следующего экзаменационного вопроса:
+"{exam_question}"
+
+Требования:
+- Максимум 5 слов
+- Отражает суть вопроса
+- Без спецсимволов и знаков препинания
+- На том же языке, что и вопрос
+
+Ответ дай ТОЛЬКО название, без объяснений."""
+            
+            response = await model.ainvoke(display_name_prompt)
+            display_name = response.content.strip()
+            logger.info(f"Generated display_name: {display_name}")
+        except Exception as e:
+            logger.warning(f"Failed to generate display_name: {e}")
+            # Fallback: используем первые слова вопроса
+            words = exam_question.split()[:5]
+            display_name = " ".join(words)
+            if len(words) > 5:
+                display_name += "..."
+        
         # Валидируем и обрабатываем изображения
         validated_image_paths = []
         if state.image_paths:
@@ -75,7 +101,8 @@ class InputProcessingNode(BaseWorkflowNode):
         # Обновляем состояние
         update_data = {
             "exam_question": exam_question,
-            "image_paths": validated_image_paths
+            "image_paths": validated_image_paths,
+            "display_name": display_name  # Добавляем display_name в состояние
         }
         
         logger.info(f"Input processing completed for thread {thread_id}. "

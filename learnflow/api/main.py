@@ -18,6 +18,8 @@ from ..config.settings import get_settings
 from ..services.file_utils import ImageFileManager, ensure_temp_storage
 from ..config.config_manager import initialize_config_manager
 from ..models.model_factory import initialize_model_factory
+from ..services.hitl_manager import get_hitl_manager
+from ..models.hitl_config import HITLConfig
 
 
 # Настройка логирования
@@ -66,6 +68,16 @@ class StateResponse(BaseModel):
     thread_id: str = Field(..., description="ID потока")
     state: Optional[Dict[str, Any]] = Field(default=None, description="Текущее состояние")
     current_step: Dict[str, Any] = Field(..., description="Текущий шаг")
+
+
+class NodeSettingRequest(BaseModel):
+    """Модель запроса для обновления настройки узла"""
+    enabled: bool = Field(..., description="Включить/выключить HITL для узла")
+
+
+class BulkUpdateRequest(BaseModel):
+    """Модель запроса для массового обновления HITL"""
+    enable_all: bool = Field(..., description="Включить/выключить HITL для всех узлов")
 
 
 @asynccontextmanager
@@ -365,6 +377,147 @@ async def delete_thread(thread_id: str):
     except Exception as e:
         logger.error(f"Error deleting thread {thread_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Deletion error: {str(e)}")
+
+
+# HITL Configuration API Endpoints
+
+@app.get("/api/hitl/{thread_id}", response_model=HITLConfig)
+async def get_hitl_config(thread_id: str):
+    """
+    Получить текущую конфигурацию HITL для потока
+    
+    Args:
+        thread_id: ID потока пользователя
+        
+    Returns:
+        HITLConfig: Текущая конфигурация HITL
+    """
+    try:
+        hitl_manager = get_hitl_manager()
+        config = hitl_manager.get_config(thread_id)
+        logger.info(f"Retrieved HITL config for thread {thread_id}: {config.to_dict()}")
+        return config
+        
+    except Exception as e:
+        logger.error(f"Error getting HITL config for thread {thread_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get HITL config: {str(e)}")
+
+
+@app.put("/api/hitl/{thread_id}", response_model=HITLConfig)
+async def set_hitl_config(thread_id: str, config: HITLConfig):
+    """
+    Установить полную конфигурацию HITL для потока
+    
+    Args:
+        thread_id: ID потока пользователя
+        config: Новая конфигурация HITL
+        
+    Returns:
+        HITLConfig: Установленная конфигурация HITL
+    """
+    try:
+        hitl_manager = get_hitl_manager()
+        hitl_manager.set_config(thread_id, config)
+        logger.info(f"Set HITL config for thread {thread_id}: {config.to_dict()}")
+        return config
+        
+    except Exception as e:
+        logger.error(f"Error setting HITL config for thread {thread_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to set HITL config: {str(e)}")
+
+
+@app.patch("/api/hitl/{thread_id}/node/{node_name}", response_model=HITLConfig)
+async def update_node_hitl(thread_id: str, node_name: str, request: NodeSettingRequest):
+    """
+    Обновить настройку HITL для конкретного узла
+    
+    Args:
+        thread_id: ID потока пользователя
+        node_name: Имя узла
+        request: Запрос с новой настройкой
+        
+    Returns:
+        HITLConfig: Обновленная конфигурация HITL
+    """
+    try:
+        hitl_manager = get_hitl_manager()
+        updated_config = hitl_manager.update_node_setting(thread_id, node_name, request.enabled)
+        logger.info(f"Updated node {node_name} to {request.enabled} for thread {thread_id}")
+        return updated_config
+        
+    except Exception as e:
+        logger.error(f"Error updating node {node_name} for thread {thread_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update node setting: {str(e)}")
+
+
+@app.post("/api/hitl/{thread_id}/reset", response_model=HITLConfig)
+async def reset_hitl_config(thread_id: str):
+    """
+    Сбросить конфигурацию к значениям по умолчанию
+    
+    Args:
+        thread_id: ID потока пользователя
+        
+    Returns:
+        HITLConfig: Сброшенная конфигурация HITL
+    """
+    try:
+        hitl_manager = get_hitl_manager()
+        hitl_manager.reset_config(thread_id)
+        config = hitl_manager.get_config(thread_id)
+        logger.info(f"Reset HITL config for thread {thread_id}")
+        return config
+        
+    except Exception as e:
+        logger.error(f"Error resetting HITL config for thread {thread_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to reset HITL config: {str(e)}")
+
+
+@app.post("/api/hitl/{thread_id}/bulk", response_model=HITLConfig)
+async def bulk_update_hitl(thread_id: str, request: BulkUpdateRequest):
+    """
+    Включить или выключить HITL для всех узлов
+    
+    Args:
+        thread_id: ID потока пользователя
+        request: Запрос с флагом для всех узлов
+        
+    Returns:
+        HITLConfig: Обновленная конфигурация HITL
+    """
+    try:
+        hitl_manager = get_hitl_manager()
+        updated_config = hitl_manager.bulk_update(thread_id, request.enable_all)
+        logger.info(f"Bulk updated HITL to {request.enable_all} for thread {thread_id}")
+        return updated_config
+        
+    except Exception as e:
+        logger.error(f"Error bulk updating HITL for thread {thread_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to bulk update HITL: {str(e)}")
+
+
+@app.get("/api/hitl/debug/all-configs")
+async def get_all_hitl_configs():
+    """
+    Получить все конфигурации HITL (для отладки)
+    
+    Returns:
+        Dict: Все конфигурации HITL по thread_id
+    """
+    try:
+        hitl_manager = get_hitl_manager()
+        all_configs = hitl_manager.get_all_configs()
+        # Convert HITLConfig objects to dict for JSON serialization
+        serialized_configs = {
+            thread_id: config.to_dict() 
+            for thread_id, config in all_configs.items()
+        }
+        logger.info(f"Retrieved all HITL configs: {len(serialized_configs)} threads")
+        return {"configs": serialized_configs}
+        
+    except Exception as e:
+        logger.error(f"Error getting all HITL configs: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get all configs: {str(e)}")
 
 
 @app.exception_handler(Exception)

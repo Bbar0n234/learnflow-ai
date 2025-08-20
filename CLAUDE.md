@@ -55,6 +55,13 @@ uv run --package learnflow python -m learnflow.main
 uv run --package bot python -m bot.main
 ```
 
+**Available Bot Commands:**
+- `/start` - Welcome message and instructions
+- `/help` - Show available commands and usage
+- `/hitl` - Configure Human-in-the-Loop settings (autonomous vs. guided modes)
+- `/reset` - Reset current session
+- `/status` - Show current processing status
+
 #### Docker Compose (Full Stack with LangFuse)
 ```bash
 docker-compose up
@@ -65,6 +72,11 @@ docker-compose up
 ```bash
 # Health check
 curl http://localhost:8000/health
+
+# HITL Configuration API
+curl http://localhost:8000/api/hitl/{user_id}                    # Get current HITL settings
+curl -X POST http://localhost:8000/api/hitl/{user_id}/bulk      # Enable/disable all nodes
+curl -X PATCH http://localhost:8000/api/hitl/{user_id}/node/edit_material  # Toggle specific node
 
 # View logs
 tail -f learnflow.log
@@ -112,6 +124,12 @@ All processing nodes extend `BaseWorkflowNode` (`learnflow/nodes/base.py`):
 - Pydantic-based configuration management
 - Environment variable loading with validation
 - Service-specific settings (file limits, ports, etc.)
+
+#### HITL Management (`learnflow/services/hitl_manager.py`)
+- Configurable Human-in-the-Loop interaction control
+- Per-user settings for autonomous vs. guided processing modes
+- In-memory storage with thread-ID based configuration
+- REST API endpoints for runtime configuration changes
 
 ### Configuration Files
 

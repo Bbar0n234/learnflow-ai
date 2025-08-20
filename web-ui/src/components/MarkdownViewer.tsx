@@ -19,18 +19,7 @@ export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
 }) => {
   const { isDark } = useTheme();
 
-  // Helper function to detect question patterns
-  const isQuestionHeading = (text: string) => {
-    const questionWords = ['Question', 'Task', 'Problem', 'Exercise', 'Q:', 'Вопрос', 'Задача', 'Задание'];
-    return questionWords.some(word => text.includes(word)) || /^\d+\./.test(text);
-  };
 
-  // Helper function to extract difficulty and topics from content
-  const extractMetadata = (text: string) => {
-    const difficulty = text.match(/(?:сложность|difficulty):\s*([^\n]+)/i)?.[1]?.trim();
-    const topics = text.match(/(?:темы|topics):\s*([^\n]+)/i)?.[1]?.split(',').map(t => t.trim());
-    return { difficulty, topics };
-  };
 
   return (
     <div className={`prose max-w-none space-y-8 ${className}`}>

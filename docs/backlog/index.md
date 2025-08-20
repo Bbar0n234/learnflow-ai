@@ -13,7 +13,6 @@
 - `FEAT-UI-106-web-ui-improvements/` - Web UI улучшения
 
 ### Другие инициативы
-- `FEAT-AI-202-configurable-hitl/` - Конфигурируемый HITL
 - `FEAT-LLM-301-local-llm-support.md` - Поддержка локальных LLM
 - `FEAT-PROMPT-401-prompt-configuration-service.md` - Prompt Configuration Service (MVP до OSS релиза)
 - `FEAT-PROMPT-402-dynamic-prompt-generation.md` - Динамическая генерация промптов (после OSS релиза)
@@ -25,4 +24,5 @@
 - `IP-01-enhanced-guardrails-integration.md` - ✅ Completed: Enhanced Guardrails Integration (SEC-LLM-001)
 - `IP-01-edit-agent-integration.md` - ✅ Completed: Edit Agent Integration (FEAT-AI-201)
 - `IP-01-simplified-ui-improvements.md` - ✅ Completed: UI улучшения (FEAT-UI-106) - UI enhahced (small fixes)
+- `IP-01-simplified-hitl-service.md` - ✅ Completed: Simplified HITL Service Architecture (FEAT-AI-202)
 

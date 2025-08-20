@@ -14,6 +14,7 @@ from fuzzysearch import find_near_matches
 from .base import BaseWorkflowNode
 from ..core.state import ExamState, ActionDecision, EditDetails, EditMessageDetails
 from ..utils.utils import render_system_prompt
+from ..services.hitl_manager import get_hitl_manager
 
 
 
@@ -197,6 +198,11 @@ class EditMaterialNode(BaseWorkflowNode):
         thread_id = config.get("configurable", {}).get("thread_id", "unknown")
         self.logger.debug(f"EditMaterialNode called for thread {thread_id}")
         
+        # Проверяем настройки HITL
+        hitl_manager = get_hitl_manager()
+        hitl_enabled = hitl_manager.is_enabled("edit_material", thread_id)
+        self.logger.info(f"HITL for edit_material: {hitl_enabled}")
+        
         # Получаем историю сообщений
         messages = state.feedback_messages.copy() if state.feedback_messages else []
         
@@ -206,6 +212,17 @@ class EditMaterialNode(BaseWorkflowNode):
             return Command(
                 goto="generating_questions",
                 update={"agent_message": "Нет материала для редактирования"}
+            )
+        
+        # Если HITL отключен, пропускаем этот узел
+        if not hitl_enabled:
+            self.logger.info("HITL disabled for edit_material, skipping to next node")
+            return Command(
+                goto="generating_questions",
+                update={
+                    "agent_message": "Материал принят без редактирования (автономный режим)",
+                    "last_action": "skip_hitl"
+                }
             )
         
         # Запрашиваем ввод пользователя если нужно

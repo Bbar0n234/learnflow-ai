@@ -1,7 +1,6 @@
 import axios from 'axios';
 import type { AxiosInstance, AxiosError } from 'axios';
 import type {
-  Thread,
   ThreadsListResponse,
   ThreadDetailResponse,
   SessionFilesResponse,

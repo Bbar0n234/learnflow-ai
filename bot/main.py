@@ -11,12 +11,13 @@ from typing import Dict, Any, Optional, List
 from io import BytesIO
 
 from aiogram import Bot, Dispatcher, Router, F
-from aiogram.types import Message, PhotoSize, InputMediaPhoto
+from aiogram.types import Message, PhotoSize
 from aiogram.filters import Command, CommandStart
 from aiogram.enums import ChatAction, ParseMode
 import telegramify_markdown
 
 from .settings import get_settings
+from .handlers.hitl_settings import router as hitl_router
 
 
 # Настройка логирования
@@ -81,6 +82,7 @@ async def help_command(message: Message):
         "🔧 *Команды бота:*\n\n"
         "/start - Начать работу\n"
         "/help - Показать помощь\n"
+        "/hitl - Настройки обработки (автономный/управляемый)\n"
         "/reset - Начать новую сессию\n"
         "/status - Показать статус текущей сессии\n\n"
         "📋 *Как использовать:*\n"
@@ -213,7 +215,7 @@ async def handle_photo(message: Message):
         )
 
 
-@router.message(F.text)
+@router.message(F.text & ~F.text.startswith('/'))
 async def handle_message(message: Message):
     """Обработчик текстовых сообщений"""
     user_id = message.from_user.id
@@ -313,8 +315,9 @@ async def main():
     # Инициализация бота
     bot_instance = LearnFlowBot(bot)
     
-    # Регистрация роутера
+    # Регистрация роутеров
     dp.include_router(router)
+    dp.include_router(hitl_router)
     
     # Запуск бота
     logger.info("Starting LearnFlow Telegram Bot with image support...")

@@ -15,7 +15,7 @@ LearnFlow AI demonstrates modern AI-driven development practices while solving a
 
 ### Key Features
 
-- **🔄 LangGraph Workflow Pipeline** - Multi-node processing with HITL (Human-in-the-Loop) capabilities
+- **🔄 LangGraph Workflow Pipeline** - Multi-node processing with configurable HITL (Human-in-the-Loop) capabilities
 - **✏️ Interactive Material Editing** - Iterative refinement of synthesized content with fuzzy text matching
 - **🛡️ LLM Security** - Built-in Guardrails against prompt injection and jailbreak attacks
 - **🤖 Universal LLM Support** - Works with any OpenAI-compatible API (including local models)

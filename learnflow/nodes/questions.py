@@ -5,7 +5,7 @@
 
 import logging
 from typing import Dict, Any
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.constants import Send
 from langgraph.types import Command
 from langchain_core.utils.function_calling import convert_to_openai_function
@@ -13,6 +13,7 @@ from langchain_core.utils.function_calling import convert_to_openai_function
 from .base import FeedbackNode
 from ..core.state import ExamState, GapQuestions, GapQuestionsHITL
 from ..utils.utils import Config
+from ..services.hitl_manager import get_hitl_manager
 
 
 logger = logging.getLogger(__name__)
@@ -124,4 +125,39 @@ class QuestionGenerationNode(FeedbackNode):
                 HumanMessage(content=user_feedback),
                 AIMessage(content=formatted),
             ]
-        } 
+        }
+    
+    async def __call__(self, state, config) -> Command:
+        """Override to check HITL settings before running feedback loop"""
+        thread_id = config["configurable"]["thread_id"]
+        self.logger.debug(f"Processing QuestionGenerationNode for thread {thread_id}")
+        
+        # Check HITL settings
+        hitl_manager = get_hitl_manager()
+        hitl_enabled = hitl_manager.is_enabled("generating_questions", thread_id)
+        self.logger.info(f"HITL for generating_questions: {hitl_enabled}")
+        
+        if not hitl_enabled:
+            # Run autonomous generation without HITL
+            self.logger.info("HITL disabled for generating_questions, running autonomous generation")
+            
+            # Use synthesized_material if available, otherwise fallback to generated_material
+            study_material = state.synthesized_material or state.generated_material
+            
+            prompt = self.render_prompt(state, config=config)
+            model = self.model.with_structured_output(GapQuestions)
+            response = await model.ainvoke([SystemMessage(content=prompt)])
+            
+            # Move directly to answer generation
+            return Command(
+                goto=[Send("answer_question", {"question": question}) 
+                      for question in response.gap_questions],
+                update={
+                    "gap_questions": response.gap_questions,
+                    "feedback_messages": [],
+                    "agent_message": "Вопросы сгенерированы автоматически (автономный режим)"
+                }
+            )
+        
+        # Run normal HITL flow
+        return await super().__call__(state, config) 

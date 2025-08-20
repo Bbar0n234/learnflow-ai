@@ -14,7 +14,7 @@ We chose LangGraph as our workflow orchestration framework for the following rea
 
 1. **State Management** - Built-in support for complex state transitions and accumulation
 2. **Graph-based Flow** - Visual representation of processing pipeline
-3. **HITL Support** - Native human-in-the-loop capabilities
+3. **HITL Support** - Configurable human-in-the-loop capabilities with per-user settings
 4. **Checkpointing** - Ability to pause, resume, and rollback workflows
 5. **Streaming** - Real-time updates as processing occurs
 

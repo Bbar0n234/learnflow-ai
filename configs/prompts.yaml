@@ -209,7 +209,6 @@ gen_question_system_prompt: |
       <quantity> {{ question_quantity }} </quantity>
       <purpose> {{ question_purpose }} </purpose>
       <formats> {{ question_formats }} </formats>
-      <difficulty> {{ difficulty_progression }} </difficulty>
     </question_parameters>
 
     <output_configuration>
@@ -280,13 +279,10 @@ gen_question_further_system_prompt: |
       <quantity> {{ question_quantity }} </quantity>
       <purpose> {{ question_purpose }} </purpose>
       <formats> {{ question_formats }} </formats>
-      <difficulty> {{ difficulty_progression }} </difficulty>
     </question_parameters>
 
     <output_configuration>
-      <structure> {{ output_structure }} </structure>
       <language> {{ language }} </language>
-      <format> {{ output_format }} </format>
     </output_configuration>
 
     <target_audience> {{ target_audience_block }} </target_audience>

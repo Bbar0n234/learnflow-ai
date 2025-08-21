@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings
 
 class TelegramSettings(BaseSettings):
     """Настройки Telegram бота"""
-    
+
     token: str = Field(..., description="Telegram bot token")
     webhook_url: Optional[str] = Field(default=None, description="Webhook URL для бота")
     webhook_path: str = Field(default="/webhook", description="Путь для webhook")
@@ -21,19 +21,21 @@ class TelegramSettings(BaseSettings):
 
 class APISettings(BaseSettings):
     """Настройки для подключения к LearnFlow API"""
-    
-    learnflow_host: str = Field(default="localhost", env="LEARNFLOW_HOST", description="Host LearnFlow API")
-    learnflow_port: int = Field(default=8000, env="LEARNFLOW_PORT", description="Port LearnFlow API")
+
+    learnflow_host: str = Field(default="localhost", description="Host LearnFlow API")
+    learnflow_port: int = Field(default=8000, description="Port LearnFlow API")
 
     class Config:
-        env_prefix = ""
+        env_prefix = "LEARNFLOW_"
         extra = "ignore"
 
 
 class BotSettings(BaseSettings):
     """Основные настройки бота"""
-    
-    telegram: TelegramSettings = Field(default_factory=TelegramSettings)
+
+    telegram: TelegramSettings = Field(
+        default_factory=lambda: TelegramSettings(token="")
+    )
     api: APISettings = Field(default_factory=APISettings)
 
     class Config:
@@ -51,4 +53,4 @@ def get_settings() -> BotSettings:
     global _settings
     if _settings is None:
         _settings = BotSettings()
-    return _settings 
+    return _settings

@@ -1,7 +1,6 @@
 """FastAPI application for Artifacts Service."""
 
-from typing import Union
-
+import logging
 from fastapi import FastAPI, HTTPException, status, Path as PathParam
 from fastapi.responses import PlainTextResponse, JSONResponse
 from contextlib import asynccontextmanager
@@ -23,6 +22,9 @@ from .settings import settings
 # Global storage instance
 storage = ArtifactsStorage()
 
+# Logger instance
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -39,7 +41,7 @@ app = FastAPI(
     title="Artifacts Service",
     description="File storage system for LearnFlow AI artifacts",
     version="0.1.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 
@@ -49,7 +51,7 @@ async def service_exception_handler(request, exc: ArtifactsServiceException):
     http_exc = map_to_http_exception(exc)
     return JSONResponse(
         status_code=http_exc.status_code,
-        content=ErrorResponse(error=str(exc)).model_dump()
+        content=ErrorResponse(error=str(exc)).model_dump(),
     )
 
 
@@ -63,7 +65,7 @@ async def health_check():
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Service unavailable: {str(e)}"
+            detail=f"Service unavailable: {str(e)}",
         )
 
 
@@ -76,14 +78,12 @@ async def get_threads():
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get threads: {str(e)}"
+            detail=f"Failed to get threads: {str(e)}",
         )
 
 
 @app.get("/threads/{thread_id}", response_model=ThreadDetailResponse)
-async def get_thread(
-    thread_id: str = PathParam(description="Thread identifier")
-):
+async def get_thread(thread_id: str = PathParam(description="Thread identifier")):
     """Get information about a specific thread."""
     try:
         thread_info = storage.get_thread_info(thread_id)
@@ -92,24 +92,24 @@ async def get_thread(
             sessions=thread_info.sessions,
             created=thread_info.created,
             last_activity=thread_info.last_activity,
-            sessions_count=thread_info.sessions_count
+            sessions_count=thread_info.sessions_count,
         )
     except ArtifactsServiceException as e:
         raise map_to_http_exception(e)
 
 
-@app.get("/threads/{thread_id}/sessions/{session_id}", response_model=SessionFilesResponse)
+@app.get(
+    "/threads/{thread_id}/sessions/{session_id}", response_model=SessionFilesResponse
+)
 async def get_session_files(
     thread_id: str = PathParam(description="Thread identifier"),
-    session_id: str = PathParam(description="Session identifier")
+    session_id: str = PathParam(description="Session identifier"),
 ):
     """Get list of files in a session."""
     try:
         files = storage.get_session_files(thread_id, session_id)
         return SessionFilesResponse(
-            thread_id=thread_id,
-            session_id=session_id,
-            files=files
+            thread_id=thread_id, session_id=session_id, files=files
         )
     except ArtifactsServiceException as e:
         raise map_to_http_exception(e)
@@ -119,29 +119,31 @@ async def get_session_files(
 async def get_file(
     thread_id: str = PathParam(description="Thread identifier"),
     session_id: str = PathParam(description="Session identifier"),
-    file_path: str = PathParam(description="File path relative to session")
+    file_path: str = PathParam(description="File path relative to session"),
 ):
     """Get file content."""
     try:
         content = storage.read_file(thread_id, session_id, file_path)
-        
+
         # Determine response type based on file extension
-        if file_path.endswith('.json'):
+        if file_path.endswith(".json"):
             return JSONResponse(content=content)
         else:
             return PlainTextResponse(content=content, media_type="text/plain")
-            
+
     except ArtifactsServiceException as e:
         raise map_to_http_exception(e)
 
 
-@app.post("/threads/{thread_id}/sessions/{session_id}/{file_path:path}", 
-          response_model=FileOperationResponse)
+@app.post(
+    "/threads/{thread_id}/sessions/{session_id}/{file_path:path}",
+    response_model=FileOperationResponse,
+)
 async def create_or_update_file(
     file_content: FileContent,
     thread_id: str = PathParam(description="Thread identifier"),
     session_id: str = PathParam(description="Session identifier"),
-    file_path: str = PathParam(description="File path relative to session")
+    file_path: str = PathParam(description="File path relative to session"),
 ):
     """Create or update a file in a session."""
     try:
@@ -150,78 +152,65 @@ async def create_or_update_file(
         try:
             storage.read_file(thread_id, session_id, file_path)
             file_exists = True
-        except:
-            pass
-        
+        except Exception as e:
+            logger.debug(f"File {file_path} not found, will create new: {e}")
+
         # Write the file
         storage.write_file(
             thread_id=thread_id,
             session_id=session_id,
             path=file_path,
             content=file_content.content,
-            content_type=file_content.content_type
+            content_type=file_content.content_type,
         )
-        
+
         if file_exists:
-            return FileOperationResponse(
-                message="File updated",
-                path=file_path
-            )
+            return FileOperationResponse(message="File updated", path=file_path)
         else:
-            return FileOperationResponse(
-                message="File created",
-                path=file_path
-            )
-            
+            return FileOperationResponse(message="File created", path=file_path)
+
     except ArtifactsServiceException as e:
         raise map_to_http_exception(e)
 
 
-@app.delete("/threads/{thread_id}/sessions/{session_id}/{file_path:path}",
-            response_model=FileOperationResponse)
+@app.delete(
+    "/threads/{thread_id}/sessions/{session_id}/{file_path:path}",
+    response_model=FileOperationResponse,
+)
 async def delete_file(
     thread_id: str = PathParam(description="Thread identifier"),
     session_id: str = PathParam(description="Session identifier"),
-    file_path: str = PathParam(description="File path relative to session")
+    file_path: str = PathParam(description="File path relative to session"),
 ):
     """Delete a file from a session."""
     try:
         storage.delete_file(thread_id, session_id, file_path)
-        return FileOperationResponse(
-            message="File deleted",
-            path=file_path
-        )
+        return FileOperationResponse(message="File deleted", path=file_path)
     except ArtifactsServiceException as e:
         raise map_to_http_exception(e)
 
 
-@app.delete("/threads/{thread_id}/sessions/{session_id}",
-            response_model=FileOperationResponse)
+@app.delete(
+    "/threads/{thread_id}/sessions/{session_id}", response_model=FileOperationResponse
+)
 async def delete_session(
     thread_id: str = PathParam(description="Thread identifier"),
-    session_id: str = PathParam(description="Session identifier")
+    session_id: str = PathParam(description="Session identifier"),
 ):
     """Delete an entire session with all files."""
     try:
         storage.delete_session(thread_id, session_id)
-        return FileOperationResponse(
-            message="Session deleted"
-        )
+        return FileOperationResponse(message="Session deleted")
     except ArtifactsServiceException as e:
         raise map_to_http_exception(e)
 
 
-@app.delete("/threads/{thread_id}",
-            response_model=FileOperationResponse)
-async def delete_thread(
-    thread_id: str = PathParam(description="Thread identifier")
-):
+@app.delete("/threads/{thread_id}", response_model=FileOperationResponse)
+async def delete_thread(thread_id: str = PathParam(description="Thread identifier")):
     """Delete an entire thread with all sessions."""
     try:
         storage.delete_thread(thread_id)
-        return FileOperationResponse(
-            message="Thread deleted"
-        )
+        return FileOperationResponse(message="Thread deleted")
     except ArtifactsServiceException as e:
         raise map_to_http_exception(e)
 
@@ -229,12 +218,12 @@ async def delete_thread(
 def main():
     """Main entry point for running the server."""
     import uvicorn
-    
+
     uvicorn.run(
         "artifacts-service.main:app",
         host=settings.host,
         port=settings.port,
-        reload=True
+        reload=True,
     )
 
 

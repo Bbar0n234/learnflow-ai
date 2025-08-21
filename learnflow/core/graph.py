@@ -4,17 +4,17 @@
 """
 
 import logging
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import StateGraph
 
 from .state import ExamState
 from ..nodes import (
-    InputProcessingNode, 
-    ContentGenerationNode, 
+    InputProcessingNode,
+    ContentGenerationNode,
     RecognitionNode,
     SynthesisNode,
     EditMaterialNode,
-    QuestionGenerationNode, 
-    AnswerGenerationNode
+    QuestionGenerationNode,
+    AnswerGenerationNode,
 )
 
 
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 def create_workflow() -> StateGraph:
     """
     Создает и настраивает LangGraph workflow для обработки экзаменационных материалов.
-    
+
     Новый поток выполнения с поддержкой изображений и редактирования:
     1. START -> input_processing (анализ пользовательского ввода)
     2. input_processing -> generating_content (генерация обучающего материала)
@@ -34,15 +34,15 @@ def create_workflow() -> StateGraph:
     6. edit_material -> generating_questions (генерация gap questions с HITL)
     7. generating_questions -> answer_question (параллельная генерация ответов)
     8. answer_question -> END
-    
+
     Returns:
         StateGraph: Настроенный граф workflow
     """
     logger.info("Creating enhanced exam workflow with image recognition...")
-    
+
     # Создаем граф с типизированным состоянием
     workflow = StateGraph(ExamState)
-    
+
     # Инициализируем все узлы
     input_processing_node = InputProcessingNode()
     content_node = ContentGenerationNode()
@@ -51,7 +51,7 @@ def create_workflow() -> StateGraph:
     edit_material_node = EditMaterialNode()
     questions_node = QuestionGenerationNode()
     answers_node = AnswerGenerationNode()
-    
+
     # Добавляем узлы в граф
     workflow.add_node("input_processing", input_processing_node)
     workflow.add_node("generating_content", content_node)
@@ -60,10 +60,10 @@ def create_workflow() -> StateGraph:
     workflow.add_node("edit_material", edit_material_node)
     workflow.add_node("generating_questions", questions_node)
     workflow.add_node("answer_question", answers_node)
-    
+
     # Ставим входной узел
     workflow.set_entry_point("input_processing")
-    
+
     # Настраиваем переходы между узлами:
     # - input_processing -> generating_content (Command)
     # - generating_content -> recognition_handwritten (Command)
@@ -74,6 +74,8 @@ def create_workflow() -> StateGraph:
     # - generating_questions -> generating_questions (HITL цикл через Command)
     # - generating_questions -> answer_question (параллельные Send через Command)
     # - answer_question -> END (Command)
-    
-    logger.info("Enhanced exam workflow created successfully with image recognition support")
-    return workflow 
+
+    logger.info(
+        "Enhanced exam workflow created successfully with image recognition support"
+    )
+    return workflow

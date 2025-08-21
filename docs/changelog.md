@@ -1,4 +1,8 @@
-2025-08-20: IP-01 — Simplified HITL Service Architecture (FEAT-AI-202) полностью реализован; добавлены HITLConfig модель, HITLManager сервис, REST API эндпойнты, и упрощённый Telegram интерфейс. Поддержка конфигурируемых автономных и управляемых режимов обработки. План архивирован с post-implementation summary.
+2025-08-20: IP-01 — Simplified HITL Service Architecture (FEAT-AI-202) полностью реализован; добавлены HITLConfig модель, HITLManager сервис, REST API эндпойнты, и упрощённый Telegram интерфейс. Поддержка конфигурируемых автономных и управляемых режимов обработки. 
+
+2025-08-20: FEAT-UI-106 — Web UI улучшения завершены; добавлены AccordionSidebar, улучшена Layout система, обновлён MarkdownViewer, добавлена поддержка tokens и components стилей. Обновлён artifacts-service и ConfigService.
+
+2025-08-18: SEC-LLM-001 — Enhanced Guardrails Integration реализован; добавлен SecurityGuard для LLM безопасности, обновлены конфигурации промптов и графа, интегрированы guardrails во все processing nodes.
 
 2025-08-11: IP-01 — Local Artifacts Manager полностью реализован; GitHub интеграция заменена на локальное файловое хранилище. Обновлены Settings, ExamState, GraphManager. План архивирован с post-implementation summary.
 

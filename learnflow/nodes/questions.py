@@ -24,12 +24,12 @@ class QuestionGenerationNode(FeedbackNode):
     Узел генерации gap questions с HITL циклом.
     Использует FeedbackNode паттерн для взаимодействия с пользователем.
     """
-    
+
     def __init__(self):
         super().__init__(logger)
         self.config = Config()
         self.model = self.create_model()
-    
+
     def get_node_name(self) -> str:
         """Возвращает имя узла для поиска конфигурации"""
         return "generating_questions"
@@ -42,18 +42,20 @@ class QuestionGenerationNode(FeedbackNode):
         """Возвращает тип шаблона для промпта"""
         return "gen_question"
 
-    def get_prompt_kwargs(self, state: ExamState, user_feedback: str = None, config=None) -> Dict[str, Any]:
+    def get_prompt_kwargs(
+        self, state: ExamState, user_feedback: str = None, config=None
+    ) -> Dict[str, Any]:
         """Возвращает параметры для промпта в зависимости от варианта"""
         # Используем synthesized_material если есть, иначе generated_material как fallback
         study_material = state.synthesized_material or state.generated_material
-        
+
         if user_feedback is None:
             # Первичная генерация (initial variant) # TODO: почему Code in unreachable?
             self._current_stage = "initial"
             return {
                 "exam_question": state.exam_question,
                 "study_material": study_material,
-                "json_schema": convert_to_openai_function(GapQuestions)
+                "json_schema": convert_to_openai_function(GapQuestions),
             }
         else:
             # Уточнение на основе feedback (further variant)
@@ -62,13 +64,13 @@ class QuestionGenerationNode(FeedbackNode):
                 "exam_question": state.exam_question,
                 "study_material": study_material,
                 "current_questions": state.gap_questions,
-                "json_schema": convert_to_openai_function(GapQuestionsHITL)
+                "json_schema": convert_to_openai_function(GapQuestionsHITL),
             }
 
     def get_model(self):
         """Возвращает модель для генерации с structured output"""
         # Используем staged logic из get_prompt_kwargs
-        if hasattr(self, '_current_stage') and self._current_stage == "refine":
+        if hasattr(self, "_current_stage") and self._current_stage == "refine":
             return self.model.with_structured_output(GapQuestionsHITL)
         return self.model.with_structured_output(GapQuestions)
 
@@ -76,7 +78,7 @@ class QuestionGenerationNode(FeedbackNode):
         """Форматирует ответ для отображения пользователю"""
         questions = response.gap_questions
         # Форматируем вопросы как нумерованный список
-        return "\n".join([f"{i+1}. {q}" for i, q in enumerate(questions)])
+        return "\n".join([f"{i + 1}. {q}" for i, q in enumerate(questions)])
 
     def is_approved(self, response: GapQuestionsHITL) -> bool:
         """Проверяет, готовы ли вопросы к финализации"""
@@ -86,8 +88,10 @@ class QuestionGenerationNode(FeedbackNode):
         """Определяет следующий узел"""
         if approved:
             # Возвращаем список параллельных задач
-            return [Send("answer_question", {"question": question}) 
-                   for question in state.gap_questions]
+            return [
+                Send("answer_question", {"question": question})
+                for question in state.gap_questions
+            ]
         return "generating_questions"
 
     def get_user_prompt(self) -> str:
@@ -110,10 +114,12 @@ class QuestionGenerationNode(FeedbackNode):
         formatted = self.format_initial_response(response)
         return {
             "gap_questions": response.gap_questions,
-            "feedback_messages": [AIMessage(content=formatted)]
+            "feedback_messages": [AIMessage(content=formatted)],
         }
 
-    def get_continue_update(self, state, user_feedback: str, response) -> Dict[str, Any]:
+    def get_continue_update(
+        self, state, user_feedback: str, response
+    ) -> Dict[str, Any]:
         """Переопределяем для обновления gap_questions"""
         self.logger.debug(f"User feedback: {user_feedback}")
         self.logger.debug(f"Response: {response}")
@@ -121,43 +127,45 @@ class QuestionGenerationNode(FeedbackNode):
         self.logger.debug(f"Formatted: {formatted}")
         return {
             "gap_questions": response.gap_questions,
-            "feedback_messages": state.feedback_messages + [
+            "feedback_messages": state.feedback_messages
+            + [
                 HumanMessage(content=user_feedback),
                 AIMessage(content=formatted),
-            ]
+            ],
         }
-    
+
     async def __call__(self, state, config) -> Command:
         """Override to check HITL settings before running feedback loop"""
         thread_id = config["configurable"]["thread_id"]
         self.logger.debug(f"Processing QuestionGenerationNode for thread {thread_id}")
-        
+
         # Check HITL settings
         hitl_manager = get_hitl_manager()
         hitl_enabled = hitl_manager.is_enabled("generating_questions", thread_id)
         self.logger.info(f"HITL for generating_questions: {hitl_enabled}")
-        
+
         if not hitl_enabled:
             # Run autonomous generation without HITL
-            self.logger.info("HITL disabled for generating_questions, running autonomous generation")
-            
-            # Use synthesized_material if available, otherwise fallback to generated_material
-            study_material = state.synthesized_material or state.generated_material
-            
+            self.logger.info(
+                "HITL disabled for generating_questions, running autonomous generation"
+            )
+
             prompt = self.render_prompt(state, config=config)
             model = self.model.with_structured_output(GapQuestions)
             response = await model.ainvoke([SystemMessage(content=prompt)])
-            
+
             # Move directly to answer generation
             return Command(
-                goto=[Send("answer_question", {"question": question}) 
-                      for question in response.gap_questions],
+                goto=[
+                    Send("answer_question", {"question": question})
+                    for question in response.gap_questions
+                ],
                 update={
                     "gap_questions": response.gap_questions,
                     "feedback_messages": [],
-                    "agent_message": "Вопросы сгенерированы автоматически (автономный режим)"
-                }
+                    "agent_message": "Вопросы сгенерированы автоматически (автономный режим)",
+                },
             )
-        
+
         # Run normal HITL flow
-        return await super().__call__(state, config) 
+        return await super().__call__(state, config)

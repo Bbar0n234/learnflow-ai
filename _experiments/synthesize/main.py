@@ -1,6 +1,5 @@
 from jinja2 import Template
 import os
-import json
 import yaml
 import argparse
 import sys

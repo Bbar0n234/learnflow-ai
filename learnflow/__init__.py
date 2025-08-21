@@ -8,8 +8,8 @@ from .core.state import ExamState, GapQuestions, GapQuestionsHITL
 
 __all__ = [
     "create_workflow",
-    "GraphManager", 
+    "GraphManager",
     "ExamState",
     "GapQuestions",
-    "GapQuestionsHITL"
-] 
+    "GapQuestionsHITL",
+]

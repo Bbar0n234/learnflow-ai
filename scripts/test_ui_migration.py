@@ -7,7 +7,6 @@ Use this to test the new UI without running the full workflow.
 import json
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Optional
 
 # Path to artifacts data
 DATA_PATH = Path("data/artifacts")

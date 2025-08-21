@@ -1,5 +1,4 @@
 from jinja2 import Template
-import os
 import json
 import argparse
 from recognition.utils import get_image_list, get_openai_client

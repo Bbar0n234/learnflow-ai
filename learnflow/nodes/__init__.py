@@ -2,7 +2,6 @@
 Узлы LangGraph workflow для обработки экзаменационных материалов.
 """
 
-from .base import FeedbackNode
 from .content import ContentGenerationNode
 from .questions import QuestionGenerationNode
 from .answers import AnswerGenerationNode
@@ -13,10 +12,10 @@ from .edit_material import EditMaterialNode
 
 __all__ = [
     "ContentGenerationNode",
-    "QuestionGenerationNode", 
+    "QuestionGenerationNode",
     "AnswerGenerationNode",
     "InputProcessingNode",
     "RecognitionNode",
     "SynthesisNode",
-    "EditMaterialNode"
-] 
+    "EditMaterialNode",
+]

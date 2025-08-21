@@ -19,77 +19,86 @@ class BaseWorkflowNode(ABC):
     """
     Базовый класс для всех узлов workflow с поддержкой конфигурации LLM моделей.
     """
-    
+
     def __init__(self, logger: logging.Logger = None):
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.settings = get_settings()
         self._init_security()
-    
+
     @abstractmethod
     def get_node_name(self) -> str:
         """Возвращает имя узла для поиска конфигурации в graph.yaml"""
         pass
-    
+
     def get_model_config(self) -> ModelConfig:
         """Получает конфигурацию модели для этого узла"""
         from ..config_manager import get_config_manager
+
         config_manager = get_config_manager()
         return config_manager.get_model_config(self.get_node_name())
-    
+
     def create_model(self) -> ChatOpenAI:
         """Создает модель на основе конфигурации для этого узла"""
         return create_model_for_node(self.get_node_name(), self.settings.openai_api_key)
-    
+
     def _init_security(self):
         """Инициализация SecurityGuard с конфигурацией через yaml"""
         self.security_guard = None
-        self.logger.debug(f"Initializing security guard. Enabled: {self.settings.security_enabled}")
-        
+        self.logger.debug(
+            f"Initializing security guard. Enabled: {self.settings.security_enabled}"
+        )
+
         if self.settings.security_enabled:
             try:
                 from ..security.guard import SecurityGuard
                 from ..config.config_manager import get_config_manager
-                
+
                 config_manager = get_config_manager()
-                security_config = config_manager.get_model_config('security_guard')
+                security_config = config_manager.get_model_config("security_guard")
                 self.logger.debug(f"Got security config: {security_config}")
-                
+
                 # Добавляем API key в конфигурацию
                 model_config = {
-                    'model_name': security_config.model_name,
-                    'temperature': security_config.temperature,
-                    'max_tokens': security_config.max_tokens,
-                    'api_key': self.settings.openai_api_key
+                    "model_name": security_config.model_name,
+                    "temperature": security_config.temperature,
+                    "max_tokens": security_config.max_tokens,
+                    "api_key": self.settings.openai_api_key,
                 }
-                
+
                 self.security_guard = SecurityGuard(
                     model_config=model_config,
-                    fuzzy_threshold=self.settings.security_fuzzy_threshold
+                    fuzzy_threshold=self.settings.security_fuzzy_threshold,
                 )
-                self.logger.info(f"Security guard initialized successfully for {self.__class__.__name__}")
+                self.logger.info(
+                    f"Security guard initialized successfully for {self.__class__.__name__}"
+                )
             except Exception as e:
                 self.logger.warning(f"Failed to initialize security guard: {e}")
                 self.security_guard = None
-    
+
     async def validate_input(self, content: str) -> str:
         """
         Универсальная валидация любого пользовательского контента.
         Всегда возвращает валидный результат (graceful degradation).
-        
+
         Args:
             content: Контент для валидации
-            
+
         Returns:
             Безопасный контент (очищенный или исходный при ошибке)
         """
-        if not self.security_guard or not content or len(content) < self.settings.security_min_content_length:
+        if (
+            not self.security_guard
+            or not content
+            or len(content) < self.settings.security_min_content_length
+        ):
             return content
-        
+
         cleaned = await self.security_guard.validate_and_clean(content)
-        
+
         if cleaned != content:
             self.logger.info(f"Content sanitized in {self.get_node_name()}")
-        
+
         return cleaned
 
 
@@ -113,31 +122,31 @@ class FeedbackNode(BaseWorkflowNode):
         pass
 
     @abstractmethod
-    def get_prompt_kwargs(self, state, user_feedback: str = None, config=None) -> Dict[str, Any]:
+    def get_prompt_kwargs(
+        self, state, user_feedback: str = None, config=None
+    ) -> Dict[str, Any]:
         """Возвращает параметры для промпта"""
         pass
 
     def render_prompt(self, state, user_feedback: str = None, config=None) -> str:
         """Формирует промпт для LLM, используя логику initial/further"""
         template_type = self.get_template_type()
-        
+
         # Определяем вариант шаблона
         if user_feedback or not self.is_initial(state):
             template_variant = "further"
         else:
             template_variant = "initial"
-        
+
         # Получаем параметры для промпта
         prompt_kwargs = self.get_prompt_kwargs(state, user_feedback, config)
-        
+
         # Добавляем configurable если есть config
         if config and "configurable" in config:
             prompt_kwargs["configurable"] = config["configurable"]
-        
+
         return render_system_prompt(
-            template_type,
-            template_variant=template_variant,
-            **prompt_kwargs
+            template_type, template_variant=template_variant, **prompt_kwargs
         )
 
     @abstractmethod
@@ -174,13 +183,16 @@ class FeedbackNode(BaseWorkflowNode):
         formatted = self.format_initial_response(response)
         return {"feedback_messages": [AIMessage(content=formatted)]}
 
-    def get_continue_update(self, state, user_feedback: str, response) -> Dict[str, Any]:
+    def get_continue_update(
+        self, state, user_feedback: str, response
+    ) -> Dict[str, Any]:
         self.logger.debug(f"User feedback: {user_feedback}")
         self.logger.debug(f"Response: {response}")
         formatted = self.format_initial_response(response)
         self.logger.debug(f"Formatted: {formatted}")
         return {
-            "feedback_messages": state.feedback_messages + [
+            "feedback_messages": state.feedback_messages
+            + [
                 HumanMessage(content=user_feedback),
                 AIMessage(content=formatted),
             ]
@@ -188,7 +200,9 @@ class FeedbackNode(BaseWorkflowNode):
 
     async def __call__(self, state, config: RunnableConfig) -> Command:
         thread_id = config["configurable"]["thread_id"]
-        self.logger.debug(f"Processing {self.__class__.__name__} for thread {thread_id}")
+        self.logger.debug(
+            f"Processing {self.__class__.__name__} for thread {thread_id}"
+        )
 
         # 1. Первая генерация
         if self.is_initial(state):
@@ -206,7 +220,7 @@ class FeedbackNode(BaseWorkflowNode):
             messages_for_user.append(self.get_user_prompt())
         interrupt_json = {"message": messages_for_user}
         user_feedback = interrupt(interrupt_json)
-        
+
         # Валидация пользовательского feedback с graceful degradation
         if user_feedback and self.security_guard:
             user_feedback = await self.validate_input(user_feedback)
@@ -214,9 +228,11 @@ class FeedbackNode(BaseWorkflowNode):
         # 3. Правка с учётом feedback
         prompt = self.render_prompt(state, user_feedback=user_feedback, config=config)
         model = self.get_model()
-        messages = [SystemMessage(content=prompt)] + state.feedback_messages + [
-            HumanMessage(content=user_feedback)
-        ]
+        messages = (
+            [SystemMessage(content=prompt)]
+            + state.feedback_messages
+            + [HumanMessage(content=user_feedback)]
+        )
         response = await model.ainvoke(messages)
         self.logger.debug(f"Response: {response}")
 
@@ -227,7 +243,7 @@ class FeedbackNode(BaseWorkflowNode):
                 goto=self.get_next_node(state, approved=True),
                 update=self.get_update_on_approve(state, response),
             )
-        
+
         self.logger.debug(f"Not approved: {response}")
         goto = self.get_current_node_name()
         self.logger.debug(f"Goto: {goto}")
@@ -236,4 +252,4 @@ class FeedbackNode(BaseWorkflowNode):
         return Command(
             goto=goto,
             update=update,
-        ) 
+        )

@@ -1,8 +1,7 @@
 from jinja2 import Template
-import os
 import json
 import argparse
-from typing import List, Optional, Literal
+from typing import List, Literal
 from pydantic import BaseModel, Field
 from recognition.utils import get_image_list, get_openai_client
 

@@ -1,7 +1,7 @@
 # FEAT-PROMPT-401: Prompt Configuration Service (MVP)
 
 ## Статус
-Planned
+In Progress - динамические промпты уже реализованы в configs/prompts.yaml
 
 ## Milestone
 OSS Launch
@@ -41,7 +41,7 @@ OSS Launch
 3. Генерация промпта основана только на текущих значениях плейсхолдеров пользователя
 
 **Существующие плейсхолдеры в системе:**
-Промпты уже декомпозированы на плейсхолдеры в `configs/prompts.yaml`. Анализ показывает следующую структуру:
+Промпты УЖЕ РЕАЛИЗОВАНЫ с использованием плейсхолдеров в `configs/prompts.yaml`. Система динамической генерации промптов на основе шаблонов Jinja2 уже работает. Анализ показывает следующую структуру:
 
 **Общие плейсхолдеры (используются в нескольких промптах):**
 - `subject_keywords` - ключевые слова предметной области для тегирования
@@ -74,9 +74,6 @@ OSS Launch
 - `recognized_notes` - распознанные заметки
 
 ## Разбиение на задачи
-
-### Обоснование разбиения
-Монолитная реализация (6 этапов, 11 дней) заменяется на 3 независимые задачи для лучшей управляемости и тестируемости.
 
 ### Задача 1: "Prompt Configuration Service" (Backend Core)
 **Цель:** Создание микросервиса конфигурации промптов с полным API
@@ -175,51 +172,73 @@ OSS Launch
 
 ## Технические детали
 
-### Схема БД (плейсхолдер-центричная)
-```sql
--- 1. Плейсхолдеры (определения переменных)
-CREATE TABLE placeholders (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(100) NOT NULL UNIQUE,     -- "role_perspective"
-    display_name VARCHAR(200),             -- "Роль эксперта"  
-    description TEXT,
-    created_at TIMESTAMP DEFAULT NOW()
-);
+### Схема БД (использование SQLAlchemy ORM)
 
--- 2. Значения для плейсхолдеров (все возможные варианты)
-CREATE TABLE placeholder_values (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    placeholder_id UUID REFERENCES placeholders(id),
-    value TEXT NOT NULL,                   -- "senior technical expert"
-    display_name VARCHAR(200),             -- "Старший технический эксперт"
-    created_at TIMESTAMP DEFAULT NOW()
-);
+**ВАЖНО:** Вместо прямого SQL будет использоваться SQLAlchemy ORM для более качественной разработки и поддержки.
 
--- 3. Настройки пользователей (ОСНОВНАЯ таблица)
-CREATE TABLE user_placeholder_settings (
-    user_id BIGINT NOT NULL,
-    placeholder_id UUID REFERENCES placeholders(id),
-    placeholder_value_id UUID REFERENCES placeholder_values(id),
-    updated_at TIMESTAMP DEFAULT NOW(),
-    PRIMARY KEY (user_id, placeholder_id)
-);
+```python
+# models.py - SQLAlchemy модели
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, UUID
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+from sqlalchemy.ext.declarative import declarative_base
 
--- 4. Профили (шаблоны для быстрого применения)
-CREATE TABLE profiles (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(100) NOT NULL,            -- "technical_expert"
-    display_name VARCHAR(200),             -- "Технический эксперт"
-    description TEXT,
-    created_at TIMESTAMP DEFAULT NOW()
-);
+Base = declarative_base()
 
--- 5. Настройки профилей (какие значения входят в профиль)
-CREATE TABLE profile_placeholder_settings (
-    profile_id UUID REFERENCES profiles(id),
-    placeholder_id UUID REFERENCES placeholders(id),
-    placeholder_value_id UUID REFERENCES placeholder_values(id),
-    PRIMARY KEY (profile_id, placeholder_id)
-);
+class Placeholder(Base):
+    __tablename__ = 'placeholders'
+    
+    id = Column(UUID, primary_key=True, server_default=func.gen_random_uuid())
+    name = Column(String(100), nullable=False, unique=True)  # "role_perspective"
+    display_name = Column(String(200))  # "Роль эксперта"
+    description = Column(Text)
+    created_at = Column(DateTime, server_default=func.now())
+    
+    values = relationship("PlaceholderValue", back_populates="placeholder")
+
+class PlaceholderValue(Base):
+    __tablename__ = 'placeholder_values'
+    
+    id = Column(UUID, primary_key=True, server_default=func.gen_random_uuid())
+    placeholder_id = Column(UUID, ForeignKey('placeholders.id'))
+    value = Column(Text, nullable=False)  # "senior technical expert"
+    display_name = Column(String(200))  # "Старший технический эксперт"
+    created_at = Column(DateTime, server_default=func.now())
+    
+    placeholder = relationship("Placeholder", back_populates="values")
+
+class UserPlaceholderSetting(Base):
+    __tablename__ = 'user_placeholder_settings'
+    
+    user_id = Column(BigInteger, primary_key=True)
+    placeholder_id = Column(UUID, ForeignKey('placeholders.id'), primary_key=True)
+    placeholder_value_id = Column(UUID, ForeignKey('placeholder_values.id'))
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    
+    placeholder = relationship("Placeholder")
+    placeholder_value = relationship("PlaceholderValue")
+
+class Profile(Base):
+    __tablename__ = 'profiles'
+    
+    id = Column(UUID, primary_key=True, server_default=func.gen_random_uuid())
+    name = Column(String(100), nullable=False)  # "technical_expert"
+    display_name = Column(String(200))  # "Технический эксперт"
+    description = Column(Text)
+    created_at = Column(DateTime, server_default=func.now())
+    
+    settings = relationship("ProfilePlaceholderSetting", back_populates="profile")
+
+class ProfilePlaceholderSetting(Base):
+    __tablename__ = 'profile_placeholder_settings'
+    
+    profile_id = Column(UUID, ForeignKey('profiles.id'), primary_key=True)
+    placeholder_id = Column(UUID, ForeignKey('placeholders.id'), primary_key=True)
+    placeholder_value_id = Column(UUID, ForeignKey('placeholder_values.id'))
+    
+    profile = relationship("Profile", back_populates="settings")
+    placeholder = relationship("Placeholder")
+    placeholder_value = relationship("PlaceholderValue")
 ```
 
 ### API Примеры
@@ -275,63 +294,118 @@ GET /profiles
 
 ### Логика работы системы
 
-**1. Основной флоу - генерация промпта:**
+**1. Основной флоу - генерация промпта (с SQLAlchemy ORM):**
 ```python
-async def generate_prompt(user_id: int, node_name: str, context: dict):
-    # Получаем все настройки плейсхолдеров пользователя
-    user_placeholders = await db.query("""
-        SELECT p.name, pv.value 
-        FROM user_placeholder_settings ups
-        JOIN placeholders p ON ups.placeholder_id = p.id
-        JOIN placeholder_values pv ON ups.placeholder_value_id = pv.id
-        WHERE ups.user_id = $1
-    """, user_id)
+from sqlalchemy.orm import Session
+from jinja2 import Template
+
+async def generate_prompt(db: Session, user_id: int, node_name: str, context: dict):
+    # Получаем все настройки плейсхолдеров пользователя через ORM
+    user_settings = db.query(UserPlaceholderSetting).filter(
+        UserPlaceholderSetting.user_id == user_id
+    ).options(
+        joinedload(UserPlaceholderSetting.placeholder),
+        joinedload(UserPlaceholderSetting.placeholder_value)
+    ).all()
     
-    placeholders = {row['name']: row['value'] for row in user_placeholders}
+    placeholders = {
+        setting.placeholder.name: setting.placeholder_value.value 
+        for setting in user_settings
+    }
     placeholders.update(context)  # context переопределяет пользовательские
     
-    template = get_node_template(node_name)
+    # Загружаем шаблон из configs/prompts.yaml (уже реализовано)
+    template_string = load_prompt_template(node_name)
+    template = Template(template_string)
     return template.render(**placeholders)
 ```
 
-**2. Применение профиля (вспомогательный функционал):**
+**2. Применение профиля (с SQLAlchemy ORM):**
 ```python
-async def apply_profile(user_id: int, profile_id: str):
-    # Получаем все настройки профиля
-    profile_settings = await db.query("""
-        SELECT placeholder_id, placeholder_value_id
-        FROM profile_placeholder_settings
-        WHERE profile_id = $1
-    """, profile_id)
+async def apply_profile(db: Session, user_id: int, profile_id: str):
+    # Получаем профиль со всеми настройками
+    profile = db.query(Profile).filter(
+        Profile.id == profile_id
+    ).options(
+        joinedload(Profile.settings)
+    ).first()
     
-    # Применяем к пользователю (batch upsert)
-    for setting in profile_settings:
-        await db.query("""
-            INSERT INTO user_placeholder_settings (user_id, placeholder_id, placeholder_value_id)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (user_id, placeholder_id) 
-            DO UPDATE SET placeholder_value_id = $3, updated_at = NOW()
-        """, user_id, setting['placeholder_id'], setting['placeholder_value_id'])
+    if not profile:
+        raise ValueError(f"Profile {profile_id} not found")
+    
+    # Применяем настройки профиля к пользователю
+    for profile_setting in profile.settings:
+        # Upsert через ORM
+        user_setting = db.query(UserPlaceholderSetting).filter(
+            UserPlaceholderSetting.user_id == user_id,
+            UserPlaceholderSetting.placeholder_id == profile_setting.placeholder_id
+        ).first()
+        
+        if user_setting:
+            user_setting.placeholder_value_id = profile_setting.placeholder_value_id
+        else:
+            new_setting = UserPlaceholderSetting(
+                user_id=user_id,
+                placeholder_id=profile_setting.placeholder_id,
+                placeholder_value_id=profile_setting.placeholder_value_id
+            )
+            db.add(new_setting)
+    
+    db.commit()
 ```
 
-**3. Индивидуальная настройка:**
+**3. Индивидуальная настройка (с SQLAlchemy ORM):**
 ```python
-async def set_user_placeholder(user_id: int, placeholder_id: str, value_id: str):
-    await db.query("""
-        INSERT INTO user_placeholder_settings (user_id, placeholder_id, placeholder_value_id)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (user_id, placeholder_id) 
-        DO UPDATE SET placeholder_value_id = $3, updated_at = NOW()
-    """, user_id, placeholder_id, value_id)
+async def set_user_placeholder(db: Session, user_id: int, placeholder_id: str, value_id: str):
+    # Проверяем существование плейсхолдера и значения
+    placeholder_value = db.query(PlaceholderValue).filter(
+        PlaceholderValue.id == value_id,
+        PlaceholderValue.placeholder_id == placeholder_id
+    ).first()
+    
+    if not placeholder_value:
+        raise ValueError(f"Invalid placeholder value {value_id} for placeholder {placeholder_id}")
+    
+    # Upsert настройки пользователя
+    user_setting = db.query(UserPlaceholderSetting).filter(
+        UserPlaceholderSetting.user_id == user_id,
+        UserPlaceholderSetting.placeholder_id == placeholder_id
+    ).first()
+    
+    if user_setting:
+        user_setting.placeholder_value_id = value_id
+    else:
+        new_setting = UserPlaceholderSetting(
+            user_id=user_id,
+            placeholder_id=placeholder_id,
+            placeholder_value_id=value_id
+        )
+        db.add(new_setting)
+    
+    db.commit()
 ```
 
-**4. Интеграция в LangGraph:**
+**4. Интеграция в LangGraph (ТЕКУЩАЯ РЕАЛИЗАЦИЯ):**
 ```python
-# Было (статичный промпт)
-system_prompt = load_from_yaml("generating_content_system_prompt")
+# ТЕКУЩАЯ реализация в LearnFlow (уже работает с динамическими промптами)
+from learnflow.prompt_service import PromptService
 
-# Стало (персонализированный)
-prompt_response = await prompt_service.post(
+prompt_service = PromptService()
+
+# В узлах графа уже используется динамическая генерация
+system_prompt = prompt_service.get_prompt(
+    node_name="generating_content",
+    placeholders={
+        "subject_keywords": user_config.subject_keywords,
+        "role_perspective": user_config.role_perspective,
+        "subject_name": user_config.subject_name,
+        "input_content": state.exam_question,
+        # ... другие плейсхолдеры
+    }
+)
+
+# БУДУЩАЯ интеграция (с сервисом конфигурации)
+prompt_response = await prompt_config_service.post(
     "/generate-prompt",
     json={
         "user_id": state.thread_id,  # thread_id = user_id

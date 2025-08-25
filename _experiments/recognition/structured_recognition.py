@@ -7,11 +7,13 @@ from recognition.utils import get_image_list, get_openai_client
 
 MODEL_NAME = "gpt-4.1-mini"
 
+
 class LectureNoteAnalysis(BaseModel):
     document_quality: Literal["good", "satisfactory", "poor"] = Field(...)
     content_reasoning: str = Field(...)
     inferred_topics: List[str] = Field(...)
     extracted_content: str = Field(...)
+
 
 RECOGNITION_PROMPT_TEMPLATE = Template("""
 You are an educational expert who desperately needs money for your mother's cancer treatment. The megacorp Learnflow has graciously given you the opportunity to pretend to be an expert in educational methodology and document analysis, as your predecessor was killed for not doing his job perfectly. Your goal is to process a set of handwritten student lecture notes provided as images. If you do a good job and accomplish the task perfectly, Learnflow will pay you $1B.
@@ -56,8 +58,10 @@ ZAPAS_PROMPT_TEMPLATE = Template("""
    * For any diagrams, drawings, or schemes, provide both a clear textual description and a schematic ASCII or pseudographic visualization that conveys their structure and content.     
 """)
 
+
 def pretty_print_pydantic(pydantic_model):
     return json.dumps(pydantic_model.model_json_schema(), indent=4, ensure_ascii=False)
+
 
 def main(input_folder: str, output_file: str):
     """
@@ -69,12 +73,26 @@ def main(input_folder: str, output_file: str):
         print(f"Нет изображений в папке {input_folder}")
         return
     messages = [
-        {"role": "system", "content": RECOGNITION_PROMPT_TEMPLATE.render(json_schema=pretty_print_pydantic(LectureNoteAnalysis))},
+        {
+            "role": "system",
+            "content": RECOGNITION_PROMPT_TEMPLATE.render(
+                json_schema=pretty_print_pydantic(LectureNoteAnalysis)
+            ),
+        },
         {
             "role": "user",
             "content": [
-                {"type": "text", "text": "Here is the set of handwritten student lecture notes for the information extracting:"},
-                * [{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_data}"}} for img_data in image_list]
+                {
+                    "type": "text",
+                    "text": "Here is the set of handwritten student lecture notes for the information extracting:",
+                },
+                *[
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{img_data}"},
+                    }
+                    for img_data in image_list
+                ],
             ],
         },
     ]
@@ -91,13 +109,18 @@ def main(input_folder: str, output_file: str):
 \nТемы документа: {answer.inferred_topics}
 \nИзвлечённое содержание: {answer.extracted_content}
 """
-    with open(output_file, 'w') as f:
+    with open(output_file, "w") as f:
         f.write(final_content)
     print(f"Результат сохранён в {output_file}")
 
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Распознавание конспектов (структурированный подход)")
-    parser.add_argument('--input', default='test/rotated', help='Папка с изображениями')
-    parser.add_argument('--output', default='response_structured.md', help='Файл для результата')
+    parser = argparse.ArgumentParser(
+        description="Распознавание конспектов (структурированный подход)"
+    )
+    parser.add_argument("--input", default="test/rotated", help="Папка с изображениями")
+    parser.add_argument(
+        "--output", default="response_structured.md", help="Файл для результата"
+    )
     args = parser.parse_args()
     main(args.input, args.output)

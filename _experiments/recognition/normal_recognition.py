@@ -29,6 +29,7 @@ Only include information that is present or directly inferable from the notes. D
 Your outputs should be always in Russian (with keeping abbreviations on the English), independent of the language of the notes.
 """)
 
+
 def pretty_print_pydantic(pydantic_model):
     """
     Возвращает красиво отформатированную JSON-схему Pydantic-модели.
@@ -40,6 +41,7 @@ def pretty_print_pydantic(pydantic_model):
         str: JSON-схема модели с отступами
     """
     return json.dumps(pydantic_model.model_json_schema(), indent=4, ensure_ascii=False)
+
 
 def main(input_folder: str, output_file: str):
     """
@@ -55,8 +57,17 @@ def main(input_folder: str, output_file: str):
         {
             "role": "user",
             "content": [
-                {"type": "text", "text": "Here is the set of handwritten student lecture notes for the information extracting:"},
-                * [{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_data}"}} for img_data in image_list]
+                {
+                    "type": "text",
+                    "text": "Here is the set of handwritten student lecture notes for the information extracting:",
+                },
+                *[
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{img_data}"},
+                    }
+                    for img_data in image_list
+                ],
             ],
         },
     ]
@@ -65,13 +76,16 @@ def main(input_folder: str, output_file: str):
         messages=messages,
         temperature=0.2,
     )
-    with open(output_file, 'w') as f:
+    with open(output_file, "w") as f:
         f.write(response.choices[0].message.content)
     print(f"Результат сохранён в {output_file}")
 
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Распознавание конспектов (свободный подход)")
-    parser.add_argument('--input', default='test/rotated', help='Папка с изображениями')
-    parser.add_argument('--output', default='response.md', help='Файл для результата')
+    parser = argparse.ArgumentParser(
+        description="Распознавание конспектов (свободный подход)"
+    )
+    parser.add_argument("--input", default="test/rotated", help="Папка с изображениями")
+    parser.add_argument("--output", default="response.md", help="Файл для результата")
     args = parser.parse_args()
     main(args.input, args.output)

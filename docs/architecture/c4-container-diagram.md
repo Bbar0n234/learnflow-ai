@@ -21,9 +21,13 @@ C4Container
         
         Container(artifacts_service, "Artifacts Service", "FastAPI, Python", "File storage system<br/>- Store generated content<br/>- Manage thread artifacts<br/>- Provide file access")
         
+        Container(prompt_config_service, "Prompt Config Service", "FastAPI, Python", "Prompt configuration management<br/>- User placeholder settings<br/>- Profile management<br/>- Dynamic prompt generation")
+        
         Container(web_ui, "Web UI", "React, TypeScript", "Web interface for viewing artifacts<br/>- Display generated materials<br/>- Browse thread history<br/>- Export content")
         
         ContainerDb(local_storage, "Local Storage", "File System", "Temporary file storage<br/>- Uploaded images<br/>- Processing artifacts<br/>- Session data")
+        
+        ContainerDb(prompts_db, "Prompts DB", "PostgreSQL", "Prompt configuration storage<br/>- Placeholders<br/>- User settings<br/>- Profiles")
     }
     
     System_Boundary(external, "External Systems") {
@@ -46,9 +50,12 @@ C4Container
     Rel(learnflow_api, langgraph_workflow, "Executes", "In-process")
     Rel(langgraph_workflow, openai, "Generates content", "HTTPS")
     Rel(langgraph_workflow, langfuse, "Sends traces", "HTTPS")
+    Rel(langgraph_workflow, prompt_config_service, "Gets prompts", "HTTP/REST")
     
     Rel(learnflow_api, artifacts_service, "Stores artifacts", "HTTP/REST")
     Rel(artifacts_service, local_storage, "Reads/Writes", "File I/O")
+    
+    Rel(prompt_config_service, prompts_db, "Reads/Writes", "SQL")
     
     Rel(student, web_ui, "Views materials", "HTTPS")
     Rel(web_ui, artifacts_service, "Fetches content", "HTTP/REST")
@@ -131,12 +138,34 @@ C4Container
 - **Technology**: FastAPI, file system storage
 - **API Structure**: `/threads/{thread_id}/sessions/{session_id}/{file_path}`
 
+#### **Prompt Configuration Service** (FastAPI)
+- **Purpose**: Dynamic prompt configuration management
+- **Responsibilities**:
+  - Manage user-specific placeholder settings
+  - Handle profile application and management
+  - Generate prompts with dynamic placeholder resolution
+  - Provide REST API for configuration updates
+- **Technology**: FastAPI, SQLAlchemy, Jinja2
+- **Key Endpoints**:
+  - `/api/v1/profiles` - List available profiles
+  - `/api/v1/users/{user_id}/placeholders` - User settings
+  - `/api/v1/generate-prompt` - Dynamic prompt generation
+- **Port**: 8002
+
 #### **Local Storage** (File System)
 - **Purpose**: Persistent storage for artifacts and temporary files
 - **Structure**:
   - `/data/artifacts/` - Generated materials
   - `/temp/` - Uploaded images and processing files
   - Thread-based organization for multi-tenancy
+
+#### **Prompts DB** (PostgreSQL)
+- **Purpose**: Storage for prompt configuration data
+- **Tables**:
+  - Placeholders and their values
+  - User-specific settings
+  - Profile configurations
+  - Profile-placeholder mappings
 
 ### External Integrations
 

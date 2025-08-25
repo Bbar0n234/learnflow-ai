@@ -1,0 +1,28 @@
+# Базовый образ с UV
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
+
+# Установка системных зависимостей для PostgreSQL
+RUN apt-get update && apt-get install -y \
+    gcc \
+    python3-dev \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Копируем файлы проекта
+COPY pyproject.toml uv.lock ./
+COPY prompt-config-service/ ./prompt-config-service/
+COPY configs/ ./configs/
+
+# Устанавливаем зависимости через UV для конкретного пакета
+RUN uv sync --package prompt-config-service --no-dev
+
+# Создаем директорию для логов
+RUN mkdir -p /app/logs
+
+# Открываем порт
+EXPOSE 8001
+
+# Запуск сервиса
+CMD ["uv", "run", "--package", "prompt-config-service", "python", "-m", "main"]

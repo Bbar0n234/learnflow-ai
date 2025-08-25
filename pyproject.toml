@@ -3,5 +3,6 @@ members = [
  "bot",
  "learnflow",
  "artifacts-service",
+ "prompt-config-service",
 ]
 

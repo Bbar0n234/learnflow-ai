@@ -93,6 +93,34 @@ services:
       start_period: 5s
       retries: 3
 
+  prompt-config-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.prompt-config-service
+    environment:
+      - DATABASE_URL=${PROMPT_CONFIG_DATABASE_URL}
+      - SERVICE_HOST=${PROMPT_CONFIG_SERVICE_HOST:-0.0.0.0}
+      - SERVICE_PORT=${PROMPT_CONFIG_SERVICE_PORT:-8002}
+      - LOG_LEVEL=${PROMPT_CONFIG_LOG_LEVEL:-INFO}
+      - PROMPTS_CONFIG_PATH=${PROMPTS_CONFIG_PATH:-/app/configs/prompts.yaml}
+      - INITIAL_DATA_PATH=${PROMPT_CONFIG_INITIAL_DATA_PATH:-/app/prompt-config-service/seed/initial_data.json}
+      - CACHE_TTL=${PROMPT_CONFIG_CACHE_TTL:-300}
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: always
+    volumes:
+      - ./configs:/app/configs:ro
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 15s
+      timeout: 10s
+      start_period: 10s
+      retries: 5
+
   langfuse-worker:
     image: langfuse/langfuse-worker:3
     depends_on: &langfuse-depends-on

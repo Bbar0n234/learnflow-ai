@@ -4,12 +4,13 @@ Graph configuration manager for loading and managing LLM model configurations.
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict
 
 import yaml
 from pydantic import ValidationError
 
-from .config_models import GraphConfig, ModelConfig
+from .config_loader import load_yaml_with_env
+from .config_models import GraphConfig, ModelConfig, ProviderConfig
 
 
 logger = logging.getLogger(__name__)
@@ -18,35 +19,52 @@ logger = logging.getLogger(__name__)
 class GraphConfigManager:
     """Manager for loading and accessing graph configuration."""
 
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: Optional[str] = None, prompts_path: Optional[str] = None, providers_path: Optional[str] = None):
         """
         Initialize the configuration manager.
 
         Args:
             config_path: Path to the graph.yaml configuration file.
                         If None, defaults to configs/graph.yaml
+            prompts_path: Path to prompts.yaml file (optional)
+            providers_path: Path to providers.yaml file (optional)
         """
         self.config_path = config_path or "configs/graph.yaml"
+        self.prompts_path = prompts_path
+        self.providers_path = providers_path
         self._config: Optional[GraphConfig] = None
+        self._providers_config: Dict[str, ProviderConfig] = {}
         self._load_config()
 
     def _load_config(self) -> None:
         """Load and validate configuration from YAML file."""
         try:
+            # Load graph config with environment variable substitution
             config_file = Path(self.config_path)
             if not config_file.exists():
                 raise FileNotFoundError(
                     f"Configuration file not found: {self.config_path}"
                 )
 
-            with open(config_file, "r", encoding="utf-8") as f:
-                yaml_data = yaml.safe_load(f)
+            yaml_data = load_yaml_with_env(str(config_file))
 
             if not yaml_data:
                 raise ValueError(f"Configuration file is empty: {self.config_path}")
 
             self._config = GraphConfig(**yaml_data)
             logger.info(f"Successfully loaded configuration from {self.config_path}")
+            
+            # Load providers config if path provided
+            if self.providers_path:
+                providers_file = Path(self.providers_path)
+                if providers_file.exists():
+                    providers_data = load_yaml_with_env(str(providers_file))
+                    if providers_data and "providers" in providers_data:
+                        for name, config in providers_data["providers"].items():
+                            self._providers_config[name] = ProviderConfig(**config)
+                        logger.info(f"Successfully loaded providers from {self.providers_path}")
+                else:
+                    logger.warning(f"Providers file not found: {self.providers_path}")
 
         except FileNotFoundError as e:
             logger.error(f"Configuration file not found: {e}")
@@ -129,6 +147,14 @@ class GraphConfigManager:
             return False
 
         return node_name in self._config.models.nodes
+    
+    def get_providers_config(self) -> Dict[str, ProviderConfig]:
+        """Get providers configuration.
+        
+        Returns:
+            Dictionary of provider configurations with environment variables already substituted
+        """
+        return self._providers_config
 
 
 # Global configuration manager instance
@@ -144,20 +170,27 @@ def get_config_manager() -> GraphConfigManager:
     """
     global _config_manager
     if _config_manager is None:
-        _config_manager = GraphConfigManager()
+        _config_manager = GraphConfigManager(
+            config_path="configs/graph.yaml",
+            providers_path="configs/providers.yaml"
+        )
     return _config_manager
 
 
-def initialize_config_manager(config_path: Optional[str] = None) -> GraphConfigManager:
+def initialize_config_manager(config_path: Optional[str] = None, providers_path: Optional[str] = None) -> GraphConfigManager:
     """
     Initialize the global configuration manager with a specific config path.
 
     Args:
         config_path: Path to the configuration file
+        providers_path: Path to the providers configuration file
 
     Returns:
         GraphConfigManager instance
     """
     global _config_manager
-    _config_manager = GraphConfigManager(config_path)
+    _config_manager = GraphConfigManager(
+        config_path=config_path,
+        providers_path=providers_path or "configs/providers.yaml"
+    )
     return _config_manager

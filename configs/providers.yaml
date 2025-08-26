@@ -1,0 +1,24 @@
+providers:
+  # OpenAI - официальный API
+  openai:
+    name: openai
+    api_key: "{{ env.OPENAI_API_KEY }}"
+    # base_url не указан - используется стандартный OpenAI API
+    supports_structured_output: true
+    default_model: gpt-4.1-mini
+
+  # Fireworks AI - быстрый провайдер с поддержкой structured output  
+  fireworks:
+    name: fireworks
+    api_key: "{{ env.FIREWORKS_API_KEY }}"
+    base_url: https://api.fireworks.ai/inference/v1
+    supports_structured_output: true
+    default_model: accounts/fireworks/models/qwen3-235b-a22b-instruct-2507
+  
+  # OpenRouter - агрегатор различных моделей
+  openrouter:
+    name: openrouter
+    api_key: "{{ env.OPENROUTER_API_KEY }}"
+    base_url: https://openrouter.ai/api/v1
+    supports_structured_output: false  # Зависит от модели
+    default_model: openai/gpt-4.1-mini

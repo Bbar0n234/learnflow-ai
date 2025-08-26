@@ -120,6 +120,12 @@ All processing nodes extend `BaseWorkflowNode` (`learnflow/nodes/base.py`):
 
 ### Key Modules
 
+#### Multi-Provider LLM Support (`learnflow/models/model_factory.py`)
+- Support for multiple OpenAI-compatible providers (OpenAI, Fireworks, OpenRouter)
+- Provider configuration via `configs/providers.yaml` with Jinja2 templating
+- Automatic validation of structured output support
+- Per-node provider configuration in `configs/graph.yaml`
+
 #### Image Processing (`learnflow/file_utils.py`)
 - Thread-based temporary storage for uploaded images
 - Image validation (size, format, content type)
@@ -150,6 +156,12 @@ All processing nodes extend `BaseWorkflowNode` (`learnflow/nodes/base.py`):
 
 ### Configuration Files
 
+#### Providers Configuration (`configs/providers.yaml`)
+Defines available LLM providers with their capabilities:
+- API endpoints and keys (via environment variables)
+- Structured output support flags
+- Default models per provider
+
 #### Prompts (`configs/prompts.yaml`)
 Contains all system prompts for different workflow nodes:
 - `generating_content_system_prompt` - Comprehensive material generation
@@ -161,6 +173,9 @@ Contains all system prompts for different workflow nodes:
 #### Environment Variables (`.env`)
 Required API keys and configuration:
 - `OPENAI_API_KEY` - Primary LLM provider
+- **Alternative LLM Providers (Optional)**:
+  - `OPENROUTER_API_KEY` - OpenRouter aggregator for multiple models
+  - `FIREWORKS_API_KEY` - Fireworks AI for fast inference
 - `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` - Observability
 - `TELEGRAM_TOKEN` - Bot integration
 - `GITHUB_TOKEN` - Repository access for artifacts

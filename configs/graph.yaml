@@ -2,6 +2,7 @@
 models:
   # Default model configuration used as fallback
   default:
+    provider: openai  # По умолчанию используем OpenAI
     model_name: "gpt-4.1-mini"
     temperature: 0.1
     max_tokens: 4000
@@ -9,44 +10,60 @@ models:
   # Node-specific model configurations
   nodes:
     input_processing:
+      provider: openai
       model_name: "gpt-4.1-mini"
       temperature: 0.0
       max_tokens: 1500
+      requires_structured_output: true  # Требуется для парсинга типа входа
     
     generating_content:
-      model_name: "gpt-4.1-mini"
+      provider: openrouter  # Можно использовать альтернативного провайдера
+      model_name: "openai/gpt-4.1-mini"
       temperature: 0.2
       max_tokens: 8000
+      requires_structured_output: false
     
     recognition_handwritten:
+      provider: openai
       model_name: "gpt-4.1-mini"
       temperature: 0.1
       max_tokens: 6000
+      requires_structured_output: false
     
     synthesis_material:
-      model_name: "gpt-4.1-mini"
+      provider: openrouter  # Можно использовать альтернативного провайдера
+      model_name: "openai/gpt-4.1-mini"
       temperature: 0.1
       max_tokens: 8000
+      requires_structured_output: false
     
     generating_questions:
+      provider: openai  # Требует structured output для генерации вопросов
       model_name: "gpt-4.1-mini"
       temperature: 0.3
       max_tokens: 3000
+      requires_structured_output: true
     
     answer_question:
+      provider: openai
       model_name: "gpt-4.1-mini"
       temperature: 0.2
       max_tokens: 6000
+      requires_structured_output: false
 
     edit_material:
-      model_name: "gpt-4.1-mini"
+      provider: fireworks  # Можно использовать Fireworks для быстрой обработки
+      model_name: "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507"
       temperature: 0.2
       max_tokens: 6000
+      requires_structured_output: true
 
     security_guard:
-      model_name: "gpt-4o-mini"
+      provider: openai
+      model_name: "gpt-4.1-mini"
       temperature: 0.0
       max_tokens: 1000
+      requires_structured_output: true
       
 output_config:
   save_format: "markdown"

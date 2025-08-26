@@ -25,14 +25,9 @@ class InjectionResult(BaseModel):
 class SecurityGuard:
     """Простая универсальная система защиты от prompt injection"""
 
-    def __init__(self, model_config: dict, fuzzy_threshold: float = 0.85):
-        """Инициализация с конфигурацией через yaml как у других узлов"""
-        self.model = ChatOpenAI(
-            model=model_config.get("model_name", "gpt-4.1-mini"),
-            temperature=model_config.get("temperature", 0.0),
-            max_tokens=model_config.get("max_tokens", 1000),
-            api_key=model_config["api_key"],
-        ).with_structured_output(InjectionResult)
+    def __init__(self, model: ChatOpenAI, fuzzy_threshold: float = 0.85):
+        """Инициализация с готовой моделью через фабрику"""
+        self.model = model
         self.fuzzy_threshold = fuzzy_threshold
 
     async def validate_and_clean(self, text: str) -> str:

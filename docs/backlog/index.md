@@ -13,7 +13,8 @@
 - `FEAT-UI-106-web-ui-improvements/` - Web UI улучшения
 
 ### Другие инициативы
-- `FEAT-LLM-301-local-llm-support.md` - Поддержка локальных LLM
+- `FEAT-LLM-301-multi-provider/` - Multi-provider LLM support (✅ Завершено)
+  - `IP-01-post-implementation-summary.md` - ✅ Multi-provider support completed (2025-08-26)
 - `FEAT-PROMPT-401/` - Prompt Configuration Service (✅ MVP завершен)
   - `IP-01-post-implementation-summary.md` - ✅ Backend Core completed (2025-08-25)
   - `IP-02-post-implementation-summary.md` - ✅ LearnFlow Integration completed (2025-08-26)
@@ -36,4 +37,6 @@
   - `IP-03-telegram-ui-integration.md` - ✅ Completed: Telegram Bot UI для управления промптами (2025-08-26)
 - `FEAT-IMG-501-unified-processing/`
   - `IP-01-unified-image-processing.md` - ✅ Completed: Унифицированная обработка изображений в LearnFlow AI (2025-08-26)
+- `FEAT-LLM-301-multi-provider/`
+  - `IP-01-multi-provider-llm-support.md` - ✅ Completed: Multi-Provider LLM Support через OpenAI-совместимые API (2025-08-26)
 

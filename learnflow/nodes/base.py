@@ -49,7 +49,7 @@ class BaseWorkflowNode(ABC):
 
     def create_model(self) -> ChatOpenAI:
         """Создает модель на основе конфигурации для этого узла"""
-        return create_model_for_node(self.get_node_name(), self.settings.openai_api_key)
+        return create_model_for_node(self.get_node_name())
 
     def _init_security(self):
         """Инициализация SecurityGuard с конфигурацией через yaml"""
@@ -60,23 +60,22 @@ class BaseWorkflowNode(ABC):
 
         if self.settings.security_enabled:
             try:
-                from ..security.guard import SecurityGuard
+                from ..security.guard import SecurityGuard, InjectionResult
                 from ..config.config_manager import get_config_manager
+                from ..models.model_factory import get_model_factory
 
+                # Получаем конфигурацию security guard
                 config_manager = get_config_manager()
                 security_config = config_manager.get_model_config("security_guard")
                 self.logger.debug(f"Got security config: {security_config}")
-
-                # Добавляем API key в конфигурацию
-                model_config = {
-                    "model_name": security_config.model_name,
-                    "temperature": security_config.temperature,
-                    "max_tokens": security_config.max_tokens,
-                    "api_key": self.settings.openai_api_key,
-                }
-
+                
+                # Создаем модель через фабрику для корректной поддержки провайдеров
+                factory = get_model_factory()
+                security_model = factory.create_model(security_config)
+                
+                # SecurityGuard теперь получает готовую модель
                 self.security_guard = SecurityGuard(
-                    model_config=model_config,
+                    model=security_model.with_structured_output(InjectionResult),
                     fuzzy_threshold=self.settings.security_fuzzy_threshold,
                 )
                 self.logger.info(

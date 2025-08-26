@@ -60,6 +60,8 @@ uv run --package bot python -m bot.main
 - `/start` - Welcome message and instructions
 - `/help` - Show available commands and usage
 - `/hitl` - Configure Human-in-the-Loop settings (autonomous vs. guided modes)
+- `/configure` - Configure prompt personalization settings (profiles, placeholders)
+- `/reset_prompts` - Reset prompt settings to defaults
 - `/reset` - Reset current session
 - `/status` - Show current processing status
 

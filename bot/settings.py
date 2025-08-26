@@ -30,6 +30,23 @@ class APISettings(BaseSettings):
         extra = "ignore"
 
 
+class PromptServiceSettings(BaseSettings):
+    """Настройки для подключения к Prompt Configuration Service"""
+
+    host: str = Field(default="localhost", description="Host Prompt Config Service")
+    port: int = Field(default=8002, description="Port Prompt Config Service")
+    cache_ttl: int = Field(default=300, description="Cache TTL in seconds")
+
+    @property
+    def url(self) -> str:
+        """Get full service URL"""
+        return f"http://{self.host}:{self.port}"
+
+    class Config:
+        env_prefix = "PROMPT_SERVICE_"
+        extra = "ignore"
+
+
 class BotSettings(BaseSettings):
     """Основные настройки бота"""
 
@@ -37,6 +54,7 @@ class BotSettings(BaseSettings):
         default_factory=lambda: TelegramSettings(token="")
     )
     api: APISettings = Field(default_factory=APISettings)
+    prompt_service: PromptServiceSettings = Field(default_factory=PromptServiceSettings)
 
     class Config:
         env_file = ".env"

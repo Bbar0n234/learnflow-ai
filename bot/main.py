@@ -17,6 +17,7 @@ import telegramify_markdown  # type: ignore[import-untyped]
 
 from .settings import get_settings
 from .handlers.hitl_settings import router as hitl_router
+from .handlers.prompt_config import router as prompt_config_router
 
 
 # Настройка логирования
@@ -163,6 +164,8 @@ async def help_command(message: Message):
         "/start - Начать работу\n"
         "/help - Показать помощь\n"
         "/hitl - Настройки обработки (автономный/управляемый)\n"
+        "/configure - Настройка промптов и персонализация\n"
+        "/reset_prompts - Сбросить промпты к дефолтным\n"
         "/reset - Начать новую сессию\n"
         "/status - Показать статус текущей сессии\n\n"
         "📋 *Как использовать:*\n"
@@ -430,6 +433,7 @@ async def main():
     # Регистрация роутеров
     dp.include_router(router)
     dp.include_router(hitl_router)
+    dp.include_router(prompt_config_router)
 
     # Запуск бота
     logger.info("Starting LearnFlow Telegram Bot with image support...")

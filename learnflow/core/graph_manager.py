@@ -330,51 +330,52 @@ class GraphManager:
         # Используем комплексный метод вместо отдельного пуша вопросов
         return await self._push_complete_materials_to_artifacts(thread_id, state_vals)
 
-    async def process_step_with_images(
-        self, thread_id: str, query: str, image_paths: List[str] = None
-    ) -> Dict[str, Any]:
+    async def process_step(self, thread_id: str, query: str, image_paths: List[str] = None) -> Dict[str, Any]:
         """
-        Entry-point для обработки с изображениями:
-        • создаёт новый thread если нужно
-        • инициализирует состояние с exam_question и image_paths
-        • запускает workflow с поддержкой изображений
-
+        Универсальный метод для обработки шагов workflow.
+        
         Args:
             thread_id: Идентификатор потока
-            query: Экзаменационный вопрос
-            image_paths: Список путей к изображениям (может быть пустым)
-
+            query: Текстовый запрос или команда
+            image_paths: Опциональный список путей к изображениям
+            
         Returns:
-            Dict с результатом обработки
+            Результат обработки с thread_id и сообщениями
         """
         if not thread_id:
             thread_id = str(uuid.uuid4())
-            logger.info(f"Created new thread for images: {thread_id}")
-
+            logger.info(f"Created new thread: {thread_id}")
+        
         # Валидируем image_paths
         image_paths = image_paths or []
-        logger.info(f"Processing with {len(image_paths)} images for thread {thread_id}")
+        if image_paths:
+            logger.info(f"Processing with {len(image_paths)} images for thread {thread_id}")
 
         state = await self._get_state(thread_id)
 
-        # ИСПРАВЛЕНИЕ: При загрузке изображений всегда начинаем новый workflow # TODO: сравнить с эталонной логикой graph manager
-        # Очищаем существующее состояние если оно есть
-        if state and state.values:
-            logger.info(
-                f"Found existing state for thread {thread_id}, clearing it for new workflow with images"
-            )
-            await self.delete_thread(thread_id)
-            state = await self._get_state(thread_id)  # Получаем пустое состояние
-
         # определяем input_state и session_id для LangFuse
-        if not state.values:  # fresh run
-            logger.info(f"Starting fresh run with images for thread {thread_id}")
-            input_state = ExamState(exam_question=query, image_paths=image_paths)
+        if not state.values:  # fresh run - новый workflow
+            logger.info(f"Starting fresh run for thread {thread_id}")
+            input_state = ExamState(
+                exam_question=query,
+                image_paths=image_paths  # Добавляем изображения в начальное состояние
+            )
             # Создаем новый session_id для нового диалога
             session_id = self.create_new_session(thread_id)
-        else:  # continue
+        else:  # continue - продолжение существующего workflow
             logger.info(f"Continuing run for thread {thread_id}")
-            input_state = Command(resume=query)
+            
+            if image_paths:
+                # Добавляем изображения через Command.update
+                logger.info(f"Adding {len(image_paths)} images to existing workflow")
+                input_state = Command(
+                    resume=query,
+                    update={"image_paths": image_paths}
+                )
+            else:
+                # Обычное продолжение без изображений
+                input_state = Command(resume=query)
+            
             # Используем существующий session_id
             session_id = self.get_session_id(thread_id) or self.create_new_session(
                 thread_id
@@ -386,9 +387,7 @@ class GraphManager:
             "callbacks": [self.langfuse_handler],
             "metadata": {
                 "langfuse_session_id": session_id,
-                "langfuse_user_id": thread_id,
-                "has_images": len(image_paths) > 0,
-                "images_count": len(image_paths),
+                "langfuse_user_id": thread_id
             },
         }
 
@@ -429,6 +428,7 @@ class GraphManager:
                         if artifacts_data:
                             await self._update_state(thread_id, artifacts_data)
 
+                    # Пуш синтезированного материала после synthesis_material
                     elif node_name == "synthesis_material" and node_data.get(
                         "synthesized_material"
                     ):
@@ -449,181 +449,12 @@ class GraphManager:
                                         thread_id=thread_id,
                                     )
                                     logger.info(
-                                        f"Auto-saved edited material to {local_folder}"
+                                        f"Auto-saved synthesized material to {local_folder}"
                                     )
                                 except Exception as e:
                                     logger.error(
-                                        f"Failed to auto-save edited material: {e}"
+                                        f"Failed to auto-save synthesized material: {e}"
                                     )
-
-                    # Автосохранение после каждой правки в edit_material
-                    elif (
-                        node_name == "edit_material"
-                        and node_data.get("last_action") == "edit"
-                    ):
-                        logger.info(
-                            f"Edit applied in thread {thread_id}, auto-saving to artifacts..."
-                        )
-                        if self.artifacts_manager:
-                            current_state = await self._get_state(thread_id)
-                            local_folder = self.artifacts_data.get(thread_id, {}).get(
-                                "local_folder_path"
-                            )
-                            if local_folder and current_state.values.get(
-                                "synthesized_material"
-                            ):
-                                try:
-                                    await self.artifacts_manager.push_synthesized_material(
-                                        folder_path=local_folder,
-                                        synthesized_material=current_state.values.get(
-                                            "synthesized_material"
-                                        ),
-                                        thread_id=thread_id,
-                                    )
-                                    logger.info(
-                                        f"Auto-saved edited material to {local_folder}"
-                                    )
-                                except Exception as e:
-                                    logger.error(
-                                        f"Failed to auto-save edited material: {e}"
-                                    )
-
-        # после завершения / остановки
-        final_state = await self._get_state(thread_id)
-
-        print(f"final_state interrupts: {final_state.interrupts}")
-
-        if final_state.interrupts:
-            interrupt_data = final_state.interrupts[0].value
-            logger.debug(f"Interrupt data: {interrupt_data}")
-            msgs = interrupt_data.get("message", [str(interrupt_data)])
-
-            # Добавляем ссылку на обучающий материал, если это первый interrupt после generating_questions
-            learning_material_link_sent = self.artifacts_data.get(thread_id, {}).get(
-                "learning_material_link_sent", False
-            )
-            logger.debug(f"learning_material_link_sent: {learning_material_link_sent}")
-            if not learning_material_link_sent:
-                learning_material_path = self.artifacts_data.get(thread_id, {}).get(
-                    "local_learning_material_path"
-                )
-                logger.debug(f"learning_material_path: {learning_material_path}")
-                if learning_material_path:
-                    logger.debug(f"final_state.next: {final_state.next}")
-                    msgs.append(
-                        f"📚 Обучающий материал сохранён: {learning_material_path}"
-                    )
-                    # Помечаем, что ссылка уже отправлена
-                    if thread_id not in self.artifacts_data:
-                        self.artifacts_data[thread_id] = {}
-                    self.artifacts_data[thread_id]["learning_material_link_sent"] = True
-                    logger.debug(
-                        f"Marked learning_material_link_sent=True for thread {thread_id}"
-                    )
-
-            logger.info(f"Workflow interrupted for thread {thread_id}")
-
-            return {"thread_id": thread_id, "result": msgs}
-
-        # happy path – всё закончено
-        logger.info(f"Workflow completed for thread {thread_id}")
-
-        # Пуш всех материалов в GitHub перед удалением thread
-        final_state_values = final_state.values if final_state else {}
-        await self._push_complete_materials_to_artifacts(thread_id, final_state_values)
-
-        # Формируем финальное сообщение со ссылкой на GitHub директорию (до удаления thread'а)
-        final_message = ["Готово 🎉 – присылайте следующий экзаменационный вопрос!"]
-
-        local_folder_path = self.artifacts_data.get(thread_id, {}).get(
-            "local_folder_path"
-        )
-        if local_folder_path:
-            final_message.append(
-                f"📁 Все материалы сохранены: {local_folder_path}\n\nПрисылайте следующий экзаменационный вопрос!"
-            )
-
-        await self.delete_thread(thread_id)
-
-        return_data = {"thread_id": thread_id, "result": final_message}
-
-        logger.debug(f"return_data: {return_data}")
-
-        return return_data
-
-    async def process_step(self, thread_id: str, query: str) -> Dict[str, Any]:
-        """
-        Единственный entry-point для обычной обработки:
-        • если thread_id пуст – создаёт новый
-        • если в состоянии нет values – стартует новый run
-        • иначе – продолжает через Command(resume=…)
-        """
-        if not thread_id:
-            thread_id = str(uuid.uuid4())
-            logger.info(f"Created new thread: {thread_id}")
-
-        state = await self._get_state(thread_id)
-
-        # определяем input_state и session_id для LangFuse
-        if not state.values:  # fresh run
-            logger.info(f"Starting fresh run for thread {thread_id}")
-            input_state = ExamState(exam_question=query)
-            # Создаем новый session_id для нового диалога
-            session_id = self.create_new_session(thread_id)
-        else:  # continue
-            logger.info(f"Continuing run for thread {thread_id}")
-            input_state = Command(resume=query)
-            # Используем существующий session_id
-            session_id = self.get_session_id(thread_id) or self.create_new_session(
-                thread_id
-            )
-
-        # конфигурация с LangFuse трассировкой
-        cfg = {
-            "configurable": {"thread_id": thread_id},
-            "callbacks": [self.langfuse_handler],
-            "metadata": {
-                "langfuse_session_id": session_id,
-                "langfuse_user_id": thread_id,
-            },
-        }
-
-        # запускаем/продолжаем граф
-        await self._ensure_setup()
-        async with AsyncPostgresSaver.from_conn_string(
-            self.settings.database_url
-        ) as saver:
-            graph = self.workflow.compile(checkpointer=saver)
-
-            async for event in graph.astream(input_state, cfg, stream_mode="updates"):
-                # HITL сообщения наружу
-                logger.debug(f"Event: {event}")
-
-                for node_name, node_data in event.items():
-                    # Пуш обучающего материала после завершения generating_content
-                    if node_name == "generating_content":
-                        logger.info(
-                            f"Content generation completed for thread {thread_id}, pushing to GitHub..."
-                        )
-                        current_state = await self._get_state(thread_id)
-                        artifacts_data = (
-                            await self._push_learning_material_to_artifacts(
-                                thread_id,
-                                {
-                                    "exam_question": current_state.values.get(
-                                        "exam_question"
-                                    ),
-                                    "generated_material": node_data.get(
-                                        "generated_material"
-                                    ),
-                                    "display_name": current_state.values.get(
-                                        "display_name"
-                                    ),
-                                },
-                            )
-                        )
-                        if artifacts_data:
-                            await self._update_state(thread_id, artifacts_data)
 
                     # Автосохранение после каждой правки в edit_material
                     elif (

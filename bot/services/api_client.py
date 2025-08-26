@@ -1,7 +1,7 @@
 """HTTP API client for interacting with LearnFlow FastAPI service"""
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import aiohttp
 import asyncio
 from pydantic import BaseModel
@@ -251,6 +251,94 @@ class LearnFlowAPIClient:
 
         except Exception as e:
             logger.error(f"Failed to reset HITL config for user {user_id}: {e}")
+            raise
+
+    async def process_message(
+        self, 
+        user_id: int,
+        message: str, 
+        image_paths: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Process a message through the unified API endpoint
+        
+        Args:
+            user_id: Telegram user ID (used as thread_id)
+            message: Text message to process
+            image_paths: Optional list of image paths
+            
+        Returns:
+            Dict: Processing result from the API
+            
+        Raises:
+            aiohttp.ClientError: On HTTP request errors
+        """
+        try:
+            thread_id = str(user_id)
+            request_data = {
+                "thread_id": thread_id,
+                "message": message
+            }
+            
+            if image_paths:
+                request_data["image_paths"] = image_paths
+                
+            response = await self._make_request("POST", "/process", request_data)
+            return response
+            
+        except Exception as e:
+            logger.error(f"Failed to process message for user {user_id}: {e}")
+            raise
+    
+    async def upload_images(
+        self,
+        user_id: int,
+        files: List[bytes]
+    ) -> List[str]:
+        """
+        Upload images to the API
+        
+        Args:
+            user_id: Telegram user ID
+            files: List of image data as bytes
+            
+        Returns:
+            List[str]: Paths to uploaded images
+            
+        Raises:
+            aiohttp.ClientError: On HTTP request errors
+        """
+        try:
+            thread_id = str(user_id)
+            session = await self._get_session()
+            url = f"{self.base_url}/upload-images/{thread_id}"
+            
+            # Create multipart form data
+            form_data = aiohttp.FormData()
+            for i, file_data in enumerate(files):
+                form_data.add_field(
+                    'files',
+                    file_data,
+                    filename=f'image_{i}.jpg',
+                    content_type='image/jpeg'
+                )
+                
+            async with session.post(url, data=form_data) as response:
+                if response.status >= 400:
+                    error_text = await response.text()
+                    logger.error(f"Failed to upload images: {error_text}")
+                    raise aiohttp.ClientResponseError(
+                        request_info=response.request_info,
+                        history=response.history,
+                        status=response.status,
+                        message=error_text
+                    )
+                    
+                result = await response.json()
+                return result.get("uploaded_files", [])
+                
+        except Exception as e:
+            logger.error(f"Failed to upload images for user {user_id}: {e}")
             raise
 
     async def health_check(self) -> Dict[str, Any]:

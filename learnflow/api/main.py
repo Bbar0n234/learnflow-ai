@@ -43,15 +43,8 @@ class ProcessRequest(BaseModel):
         default=None, description="ID потока (опционально)"
     )
     message: str = Field(..., description="Сообщение для обработки")
-
-
-class ProcessWithImagesRequest(BaseModel):
-    """Модель запроса для обработки с изображениями"""
-
-    thread_id: str = Field(..., description="ID потока")
-    message: str = Field(..., description="Экзаменационный вопрос")
-    image_paths: List[str] = Field(
-        default_factory=list, description="Пути к загруженным изображениям"
+    image_paths: Optional[List[str]] = Field(
+        default=None, description="Пути к загруженным изображениям (опционально)"
     )
 
 
@@ -245,62 +238,14 @@ async def upload_images(thread_id: str, files: List[UploadFile] = File(...)):
         logger.error(f"Error uploading images for thread {thread_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Upload error: {str(e)}")
 
-
-@app.post("/process-with-images", response_model=ProcessResponse)
-async def process_with_images(request: ProcessWithImagesRequest):
-    """
-    Запуск обработки экзаменационного материала с изображениями.
-
-    Args:
-        request: Запрос с thread_id, сообщением и путями к изображениям
-
-    Returns:
-        ProcessResponse: Результат обработки
-
-    Raises:
-        HTTPException: При ошибках обработки
-    """
-    if graph_manager is None:
-        raise HTTPException(status_code=503, detail="GraphManager not available")
-
-    try:
-        logger.info(f"Processing request with images for thread: {request.thread_id}")
-        logger.debug(f"Image paths: {request.image_paths}")
-
-        # Валидируем изображения
-        if request.image_paths:
-            file_manager = ImageFileManager()
-            from pathlib import Path
-
-            valid_paths = []
-            for path in request.image_paths:
-                path_obj = Path(path)
-                if path_obj.exists() and file_manager.validate_image_file(path_obj):
-                    valid_paths.append(path)
-                else:
-                    logger.warning(f"Invalid image path: {path}")
-            request.image_paths = valid_paths
-
-        result = await graph_manager.process_step_with_images(
-            thread_id=request.thread_id,
-            query=request.message,
-            image_paths=request.image_paths,
-        )
-
-        return ProcessResponse(**result)
-
-    except Exception as e:
-        logger.error(f"Error processing request with images: {e}")
-        raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
-
-
 @app.post("/process", response_model=ProcessResponse)
 async def process_request(request: ProcessRequest):
     """
-    Запуск/продолжение обработки экзаменационного материала.
+    Универсальный эндпойнт для обработки экзаменационного материала.
+    Поддерживает все сценарии: с изображениями, текстовыми конспектами и без них.
 
     Args:
-        request: Запрос с thread_id (опционально) и сообщением
+        request: Запрос с thread_id (опционально), сообщением и изображениями (опционально)
 
     Returns:
         ProcessResponse: Результат обработки с thread_id
@@ -313,9 +258,29 @@ async def process_request(request: ProcessRequest):
 
     try:
         logger.info(f"Processing request for thread: {request.thread_id}")
+        
+        # Валидируем изображения если они есть
+        valid_paths = None
+        if request.image_paths:
+            logger.debug(f"Processing with {len(request.image_paths)} image paths")
+            file_manager = ImageFileManager()
+            from pathlib import Path
+            
+            valid_paths = []
+            for path in request.image_paths:
+                path_obj = Path(path)
+                if path_obj.exists() and file_manager.validate_image_file(path_obj):
+                    valid_paths.append(path)
+                else:
+                    logger.warning(f"Invalid image path: {path}")
+            
+            if valid_paths:
+                logger.info(f"Validated {len(valid_paths)} images for processing")
 
         result = await graph_manager.process_step(
-            thread_id=request.thread_id or "", query=request.message
+            thread_id=request.thread_id or "", 
+            query=request.message,
+            image_paths=valid_paths  # Передаем изображения в унифицированный метод
         )
 
         return ProcessResponse(**result)

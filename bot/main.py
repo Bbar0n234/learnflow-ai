@@ -43,30 +43,22 @@ class LearnFlowBot:
         self.pending_media: Dict[int, Dict[str, Any]] = {}
 
     async def _process_message(
-        self, thread_id: str, message_text: str
+        self, thread_id: str, message_text: str, image_paths: list[str] = None
     ) -> Dict[str, Any]:
-        """Отправка текстового сообщения в API"""
+        """Унифицированный метод отправки сообщения в API"""
+        request_data = {
+            "message": message_text,
+            "thread_id": thread_id
+        }
+        
+        # Добавляем изображения если они есть
+        if image_paths:
+            request_data["image_paths"] = image_paths
+            
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"{self.api_base_url}/process",
-                json={"message": message_text, "thread_id": thread_id},
-            ) as response:
-                if response.status != 200:
-                    raise Exception(f"API error: {response.status}")
-                return await response.json()
-
-    async def _process_message_with_images(
-        self, thread_id: str, message_text: str, image_paths: list[str]
-    ) -> Dict[str, Any]:
-        """Отправка сообщения с изображениями в API"""
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.api_base_url}/process_with_images",
-                json={
-                    "message": message_text,
-                    "image_paths": image_paths,
-                    "thread_id": thread_id,
-                },
+                json=request_data,
             ) as response:
                 if response.status != 200:
                     raise Exception(f"API error: {response.status}")
@@ -369,8 +361,8 @@ async def handle_message(message: Message):
                 )
                 return
 
-            # Отправляем запрос с изображениями
-            result = await bot_instance._process_message_with_images(
+            # Отправляем запрос с изображениями через унифицированный метод
+            result = await bot_instance._process_message(
                 thread_id, final_text, image_paths
             )
 

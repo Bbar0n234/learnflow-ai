@@ -101,7 +101,7 @@ The system uses a multi-node workflow defined in `learnflow/graph.py`:
 
 1. **input_processing** - Analyzes user input and determines processing path
 2. **generating_content** - Generates comprehensive study material from exam questions
-3. **recognition_handwritten** - OCR processing of handwritten notes with HITL refinement
+3. **recognition_handwritten** - Unified notes processing: OCR for images, direct text input (>=50 chars), or skip
 4. **synthesis_material** - Combines generated content with recognized notes
 5. **generating_questions** - Creates gap analysis questions with HITL review
 6. **answer_question** - Generates detailed answers for gap questions

@@ -1,16 +1,10 @@
 # Индекс Backlog
 
 ## Текущие (current)
+# TODO: заполнить
 
 ### Активные инициативы (август 2025)
 - В настоящее время нет активных основных инициатив
-
-### UI инициативы
-- `INIT-UI-001-react-spa-platform/` - React SPA платформа и артефакты
-- `FEAT-UI-103-learnflow-integration/` - Интеграция с LearnFlow
-- `FEAT-UI-104-realtime-updates.md` - Real-time обновления
-- `FEAT-UI-105-advanced-ui.md` - Продвинутый UI
-- `FEAT-UI-106-web-ui-improvements/` - Web UI улучшения
 
 ### Другие инициативы
 - `FEAT-LLM-301-multi-provider/` - Multi-provider LLM support (✅ Завершено)
@@ -22,7 +16,6 @@
 - `FEAT-IMG-501-unified-processing/` - Унифицированная обработка изображений (✅ Завершено)
   - `IP-01-post-implementation-summary.md` - ✅ Unified image processing completed (2025-08-26)
 - `FEAT-PROMPT-402-dynamic-prompt-generation.md` - Динамическая генерация промптов (после OSS релиза)
-- `COMM-OSS-501-community-engagement.md` - Community engagement
 
 ## Архив (archive)
 - `FEAT-UI-102-react-spa-basics.md` - ✅ Completed: Базовый React SPA

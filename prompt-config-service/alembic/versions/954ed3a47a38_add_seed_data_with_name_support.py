@@ -1,8 +1,8 @@
-"""Add seed data
+"""Add seed data with name support
 
-Revision ID: 2525a4917bca
-Revises: 74528e2623f1
-Create Date: 2025-08-25 19:50:19.662821
+Revision ID: 954ed3a47a38
+Revises: c541edc48932
+Create Date: 2025-08-26 15:51:25.612262
 
 """
 from typing import Sequence, Union
@@ -18,8 +18,8 @@ from sqlalchemy import String, Text, UUID, DateTime, BigInteger
 
 
 # revision identifiers, used by Alembic.
-revision: str = '2525a4917bca'
-down_revision: Union[str, Sequence[str], None] = '74528e2623f1'
+revision: str = '954ed3a47a38'
+down_revision: Union[str, Sequence[str], None] = 'c541edc48932'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -28,15 +28,9 @@ def load_seed_data():
     """Load seed data from YAML file."""
     # Get the path to the seed data file relative to migration
     current_dir = Path(__file__).parent.parent.parent  # Go up to prompt-config-service root
-    yaml_path = current_dir / "seed" / "initial_data.yaml"
+    yaml_path = current_dir / "initial_data.yaml"
     
-    # Try YAML first, fallback to JSON if not found
     if not yaml_path.exists():
-        json_path = current_dir / "seed" / "initial_data.json"
-        if json_path.exists():
-            import json
-            with open(json_path, "r", encoding="utf-8") as file:
-                return json.load(file)
         raise FileNotFoundError(f"Seed data file not found: {yaml_path}")
     
     with open(yaml_path, "r", encoding="utf-8") as file:
@@ -61,6 +55,7 @@ def upgrade() -> None:
     placeholder_values_table = table('placeholder_values',
         column('id', UUID),
         column('placeholder_id', UUID),
+        column('name', String),
         column('value', Text),
         column('display_name', String),
         column('description', Text),
@@ -87,6 +82,7 @@ def upgrade() -> None:
     # Track IDs for relationships
     placeholder_ids = {}
     placeholder_value_ids = {}
+    placeholder_value_names = {}  # Map for name -> value_id lookup
     profile_ids = {}
     
     # Prepare placeholder data
@@ -113,15 +109,25 @@ def upgrade() -> None:
     for placeholder_data in data["placeholders"]:
         placeholder_id = placeholder_ids[placeholder_data["name"]]
         
+        # Initialize the nested dict for this placeholder
+        if placeholder_data["name"] not in placeholder_value_names:
+            placeholder_value_names[placeholder_data["name"]] = {}
+        
         for value_data in placeholder_data["values"]:
             value_id = uuid.uuid4()
-            # Store mapping for later use in profiles
+            
+            # Store mapping by placeholder_name -> value_name -> value_id
+            value_name = value_data.get("name", value_data["value"])  # Use name if exists, else fallback to value
+            placeholder_value_names[placeholder_data["name"]][value_name] = value_id
+            
+            # Also store by full value for backwards compatibility
             value_key = f"{placeholder_data['name']}:{value_data['value']}"
             placeholder_value_ids[value_key] = value_id
             
             values_data.append({
                 "id": value_id,
                 "placeholder_id": placeholder_id,
+                "name": value_data.get("name", value_data["value"][:100]),  # Use name or truncated value
                 "value": value_data["value"],
                 "display_name": value_data["display_name"],
                 "description": value_data.get("description"),
@@ -134,7 +140,7 @@ def upgrade() -> None:
     
     # Prepare profile data
     profiles_data = []
-    for profile_data in data["profiles"]:
+    for profile_data in data.get("profiles", []):
         profile_id = uuid.uuid4()
         profile_ids[profile_data["name"]] = profile_id
         
@@ -154,22 +160,31 @@ def upgrade() -> None:
     
     # Prepare profile settings data
     settings_data = []
-    for profile_data in data["profiles"]:
+    for profile_data in data.get("profiles", []):
         profile_id = profile_ids[profile_data["name"]]
         
-        for placeholder_name, value_text in profile_data["settings"].items():
+        for placeholder_name, value_ref in profile_data["settings"].items():
             if placeholder_name not in placeholder_ids:
                 print(f"Warning: Placeholder {placeholder_name} not found for profile {profile_data['name']}")
                 continue
             
             placeholder_id = placeholder_ids[placeholder_name]
-            value_key = f"{placeholder_name}:{value_text}"
             
-            if value_key not in placeholder_value_ids:
-                print(f"Warning: Value '{value_text}' not found for placeholder {placeholder_name}")
+            # Try to find value by name first, then by full value
+            value_id = None
+            if placeholder_name in placeholder_value_names:
+                # First try to find by name reference
+                if value_ref in placeholder_value_names[placeholder_name]:
+                    value_id = placeholder_value_names[placeholder_name][value_ref]
+                else:
+                    # Fallback to finding by full value text
+                    value_key = f"{placeholder_name}:{value_ref}"
+                    if value_key in placeholder_value_ids:
+                        value_id = placeholder_value_ids[value_key]
+            
+            if not value_id:
+                print(f"Warning: Value '{value_ref}' not found for placeholder {placeholder_name}")
                 continue
-            
-            value_id = placeholder_value_ids[value_key]
             
             settings_data.append({
                 "profile_id": profile_id,
@@ -181,6 +196,11 @@ def upgrade() -> None:
     # Insert profile settings
     if settings_data:
         op.bulk_insert(profile_settings_table, settings_data)
+    
+    # Add default values if specified
+    if "default_values" in data:
+        default_values = data["default_values"]
+        print(f"Default values configured: {list(default_values.keys())}")
     
     print(f"Seeded {len(placeholders_data)} placeholders with {len(values_data)} values")
     print(f"Seeded {len(profiles_data)} profiles with {len(settings_data)} settings")

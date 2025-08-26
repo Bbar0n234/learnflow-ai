@@ -55,7 +55,6 @@ OSS Launch
 - `include_mathematics` - флаг для включения математических блоков
 
 **Специфичные для generating_content:**
-- `role_additional_context` - дополнительный контекст роли
 - `material_type_inline` - краткий тип материала
 - `material_type_block` - развернутое описание типа материала
 - `topic_coverage` - охват темы

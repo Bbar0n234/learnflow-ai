@@ -39,6 +39,7 @@ class PlaceholderValue(Base):
     
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     placeholder_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("placeholders.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     value: Mapped[str] = mapped_column(Text, nullable=False)
     display_name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -50,4 +51,4 @@ class PlaceholderValue(Base):
     profile_settings: Mapped[list["ProfilePlaceholderSetting"]] = relationship("ProfilePlaceholderSetting", back_populates="placeholder_value")
 
     def __repr__(self) -> str:
-        return f"<PlaceholderValue(display_name='{self.display_name}', value='{self.value[:50]}...')>"
+        return f"<PlaceholderValue(name='{self.name}', display_name='{self.display_name}', value='{self.value[:50]}...')>"

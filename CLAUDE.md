@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-LearnFlow AI is a LangGraph-based educational content generation system for cryptography exam preparation. It processes exam questions and handwritten note images to generate comprehensive study materials with gap analysis questions and answers. The system consists of:
+LearnFlow AI is a universal LangGraph-based educational content generation system for any subject area and education level. It processes exam questions and handwritten note images to generate comprehensive study materials with gap analysis questions and answers. The system consists of:
 
 - **FastAPI service** (`learnflow/`) - REST API for processing exam materials
 - **Telegram bot** (`bot/`) - User interface for interacting with the system

@@ -1,0 +1,472 @@
+# Initial seed data for prompt configuration service
+# This file contains the base placeholders and profiles needed for the system to function
+
+placeholders:
+  - name: role_perspective
+    display_name: Роль эксперта
+    description: Роль преподавателя или эксперта для создания материала
+    values:
+      - name: academic_professor
+        value: academic professor with deep theoretical foundation
+        display_name: Академический профессор-теоретик
+        
+      - name: industry_practitioner
+        value: industry practitioner with hands-on experience
+        display_name: Практик из индустрии
+        
+      - name: simplification_expert
+        value: simplification expert making complex topics accessible
+        display_name: Эксперт по упрощению сложных тем
+
+  - name: subject_name
+    display_name: Предметная область
+    description: Основная тема или предмет изучения
+    values:
+      - name: cryptography
+        value: cryptography
+        display_name: Криптография
+        
+      - name: mathematics
+        value: mathematics
+        display_name: Математика
+        
+      - name: machine_learning
+        value: machine learning
+        display_name: Машинное обучение
+        
+      - name: frontend_development
+        value: frontend development
+        display_name: Frontend-разработка
+        
+      - name: backend_development
+        value: backend development
+        display_name: Backend-разработка
+
+  - name: subject_keywords
+    display_name: Ключевые слова предмета
+    description: Ключевые термины и концепции предметной области
+    values:
+      - name: crypto_keywords
+        value: encryption, hashing, digital signatures, PKI, SSL/TLS, symmetric/asymmetric cryptography, key exchange, cryptanalysis, blockchain, zero-knowledge proofs
+        display_name: Криптография
+        
+      - name: math_keywords
+        value: calculus, linear algebra, discrete mathematics, probability theory, differential equations, numerical methods, optimization, graph theory, mathematical proofs, statistics
+        display_name: Математика
+        
+      - name: ml_keywords
+        value: neural networks, deep learning, supervised/unsupervised learning, reinforcement learning, transformers, CNNs, RNNs, gradient descent, backpropagation, model evaluation
+        display_name: Машинное обучение
+        
+      - name: frontend_keywords
+        value: React, Vue, Angular, JavaScript/TypeScript, HTML/CSS, responsive design, state management, component architecture, browser APIs, performance optimization
+        display_name: Frontend-разработка
+        
+      - name: backend_keywords
+        value: REST/GraphQL APIs, databases, microservices, authentication/authorization, caching, message queues, containerization, CI/CD, system design, scalability
+        display_name: Backend-разработка
+
+  - name: language
+    display_name: Язык
+    description: Язык для создания контента
+    values:
+      - name: russian_tech
+        value: russian with preserved english technical terms and abbreviations
+        display_name: Русский (с сохранением англ. терминов)
+        
+      - name: english
+        value: english
+        display_name: Английский
+
+  - name: style
+    display_name: Стиль изложения
+    description: Стиль и манера подачи материала
+    values:
+      - name: comprehensive_detailed
+        value: comprehensive with detailed explanations and examples
+        display_name: Подробное объяснение с примерами
+      - name: concise_structured
+        value: concise and structured with key points highlighted
+        display_name: Краткое структурированное изложение
+      - name: step_by_step
+        value: step-by-step tutorial with progressive complexity
+        display_name: Пошаговое руководство с нарастающей сложностью
+      - name: problem_solving
+        value: problem-solving approach with real-world cases
+        display_name: Проблемно-ориентированный с реальными кейсами
+      - name: academic_rigorous
+        value: academic rigorous with formal definitions
+        display_name: Академически строгий с формальными определениями
+
+  - name: target_audience_inline
+    display_name: Целевая аудитория
+    description: Аудитория, для которой создается материал
+    values:
+      - name: complete_beginners
+        value: complete beginners without prerequisites
+        display_name: Абсолютные новички без подготовки
+        
+      - name: university_students
+        value: university students with fundamentals
+        display_name: Студенты с базовыми знаниями
+        
+      - name: working_professionals
+        value: working professionals seeking growth
+        display_name: Работающие специалисты для роста
+        
+      - name: experienced_developers
+        value: experienced developers switching domains
+        display_name: Опытные разработчики меняющие область
+        
+      - name: researchers
+        value: researchers requiring theoretical depth
+        display_name: Исследователи требующие теоретической глубины
+
+  - name: target_audience_block
+    display_name: Целевая аудитория (блочная)
+    description: Аудитория для создания материала (блочный формат)
+    values:
+      - name: complete_beginners_block
+        value: Complete beginners with no prior knowledge. Assume zero prerequisites. Explain every term and concept from scratch. Use simple language and everyday analogies.
+        display_name: Абсолютные новички без подготовки
+        
+      - name: university_students_block
+        value: University students with fundamental knowledge in mathematics and programming. Can handle abstract concepts and formal notation. Need structured learning path with theory and practice.
+        display_name: Студенты с базовыми знаниями
+        
+      - name: working_professionals_block
+        value: Working professionals with industry experience seeking skill advancement. Value practical applicability and time efficiency. Prefer real-world examples and best practices.
+        display_name: Работающие специалисты для роста
+        
+      - name: experienced_developers_block
+        value: Experienced developers transitioning to new technical domain. Have strong programming foundation. Can quickly grasp concepts through comparisons with familiar technologies.
+        display_name: Опытные разработчики меняющие область
+        
+      - name: researchers_block
+        value: Researchers and academics requiring rigorous theoretical foundation. Expect formal definitions, mathematical proofs, and citations. Need comprehensive coverage including edge cases.
+        display_name: Исследователи требующие теоретической глубины
+
+  - name: material_type_inline
+    display_name: Тип материала
+    description: Формат создаваемого материала
+    values:
+      - name: comprehensive_study
+        value: comprehensive study materials
+        display_name: Подробные учебные материалы
+        
+      - name: lecture_notes
+        value: structured lecture notes
+        display_name: Структурированные конспекты
+        
+      - name: exam_prep
+        value: exam preparation 
+        display_name: Подготовка к экзамену с вопросами
+        
+      - name: practical_workshop
+        value: practical workshop with hands-on tasks
+        display_name: Практический воркшоп с заданиями
+        
+      - name: reference_guide
+        value: reference guide with quick lookups
+        display_name: Справочное руководство для поиска
+
+  - name: material_type_block
+    display_name: Тип материала (блочный)
+    description: Формат создаваемого материала (блочный формат)
+    values:
+      - name: comprehensive_study_block
+        value: Comprehensive study materials with theoretical foundations, detailed explanations, and worked examples. Structure content progressively from basic to advanced topics. Include learning objectives, key concepts highlighted, and practical exercises for skill reinforcement.
+        display_name: Учебные материалы с упражнениями
+        
+      - name: lecture_notes_block
+        value: Structured lecture notes optimized for learning and revision. Use clear headings, bullet points for key concepts, highlighted definitions, and summary boxes. Include margin notes for important insights and connections between topics.
+        display_name: Структурированные конспекты с резюме
+        
+      - name: exam_prep_block
+        value: Exam-focused preparation guide with typical problem patterns and solution strategies. Include time management tips, common pitfalls to avoid, and quick review sections. Emphasize frequently tested concepts and methodologies.
+        display_name: Подготовка к экзамену с вопросами
+        
+      - name: practical_workshop_block
+        value: Hands-on practical workshop format with step-by-step tutorials and coding exercises. Provide implementation examples, expected outputs, and debugging tips. Focus on learning by doing with real-world scenarios.
+        display_name: Практический воркшоп с заданиями
+        
+      - name: reference_guide_block
+        value: Quick reference guide organized for fast information retrieval. Use tables, cheat sheets, and concise summaries. Include syntax examples, command references, and decision trees for rapid problem-solving.
+        display_name: Справочное руководство для поиска
+
+  - name: explanation_depth
+    display_name: Глубина объяснения
+    description: Уровень детализации объяснений
+    values:
+      - name: surface_level
+        value: surface level with key concepts only
+        display_name: Поверхностный уровень только ключевые концепции
+        
+      - name: balanced_coverage
+        value: balanced theory and practice coverage
+        display_name: Сбалансированное покрытие теории и практики
+        
+      - name: deep_technical
+        value: deep technical with implementation details
+        display_name: Глубокий технический с деталями реализации
+        
+      - name: mathematical_rigor
+        value: mathematical rigor with formal proofs
+        display_name: Математическая строгость с формальными доказательствами
+        
+      - name: intuitive_analogies
+        value: intuitive understanding through analogies
+        display_name: Интуитивное понимание через аналогии
+
+  - name: topic_coverage
+    display_name: Охват темы
+    description: Как широко должна быть раскрыта тема
+    values:
+      - name: exhaustive_coverage
+        value: exhaustive coverage with edge cases
+        display_name: Исчерпывающий охват с крайними случаями
+        
+      - name: core_fundamentals
+        value: core fundamentals and essential concepts
+        display_name: Основные фундаментальные концепции
+        
+      - name: practical_subset
+        value: practical subset for immediate application
+        display_name: Практическое подмножество для применения
+        
+      - name: problem_specific
+        value: problem-specific targeted knowledge
+        display_name: Целевые знания под конкретные задачи
+        
+      - name: progressive_learning
+        value: progressive from basics to advanced
+        display_name: Прогрессивный от основ к продвинутому
+
+  - name: question_formats
+    display_name: Форматы вопросов
+    description: Форматы для генерации вопросов
+    values:
+      - name: multiple_choice
+        value: multiple choice with distractor analysis
+        display_name: Тесты с анализом дистракторов
+        
+      - name: open_ended
+        value: open-ended conceptual understanding questions
+        display_name: Открытые вопросы на понимание концепций
+        
+      - name: coding_problems
+        value: practical coding problems with test cases
+        display_name: Практические задачи с тест-кейсами
+        
+      - name: case_studies
+        value: analytical case studies with scenarios
+        display_name: Аналитические кейсы со сценариями
+        
+      - name: proof_tasks
+        value: step-by-step derivation and proof tasks
+        display_name: Задачи на вывод и доказательство
+
+  - name: question_purpose_inline
+    display_name: Цель вопросов (inline)
+    description: Назначение генерируемых вопросов (inline формат)
+    values:
+      - name: diagnose_gaps
+        value: diagnose knowledge gaps systematically
+        display_name: Диагностика пробелов в знаниях
+        
+      - name: verify_understanding
+        value: verify deep conceptual understanding
+        display_name: Проверка глубокого понимания
+        
+      - name: simulate_exam
+        value: simulate real exam conditions
+        display_name: Симуляция экзаменационных условий
+        
+      - name: reinforce_practice
+        value: reinforce learning through practice
+        display_name: Закрепление через практику
+        
+      - name: assess_skills
+        value: assess practical application skills
+        display_name: Оценка практических навыков
+
+  - name: question_purpose
+    display_name: Цель вопросов
+    description: Назначение генерируемых вопросов
+    values:
+      - name: diagnose_gaps_block
+        value: Systematically identify knowledge gaps and misconceptions. Create diagnostic questions that reveal specific areas where understanding is incomplete. Focus on common stumbling blocks and prerequisite knowledge verification.
+        display_name: Диагностика пробелов в знаниях
+        
+      - name: verify_understanding_block
+        value: Verify deep conceptual understanding beyond memorization. Design questions that require synthesis, analysis, and application of concepts. Test ability to explain relationships and underlying principles.
+        display_name: Проверка глубокого понимания
+        
+      - name: simulate_exam_block
+        value: Simulate authentic exam conditions with time pressure considerations. Include question types and difficulty levels matching actual assessments. Prepare students for format, scope, and cognitive demands of real exams.
+        display_name: Симуляция экзаменационных условий
+        
+      - name: reinforce_practice_block
+        value: Reinforce learning through deliberate practice and repetition. Create varied questions covering same concepts from different angles. Build confidence through progressive difficulty increase.
+        display_name: Закрепление через практику
+        
+      - name: assess_skills_block
+        value: Assess ability to apply theoretical knowledge to practical scenarios. Focus on problem-solving, decision-making, and real-world application. Test transfer of learning to novel situations.
+        display_name: Оценка практических навыков
+
+  - name: question_quantity
+    display_name: Количество вопросов
+    description: Количество генерируемых вопросов
+    values:
+      - name: qty_3
+        value: "3"
+        display_name: 3 вопроса
+      - name: qty_5
+        value: "5"
+        display_name: 5 вопросов
+      - name: qty_10
+        value: "10"
+        display_name: 10 вопросов
+      - name: qty_15
+        value: "15"
+        display_name: 15 вопросов
+      - name: qty_20
+        value: "20"
+        display_name: 20 вопросов
+
+profiles:
+  # Style profiles - разные подходы к обучению
+  - name: beginner_level
+    display_name: Начальный уровень
+    category: style
+    description: Для абсолютных новичков - максимально простое изложение с аналогиями
+    settings:
+      role_perspective: simplification_expert
+      target_audience_inline: complete_beginners
+      target_audience_block: complete_beginners_block
+      style: step_by_step
+      explanation_depth: intuitive_analogies
+      topic_coverage: core_fundamentals
+      material_type_inline: comprehensive_study
+      material_type_block: comprehensive_study_block
+      question_formats: multiple_choice
+      question_purpose_inline: reinforce_practice
+      question_quantity: qty_5
+
+  - name: advanced_level
+    display_name: Продвинутый уровень
+    category: style  
+    description: Для специалистов с опытом - баланс теории и практики
+    settings:
+      role_perspective: industry_practitioner
+      target_audience_inline: working_professionals
+      target_audience_block: working_professionals_block
+      style: problem_solving
+      explanation_depth: balanced_coverage
+      topic_coverage: practical_subset
+      material_type_inline: practical_workshop
+      material_type_block: practical_workshop_block
+      question_formats: coding_problems
+      question_purpose_inline: assess_skills
+      question_quantity: qty_10
+
+  - name: expert_level
+    display_name: Экспертный уровень
+    category: style
+    description: Для исследователей - максимальная глубина и формальная строгость
+    settings:
+      role_perspective: academic_professor
+      target_audience_inline: researchers
+      target_audience_block: researchers_block
+      style: academic_rigorous
+      explanation_depth: mathematical_rigor
+      topic_coverage: exhaustive_coverage
+      material_type_inline: lecture_notes
+      material_type_block: lecture_notes_block
+      question_formats: proof_tasks
+      question_purpose_inline: verify_understanding
+      question_quantity: qty_15
+
+  # Subject profiles - конфигурации для предметных областей
+  - name: cryptography_profile
+    display_name: Криптография
+    category: subject
+    description: Профиль для изучения криптографии и информационной безопасности
+    settings:
+      subject_name: cryptography
+      subject_keywords: crypto_keywords
+      role_perspective: academic_professor
+      explanation_depth: deep_technical
+      material_type_inline: exam_prep
+      question_formats: case_studies
+      topic_coverage: exhaustive_coverage
+
+  - name: mathematics_profile
+    display_name: Математика
+    category: subject
+    description: Профиль для изучения математических дисциплин
+    settings:
+      subject_name: mathematics
+      subject_keywords: math_keywords
+      role_perspective: academic_professor
+      explanation_depth: mathematical_rigor
+      material_type_inline: lecture_notes
+      question_formats: proof_tasks
+      topic_coverage: progressive_learning
+
+  - name: machine_learning_profile
+    display_name: Машинное обучение
+    category: subject
+    description: Профиль для изучения машинного обучения и нейронных сетей
+    settings:
+      subject_name: machine_learning
+      subject_keywords: ml_keywords
+      role_perspective: industry_practitioner
+      explanation_depth: balanced_coverage
+      material_type_inline: practical_workshop
+      question_formats: coding_problems
+      topic_coverage: practical_subset
+
+  - name: frontend_profile
+    display_name: Frontend-разработка
+    category: subject
+    description: Профиль для изучения frontend-технологий и веб-интерфейсов
+    settings:
+      subject_name: frontend_development
+      subject_keywords: frontend_keywords
+      role_perspective: industry_practitioner
+      explanation_depth: deep_technical
+      material_type_inline: practical_workshop
+      question_formats: coding_problems
+      topic_coverage: practical_subset
+
+  - name: backend_profile
+    display_name: Backend-разработка
+    category: subject
+    description: Профиль для изучения backend-технологий и системного дизайна
+    settings:
+      subject_name: backend_development
+      subject_keywords: backend_keywords
+      role_perspective: industry_practitioner
+      explanation_depth: deep_technical
+      material_type_inline: reference_guide
+      question_formats: case_studies
+      topic_coverage: problem_specific
+
+# Default values for placeholders when no user or profile settings exist
+default_values:
+  role_perspective: industry_practitioner
+  subject_name: cryptography
+  subject_keywords: crypto_keywords
+  language: russian_tech
+  style: comprehensive_detailed
+  target_audience_inline: university_students
+  target_audience_block: university_students_block
+  material_type_inline: comprehensive_study
+  material_type_block: comprehensive_study_block
+  explanation_depth: balanced_coverage
+  topic_coverage: core_fundamentals
+  question_formats: multiple_choice
+  question_purpose: diagnose_gaps_block
+  question_purpose_inline: diagnose_gaps
+  question_quantity: qty_10

@@ -15,7 +15,8 @@
 ### Другие инициативы
 - `FEAT-LLM-301-local-llm-support.md` - Поддержка локальных LLM
 - `FEAT-PROMPT-401/` - Prompt Configuration Service (активная разработка)
-  - `IP-01-post-implementation-summary.md` - ✅ Backend Core completed
+  - `IP-01-post-implementation-summary.md` - ✅ Backend Core completed (2025-08-25)
+  - `IP-02-post-implementation-summary.md` - ✅ LearnFlow Integration completed (2025-08-26)
 - `FEAT-PROMPT-402-dynamic-prompt-generation.md` - Динамическая генерация промптов (после OSS релиза)
 - `COMM-OSS-501-community-engagement.md` - Community engagement
 
@@ -26,5 +27,7 @@
 - `IP-01-edit-agent-integration.md` - ✅ Completed: Edit Agent Integration (FEAT-AI-201)
 - `IP-01-simplified-ui-improvements.md` - ✅ Completed: UI улучшения (FEAT-UI-106) - UI enhahced (small fixes)
 - `IP-01-simplified-hitl-service.md` - ✅ Completed: Simplified HITL Service Architecture (FEAT-AI-202)
-- `FEAT-PROMPT-401/IP-01-prompt-config-service-backend.md` - ✅ Completed: Prompt Configuration Service Backend (2025-08-25)
+- `FEAT-PROMPT-401/`
+  - `IP-01-prompt-config-service-backend.md` - ✅ Completed: Prompt Configuration Service Backend (2025-08-25)
+  - `IP-02-learnflow-integration.md` - ✅ Completed: LearnFlow Integration с Prompt Configuration Service (2025-08-26)
 

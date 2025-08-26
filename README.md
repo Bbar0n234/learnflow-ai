@@ -22,6 +22,7 @@ LearnFlow AI demonstrates modern AI-driven development practices while solving a
 - **📝 OCR & Handwriting Recognition** - Process both typed and handwritten materials
 - **🎨 Modern Web UI** - React-based interface with real-time updates
 - **🤖 Telegram Bot** - Conversational interface for on-the-go access
+- **🎯 Personalized Prompts** - Dynamic prompt generation with user-specific configurations
 - **🐳 Docker-First** - One command deployment with `docker compose up`
 
 ## 🚀 Quick Start
@@ -55,6 +56,8 @@ The services will be available at:
 - FastAPI: http://localhost:8000
 - Web UI: http://localhost:3000
 - API Docs: http://localhost:8000/docs
+- Prompt Config Service: http://localhost:8002
+- Prompt Config API Docs: http://localhost:8002/docs
 
 ### Using Local LLMs
 
@@ -100,6 +103,7 @@ graph TD
 - **Node Architecture** - Modular processing nodes extending `BaseWorkflowNode`
 - **Security Layer** - Guardrails for input validation and threat detection
 - **Storage Layer** - Thread-based artifact management with GitHub integration
+- **Prompt Configuration Service** - Dynamic personalized prompt generation with user preferences
 - **Observability** - LangFuse integration for tracing and monitoring
 
 ## 🛡️ Security Features

@@ -11,6 +11,7 @@ LearnFlow AI is a LangGraph-based educational content generation system for cryp
 - **LangGraph workflow** - Multi-node processing pipeline with HITL (Human-in-the-Loop) capabilities
 - **Image recognition module** - OCR and handwritten text recognition for student notes
 - **GitHub integration** - Automatic artifact storage and sharing
+- **Prompt Configuration Service** (`prompt-config-service/`) - Dynamic personalized prompt generation service
 
 ## Development Commands
 
@@ -65,7 +66,14 @@ uv run --package bot python -m bot.main
 #### Docker Compose (Full Stack with LangFuse)
 ```bash
 docker-compose up
-# Includes: FastAPI, Bot, LangFuse, PostgreSQL, Redis, ClickHouse, MinIO
+# Includes: FastAPI, Bot, Prompt Config Service, LangFuse, PostgreSQL, Redis, ClickHouse, MinIO
+```
+
+#### Prompt Configuration Service Only
+```bash
+uv run --package prompt-config-service python -m main
+# Service available at http://localhost:8002
+# API docs at http://localhost:8002/docs
 ```
 
 ### Development Tools
@@ -131,6 +139,13 @@ All processing nodes extend `BaseWorkflowNode` (`learnflow/nodes/base.py`):
 - In-memory storage with thread-ID based configuration
 - REST API endpoints for runtime configuration changes
 
+#### Prompt Configuration Integration (`learnflow/services/prompt_client.py`)
+- HTTP client for Prompt Configuration Service
+- Retry mechanism with exponential backoff (3 attempts)
+- Dynamic personalized prompt generation
+- WorkflowExecutionError on service unavailability (no fallback)
+- Context building from workflow state with proper field mapping
+
 ### Configuration Files
 
 #### Prompts (`configs/prompts.yaml`)
@@ -147,6 +162,9 @@ Required API keys and configuration:
 - `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` - Observability
 - `TELEGRAM_TOKEN` - Bot integration
 - `GITHUB_TOKEN` - Repository access for artifacts
+- `PROMPT_SERVICE_URL` - URL for Prompt Configuration Service (default: http://localhost:8002)
+- `PROMPT_SERVICE_TIMEOUT` - Service timeout in seconds (default: 5)
+- `PROMPT_SERVICE_RETRY_COUNT` - Number of retry attempts (default: 3)
 - Database and service configuration
 
 ## Development Guidelines

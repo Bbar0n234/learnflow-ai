@@ -9,10 +9,10 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_openai import ChatOpenAI
 from typing import Any, Dict
 import logging
-from ..utils.utils import render_system_prompt
 from ..models.model_factory import create_model_for_node
 from ..config.config_models import ModelConfig
 from ..config.settings import get_settings
+from ..services.prompt_client import PromptConfigClient, WorkflowExecutionError
 
 
 class BaseWorkflowNode(ABC):
@@ -24,6 +24,16 @@ class BaseWorkflowNode(ABC):
         self.logger = logger or logging.getLogger(self.__class__.__name__)
         self.settings = get_settings()
         self._init_security()
+        self._init_prompt_client()
+    
+    def _init_prompt_client(self):
+        """Инициализация клиента для Prompt Configuration Service"""
+        try:
+            self.prompt_client = PromptConfigClient()
+            self.logger.debug(f"Prompt client initialized for {self.__class__.__name__}")
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize prompt client: {e}")
+            self.prompt_client = None
 
     @abstractmethod
     def get_node_name(self) -> str:
@@ -101,6 +111,73 @@ class BaseWorkflowNode(ABC):
 
         return cleaned
 
+    async def get_system_prompt(self, state, config: RunnableConfig, extra_context: Dict[str, Any] = None) -> str:
+        """
+        Получает системный промпт из Prompt Configuration Service.
+        
+        Args:
+            state: Состояние workflow
+            config: Конфигурация LangGraph
+            extra_context: Дополнительный контекст для промпта (не из state)
+            
+        Returns:
+            Системный промпт
+            
+        Raises:
+            WorkflowExecutionError: При недоступности сервиса
+        """
+        if not self.prompt_client:
+            raise WorkflowExecutionError("Prompt service is not configured")
+        
+        try:
+            # Извлекаем user_id из thread_id (по соглашению они равны)
+            thread_id = config["configurable"]["thread_id"]
+            try:
+                user_id = int(thread_id)
+            except (ValueError, TypeError):
+                self.logger.error(f"Invalid thread_id format: {thread_id}. Expected numeric string.")
+                raise WorkflowExecutionError(f"Invalid thread_id format: {thread_id}")
+            
+            # Формируем контекст из состояния workflow
+            context = self._build_context_from_state(state)
+            
+            # Добавляем дополнительный контекст если есть
+            if extra_context:
+                context.update(extra_context)
+            
+            # Получаем промпт от сервиса
+            prompt = await self.prompt_client.generate_prompt(
+                user_id=user_id,
+                node_name=self.get_node_name(),
+                context=context
+            )
+            
+            self.logger.info(f"Received personalized prompt from service for user {user_id}")
+            return prompt
+            
+        except WorkflowExecutionError:
+            # Перебрасываем ошибки сервиса без изменений
+            raise
+        except Exception as e:
+            self.logger.error(f"Unexpected error getting prompt: {e}")
+            raise WorkflowExecutionError(f"Failed to get prompt: {e}")
+    
+    
+    def _build_context_from_state(self, state) -> Dict[str, Any]:
+        """
+        Строит контекст для промпта из состояния workflow.
+        Подклассы должны переопределить для специфичного маппинга.
+        
+        Args:
+            state: Состояние workflow
+            
+        Returns:
+            Словарь с контекстными данными
+        """
+        # Базовая реализация возвращает пустой контекст
+        # Каждый узел должен переопределить для своего маппинга
+        return {}
+
 
 class FeedbackNode(BaseWorkflowNode):
     """
@@ -128,10 +205,8 @@ class FeedbackNode(BaseWorkflowNode):
         """Возвращает параметры для промпта"""
         pass
 
-    def render_prompt(self, state, user_feedback: str = None, config=None) -> str:
+    async def render_prompt(self, state, user_feedback: str = None, config=None) -> str:
         """Формирует промпт для LLM, используя логику initial/further"""
-        template_type = self.get_template_type()
-
         # Определяем вариант шаблона
         if user_feedback or not self.is_initial(state):
             template_variant = "further"
@@ -140,14 +215,18 @@ class FeedbackNode(BaseWorkflowNode):
 
         # Получаем параметры для промпта
         prompt_kwargs = self.get_prompt_kwargs(state, user_feedback, config)
-
-        # Добавляем configurable если есть config
+        
+        # Добавляем template_variant и configurable в extra_context
+        extra_context = {
+            "template_variant": template_variant,
+            **prompt_kwargs
+        }
+        
         if config and "configurable" in config:
-            prompt_kwargs["configurable"] = config["configurable"]
-
-        return render_system_prompt(
-            template_type, template_variant=template_variant, **prompt_kwargs
-        )
+            extra_context["configurable"] = config["configurable"]
+        
+        # Вызываем get_system_prompt с extra_context
+        return await self.get_system_prompt(state, config, extra_context)
 
     @abstractmethod
     def get_model(self):
@@ -206,7 +285,7 @@ class FeedbackNode(BaseWorkflowNode):
 
         # 1. Первая генерация
         if self.is_initial(state):
-            prompt = self.render_prompt(state, config=config)
+            prompt = await self.render_prompt(state, config=config)
             model = self.get_model()
             response = await model.ainvoke([SystemMessage(content=prompt)])
             return Command(
@@ -226,7 +305,7 @@ class FeedbackNode(BaseWorkflowNode):
             user_feedback = await self.validate_input(user_feedback)
 
         # 3. Правка с учётом feedback
-        prompt = self.render_prompt(state, user_feedback=user_feedback, config=config)
+        prompt = await self.render_prompt(state, user_feedback=user_feedback, config=config)
         model = self.get_model()
         messages = (
             [SystemMessage(content=prompt)]

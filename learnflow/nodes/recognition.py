@@ -10,7 +10,6 @@ from langchain_core.messages import SystemMessage, AIMessage, HumanMessage
 from langgraph.types import Command, interrupt
 
 from ..core.state import ExamState
-from ..utils.utils import render_system_prompt
 from .base import BaseWorkflowNode
 
 
@@ -56,6 +55,12 @@ class RecognitionNode(BaseWorkflowNode):
     def get_node_name(self) -> str:
         """Возвращает имя узла для поиска конфигурации"""
         return "recognition_handwritten"
+    
+    def _build_context_from_state(self, state) -> dict:
+        """Строит контекст для промпта из состояния workflow"""
+        return {
+            # Узел recognition не требует контекста из state для промпта
+        }
 
     async def __call__(self, state: ExamState, config) -> Command:
         """
@@ -79,7 +84,7 @@ class RecognitionNode(BaseWorkflowNode):
 
             try:
                 # Обрабатываем изображения
-                recognized_text = await self._process_images(state.image_paths)
+                recognized_text = await self._process_images(state.image_paths, state, config)
 
                 if recognized_text:
                     logger.info(
@@ -166,12 +171,14 @@ class RecognitionNode(BaseWorkflowNode):
             },
         )
 
-    async def _process_images(self, image_paths: List[str]) -> str:
+    async def _process_images(self, image_paths: List[str], state: ExamState, config) -> str:
         """
         Обрабатывает изображения с помощью GPT-4-vision.
 
         Args:
             image_paths: Список путей к изображениям
+            state: Состояние workflow
+            config: Конфигурация LangGraph
 
         Returns:
             Распознанный текст или пустая строка при ошибке
@@ -183,8 +190,8 @@ class RecognitionNode(BaseWorkflowNode):
                 logger.error("Failed to load any images for recognition")
                 return ""
 
-            # Формируем системный промпт
-            system_content = render_system_prompt("recognition")
+            # Получаем персонализированный промпт от сервиса
+            system_content = await self.get_system_prompt(state, config)
 
             # Создаем контент с изображениями для GPT-4-vision
             user_content = [

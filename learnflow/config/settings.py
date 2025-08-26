@@ -92,6 +92,20 @@ class AppSettings(BaseSettings):
         description="Минимальная длина контента для валидации",
     )
 
+    # Prompt Configuration Service settings
+    prompt_service_url: str = Field(
+        default="http://localhost:8002",
+        description="URL Prompt Configuration Service",
+    )
+    prompt_service_timeout: int = Field(
+        default=5,
+        description="Timeout для запросов к Prompt Service (секунды)",
+    )
+    prompt_service_retry_count: int = Field(
+        default=3,
+        description="Количество retry попыток для Prompt Service",
+    )
+
     def is_artifacts_configured(self) -> bool:
         """Проверка настройки локального хранилища артефактов"""
         return bool(self.artifacts_base_path)

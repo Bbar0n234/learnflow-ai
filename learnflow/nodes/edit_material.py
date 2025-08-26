@@ -12,7 +12,7 @@ from fuzzysearch import find_near_matches
 
 from .base import BaseWorkflowNode
 from ..core.state import ExamState, ActionDecision, EditDetails, EditMessageDetails
-from ..utils.utils import render_system_prompt
+# from ..utils.utils import render_system_prompt
 from ..services.hitl_manager import get_hitl_manager
 
 
@@ -29,6 +29,15 @@ class EditMaterialNode(BaseWorkflowNode):
     def get_node_name(self) -> str:
         """Возвращает имя узла для конфигурации"""
         return "edit_material"
+    
+    def _build_context_from_state(self, state) -> dict:
+        """Строит контекст для промпта из состояния workflow"""
+        context = {}
+        
+        if hasattr(state, 'synthesized_material'):
+            context['generated_material'] = state.synthesized_material
+            
+        return context
 
     def get_model(self):
         """Возвращает модель для обращения к LLM"""
@@ -230,12 +239,12 @@ class EditMaterialNode(BaseWorkflowNode):
                     },
                 )
 
-        # Получаем системный промпт для редактирования
-        system_prompt = render_system_prompt(
-            "edit_material",
-            template_variant="initial",
-            generated_material=state.synthesized_material,
-        )
+        # Получаем персонализированный промпт от сервиса с дополнительным контекстом
+        extra_context = {
+            "template_variant": "initial",
+            "generated_material": state.synthesized_material if hasattr(state, 'synthesized_material') else ""
+        }
+        system_prompt = await self.get_system_prompt(state, config, extra_context)
 
         # Шаг 1: Определяем тип действия
         model = self.get_model()

@@ -8,7 +8,7 @@ from typing import Dict, Any, Literal
 from langchain_core.messages import SystemMessage
 from langgraph.types import Command
 
-from ..utils.utils import render_system_prompt
+# from ..utils.utils import render_system_prompt
 from .base import BaseWorkflowNode
 
 
@@ -28,6 +28,15 @@ class AnswerGenerationNode(BaseWorkflowNode):
     def get_node_name(self) -> str:
         """Возвращает имя узла для поиска конфигурации"""
         return "answer_question"
+    
+    def _build_context_from_state(self, state) -> dict:
+        """Строит контекст для промпта из состояния workflow"""
+        # В этом узле state - это dict с ключом 'question'
+        if isinstance(state, dict) and 'question' in state:
+            return {
+                "exam_question": state['question']
+            }
+        return {}
 
     async def __call__(
         self, data: Dict[str, Any], config=None
@@ -54,10 +63,11 @@ class AnswerGenerationNode(BaseWorkflowNode):
         )
 
         try:
-            # Формируем промпт для генерации ответа
-            prompt_content = render_system_prompt(
-                template_type="gen_answer", exam_question=question
-            )
+            # Создаем псевдо-state с вопросом для передачи в get_system_prompt
+            state_dict = {"question": question}
+            
+            # Получаем персонализированный промпт от сервиса
+            prompt_content = await self.get_system_prompt(state_dict, config)
 
             messages = [SystemMessage(content=prompt_content)]
 

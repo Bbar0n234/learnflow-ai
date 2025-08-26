@@ -33,6 +33,12 @@ class QuestionGenerationNode(FeedbackNode):
     def get_node_name(self) -> str:
         """Возвращает имя узла для поиска конфигурации"""
         return "generating_questions"
+    
+    def _build_context_from_state(self, state) -> Dict[str, Any]:
+        """Строит контекст для промпта из состояния workflow"""
+        # FeedbackNode будет использовать prompt_kwargs из get_prompt_kwargs
+        # который уже содержит правильный маппинг
+        return {}
 
     def is_initial(self, state: ExamState) -> bool:
         """Проверяет, нужно ли делать первую генерацию"""

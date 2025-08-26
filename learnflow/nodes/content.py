@@ -9,7 +9,6 @@ from langchain_core.messages import SystemMessage
 from langgraph.types import Command
 
 from ..core.state import ExamState
-from ..utils.utils import render_system_prompt
 from .base import BaseWorkflowNode
 
 
@@ -29,6 +28,13 @@ class ContentGenerationNode(BaseWorkflowNode):
     def get_node_name(self) -> str:
         """Возвращает имя узла для поиска конфигурации"""
         return "generating_content"
+    
+    def _build_context_from_state(self, state) -> dict:
+        """Строит контекст для промпта из состояния workflow"""
+        return {
+            "exam_question": state.exam_question if hasattr(state, 'exam_question') else "",
+            "input_content": state.exam_question if hasattr(state, 'exam_question') else ""
+        }
 
     async def __call__(
         self, state: ExamState, config
@@ -49,10 +55,8 @@ class ContentGenerationNode(BaseWorkflowNode):
         thread_id = config["configurable"]["thread_id"]
         logger.info(f"Starting content generation for thread {thread_id}")
 
-        # Формируем промпт
-        prompt_content = render_system_prompt(
-            template_type="generating_content", exam_question=state.exam_question
-        )
+        # Получаем персонализированный промпт от сервиса
+        prompt_content = await self.get_system_prompt(state, config)
 
         messages = [SystemMessage(content=prompt_content)]
 

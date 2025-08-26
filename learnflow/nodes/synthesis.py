@@ -10,7 +10,6 @@ from langchain_core.messages import SystemMessage
 from langgraph.types import Command
 
 from ..core.state import ExamState
-from ..utils.utils import render_system_prompt
 from .base import BaseWorkflowNode
 
 
@@ -30,6 +29,21 @@ class SynthesisNode(BaseWorkflowNode):
     def get_node_name(self) -> str:
         """Возвращает имя узла для поиска конфигурации"""
         return "synthesis_material"
+    
+    def _build_context_from_state(self, state) -> dict:
+        """Строит контекст для промпта из состояния workflow"""
+        context = {}
+        
+        if hasattr(state, 'exam_question'):
+            context['exam_question'] = state.exam_question
+        
+        if hasattr(state, 'recognized_notes'):
+            context['lecture_notes'] = state.recognized_notes
+        
+        if hasattr(state, 'generated_material'):
+            context['additional_material'] = state.generated_material
+            
+        return context
 
     async def __call__(
         self, state: ExamState, config
@@ -72,13 +86,8 @@ class SynthesisNode(BaseWorkflowNode):
                 f"Synthesizing with both generated material and recognized notes for thread {thread_id}"
             )
 
-            # Формируем промпт для синтеза с конспектами
-            prompt_content = render_system_prompt(
-                template_type="synthesize",
-                exam_question=state.exam_question,
-                lecture_notes=state.recognized_notes,
-                additional_material=state.generated_material,
-            )
+            # Получаем персонализированный промпт от сервиса
+            prompt_content = await self.get_system_prompt(state, config)
 
             # Генерируем синтезированный материал
             messages = [SystemMessage(content=prompt_content)]

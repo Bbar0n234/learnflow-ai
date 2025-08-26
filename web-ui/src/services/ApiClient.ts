@@ -97,6 +97,82 @@ export class ApiClient {
     return response.data;
   }
 
+  // Export methods
+  async exportSingleDocument(
+    threadId: string,
+    sessionId: string,
+    documentName: string,
+    format: 'markdown' | 'pdf' = 'markdown'
+  ): Promise<Blob> {
+    const response = await this.axiosInstance.get(
+      `/threads/${threadId}/sessions/${sessionId}/export/single`,
+      {
+        params: {
+          document_name: documentName,
+          format: format
+        },
+        responseType: 'blob'
+      }
+    );
+    return response.data;
+  }
+
+  async exportPackage(
+    threadId: string,
+    sessionId: string,
+    packageType: 'final' | 'all' = 'final',
+    format: 'markdown' | 'pdf' = 'markdown'
+  ): Promise<Blob> {
+    const response = await this.axiosInstance.get(
+      `/threads/${threadId}/sessions/${sessionId}/export/package`,
+      {
+        params: {
+          package_type: packageType,
+          format: format
+        },
+        responseType: 'blob'
+      }
+    );
+    return response.data;
+  }
+
+  async getExportSettings(userId: string): Promise<any> {
+    const response = await this.axiosInstance.get(
+      `/users/${userId}/export-settings`
+    );
+    return response.data;
+  }
+
+  async updateExportSettings(userId: string, settings: any): Promise<any> {
+    const response = await this.axiosInstance.put(
+      `/users/${userId}/export-settings`,
+      settings
+    );
+    return response.data;
+  }
+
+  async getRecentSessions(userId: string, limit: number = 5): Promise<any[]> {
+    const response = await this.axiosInstance.get(
+      `/users/${userId}/sessions/recent`,
+      {
+        params: { limit }
+      }
+    );
+    return response.data;
+  }
+
+  // Helper method to trigger download
+  downloadBlob(blob: Blob, filename: string): void {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  }
+
   setBaseURL(url: string): void {
     this.baseURL = url;
     this.axiosInstance.defaults.baseURL = url;

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { FileText, Calendar } from 'lucide-react';
+import { FileText, Calendar, Download } from 'lucide-react';
 import type { Session } from '../services/types';
 import { apiClient } from '../services/ApiClient';
 import { useApi } from '../hooks/useApi';
+import { ExportDialog, ExportFormat, PackageType } from './export';
 
 interface SessionsListProps {
   threadId: string | null;
@@ -16,6 +17,8 @@ export const SessionsList: React.FC<SessionsListProps> = ({
   onSessionSelect 
 }) => {
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportingSession, setExportingSession] = useState<string | null>(null);
   const { isLoading, error, executeRequest } = useApi();
 
   useEffect(() => {
@@ -41,6 +44,25 @@ export const SessionsList: React.FC<SessionsListProps> = ({
       day: 'numeric',
       year: 'numeric',
     });
+  };
+
+  const handleExport = async (format: ExportFormat, packageType: PackageType) => {
+    if (!threadId || !exportingSession) return;
+    
+    try {
+      const blob = await apiClient.exportPackage(threadId, exportingSession, packageType, format);
+      const filename = `session_${exportingSession}_export.${packageType === 'final' ? 'final' : 'all'}.zip`;
+      apiClient.downloadBlob(blob, filename);
+      setExportDialogOpen(false);
+    } catch (error) {
+      console.error('Export failed:', error);
+    }
+  };
+
+  const openExportDialog = (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExportingSession(sessionId);
+    setExportDialogOpen(true);
   };
 
   if (!threadId) {
@@ -132,13 +154,27 @@ export const SessionsList: React.FC<SessionsListProps> = ({
                   </div>
                 </div>
               </div>
-              <div className="sidebar-item-meta">
-                {session.files_count}
+              <div className="sidebar-item-meta flex items-center gap-1">
+                <span>{session.files_count}</span>
+                <button
+                  onClick={(e) => openExportDialog(session.session_id, e)}
+                  className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
+                  title="Export session"
+                >
+                  <Download className="w-3 h-3" />
+                </button>
               </div>
             </div>
           ))}
         </div>
       )}
+      
+      <ExportDialog
+        isOpen={exportDialogOpen}
+        onClose={() => setExportDialogOpen(false)}
+        onExport={handleExport}
+        availableDocuments={['synthesized_material', 'gap_questions', 'generated_material', 'recognized_notes']}
+      />
     </div>
   );
 };

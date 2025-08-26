@@ -1,6 +1,7 @@
 """Pydantic models for Artifacts Service."""
 
 from datetime import datetime
+from enum import Enum
 from typing import List, Optional, Dict, Any
 
 from pydantic import BaseModel, Field
@@ -131,4 +132,64 @@ class ErrorResponse(BaseModel):
     error: str = Field(description="Error message")
     timestamp: datetime = Field(
         default_factory=datetime.now, description="Error timestamp"
+    )
+
+
+# Export models
+class ExportFormat(str, Enum):
+    """Available export formats."""
+    MARKDOWN = "markdown"
+    PDF = "pdf"
+
+
+class PackageType(str, Enum):
+    """Types of export packages."""
+    FINAL = "final"  # Only final documents
+    ALL = "all"      # All documents including intermediate
+
+
+class ExportSettings(BaseModel):
+    """User export settings."""
+    
+    user_id: str = Field(description="User identifier")
+    default_format: ExportFormat = Field(
+        default=ExportFormat.MARKDOWN,
+        description="Default export format"
+    )
+    default_package_type: PackageType = Field(
+        default=PackageType.FINAL,
+        description="Default package type"
+    )
+    created: datetime = Field(default_factory=datetime.now)
+    modified: datetime = Field(default_factory=datetime.now)
+
+
+class SessionSummary(BaseModel):
+    """Summary of a session for export."""
+    
+    thread_id: str = Field(description="Thread identifier")
+    session_id: str = Field(description="Session identifier")
+    exam_question: str = Field(description="Original exam question")
+    question_preview: str = Field(description="First 30 characters of question")
+    display_name: str = Field(description="Formatted name for display")
+    created_at: datetime = Field(description="Session creation time")
+    has_synthesized: bool = Field(default=False, description="Has synthesized material")
+    has_questions: bool = Field(default=False, description="Has gap questions")
+    answers_count: int = Field(default=0, description="Number of answers")
+
+
+class ExportRequest(BaseModel):
+    """Export request parameters."""
+    
+    document_names: Optional[List[str]] = Field(
+        default=None,
+        description="Specific documents to export"
+    )
+    format: ExportFormat = Field(
+        default=ExportFormat.MARKDOWN,
+        description="Export format"
+    )
+    package_type: PackageType = Field(
+        default=PackageType.FINAL,
+        description="Package type for batch export"
     )

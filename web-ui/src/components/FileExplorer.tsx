@@ -3,6 +3,7 @@ import { File, FileText, Code, Download, Clock, AlertCircle } from 'lucide-react
 import type { FileInfo } from '../services/types';
 import { apiClient } from '../services/ApiClient';
 import { useApi } from '../hooks/useApi';
+import { ExportButton } from './export';
 
 interface FileExplorerProps {
   threadId: string | null;
@@ -18,6 +19,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   onFileSelect 
 }) => {
   const [files, setFiles] = useState<FileInfo[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
   const { isLoading, error, executeRequest } = useApi();
 
   useEffect(() => {
@@ -34,6 +36,21 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     const result = await executeRequest(apiClient.getSessionFiles(threadId, sessionId));
     if (result) {
       setFiles(result.files);
+    }
+  };
+
+  const handleExportSession = async () => {
+    if (!threadId || !sessionId) return;
+    
+    setIsExporting(true);
+    try {
+      const blob = await apiClient.exportPackage(threadId, sessionId, 'final', 'markdown');
+      const filename = `session_${sessionId}_export.zip`;
+      apiClient.downloadBlob(blob, filename);
+    } catch (error) {
+      console.error('Export failed:', error);
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -128,9 +145,17 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     <div className="sidebar-section">
       <div className="sidebar-section-header flex items-center justify-between">
         <span>Files</span>
-        <span className="chip-default text-[11px] h-4 px-1">
-          {files.length}
-        </span>
+        <div className="flex items-center gap-1">
+          <ExportButton
+            onClick={handleExportSession}
+            loading={isExporting}
+            size="sm"
+            variant="ghost"
+          />
+          <span className="chip-default text-[11px] h-4 px-1">
+            {files.length}
+          </span>
+        </div>
       </div>
       
       {files.length === 0 ? (

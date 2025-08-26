@@ -1,8 +1,11 @@
 """FastAPI application for Artifacts Service."""
 
 import logging
-from fastapi import FastAPI, HTTPException, status, Path as PathParam
-from fastapi.responses import PlainTextResponse, JSONResponse
+from pathlib import Path
+from typing import List, Optional
+from datetime import datetime
+from fastapi import FastAPI, HTTPException, status, Path as PathParam, Query
+from fastapi.responses import PlainTextResponse, JSONResponse, FileResponse, Response
 from contextlib import asynccontextmanager
 
 from .storage import ArtifactsStorage
@@ -14,9 +17,15 @@ from .models import (
     FileContent,
     FileOperationResponse,
     ErrorResponse,
+    ExportFormat,
+    PackageType,
+    ExportSettings,
+    SessionSummary,
+    ExportRequest,
 )
 from .exceptions import ArtifactsServiceException, map_to_http_exception
 from .settings import settings
+from .services.export import MarkdownExporter, PDFExporter, ZIPExporter
 
 
 # Global storage instance
@@ -213,6 +222,172 @@ async def delete_thread(thread_id: str = PathParam(description="Thread identifie
         return FileOperationResponse(message="Thread deleted")
     except ArtifactsServiceException as e:
         raise map_to_http_exception(e)
+
+
+# Export API Endpoints
+
+# Store user settings in memory (in production, use a database)
+user_settings = {}
+
+
+@app.get("/threads/{thread_id}/sessions/{session_id}/export/single")
+async def export_single_document(
+    thread_id: str = PathParam(description="Thread identifier"),
+    session_id: str = PathParam(description="Session identifier"),
+    document_name: str = Query(description="Document name to export"),
+    format: ExportFormat = Query(ExportFormat.MARKDOWN, description="Export format"),
+):
+    """Export a single document."""
+    try:
+        # Select exporter based on format
+        if format == ExportFormat.PDF:
+            exporter = PDFExporter(storage.base_path)
+        else:
+            exporter = MarkdownExporter(storage.base_path)
+        
+        # Export document
+        content = await exporter.export_single_document(
+            thread_id, session_id, document_name, format
+        )
+        
+        # Determine file extension and mime type
+        if format == ExportFormat.PDF:
+            ext = "pdf"
+            media_type = "application/pdf"
+        else:
+            ext = "md"
+            media_type = "text/markdown"
+        
+        # Format filename
+        filename = exporter.format_filename(document_name, session_id, ext)
+        
+        return Response(
+            content=content,
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Export failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Export failed: {str(e)}"
+        )
+
+
+@app.get("/threads/{thread_id}/sessions/{session_id}/export/package")
+async def export_package(
+    thread_id: str = PathParam(description="Thread identifier"),
+    session_id: str = PathParam(description="Session identifier"),
+    package_type: PackageType = Query(PackageType.FINAL, description="Package type"),
+    format: ExportFormat = Query(ExportFormat.MARKDOWN, description="Export format"),
+):
+    """Export a package of documents as ZIP archive."""
+    try:
+        # Use ZIP exporter
+        zip_exporter = ZIPExporter(storage.base_path)
+        
+        # Export package
+        content = await zip_exporter.export_session_archive(
+            thread_id, session_id, package_type, format
+        )
+        
+        # Format filename
+        filename = f"session_{session_id}_export.zip"
+        
+        return Response(
+            content=content,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Export failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Export failed: {str(e)}"
+        )
+
+
+@app.get("/users/{user_id}/sessions/recent", response_model=List[SessionSummary])
+async def get_recent_sessions(
+    user_id: str = PathParam(description="User identifier"),
+    limit: int = Query(5, max=5, description="Maximum number of sessions"),
+):
+    """Get list of recent sessions for export."""
+    try:
+        # Find user's threads
+        # In production, this would query a database for user-thread mapping
+        # For now, we'll return all recent sessions
+        all_threads = storage.get_threads()
+        
+        sessions_list = []
+        for thread in all_threads[:limit]:  # Limit threads for performance
+            for session in thread.sessions[:limit]:
+                # Create session summary
+                summary = SessionSummary(
+                    thread_id=thread.thread_id,
+                    session_id=session.session_id,
+                    exam_question=session.exam_question,
+                    question_preview=session.exam_question[:30] + "..." 
+                        if len(session.exam_question) > 30 else session.exam_question,
+                    display_name=f"{session.exam_question[:30]}... - {session.created.strftime('%d.%m.%Y')}",
+                    created_at=session.created,
+                    has_synthesized=False,  # Check if synthesized_material.md exists
+                    has_questions=False,     # Check if gap_questions.md exists
+                    answers_count=0          # Count answer files
+                )
+                sessions_list.append(summary)
+                
+                if len(sessions_list) >= limit:
+                    break
+            
+            if len(sessions_list) >= limit:
+                break
+        
+        return sessions_list
+    except Exception as e:
+        logger.error(f"Failed to get recent sessions: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get recent sessions: {str(e)}"
+        )
+
+
+@app.get("/users/{user_id}/export-settings", response_model=ExportSettings)
+async def get_export_settings(
+    user_id: str = PathParam(description="User identifier")
+):
+    """Get user export settings."""
+    # Return existing settings or create default
+    if user_id not in user_settings:
+        user_settings[user_id] = ExportSettings(user_id=user_id)
+    
+    return user_settings[user_id]
+
+
+@app.put("/users/{user_id}/export-settings", response_model=ExportSettings)
+async def update_export_settings(
+    user_id: str = PathParam(description="User identifier"),
+    settings: ExportSettings = ...,
+):
+    """Update user export settings."""
+    settings.user_id = user_id
+    settings.modified = datetime.now()
+    user_settings[user_id] = settings
+    return settings
 
 
 def main():

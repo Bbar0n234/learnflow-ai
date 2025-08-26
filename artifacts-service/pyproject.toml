@@ -12,6 +12,9 @@ dependencies = [
     "pydantic>=2.11.7",
     "pydantic-settings>=2.10.1",
     "uvicorn[standard]>=0.35.0",
+    "markdown>=3.5",
+    "weasyprint>=60.0",
+    "aiofiles>=23.2.1",
 ]
 
 [build-system]

@@ -64,11 +64,23 @@ uv run --package bot python -m bot.main
 - `/reset_prompts` - Reset prompt settings to defaults
 - `/reset` - Reset current session
 - `/status` - Show current processing status
+- `/export` - Quick export of current session with default settings
+- `/export_menu` - Export with custom parameters selection
+- `/sessions` or `/history` - Show last 5 sessions for export
+- `/export_settings` - Configure default export settings
 
 #### Docker Compose (Full Stack with LangFuse)
 ```bash
 docker-compose up
 # Includes: FastAPI, Bot, Prompt Config Service, LangFuse, PostgreSQL, Redis, ClickHouse, MinIO
+```
+
+#### Artifacts Service Only
+```bash
+uv run --package artifacts-service python main.py
+# Service available at http://localhost:8001
+# API docs at http://localhost:8001/docs
+# Provides document storage and export functionality
 ```
 
 #### Prompt Configuration Service Only

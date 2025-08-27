@@ -5,13 +5,13 @@
 [![LangGraph](https://img.shields.io/badge/Built%20with-LangGraph-orange.svg)](https://github.com/langchain-ai/langgraph)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](docker-compose.yml)
 
-A production-ready, LangGraph-based educational content generation system that transforms unstructured notes into comprehensive study materials. Built with a focus on clean architecture, security, and extensibility.
+A universal, LangGraph-based educational content generation system for any subject area and education level. Transform educational questions and handwritten notes into comprehensive study materials with gap analysis questions and answers.
 
 ![LearnFlow AI Demo](docs/assets/demo.gif)
 
 ## 🎯 Why LearnFlow AI?
 
-LearnFlow AI demonstrates modern AI-driven development practices while solving a real problem: transforming scattered exam questions and handwritten notes into structured, comprehensive study materials.
+LearnFlow AI solves a universal educational problem: transforming scattered educational questions and handwritten notes into structured, comprehensive study materials - from mathematics and physics to literature and history, from elementary school to university level.
 
 ### Key Features
 
@@ -37,7 +37,7 @@ LearnFlow AI demonstrates modern AI-driven development practices while solving a
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/yourusername/learnflow-ai.git
+git clone https://github.com/bbaron/learnflow-ai.git
 cd learnflow-ai
 ```
 
@@ -113,7 +113,7 @@ LearnFlow AI includes comprehensive prompt injection protection:
 - **Universal Input Validation** - LLM-based detection with structured output across all entry points
 - **Graceful Degradation** - Security never blocks workflow execution, always maintains user experience
 - **Fuzzy Content Cleaning** - Smart removal of malicious content while preserving legitimate educational material
-- **Educational Context Aware** - Reduces false positives for cryptography and security topics
+- **Educational Context Aware** - Adapts to different subject areas and reduces false positives
 - **Configuration-Driven** - Security prompts and settings managed through YAML configs
 - **Complete Coverage** - Protects exam questions, OCR content, HITL feedback, and edit requests
 
@@ -125,22 +125,6 @@ LearnFlow AI includes comprehensive prompt injection protection:
 - [Development Guide](docs/conventions.md)
 - [Roadmap](docs/planning/roadmap.md)
 
-## 🤝 Contributing
-
-We welcome contributions! LearnFlow AI is designed to be extensible:
-
-### Good First Issues
-
-Check out our [good first issues](https://github.com/yourusername/learnflow-ai/labels/good%20first%20issue) for ways to get started.
-
-### Adding New Disciplines
-
-1. Create a new prompt configuration in `configs/prompts/`
-2. Extend the base workflow node if needed
-3. Add tests for your changes
-4. Submit a pull request
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## 🧪 Development
 
@@ -179,27 +163,31 @@ LearnFlow AI includes comprehensive observability:
 - **Health Checks** - `/health` endpoint for monitoring
 - **Performance Metrics** - Response times and token usage
 
-## 🗺️ Roadmap
+## 🌍 Universal Educational Support
 
-### Q1 2025 - Pre-OSS Release
-- [x] Docker Compose deployment
-- [x] Local LLM support
-- [ ] Guardrails implementation
-- [ ] English documentation
+LearnFlow AI adapts to any educational context:
 
-### Q2 2025 - Community Growth
-- [ ] Static prompt library for multiple disciplines
-- [ ] PDF/DOCX export
-- [ ] Jupyter demo notebook
-- [ ] YouTube tutorial series
+### Subject Areas
+- **STEM**: Mathematics, Physics, Chemistry, Biology, Computer Science
+- **Humanities**: Literature, History, Philosophy, Languages
+- **Social Sciences**: Psychology, Economics, Political Science
+- **Professional**: Law, Medicine, Engineering, Business
 
-See our [detailed roadmap](docs/planning/roadmap.md) for more information.
+### Educational Levels
+- **K-12**: Elementary through High School
+- **Higher Education**: University and Graduate programs
+- **Professional Development**: Certification and continuing education
+- **Self-Learning**: Personal study and skill development
+
+### Example Use Cases
+- Transform calculus problems into step-by-step learning materials
+- Convert historical essay questions into comprehensive study guides
+- Synthesize chemistry lab notes with theoretical concepts
+- Create literature analysis materials from book discussion questions
 
 ## 📝 License
 
-This project is licensed under Apache 2.0 with Commons Clause - see [LICENSE](LICENSE) for details.
-
-This is a source-available project: you can use, modify, and distribute the code for non-commercial purposes.
+This project is licensed under Apache 2.0 - see [LICENSE](LICENSE) for details.
 
 ## 🙏 Acknowledgments
 
@@ -211,8 +199,8 @@ Built with:
 
 ## 📧 Contact
 
-- Issues: [GitHub Issues](https://github.com/yourusername/learnflow-ai/issues)
-- Discussions: [GitHub Discussions](https://github.com/yourusername/learnflow-ai/discussions)
+- Issues: [GitHub Issues](https://github.com/bbaron/learnflow-ai/issues)
+- Discussions: [GitHub Discussions](https://github.com/bbaron/learnflow-ai/discussions)
 - Email: learnflow-ai@example.com
 
 ---

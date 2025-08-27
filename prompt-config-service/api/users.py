@@ -15,7 +15,7 @@ from services.user_service import UserService
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
 
 
-@router.get("/{user_id}/placeholders", response_model=Dict[str, PlaceholderValueSchema])
+@router.get("/{user_id}/placeholders")
 async def get_user_placeholders(
     user_id: int,
     db: AsyncSession = Depends(get_db)
@@ -30,8 +30,27 @@ async def get_user_placeholders(
     service = UserService(db)
     
     try:
-        settings = await service.get_user_settings(user_id)
-        return settings
+        settings_raw = await service.get_user_settings_with_details(user_id)
+        
+        # Convert to proper format with full placeholder info
+        placeholders = {}
+        for setting in settings_raw:
+            if setting.placeholder and setting.placeholder_value:
+                placeholders[setting.placeholder.name] = {
+                    "placeholder_id": str(setting.placeholder_id),
+                    "placeholder_name": setting.placeholder.name,
+                    "placeholder_display_name": setting.placeholder.display_name,
+                    "value_id": str(setting.placeholder_value_id),
+                    "value": setting.placeholder_value.value,
+                    "display_name": setting.placeholder_value.display_name
+                }
+        
+        result = {
+            "placeholders": placeholders,
+            "active_profile_id": None,
+            "active_profile_name": None
+        }
+        return result
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -110,7 +129,33 @@ async def apply_profile_to_user(
     try:
         await service.apply_profile_to_user(user_id, profile_id)
         await db.commit()
-        return {"message": f"Profile {profile_id} applied to user {user_id} successfully"}
+        
+        # Return updated user settings with profile info
+        settings_raw = await service.get_user_settings_with_details(user_id)
+        
+        # Get profile name
+        from services.profile_service import ProfileService
+        profile_service = ProfileService(db)
+        profile = await profile_service.get_profile_by_id(profile_id)
+        
+        placeholders = {}
+        for setting in settings_raw:
+            if setting.placeholder and setting.placeholder_value:
+                placeholders[setting.placeholder.name] = {
+                    "placeholder_id": str(setting.placeholder_id),
+                    "placeholder_name": setting.placeholder.name,
+                    "placeholder_display_name": setting.placeholder.display_name,
+                    "value_id": str(setting.placeholder_value_id),
+                    "value": setting.placeholder_value.value,
+                    "display_name": setting.placeholder_value.display_name
+                }
+        
+        return {
+            "message": f"Profile applied successfully",
+            "placeholders": placeholders,
+            "active_profile_id": str(profile_id),
+            "active_profile_name": profile.display_name if profile else None
+        }
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -141,7 +186,28 @@ async def reset_user_settings(
     try:
         await service.reset_to_defaults(user_id)
         await db.commit()
-        return {"message": f"User {user_id} settings reset to defaults"}
+        
+        # Return updated settings with details
+        settings_raw = await service.get_user_settings_with_details(user_id)
+        
+        placeholders = {}
+        for setting in settings_raw:
+            if setting.placeholder and setting.placeholder_value:
+                placeholders[setting.placeholder.name] = {
+                    "placeholder_id": str(setting.placeholder_id),
+                    "placeholder_name": setting.placeholder.name,
+                    "placeholder_display_name": setting.placeholder.display_name,
+                    "value_id": str(setting.placeholder_value_id),
+                    "value": setting.placeholder_value.value,
+                    "display_name": setting.placeholder_value.display_name
+                }
+        
+        return {
+            "message": f"Settings reset to defaults",
+            "placeholders": placeholders,
+            "active_profile_id": None,
+            "active_profile_name": None
+        }
     except Exception as e:
         await db.rollback()
         raise HTTPException(

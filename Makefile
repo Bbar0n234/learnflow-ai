@@ -93,7 +93,7 @@ fix-artifacts:
 
 # Docker commands
 dev-services:
-	docker compose down -v && docker compose up --build bot graph artifacts-service web-ui postgres
+	docker compose down -v && docker compose up --build bot graph artifacts-service web-ui postgres prompt-config-service
 
 # Cleanup
 clean:

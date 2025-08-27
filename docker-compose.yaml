@@ -12,11 +12,15 @@ services:
       - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
       - LEARNFLOW_HOST=${LEARNFLOW_HOST}
       - LEARNFLOW_PORT=${LEARNFLOW_PORT}
+      - PROMPT_SERVICE_URL=${PROMPT_SERVICE_URL}
+      - ARTIFACTS_SERVICE_URL=${ARTIFACTS_SERVICE_URL}
     restart: always
     depends_on:
       - graph
+      - prompt-config-service
+      - artifacts-service
     volumes:
-      - ./logs:/app/logs
+      # - ./logs:/app/logs
       - ./configs:/app/configs
 
   graph:
@@ -103,7 +107,7 @@ services:
       - SERVICE_PORT=${PROMPT_CONFIG_SERVICE_PORT:-8002}
       - LOG_LEVEL=${PROMPT_CONFIG_LOG_LEVEL:-INFO}
       - PROMPTS_CONFIG_PATH=${PROMPTS_CONFIG_PATH:-/app/configs/prompts.yaml}
-      - INITIAL_DATA_PATH=${PROMPT_CONFIG_INITIAL_DATA_PATH:-/app/prompt-config-service/seed/initial_data.json}
+      - INITIAL_DATA_PATH=${PROMPT_CONFIG_INITIAL_DATA_PATH}
       - CACHE_TTL=${PROMPT_CONFIG_CACHE_TTL:-300}
     ports:
       - "8002:8002"
@@ -113,7 +117,7 @@ services:
     restart: always
     volumes:
       - ./configs:/app/configs:ro
-      - ./logs:/app/logs
+      # - ./logs:/app/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
       interval: 15s

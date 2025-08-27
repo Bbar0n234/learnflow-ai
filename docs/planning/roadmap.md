@@ -54,9 +54,9 @@
   - SecurityGuard класс с LLM-based детекцией (gpt-4o-mini + structured output)
   - Fuzzy string matching для очистки injection контента
   - Non-blocking design с graceful degradation (никогда не блокирует workflow)
-  - Полное покрытие всех входов: exam questions, OCR content, HITL feedback, edit requests
+  - Полное покрытие всех входов: educational questions and tasks, OCR content, HITL feedback, edit requests
   - Configuration-driven: промпты и настройки через YAML конфиги
-  - Educational context aware: снижение false positives для криптографического контента
+  - Educational context aware: адаптация под различные предметные области с снижением false positives
 - **Архив**: `docs/backlog/archive/IP-01-enhanced-guardrails-integration.md`
 
 ### FEAT‑LLM‑301 — Поддержка локальных LLM

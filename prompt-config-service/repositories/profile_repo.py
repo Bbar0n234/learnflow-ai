@@ -20,7 +20,12 @@ class ProfileRepository:
         """Find profile by ID."""
         result = await self.db.execute(
             select(Profile)
-            .options(selectinload(Profile.placeholder_settings))
+            .options(
+                selectinload(Profile.placeholder_settings)
+                .selectinload(ProfilePlaceholderSetting.placeholder),
+                selectinload(Profile.placeholder_settings)
+                .selectinload(ProfilePlaceholderSetting.placeholder_value)
+            )
             .where(Profile.id == profile_id)
         )
         return result.scalar_one_or_none()
@@ -36,7 +41,12 @@ class ProfileRepository:
     
     async def find_all(self, filters: Optional[Dict] = None) -> List[Profile]:
         """Find all profiles with optional filters."""
-        query = select(Profile).options(selectinload(Profile.placeholder_settings))
+        query = select(Profile).options(
+            selectinload(Profile.placeholder_settings)
+            .selectinload(ProfilePlaceholderSetting.placeholder),
+            selectinload(Profile.placeholder_settings)
+            .selectinload(ProfilePlaceholderSetting.placeholder_value)
+        )
         
         if filters and "category" in filters:
             query = query.where(Profile.category == filters["category"])

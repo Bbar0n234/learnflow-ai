@@ -2,7 +2,7 @@
 
 ## System Overview
 
-LearnFlow AI is a LangGraph-based educational content generation system for cryptography exam preparation. It processes exam questions and handwritten note images to generate comprehensive study materials with gap analysis questions and answers.
+LearnFlow AI is a universal LangGraph-based educational content generation system for any subject area and education level. It processes educational questions and handwritten note images to generate comprehensive study materials with gap analysis questions and answers.
 
 ## Container Diagram
 
@@ -10,7 +10,7 @@ LearnFlow AI is a LangGraph-based educational content generation system for cryp
 C4Container
     title Container Diagram for LearnFlow AI System
 
-    Person(student, "Student", "User preparing for cryptography exams")
+    Person(student, "Student", "User preparing for educational assessments")
     
     System_Boundary(learnflow, "LearnFlow AI System") {
         Container(telegram_bot, "Telegram Bot", "Python, aiogram", "User interface for interacting with the system<br/>- Handles user commands<br/>- Manages photo uploads<br/>- Displays results")
@@ -107,7 +107,7 @@ C4Container
   - Provide health checks and monitoring endpoints
 - **Technology**: FastAPI (Python), async/await, Pydantic
 - **Key Endpoints**:
-  - `/process` - Process exam questions
+  - `/process` - Process educational questions and tasks
   - `/process-with-images` - Process with handwritten notes
   - `/upload-images/{thread_id}` - Upload note images
   - `/api/hitl/{thread_id}` - Configure HITL settings
@@ -117,7 +117,7 @@ C4Container
 - **Purpose**: Multi-node processing pipeline for content generation
 - **Nodes**:
   1. **input_processing** - Analyze user input
-  2. **generating_content** - Generate study material from exam questions
+  2. **generating_content** - Generate study material from educational questions and tasks
   3. **recognition_handwritten** - OCR processing of handwritten notes
   4. **synthesis_material** - Combine generated content with notes
   5. **edit_material** - Iterative refinement with HITL
@@ -213,7 +213,7 @@ C4Container
 ## Data Flow
 
 ### Primary Processing Flow
-1. **User Input**: Student sends exam question + optional photos via Telegram
+1. **User Input**: Student sends educational question/task + optional photos via Telegram
 2. **Bot Processing**: Telegram bot validates and forwards to LearnFlow API
 3. **Workflow Execution**: LearnFlow API triggers LangGraph workflow
 4. **Content Generation**: Workflow processes through nodes with OpenAI API

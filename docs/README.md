@@ -1,90 +1,91 @@
-# Документация проекта (`docs/`)
+# Documentation Guide
 
-Этот каталог — единая точка входа в проектную документацию для подхода AI‑Driven Development. Здесь хранится «истина в последней инстанции» о видении, дорожной карте, архитектурных решениях и планах реализации.
+Welcome to the LearnFlow AI documentation. This guide will help you navigate the documentation structure and find the information you need.
 
-## Цели и принципы
-- Поддерживать минимальный, но достаточный контекст для быстрой загрузки ассистента.
-- Делать документы связными: от Vision → Roadmap → Initiatives → Implementation Plans → Summary/Changelog.
-- Фиксировать решения и причины (ADR), избегая «устной истории».
+## Quick Start
 
-## Структура каталога
-- `overview.md` — обзор системы (что это и как устроено на высоком уровне).
-- `business_model.md` — бизнес‑контекст и стратегия монетизации.
-- `conventions.md` — соглашения по разработке (управление зависимостями, структура репо и т. п.).
-- `ui_style_guide.md` — визуальный язык и UI‑гайд (если применимо).
-- `ADR/` — архитектурные решения (Architecture Decision Records).
-- `research/` — исследовательские заметки, сравнения, пробы.
-- `specs/` — рабочие спецификации по технологиям/инструментам (например, UV).
-- `planning/` — стратегические документы: Vision и Roadmap.
-- `backlog/` — инициативы и планы реализации (текущие и архив).
-- `ideas/` — сырые идеи, которые ещё не прошли отбор.
-- `insights.md` — философия и принципы AI‑Driven Development в рамках проекта.
+- **New to LearnFlow AI?** → Start with [Overview](overview.md)
+- **Want to deploy?** → See the root [README.md](../README.md#quick-start)
+- **Need to understand the architecture?** → Check [ADR/001-architecture-overview.md](ADR/001-architecture-overview.md)
+- **Want to contribute?** → Read [Development Conventions](conventions.md)
 
-## Логика хранения и связи документов
-0. Business Model задаёт рамки ценности/монетизации и наравне с Vision влияет на высокоуровневое планирование (`business_model.md`).
-1. Vision определяет долгосрочные цели и рамки проекта (`planning/vision.md`).
-2. Roadmap декомпозирует Vision на Milestones/Initiatives (`planning/roadmap.md`).
-3. Каждая Initiative (если крупная) получает краткий план (произвольная форма, но с явными целями/метриками/рисками).
-4. Каждая Feature/Iteration оформляется как Implementation Plan в `backlog/current/` (произвольная форма, соблюдая философию `insights.md`).
-5. После завершения реализаций:
-   - создаётся краткий Post‑Implementation Summary (произвольная форма),
-   - полный план переносится в `backlog/archive/` и линкуется из `backlog/index.md`,
-   - ключевые изменения попадают в `changelog.md`.
+## Documentation Structure
 
-Примечание: каждый завершённый Implementation Plan обязательно индексируется в `docs/backlog/index.md` и хранится в `docs/backlog/archive/`.
+### Core Documentation
+- **[Overview](overview.md)** - Complete system architecture and technical details for developers
+- **[Conventions](conventions.md)** - Development standards, coding guidelines, and project structure
+- **[Business Model](business_model.md)** - Monetization strategy and business context
 
-## Политика актуализации
-- Обязательные к поддержанию в актуальном виде: `overview.md`, `planning/vision.md`, `planning/roadmap.md`.
-- Implementation Plans: «историчность» храним в архиве, актуальный контекст — в summary.
-- ADR: не редактировать задним числом — только новые записи или «superseded by».
+### Planning & Strategy
+- **[Vision](planning/vision.md)** - Long-term project goals and direction
+- **[Roadmap](planning/roadmap.md)** - Development timeline and milestones
+- **[Insights](insights.md)** - AI-Driven Development philosophy and principles
 
-## Как обсуждать решения в чате
-Для обсуждения в чате вручную выбирай релевантные файлы (обычно достаточно `overview.md`, `planning/vision.md`, `planning/roadmap.md`; при необходимости — `conventions.md`, последние `ADR/`, активные планы из `backlog/current/`).
+### Architecture & Decisions
+- **[ADR/](ADR/)** - Architecture Decision Records documenting key technical decisions
+  - [001-architecture-overview.md](ADR/001-architecture-overview.md) - System architecture
+  - [002-llm-guardrails.md](ADR/002-llm-guardrails.md) - Security implementation
+  - [ADR-004-prompt-caching-strategy.md](ADR/ADR-004-prompt-caching-strategy.md) - Performance optimization
 
+### Implementation & Development
+- **[Backlog](backlog/)** - Current and archived implementation plans
+  - [Index](backlog/index.md) - Overview of all initiatives
+  - [Current](backlog/current/) - Active development items
+  - [Archive](backlog/archive/) - Completed implementations
+- **[Tech Debt](backlog/tech-debt/)** - Technical debt analysis and refactoring plans
 
-## Схема связей документов
+### Research & Specifications
+- **[Research](research/)** - Technical investigations and comparisons
+- **[Specs](specs/)** - Detailed specifications for tools and technologies
+- **[Architecture](architecture/)** - Architectural diagrams and NFR documentation
 
-```mermaid
-graph TD
-  BM["Business Model<br/>docs/business_model.md"]
-  V["Vision<br/>docs/planning/vision.md"]
-  R["Roadmap<br/>docs/planning/roadmap.md"]
-  BM --> V
-  BM -. "influences" .-> R
-  V --> R
+### Project Management
+- **[Changelog](changelog.md)** - Version history and release notes
+- **[Testing Strategy](TESTING_STRATEGY.md)** - Quality assurance approach
 
-  subgraph "Milestone (пример)"
-    direction TB
-    M1["Milestone: <name><br/>goals, metrics"]
-    IUI["Initiative: <initiative>"]
-    M1 --> IUI
+## Where to Go If You Need...
 
-    F102["Plan: Implementation Plan A"]
-    F103["Plan: Implementation Plan B"]
-    F104["Plan: Implementation Plan C"]
-    F105["Plan: Implementation Plan D"]
+### Understanding the System
+- **"What is LearnFlow AI?"** → [Overview](overview.md) and root [README.md](../README.md)
+- **"How does it work technically?"** → [Architecture Overview](ADR/001-architecture-overview.md)
+- **"What are the main components?"** → [Overview - System Architecture](overview.md#system-architecture)
 
-    IUI --> F102
-    IUI --> F103
-    IUI --> F104
-    IUI --> F105
-  end
+### Getting Started
+- **"How to install and run?"** → Root [README.md](../README.md#quick-start)
+- **"How to develop locally?"** → [Conventions](conventions.md) and root [README.md](../README.md#development)
+- **"What's the project structure?"** → [Conventions](conventions.md)
 
-  R --> M1
+### Contributing & Development
+- **"How to contribute?"** → [Conventions](conventions.md)
+- **"What are the coding standards?"** → [Conventions](conventions.md)
+- **"How to add new features?"** → [Backlog](backlog/) for current priorities
 
-  subgraph "Lifecycle per Plan"
-    direction LR
-    P["Implementation Plan"]
-    S["Post-Implementation Summary"]
-    A["Archive (backlog/archive)"]
-    C["Changelog<br/>docs/changelog.md"]
-    P --> S --> A
-    S --> C
-  end
+### Architecture & Technical Decisions
+- **"Why was this technology chosen?"** → [ADR/](ADR/) directory
+- **"How is security implemented?"** → [LLM Guardrails ADR](ADR/002-llm-guardrails.md)
+- **"What's the system architecture?"** → [Architecture Overview ADR](ADR/001-architecture-overview.md)
 
-  IUI -. "decisions" .-> ADR["ADR<br/>docs/ADR/"]
-  R -. "guided by" .-> INS["Insights<br/>docs/insights.md"]
-  SPEC["Specs (UV, etc.)<br/>docs/specs/"]
-  INS -. "constraints" .-> SPEC
-```
+### Business & Strategy
+- **"What's the business model?"** → [Business Model](business_model.md)
+- **"What's the long-term vision?"** → [Vision](planning/vision.md)
+- **"What's being developed next?"** → [Roadmap](planning/roadmap.md)
 
+### Troubleshooting & Support
+- **"How to debug issues?"** → [Overview - Monitoring & Debugging](overview.md#monitoring-debugging)
+- **"How to test the system?"** → [Testing Strategy](TESTING_STRATEGY.md)
+- **"What are the current limitations?"** → [Overview - Technical Details](overview.md#technical-details)
+
+## Documentation Maintenance
+
+This documentation follows AI-Driven Development principles:
+- **Living Documentation**: Core files are kept up-to-date with system changes
+- **Decision Recording**: All architectural decisions are documented in ADRs
+- **Implementation Tracking**: All features are planned, implemented, and archived with summaries
+
+### Updating Documentation
+- Always update [Overview](overview.md) when system architecture changes
+- Create ADRs for significant technical decisions
+- Document completed implementations in the backlog archive
+- Keep the [Changelog](changelog.md) current with releases
+
+For questions about the documentation or suggestions for improvements, please create an issue in the repository.

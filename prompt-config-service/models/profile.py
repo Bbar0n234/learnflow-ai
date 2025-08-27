@@ -47,4 +47,7 @@ class ProfilePlaceholderSetting(Base):
     placeholder_value: Mapped["PlaceholderValue"] = relationship("PlaceholderValue", back_populates="profile_settings")
 
     def __repr__(self) -> str:
-        return f"<ProfilePlaceholderSetting(profile_id='{self.profile_id}', placeholder_id='{self.placeholder_id}')>"
+        try:
+            return f"<ProfilePlaceholderSetting(profile_id='{self.profile_id}', placeholder_id='{self.placeholder_id}')>"
+        except:
+            return "<ProfilePlaceholderSetting(detached)>"

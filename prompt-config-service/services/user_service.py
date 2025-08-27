@@ -11,13 +11,23 @@ from repositories.placeholder_repo import PlaceholderRepository
 from repositories.user_settings_repo import UserSettingsRepository
 
 
-# Default placeholder values - will be populated from seed data
+# Default placeholder values - map placeholder name to value name from yaml
 DEFAULT_PLACEHOLDER_VALUES = {
-    "role_perspective": "senior technical expert",
-    "subject_name": "cryptography", 
-    "language": "russian",
-    "style": "detailed",
-    "target_audience_inline": "students",
+    "role_perspective": "simplification_expert",
+    "subject_name": "cryptography",
+    "subject_keywords": "crypto_keywords",
+    "language": "russian_tech",
+    "style": "comprehensive_detailed",
+    "target_audience_inline": "university_students",
+    "target_audience_block": "university_students_block",
+    "material_type_inline": "comprehensive_study",
+    "material_type_block": "comprehensive_study_block",
+    "explanation_depth": "balanced_coverage",
+    "topic_coverage": "core_fundamentals",
+    "question_formats": "multiple_choice",
+    "question_purpose_inline": "diagnose_gaps",
+    "question_purpose": "diagnose_gaps_block",
+    "question_quantity": "qty_5",
 }
 
 
@@ -40,6 +50,11 @@ class UserService:
                 result[setting.placeholder.name] = setting.placeholder_value
         
         return result
+    
+    async def get_user_settings_with_details(self, user_id: int):
+        """Get user settings with full placeholder and value details."""
+        await self.ensure_user_exists(user_id)
+        return await self.repo.get_user_settings(user_id)
     
     async def get_user_placeholder_values(
         self, user_id: int, placeholder_names: List[str]
@@ -103,16 +118,16 @@ class UserService:
         # Apply default values
         settings_to_create = []
         
-        for placeholder_name, default_value in DEFAULT_PLACEHOLDER_VALUES.items():
+        for placeholder_name, default_value_name in DEFAULT_PLACEHOLDER_VALUES.items():
             # Find placeholder by name
             placeholder = await self.placeholder_repo.find_by_name(placeholder_name)
             if not placeholder:
                 continue
                 
-            # Find value by content
+            # Find value by name
             placeholder_value = None
             for value in placeholder.values:
-                if value.value == default_value:
+                if value.name == default_value_name:
                     placeholder_value = value
                     break
             

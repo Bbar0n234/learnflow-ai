@@ -7,6 +7,7 @@ from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
+from telegramify_markdown import markdownify
 
 from ..services.prompt_config_client import get_prompt_config_client
 from ..states.prompt_config import PromptConfigStates
@@ -49,7 +50,7 @@ async def cmd_configure(message: Message, state: FSMContext):
         if not is_healthy:
             await message.answer(
                 "❌ Сервис конфигурации промптов временно недоступен. Попробуйте позже.",
-                parse_mode="Markdown"
+                parse_mode="HTML"
             )
             return
         
@@ -60,7 +61,7 @@ async def cmd_configure(message: Message, state: FSMContext):
         text = format_main_menu_message(user_settings)
         keyboard = build_main_menu_keyboard(user_settings)
         
-        await message.answer(text, reply_markup=keyboard, parse_mode="Markdown")
+        await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
         await state.set_state(PromptConfigStates.main_menu)
         
         logger.info(f"Opened prompt config menu for user {user_id}")
@@ -69,7 +70,7 @@ async def cmd_configure(message: Message, state: FSMContext):
         logger.error(f"Error opening prompt config for user {user_id}: {e}")
         await message.answer(
             "❌ Ошибка при открытии меню настроек. Попробуйте позже.",
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
 
 
@@ -86,13 +87,13 @@ async def cmd_reset_prompts(message: Message, state: FSMContext):
     
     # Show confirmation dialog
     text = (
-        "⚠️ **Подтверждение сброса**\n\n"
+        "⚠️ <b>Подтверждение сброса</b>\n\n"
         "Вы уверены, что хотите сбросить все настройки промптов к дефолтным значениям?\n\n"
-        "_Это действие нельзя отменить._"
+        "<i>Это действие нельзя отменить.</i>"
     )
     keyboard = build_reset_confirmation_keyboard()
     
-    await message.answer(text, reply_markup=keyboard, parse_mode="Markdown")
+    await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
     await state.set_state(PromptConfigStates.confirming_reset)
     
     logger.info(f"User {user_id} requested prompt reset")
@@ -146,10 +147,10 @@ async def callback_select_profile_category(callback: CallbackQuery, state: FSMCo
     """Show profile category selection"""
     try:
         text = (
-            "📚 **Выбор профиля**\n\n"
+            "📚 <b>Выбор профиля</b>\n\n"
             "Выберите категорию профилей:\n\n"
-            "• **Стили изложения** - способ подачи материала\n"
-            "• **Предметные области** - специализация по предмету"
+            "• <b>Стили изложения</b> - способ подачи материала\n"
+            "• <b>Предметные области</b> - специализация по предмету"
         )
         keyboard = build_profile_category_keyboard()
         
@@ -186,7 +187,7 @@ async def callback_show_profiles(callback: CallbackQuery, state: FSMContext):
         
         # Build profile list
         category_name = "Стили изложения" if category == "style" else "Предметные области"
-        text = f"📖 **{category_name}**\n\nВыберите профиль для применения:"
+        text = f"📖 <b>{category_name}</b>\n\nВыберите профиль для применения:"
         
         keyboard = build_profiles_keyboard(profiles, category, page=0)
         
@@ -299,10 +300,10 @@ async def callback_select_placeholder(callback: CallbackQuery, state: FSMContext
         
         # Build placeholder list
         text = (
-            "⚙️ **Детальная настройка**\n\n"
+            "⚙️ <b>Детальная настройка</b>\n\n"
             "Выберите параметр для изменения:"
         )
-        keyboard = build_placeholder_selection_keyboard(user_settings.placeholders, page=0)
+        keyboard = build_placeholder_selection_keyboard(user_settings.placeholders)
         
         if callback.message and hasattr(callback.message, "edit_text"):
             await callback.message.edit_text(
@@ -319,36 +320,6 @@ async def callback_select_placeholder(callback: CallbackQuery, state: FSMContext
         await callback.answer("❌ Ошибка при загрузке настроек", show_alert=True)
 
 
-@router.callback_query(F.data.startswith("prompt_placeholders_page:"))
-async def callback_placeholders_pagination(callback: CallbackQuery, state: FSMContext):
-    """Handle placeholder list pagination"""
-    if not callback.data:
-        return
-    
-    page = int(callback.data.split(":")[1])
-    
-    # Get settings from state
-    state_data = await state.get_data()
-    user_settings = state_data.get("user_settings")
-    
-    if not user_settings:
-        await callback.answer("Настройки не загружены", show_alert=True)
-        return
-    
-    try:
-        # Update keyboard with new page
-        keyboard = build_placeholder_selection_keyboard(
-            user_settings.placeholders, page=page
-        )
-        
-        if callback.message and hasattr(callback.message, "edit_reply_markup"):
-            await callback.message.edit_reply_markup(reply_markup=keyboard)
-        
-        await callback.answer()
-    
-    except Exception as e:
-        logger.error(f"Error paginating placeholders: {e}")
-        await callback.answer("❌ Ошибка при навигации", show_alert=True)
 
 
 @router.callback_query(F.data.startswith("prompt_edit_placeholder:"))
@@ -379,11 +350,12 @@ async def callback_edit_placeholder(callback: CallbackQuery, state: FSMContext):
         
         # Build value selection
         placeholder_name = current_setting.placeholder_display_name if current_setting else "Параметр"
-        text = (
-            f"📝 **{placeholder_name}**\n\n"
-            f"Текущее значение: _{current_setting.display_name if current_setting else 'Не установлено'}_\n\n"
-            "Выберите новое значение:"
-        )
+        current_value = current_setting.display_name if current_setting else 'Не установлено'
+        
+        # Build text with HTML formatting
+        text = f"📝 <b>{placeholder_name}</b>\n\n"
+        text += f"Текущее значение: <i>{current_value}</i>\n\n"
+        text += "Выберите новое значение:"
         
         current_value_id = current_setting.value_id if current_setting else None
         keyboard = build_value_selection_keyboard(
@@ -447,35 +419,67 @@ async def callback_values_pagination(callback: CallbackQuery, state: FSMContext)
         await callback.answer("❌ Ошибка при навигации", show_alert=True)
 
 
-@router.callback_query(F.data.startswith("prompt_set_value:"))
+@router.callback_query(F.data.startswith("prompt_set_v:"))
 async def callback_set_value(callback: CallbackQuery, state: FSMContext):
     """Set new value for placeholder"""
     if not callback.from_user or not callback.data:
         return
     
     user_id = callback.from_user.id
-    parts = callback.data.split(":")
-    if len(parts) != 3:
+    
+    # Get index from callback data
+    try:
+        index = int(callback.data.split(":")[1])
+    except (ValueError, IndexError):
+        await callback.answer("❌ Неверный формат данных", show_alert=True)
         return
     
-    placeholder_id = parts[1]
-    value_id = parts[2]
+    # Get stored data
+    data = await state.get_data()
+    if "placeholder_values" not in data or "editing_placeholder_id" not in data:
+        await callback.answer("❌ Данные сеанса устарели", show_alert=True)
+        return
+    
+    values = data["placeholder_values"]
+    placeholder_id = data["editing_placeholder_id"]
+    
+    # Check index validity
+    if index < 0 or index >= len(values):
+        await callback.answer("❌ Неверный индекс значения", show_alert=True)
+        return
+    
+    value = values[index]
+    value_id = value.id
+    
     client = get_prompt_config_client()
     
     try:
         # Set new value
-        updated_setting = await client.set_placeholder(user_id, placeholder_id, value_id)
+        await client.set_placeholder(user_id, placeholder_id, value_id)
+        
+        # Get placeholder name from current settings and value name
+        user_settings_before = await state.get_data()
+        placeholder_name = "Параметр"
+        value_name = value.display_name
+        
+        # Try to find placeholder display name
+        if "user_settings" in user_settings_before:
+            settings = user_settings_before["user_settings"]
+            for setting in settings.placeholders.values():
+                if setting.placeholder_id == placeholder_id:
+                    placeholder_name = setting.placeholder_display_name
+                    break
         
         # Show success and return to placeholder list
         text = format_placeholder_updated_message(
-            updated_setting.placeholder_display_name,
-            updated_setting.display_name
+            placeholder_name,
+            value_name
         )
         
         # Get updated settings and show placeholder list
         user_settings = await client.get_user_placeholders(user_id)
-        text += "\n\n⚙️ **Детальная настройка**\n\nВыберите параметр для изменения:"
-        keyboard = build_placeholder_selection_keyboard(user_settings.placeholders, page=0)
+        text += "\n\n⚙️ <b>Детальная настройка</b>\n\nВыберите параметр для изменения:"
+        keyboard = build_placeholder_selection_keyboard(user_settings.placeholders)
         
         if callback.message and hasattr(callback.message, "edit_text"):
             await callback.message.edit_text(
@@ -510,7 +514,7 @@ async def callback_view_settings(callback: CallbackQuery, state: FSMContext):
         
         # Build settings view
         text = format_settings_message(user_settings)
-        keyboard = build_settings_view_keyboard(user_settings, page=0)
+        keyboard = build_settings_view_keyboard(user_settings)
         
         if callback.message and hasattr(callback.message, "edit_text"):
             await callback.message.edit_text(
@@ -524,36 +528,6 @@ async def callback_view_settings(callback: CallbackQuery, state: FSMContext):
     except Exception as e:
         logger.error(f"Error loading settings view for user {user_id}: {e}")
         await callback.answer("❌ Ошибка при загрузке настроек", show_alert=True)
-
-
-@router.callback_query(F.data.startswith("prompt_settings_page:"))
-async def callback_settings_pagination(callback: CallbackQuery, state: FSMContext):
-    """Handle settings view pagination"""
-    if not callback.data:
-        return
-    
-    page = int(callback.data.split(":")[1])
-    
-    # Get settings from state
-    state_data = await state.get_data()
-    user_settings = state_data.get("user_settings")
-    
-    if not user_settings:
-        await callback.answer("Настройки не загружены", show_alert=True)
-        return
-    
-    try:
-        # Update keyboard with new page
-        keyboard = build_settings_view_keyboard(user_settings, page=page)
-        
-        if callback.message and hasattr(callback.message, "edit_reply_markup"):
-            await callback.message.edit_reply_markup(reply_markup=keyboard)
-        
-        await callback.answer()
-    
-    except Exception as e:
-        logger.error(f"Error paginating settings: {e}")
-        await callback.answer("❌ Ошибка при навигации", show_alert=True)
 
 
 # Reset confirmation
@@ -597,7 +571,7 @@ async def callback_reset_confirmed(callback: CallbackQuery, state: FSMContext):
         
         # Show success and return to main menu
         text = (
-            "✅ **Настройки сброшены**\n\n"
+            "✅ <b>Настройки сброшены</b>\n\n"
             "Все параметры промптов возвращены к дефолтным значениям.\n\n"
         )
         text += format_main_menu_message(user_settings)

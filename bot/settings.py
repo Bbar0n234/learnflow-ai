@@ -33,14 +33,8 @@ class APISettings(BaseSettings):
 class PromptServiceSettings(BaseSettings):
     """Настройки для подключения к Prompt Configuration Service"""
 
-    host: str = Field(default="localhost", description="Host Prompt Config Service")
-    port: int = Field(default=8002, description="Port Prompt Config Service")
+    url: str = Field(default="http://localhost:8002", description="Full URL for Prompt Config Service")
     cache_ttl: int = Field(default=300, description="Cache TTL in seconds")
-
-    @property
-    def url(self) -> str:
-        """Get full service URL"""
-        return f"http://{self.host}:{self.port}"
 
     class Config:
         env_prefix = "PROMPT_SERVICE_"

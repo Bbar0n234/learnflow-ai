@@ -32,7 +32,7 @@ Successfully implemented universal prompt injection protection across all critic
 - ✅ **FeedbackNode** automatically validates all HITL feedback
 
 ### 4. Critical Validation Points
-- ✅ **InputProcessingNode**: Validates `exam_question` at system entry point
+- ✅ **InputProcessingNode**: Validates educational questions and tasks at system entry point
 - ✅ **RecognitionNode**: Validates OCR-recognized handwritten content
 - ✅ **QuestionGenerationNode**: Inherits HITL feedback validation via FeedbackNode
 - ✅ **EditMaterialNode**: Validates edit requests in HITL cycles
@@ -42,7 +42,7 @@ Successfully implemented universal prompt injection protection across all critic
 ### Protection Coverage
 The system now protects **all user input vectors**:
 
-1. **Exam Questions** → `InputProcessingNode.validate_input()`
+1. **Educational Questions and Tasks** → `InputProcessingNode.validate_input()`
 2. **Handwritten Notes** → `RecognitionNode.validate_input()` 
 3. **HITL Feedback** → `FeedbackNode.validate_input()` (automatic)
 4. **Edit Requests** → `EditMaterialNode.validate_input()`

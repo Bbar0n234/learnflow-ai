@@ -3,7 +3,8 @@ import { FileText, Calendar, Download } from 'lucide-react';
 import type { Session } from '../services/types';
 import { apiClient } from '../services/ApiClient';
 import { useApi } from '../hooks/useApi';
-import { ExportDialog, ExportFormat, PackageType } from './export';
+import { ExportDialog } from './export';
+import type { ExportFormat, PackageType } from './export';
 
 interface SessionsListProps {
   threadId: string | null;

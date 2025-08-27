@@ -24,5 +24,14 @@ RUN mkdir -p /app/logs
 # Открываем порт
 EXPOSE 8001
 
-# Запуск сервиса
-CMD ["uv", "run", "--package", "prompt-config-service", "python", "-m", "main"]
+# Создаем entrypoint скрипт
+RUN echo '#!/bin/sh\n\
+cd /app/prompt-config-service\n\
+echo "Running database migrations..."\n\
+uv run --package prompt-config-service alembic upgrade head\n\
+echo "Starting service..."\n\
+uv run --package prompt-config-service python -m main' > /app/entrypoint.sh && \
+    chmod +x /app/entrypoint.sh
+
+# Запуск через entrypoint
+CMD ["/app/entrypoint.sh"]

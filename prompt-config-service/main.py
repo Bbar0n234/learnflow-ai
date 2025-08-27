@@ -3,8 +3,10 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import ResponseValidationError
 
 from api import placeholders, profiles, prompts, users
 from config import settings
@@ -52,6 +54,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add custom exception handler for better debugging
+@app.exception_handler(ResponseValidationError)
+async def validation_exception_handler(request: Request, exc: ResponseValidationError):
+    logger.error(f"Response validation error at {request.url}")
+    logger.error(f"Errors: {exc.errors()}")
+    # Try to log the actual body that failed validation
+    try:
+        logger.error(f"Body that failed: {exc.body}")
+    except:
+        pass
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors(), "body": str(exc.body) if hasattr(exc, 'body') else None}
+    )
 
 # Include routers
 app.include_router(profiles.router)

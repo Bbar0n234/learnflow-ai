@@ -37,7 +37,7 @@ class LearnFlowBot:
 
     def __init__(self, bot: Bot):
         self.settings = get_settings()
-        self.api_base_url = f"http://{self.settings.api.learnflow_host}:{self.settings.api.learnflow_port}"
+        self.api_base_url = f"http://{self.settings.api.host}:{self.settings.api.port}"
         self.bot = bot
 
         # Хранилище для группировки медиа (photo + text)

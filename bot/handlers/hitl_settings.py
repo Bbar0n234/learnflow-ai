@@ -3,6 +3,8 @@
 import logging
 from typing import Optional
 
+from aiogram.enums import ParseMode
+
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
@@ -42,7 +44,7 @@ async def show_hitl_menu(message: Message, state: FSMContext):
         keyboard = build_hitl_settings_keyboard(config)
 
         await message.answer(
-            status_message, reply_markup=keyboard, parse_mode="Markdown"
+            status_message, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN_V2
         )
 
         logger.info(f"Showed HITL menu for user {user_id}")
@@ -51,7 +53,7 @@ async def show_hitl_menu(message: Message, state: FSMContext):
         logger.error(f"Error showing HITL menu for user {user_id}: {e}")
         await message.answer(
             "❌ Ошибка при получении настроек HITL. Попробуйте позже.",
-            parse_mode="Markdown",
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
 
 
@@ -76,7 +78,7 @@ async def toggle_node_hitl(callback: CallbackQuery):
 
         if callback.message and hasattr(callback.message, "edit_text"):
             await callback.message.edit_text(
-                status_message, reply_markup=keyboard, parse_mode="Markdown"
+                status_message, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN_V2
             )
 
         # Show confirmation
@@ -111,7 +113,7 @@ async def set_autonomous_preset(callback: CallbackQuery):
 
         if callback.message and hasattr(callback.message, "edit_text"):
             await callback.message.edit_text(
-                status_message, reply_markup=keyboard, parse_mode="Markdown"
+                status_message, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN_V2
             )
 
         await callback.answer("❌ Все узлы выключены")
@@ -138,7 +140,7 @@ async def set_guided_preset(callback: CallbackQuery):
 
         if callback.message and hasattr(callback.message, "edit_text"):
             await callback.message.edit_text(
-                status_message, reply_markup=keyboard, parse_mode="Markdown"
+                status_message, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN_V2
             )
 
         await callback.answer("✅ Все узлы включены")

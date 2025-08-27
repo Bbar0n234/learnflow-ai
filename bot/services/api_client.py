@@ -377,14 +377,10 @@ def get_api_client(base_url: str = None) -> LearnFlowAPIClient:
     global _api_client_instance
     if _api_client_instance is None:
         if base_url is None:
-            # Import here to avoid circular imports
-            try:
-                from ..settings import get_settings
-
-                settings = get_settings()
-                base_url = f"http://{settings.api.learnflow_host}:{settings.api.learnflow_port}"
-            except ImportError:
-                base_url = "http://localhost:8000"
+            # Always use settings for proper configuration
+            from ..settings import get_settings
+            settings = get_settings()
+            base_url = f"http://{settings.api.host}:{settings.api.port}"
         _api_client_instance = LearnFlowAPIClient(base_url)
     return _api_client_instance
 

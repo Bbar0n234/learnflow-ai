@@ -1,7 +1,7 @@
 """Prompt configuration handlers for Telegram bot"""
 
 import logging
-from typing import Optional, Dict, Any
+from aiogram.enums import ParseMode
 
 from aiogram import Router, F
 from aiogram.filters import Command
@@ -15,7 +15,6 @@ from ..keyboards.prompt_keyboards import (
     build_main_menu_keyboard,
     build_profile_category_keyboard,
     build_profiles_keyboard,
-    build_placeholder_selection_keyboard,
     build_value_selection_keyboard,
     build_settings_view_keyboard,
     build_reset_confirmation_keyboard,
@@ -49,8 +48,8 @@ async def cmd_configure(message: Message, state: FSMContext):
         is_healthy = await client.health_check()
         if not is_healthy:
             await message.answer(
-                "❌ Сервис конфигурации промптов временно недоступен. Попробуйте позже.",
-                parse_mode="HTML"
+                markdownify("❌ Сервис конфигурации промптов временно недоступен. Попробуйте позже."),
+                parse_mode=ParseMode.MARKDOWN_V2
             )
             return
         
@@ -61,7 +60,7 @@ async def cmd_configure(message: Message, state: FSMContext):
         text = format_main_menu_message(user_settings)
         keyboard = build_main_menu_keyboard(user_settings)
         
-        await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
+        await message.answer(text, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN_V2)
         await state.set_state(PromptConfigStates.main_menu)
         
         logger.info(f"Opened prompt config menu for user {user_id}")
@@ -69,8 +68,8 @@ async def cmd_configure(message: Message, state: FSMContext):
     except Exception as e:
         logger.error(f"Error opening prompt config for user {user_id}: {e}")
         await message.answer(
-            "❌ Ошибка при открытии меню настроек. Попробуйте позже.",
-            parse_mode="HTML"
+            markdownify("❌ Ошибка при открытии меню настроек. Попробуйте позже."),
+            parse_mode=ParseMode.MARKDOWN_V2
         )
 
 
@@ -86,14 +85,14 @@ async def cmd_reset_prompts(message: Message, state: FSMContext):
     user_id = message.from_user.id
     
     # Show confirmation dialog
-    text = (
-        "⚠️ <b>Подтверждение сброса</b>\n\n"
+    text = markdownify(
+        "⚠️ **Подтверждение сброса**\n\n"
         "Вы уверены, что хотите сбросить все настройки промптов к дефолтным значениям?\n\n"
-        "<i>Это действие нельзя отменить.</i>"
+        "_Это действие нельзя отменить._"
     )
     keyboard = build_reset_confirmation_keyboard()
     
-    await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
+    await message.answer(text, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN_V2)
     await state.set_state(PromptConfigStates.confirming_reset)
     
     logger.info(f"User {user_id} requested prompt reset")
@@ -120,7 +119,7 @@ async def callback_main_menu(callback: CallbackQuery, state: FSMContext):
         
         if callback.message and hasattr(callback.message, "edit_text"):
             await callback.message.edit_text(
-                text, reply_markup=keyboard, parse_mode="Markdown"
+                text, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN_V2
             )
         
         await state.set_state(PromptConfigStates.main_menu)
@@ -146,17 +145,17 @@ async def callback_close_menu(callback: CallbackQuery, state: FSMContext):
 async def callback_select_profile_category(callback: CallbackQuery, state: FSMContext):
     """Show profile category selection"""
     try:
-        text = (
-            "📚 <b>Выбор профиля</b>\n\n"
+        text = markdownify(
+            "📚 **Выбор профиля**\n\n"
             "Выберите категорию профилей:\n\n"
-            "• <b>Стили изложения</b> - способ подачи материала\n"
-            "• <b>Предметные области</b> - специализация по предмету"
+            "• **Стили изложения** - способ подачи материала\n"
+            "• **Предметные области** - специализация по предмету"
         )
         keyboard = build_profile_category_keyboard()
         
         if callback.message and hasattr(callback.message, "edit_text"):
             await callback.message.edit_text(
-                text, reply_markup=keyboard, parse_mode="Markdown"
+                text, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN_V2
             )
         
         await state.set_state(PromptConfigStates.selecting_profile_category)
@@ -187,13 +186,13 @@ async def callback_show_profiles(callback: CallbackQuery, state: FSMContext):
         
         # Build profile list
         category_name = "Стили изложения" if category == "style" else "Предметные области"
-        text = f"📖 <b>{category_name}</b>\n\nВыберите профиль для применения:"
+        text = markdownify(f"📖 **{category_name}**\n\nВыберите профиль для применения:")
         
         keyboard = build_profiles_keyboard(profiles, category, page=0)
         
         if callback.message and hasattr(callback.message, "edit_text"):
             await callback.message.edit_text(
-                text, reply_markup=keyboard, parse_mode="Markdown"
+                text, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN_V2
             )
         
         # Store category in state for pagination
@@ -266,7 +265,7 @@ async def callback_apply_profile(callback: CallbackQuery, state: FSMContext):
         
         if callback.message and hasattr(callback.message, "edit_text"):
             await callback.message.edit_text(
-                text, reply_markup=keyboard, parse_mode="Markdown"
+                text, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN_V2
             )
         
         await state.set_state(PromptConfigStates.main_menu)
@@ -278,46 +277,6 @@ async def callback_apply_profile(callback: CallbackQuery, state: FSMContext):
         logger.error(f"Error applying profile {profile_id} for user {user_id}: {e}")
         await callback.answer("❌ Ошибка при применении профиля", show_alert=True)
 
-
-# Placeholder configuration flow
-
-@router.callback_query(F.data == "prompt_select_placeholder")
-async def callback_select_placeholder(callback: CallbackQuery, state: FSMContext):
-    """Show placeholder selection for detailed configuration"""
-    if not callback.from_user:
-        return
-    
-    user_id = callback.from_user.id
-    client = get_prompt_config_client()
-    
-    try:
-        # Get current user settings
-        user_settings = await client.get_user_placeholders(user_id)
-        
-        if not user_settings.placeholders:
-            await callback.answer("Настройки не загружены", show_alert=True)
-            return
-        
-        # Build placeholder list
-        text = (
-            "⚙️ <b>Детальная настройка</b>\n\n"
-            "Выберите параметр для изменения:"
-        )
-        keyboard = build_placeholder_selection_keyboard(user_settings.placeholders)
-        
-        if callback.message and hasattr(callback.message, "edit_text"):
-            await callback.message.edit_text(
-                text, reply_markup=keyboard, parse_mode="Markdown"
-            )
-        
-        # Store settings in state for pagination
-        await state.update_data(user_settings=user_settings)
-        await state.set_state(PromptConfigStates.selecting_placeholder)
-        await callback.answer()
-    
-    except Exception as e:
-        logger.error(f"Error loading placeholders for user {user_id}: {e}")
-        await callback.answer("❌ Ошибка при загрузке настроек", show_alert=True)
 
 
 
@@ -352,10 +311,12 @@ async def callback_edit_placeholder(callback: CallbackQuery, state: FSMContext):
         placeholder_name = current_setting.placeholder_display_name if current_setting else "Параметр"
         current_value = current_setting.display_name if current_setting else 'Не установлено'
         
-        # Build text with HTML formatting
-        text = f"📝 <b>{placeholder_name}</b>\n\n"
-        text += f"Текущее значение: <i>{current_value}</i>\n\n"
-        text += "Выберите новое значение:"
+        # Build text with Markdown formatting
+        text = markdownify(
+            f"📝 **{placeholder_name}**\n\n"
+            f"Текущее значение: _{current_value}_\n\n"
+            "Выберите новое значение:"
+        )
         
         current_value_id = current_setting.value_id if current_setting else None
         keyboard = build_value_selection_keyboard(
@@ -364,7 +325,7 @@ async def callback_edit_placeholder(callback: CallbackQuery, state: FSMContext):
         
         if callback.message and hasattr(callback.message, "edit_text"):
             await callback.message.edit_text(
-                text, reply_markup=keyboard, parse_mode="Markdown"
+                text, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN_V2
             )
         
         # Store data in state
@@ -476,14 +437,14 @@ async def callback_set_value(callback: CallbackQuery, state: FSMContext):
             value_name
         )
         
-        # Get updated settings and show placeholder list
+        # Get updated settings and show settings view
         user_settings = await client.get_user_placeholders(user_id)
-        text += "\n\n⚙️ <b>Детальная настройка</b>\n\nВыберите параметр для изменения:"
-        keyboard = build_placeholder_selection_keyboard(user_settings.placeholders)
+        text += "\n\n" + format_settings_message(user_settings)
+        keyboard = build_settings_view_keyboard(user_settings)
         
         if callback.message and hasattr(callback.message, "edit_text"):
             await callback.message.edit_text(
-                text, reply_markup=keyboard, parse_mode="Markdown"
+                text, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN_V2
             )
         
         await state.update_data(user_settings=user_settings)
@@ -518,7 +479,7 @@ async def callback_view_settings(callback: CallbackQuery, state: FSMContext):
         
         if callback.message and hasattr(callback.message, "edit_text"):
             await callback.message.edit_text(
-                text, reply_markup=keyboard, parse_mode="Markdown"
+                text, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN_V2
             )
         
         await state.update_data(user_settings=user_settings)
@@ -536,7 +497,7 @@ async def callback_view_settings(callback: CallbackQuery, state: FSMContext):
 async def callback_reset_confirm(callback: CallbackQuery, state: FSMContext):
     """Show reset confirmation dialog"""
     try:
-        text = (
+        text = markdownify(
             "⚠️ **Подтверждение сброса**\n\n"
             "Вы уверены, что хотите сбросить все настройки промптов к дефолтным значениям?\n\n"
             "_Это действие нельзя отменить._"
@@ -545,7 +506,7 @@ async def callback_reset_confirm(callback: CallbackQuery, state: FSMContext):
         
         if callback.message and hasattr(callback.message, "edit_text"):
             await callback.message.edit_text(
-                text, reply_markup=keyboard, parse_mode="Markdown"
+                text, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN_V2
             )
         
         await state.set_state(PromptConfigStates.confirming_reset)
@@ -570,8 +531,8 @@ async def callback_reset_confirmed(callback: CallbackQuery, state: FSMContext):
         user_settings = await client.reset_to_defaults(user_id)
         
         # Show success and return to main menu
-        text = (
-            "✅ <b>Настройки сброшены</b>\n\n"
+        text = markdownify(
+            "✅ **Настройки сброшены**\n\n"
             "Все параметры промптов возвращены к дефолтным значениям.\n\n"
         )
         text += format_main_menu_message(user_settings)
@@ -579,7 +540,7 @@ async def callback_reset_confirmed(callback: CallbackQuery, state: FSMContext):
         
         if callback.message and hasattr(callback.message, "edit_text"):
             await callback.message.edit_text(
-                text, reply_markup=keyboard, parse_mode="Markdown"
+                text, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN_V2
             )
         
         await state.set_state(PromptConfigStates.main_menu)

@@ -1,6 +1,6 @@
 """Keyboard layouts for prompt configuration management"""
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from telegramify_markdown import markdownify
 
@@ -8,7 +8,6 @@ from ..models.prompt_config import (
     Profile,
     UserSettings,
     PlaceholderValue,
-    UserPlaceholderSetting,
 )
 
 
@@ -29,14 +28,6 @@ def build_main_menu_keyboard(user_settings: Optional[UserSettings] = None) -> In
         InlineKeyboardButton(
             text="📚 Выбрать профиль",
             callback_data="prompt_select_profile_category"
-        )
-    ])
-    
-    # Detailed settings button
-    keyboard.append([
-        InlineKeyboardButton(
-            text="⚙️ Детальная настройка",
-            callback_data="prompt_select_placeholder"
         )
     ])
     
@@ -176,43 +167,6 @@ def build_profiles_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
-def build_placeholder_selection_keyboard(
-    placeholders: Dict[str, UserPlaceholderSetting]
-) -> InlineKeyboardMarkup:
-    """
-    Build placeholder selection keyboard showing all items
-    
-    Args:
-        placeholders: Dictionary of placeholder settings
-    
-    Returns:
-        InlineKeyboardMarkup: Placeholder selection keyboard
-    """
-    keyboard = []
-    
-    # Show all placeholders without pagination
-    for setting in placeholders.values():
-        display_text = f"{setting.placeholder_display_name}: {setting.display_name[:25]}"
-        if len(setting.display_name) > 25:
-            display_text += "..."
-        
-        keyboard.append([
-            InlineKeyboardButton(
-                text=display_text,
-                callback_data=f"prompt_edit_placeholder:{setting.placeholder_id}"
-            )
-        ])
-    
-    # Back to main menu button
-    keyboard.append([
-        InlineKeyboardButton(
-            text="🔙 Главное меню",
-            callback_data="prompt_main_menu"
-        )
-    ])
-    
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
-
 
 def build_value_selection_keyboard(
     values: List[PlaceholderValue],
@@ -287,11 +241,11 @@ def build_value_selection_keyboard(
     if pagination_row:
         keyboard.append(pagination_row)
     
-    # Back to placeholder list button
+    # Back to settings view button
     keyboard.append([
         InlineKeyboardButton(
             text="🔙 К настройкам",
-            callback_data="prompt_select_placeholder"
+            callback_data="prompt_view_settings"
         )
     ])
     
@@ -312,20 +266,16 @@ def build_settings_view_keyboard(
     """
     keyboard = []
     
-    # Show all settings without pagination (2 columns)
+    # Show all settings without pagination (1 column)
     placeholder_list = list(user_settings.placeholders.values())
     
-    for i in range(0, len(placeholder_list), 2):
-        row = []
-        for j in range(i, min(i + 2, len(placeholder_list))):
-            setting = placeholder_list[j]
-            row.append(
-                InlineKeyboardButton(
-                    text=f"✏️ {setting.placeholder_display_name[:15]}",
-                    callback_data=f"prompt_edit_placeholder:{setting.placeholder_id}"
-                )
+    for setting in placeholder_list:
+        keyboard.append([
+            InlineKeyboardButton(
+                text=f"✏️ {setting.placeholder_display_name}",
+                callback_data=f"prompt_edit_placeholder:{setting.placeholder_id}"
             )
-        keyboard.append(row)
+        ])
     
     # Back to main menu button
     keyboard.append([
@@ -375,8 +325,7 @@ def format_main_menu_message(user_settings: Optional[UserSettings] = None) -> st
     message += (
         "Выберите действие:\n\n"
         "• **Выбрать профиль** - быстрая настройка под задачу\n"
-        "• **Детальная настройка** - изменить отдельные параметры\n"
-        "• **Мои настройки** - просмотреть текущие значения\n"
+        "• **Мои настройки** - просмотреть и изменить текущие значения\n"
         "• **Сброс** - вернуть дефолтные значения"
     )
     

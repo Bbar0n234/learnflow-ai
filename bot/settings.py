@@ -22,8 +22,8 @@ class TelegramSettings(BaseSettings):
 class APISettings(BaseSettings):
     """Настройки для подключения к LearnFlow API"""
 
-    learnflow_host: str = Field(default="localhost", description="Host LearnFlow API")
-    learnflow_port: int = Field(default=8000, description="Port LearnFlow API")
+    host: str = Field(default="localhost", description="Host LearnFlow API")
+    port: int = Field(default=8000, description="Port LearnFlow API")
 
     class Config:
         env_prefix = "LEARNFLOW_"

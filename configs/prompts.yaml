@@ -32,7 +32,7 @@ generating_content_system_prompt: |
   {% endif %}
   </requirements>
 
-recognition_system_prompt: |
+recognition_handwritten_system_prompt: |
   You are an expert educational methodologist. Your goal is to process a set of handwritten student lecture notes provided as images.
                                         
   Carefully analyze the content of these notes. Begin by reasoning step by step about what the notes represent: analyze the subject, main topics covered, and the structure of the material. Consider the context, underlying themes, and any implicit knowledge reflected in the notes.
@@ -99,7 +99,7 @@ recognition_structured_system_prompt: |
 recognition_structured_further_system_prompt: | # TODO: сделать в соответствии с новым "recognition_structured_system_prompt"
   pass
 
-synthesize_system_prompt: |
+synthesis_material_system_prompt: |
   KEYWORD: {{ subject_keywords }}
 
   <role>
@@ -177,7 +177,7 @@ synthesize_system_prompt: |
   4. Maintains clarity and logical progression throughout
   </output_instruction>
 
-gen_question_system_prompt: |
+generating_questions_system_prompt: |
   KEYWORD: {{ subject_keywords }}
 
   <role>
@@ -304,7 +304,7 @@ gen_question_further_system_prompt: |
   - "clarify" if further refinement is needed
   </output_instruction>
 
-gen_answer_system_prompt: |
+answer_question_system_prompt: |
   KEYWORD: {{ subject_keywords }}
 
   <role>

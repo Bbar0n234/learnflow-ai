@@ -127,5 +127,5 @@ def get_settings() -> AppSettings:
     """Singleton для получения настроек"""
     global _settings
     if _settings is None:
-        _settings = AppSettings(openai_api_key="", database_url="")
+        _settings = AppSettings()
     return _settings

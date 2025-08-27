@@ -10,22 +10,17 @@ import aiohttp
 from typing import Dict, Any, Optional
 from pathlib import Path
 
-from aiogram import Bot, Dispatcher, Router, F
-from aiogram.types import Message, PhotoSize
-from aiogram.filters import Command, CommandStart
-from aiogram.enums import ChatAction, ParseMode
-import telegramify_markdown  # type: ignore[import-untyped]
-
+# Configure logging BEFORE importing other modules
 from .settings import get_settings
-from .handlers.hitl_settings import router as hitl_router
-from .handlers.prompt_config import router as prompt_config_router
-from .handlers.export_handlers import router as export_router
+
+# Get settings first to use log_level
+settings = get_settings()
 
 # Create logs directory if it doesn't exist
 log_dir = Path("logs")
 log_dir.mkdir(exist_ok=True)
 
-# Настройка логирования с файлом и консолью
+# Настройка логирования с файлом и консолью - ДОЛЖНА БЫТЬ ДО ИМПОРТОВ ДРУГИХ МОДУЛЕЙ
 handlers = [
     logging.StreamHandler(),  # Console output
     logging.FileHandler(log_dir / "bot.log", encoding="utf-8")  # File output
@@ -33,9 +28,25 @@ handlers = [
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-    handlers=handlers
+    level=getattr(logging, settings.log_level.upper()),
+    handlers=handlers,
+    force=True  # Force reconfiguration
 )
+
+# Set log level for all loggers
+logging.getLogger().setLevel(getattr(logging, settings.log_level.upper()))
+
+# Now import other modules AFTER logging is configured
+from aiogram import Bot, Dispatcher, Router, F
+from aiogram.types import Message, PhotoSize
+from aiogram.filters import Command, CommandStart
+from aiogram.enums import ChatAction, ParseMode
+import telegramify_markdown  # type: ignore[import-untyped]
+
+from .handlers.hitl_settings import router as hitl_router
+from .handlers.prompt_config import router as prompt_config_router
+from .handlers.export_handlers import router as export_router
+
 logger = logging.getLogger(__name__)
 
 
@@ -90,27 +101,27 @@ class LearnFlowBot:
         self, thread_id: str, image_data_list: list[bytes]
     ) -> list[str]:
         """Загрузка изображений в API"""
-        image_paths = []
         async with aiohttp.ClientSession() as session:
+            # Подготавливаем все файлы для загрузки
+            data = aiohttp.FormData()
             for i, image_data in enumerate(image_data_list):
-                data = aiohttp.FormData()
                 data.add_field(
-                    "file",
+                    "files",
                     image_data,
                     filename=f"image_{i}.jpg",
                     content_type="image/jpeg",
                 )
-                data.add_field("thread_id", thread_id)
-
-                async with session.post(
-                    f"{self.api_base_url}/upload_image", data=data
-                ) as response:
-                    if response.status == 200:
-                        result = await response.json()
-                        image_paths.append(result.get("file_path", ""))
-                    else:
-                        logger.error(f"Failed to upload image {i}: {response.status}")
-        return image_paths
+            
+            # Отправляем все изображения одним запросом
+            async with session.post(
+                f"{self.api_base_url}/upload-images/{thread_id}", data=data
+            ) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    return result.get("uploaded_files", [])
+                else:
+                    logger.error(f"Failed to upload images: {response.status}")
+                    return []
 
     async def _get_thread_status(self, thread_id: str) -> Dict[str, Any]:
         """Получение статуса thread'а"""
@@ -332,6 +343,8 @@ async def handle_message(message: Message):
         return
     user_id = message.from_user.id
     message_text = message.text or ""
+    
+    logger.debug(f"Handling text message from user {user_id}: {message_text[:50]}...")
 
     # Показываем индикатор печати
     await message.bot.send_chat_action(

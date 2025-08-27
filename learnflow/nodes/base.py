@@ -217,14 +217,11 @@ class FeedbackNode(BaseWorkflowNode):
         # Получаем параметры для промпта
         prompt_kwargs = self.get_prompt_kwargs(state, user_feedback, config)
         
-        # Добавляем template_variant и configurable в extra_context
+        # Добавляем template_variant в extra_context
         extra_context = {
             "template_variant": template_variant,
             **prompt_kwargs
         }
-        
-        if config and "configurable" in config:
-            extra_context["configurable"] = config["configurable"]
         
         # Вызываем get_system_prompt с extra_context
         return await self.get_system_prompt(state, config, extra_context)

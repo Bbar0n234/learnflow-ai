@@ -81,15 +81,11 @@ class LocalArtifactsManager:
             logger.error(f"Failed to write file {file_path}: {e}")
             raise
 
-    def _generate_session_id(self, thread_id: str, exam_question: str) -> str:
+    def _generate_session_id(self) -> str:
         """Генерация уникального session ID"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        # Create short hash from thread_id and exam_question
-        hash_input = f"{thread_id}_{exam_question}".encode("utf-8")
-        short_hash = hashlib.md5(hash_input).hexdigest()[:8]
-
-        return f"session-{timestamp}-{short_hash}"
+        return f"session-{timestamp}"
 
     def _create_thread_metadata(
         self, thread_id: str, exam_question: str
@@ -200,50 +196,12 @@ class LocalArtifactsManager:
 
         return content
 
-    def _create_recognized_notes_content(
-        self, recognized_notes: str, thread_id: str = ""
-    ) -> str:
-        """Создает содержимое markdown файла с распознанными конспектами."""
-
-        content = f"""# Распознанные конспекты
-
-**Thread ID:** {thread_id}  
-**Дата создания:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}  
-
-## Содержание конспектов
-
-{recognized_notes}
-"""
-
-        return content
-
-    def _create_synthesized_material_content(
-        self, synthesized_material: str, thread_id: str = ""
-    ) -> str:
-        """Создает содержимое markdown файла с синтезированным материалом."""
-
-        content = f"""# Синтезированный материал
-
-**Thread ID:** {thread_id}  
-**Дата создания:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}  
-
-## Финальный материал
-
-Этот материал объединяет автоматически сгенерированный контент с распознанными рукописными конспектами для создания наиболее полного и точного учебного материала.
-
-{synthesized_material}
-"""
-
-        return content
-
     def _create_questions_content(
         self, gap_questions: list, gap_q_n_a: list, thread_id: str = ""
     ) -> str:
         """Создает содержимое markdown файла с вопросами и ответами."""
 
-        content = f"""# Дополнительные вопросы и ответы
-
-**Thread ID:** {thread_id}  
+        content = f"""# Дополнительные вопросы и ответы 
 
 ## Дополнительные вопросы
 
@@ -279,7 +237,7 @@ class LocalArtifactsManager:
         """
         try:
             # Generate session ID
-            session_id = self._generate_session_id(thread_id, exam_question)
+            session_id = self._generate_session_id()
 
             # Create paths
             thread_path = self.base_path / thread_id
@@ -306,17 +264,9 @@ class LocalArtifactsManager:
                 json.dumps(session_metadata, indent=2, ensure_ascii=False),
             )
 
-            # Create learning material content
-            markdown_content = self._create_learning_material_content(
-                exam_question=exam_question,
-                generated_material=generated_material,
-                thread_id=thread_id,
-                session_id=session_id,
-            )
-
             # Write learning material file
             file_path = session_path / "generated_material.md"
-            self._atomic_write_file(file_path, markdown_content)
+            self._atomic_write_file(file_path, generated_material)
 
             # Update session metadata with new file
             self._update_session_metadata(
@@ -372,13 +322,9 @@ class LocalArtifactsManager:
                 raise ValueError(f"Session path does not exist: {session_path}")
 
             # Create recognized notes content
-            markdown_content = self._create_recognized_notes_content(
-                recognized_notes=recognized_notes, thread_id=thread_id
-            )
-
             # Write recognized notes file
             file_path = session_path / "recognized_notes.md"
-            self._atomic_write_file(file_path, markdown_content)
+            self._atomic_write_file(file_path, recognized_notes)
 
             # Update session metadata
             try:
@@ -431,14 +377,9 @@ class LocalArtifactsManager:
             if not session_path.exists():
                 raise ValueError(f"Session path does not exist: {session_path}")
 
-            # Create synthesized material content
-            markdown_content = self._create_synthesized_material_content(
-                synthesized_material=synthesized_material, thread_id=thread_id
-            )
-
             # Write synthesized material file
             file_path = session_path / "synthesized_material.md"
-            self._atomic_write_file(file_path, markdown_content)
+            self._atomic_write_file(file_path, synthesized_material)
 
             # Update session metadata
             try:

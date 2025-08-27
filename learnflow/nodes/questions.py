@@ -59,7 +59,7 @@ class QuestionGenerationNode(FeedbackNode):
             # Первичная генерация (initial variant) # TODO: почему Code in unreachable?
             self._current_stage = "initial"
             return {
-                "exam_question": state.exam_question,
+                "input_content": state.exam_question,
                 "study_material": study_material,
                 "json_schema": convert_to_openai_function(GapQuestions),
             }
@@ -67,7 +67,7 @@ class QuestionGenerationNode(FeedbackNode):
             # Уточнение на основе feedback (further variant)
             self._current_stage = "refine"
             return {
-                "exam_question": state.exam_question,
+                "input_content": state.exam_question,
                 "study_material": study_material,
                 "current_questions": state.gap_questions,
                 "json_schema": convert_to_openai_function(GapQuestionsHITL),

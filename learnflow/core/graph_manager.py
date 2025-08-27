@@ -393,6 +393,7 @@ class GraphManager:
 
         # запускаем/продолжаем граф
         await self._ensure_setup()
+        
         async with AsyncPostgresSaver.from_conn_string(
             self.settings.database_url
         ) as saver:

@@ -39,6 +39,9 @@ class Settings(BaseSettings):
         description="Allowed content types",
     )
     max_path_depth: int = Field(default=3, description="Maximum path depth for files")
+    
+    # Logging
+    log_level: str = Field(default="INFO", description="Logging level (DEBUG, INFO, WARNING, ERROR)")
 
 
 # Global settings instance

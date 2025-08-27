@@ -49,10 +49,12 @@ class BotSettings(BaseSettings):
     )
     api: APISettings = Field(default_factory=APISettings)
     prompt_service: PromptServiceSettings = Field(default_factory=PromptServiceSettings)
+    log_level: str = Field(default="INFO", description="Logging level (DEBUG, INFO, WARNING, ERROR)")
 
     class Config:
         env_file = ".env"
         env_nested_delimiter = "_"
+        env_prefix = ""
         extra = "ignore"
 
 

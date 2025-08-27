@@ -34,7 +34,7 @@ class AnswerGenerationNode(BaseWorkflowNode):
         # В этом узле state - это dict с ключом 'question'
         if isinstance(state, dict) and 'question' in state:
             return {
-                "exam_question": state['question']
+                "input_content": state['question']
             }
         return {}
 

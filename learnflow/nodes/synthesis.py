@@ -35,13 +35,13 @@ class SynthesisNode(BaseWorkflowNode):
         context = {}
         
         if hasattr(state, 'exam_question'):
-            context['exam_question'] = state.exam_question
+            context['input_content'] = state.exam_question
         
         if hasattr(state, 'recognized_notes'):
-            context['lecture_notes'] = state.recognized_notes
+            context['handwritten_notes'] = state.recognized_notes
         
         if hasattr(state, 'generated_material'):
-            context['additional_material'] = state.generated_material
+            context['generated_material'] = state.generated_material
             
         return context
 

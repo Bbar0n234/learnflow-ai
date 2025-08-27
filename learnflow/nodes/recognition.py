@@ -169,6 +169,8 @@ class RecognitionNode(BaseWorkflowNode):
         Returns:
             Распознанный текст или пустая строка при ошибке
         """
+        import time
+        start_time = time.time()
         try:
             # Загружаем изображения в base64
             base64_images = load_images_as_base64(image_paths)
@@ -213,6 +215,12 @@ class RecognitionNode(BaseWorkflowNode):
             if self.security_guard and content:
                 content = await self.validate_input(content)
 
+            elapsed = time.time() - start_time
+            if elapsed > 5.0:
+                logger.warning(f"Image recognition completed in {elapsed:.2f}s (slow), text length: {len(content)} chars")
+            else:
+                logger.info(f"Image recognition completed in {elapsed:.2f}s, text length: {len(content)} chars")
+            
             return content
 
         except Exception as e:

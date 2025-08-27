@@ -6,8 +6,7 @@ from config import settings
 
 if __name__ == "__main__":
     uvicorn.run(
-        "prompt_config_service.main:app",
+        "main:app",
         host=settings.service_host,
-        port=settings.service_port,
-        reload=True if settings.log_level == "DEBUG" else False
+        port=settings.service_port
     )

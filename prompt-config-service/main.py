@@ -2,6 +2,7 @@
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,10 +13,20 @@ from api import placeholders, profiles, prompts, users
 from config import settings
 from database import init_db
 
-# Configure logging
+# Create logs directory if it doesn't exist
+log_dir = Path("logs")
+log_dir.mkdir(exist_ok=True)
+
+# Configure logging with both console and file handlers
+handlers = [
+    logging.StreamHandler(),  # Console output
+    logging.FileHandler(log_dir / "prompt-config.log", encoding="utf-8")  # File output
+]
+
 logging.basicConfig(
     level=getattr(logging, settings.log_level),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=handlers
 )
 logger = logging.getLogger(__name__)
 
@@ -99,6 +110,5 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host=settings.service_host,
-        port=settings.service_port,
-        reload=True if settings.log_level == "DEBUG" else False
+        port=settings.service_port
     )

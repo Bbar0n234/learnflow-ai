@@ -6,6 +6,7 @@ REST API эндпойнты для взаимодействия с LangGraph wor
 import logging
 from typing import Dict, Any, Optional, List
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.responses import JSONResponse
@@ -21,13 +22,16 @@ from ..services.hitl_manager import get_hitl_manager
 from ..models.hitl_config import HITLConfig
 
 
+# Создаем директорию для логов если её нет
+Path("logs").mkdir(exist_ok=True)
+
 # Настройка логирования
 logging.basicConfig(
     level=get_settings().log_level,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(),  # Консоль
-        logging.FileHandler("learnflow.log", encoding="utf-8"),  # Файл
+        logging.FileHandler("logs/learnflow.log", encoding="utf-8"),  # Файл
     ],
 )
 logger = logging.getLogger(__name__)
@@ -528,5 +532,7 @@ if __name__ == "__main__":
 
     settings = get_settings()
     uvicorn.run(
-        "learnflow.main:app", host=settings.host, port=settings.port, reload=True
+        "learnflow.main:app", 
+        host=settings.host, 
+        port=settings.port
     )

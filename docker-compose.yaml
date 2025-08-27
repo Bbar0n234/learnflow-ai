@@ -20,7 +20,7 @@ services:
       - prompt-config-service
       - artifacts-service
     volumes:
-      # - ./logs:/app/logs
+      - ./logs:/app/logs
       - ./configs:/app/configs
 
   graph:
@@ -37,7 +37,7 @@ services:
       - GRAPH_CONFIG_PATH=${GRAPH_CONFIG_PATH}
       - LEARNFLOW_HOST=${LEARNFLOW_HOST}
       - LEARNFLOW_PORT=${LEARNFLOW_PORT}
-      - LOG_LEVEl=${LOG_LEVEl}
+      - LOG_LEVEL=${LOG_LEVEL}
       - DATABASE_URL=${DATABASE_URL}
       - ARTIFACTS_BASE_PATH=${ARTIFACTS_BASE_PATH:-data/artifacts}
       - ARTIFACTS_ENSURE_PERMISSIONS=${ARTIFACTS_ENSURE_PERMISSIONS:-true}
@@ -66,6 +66,7 @@ services:
     restart: always
     volumes:
       - ./data:/app/data
+      - ./logs:/app/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 15s
@@ -117,7 +118,7 @@ services:
     restart: always
     volumes:
       - ./configs:/app/configs:ro
-      # - ./logs:/app/logs
+      - ./logs:/app/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
       interval: 15s

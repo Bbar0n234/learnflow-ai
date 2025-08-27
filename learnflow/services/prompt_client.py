@@ -46,6 +46,8 @@ class PromptConfigClient:
         Raises:
             WorkflowExecutionError: При недоступности сервиса после всех retry попыток
         """
+        import time
+        start_time = time.time()
         last_error: Optional[Exception] = None
         
         self.logger.info(f"Requesting prompt for user_id={user_id}, node={node_name}")
@@ -73,7 +75,11 @@ class PromptConfigClient:
                     if len(prompt) < 50:
                         raise ValueError(f"Prompt too short ({len(prompt)} chars): {prompt[:100]}")
                     
-                    self.logger.info(f"Successfully received prompt ({len(prompt)} chars) for {node_name}")
+                    elapsed = time.time() - start_time
+                    if elapsed > 2.0:
+                        self.logger.warning(f"Successfully received prompt ({len(prompt)} chars) for {node_name} in {elapsed:.2f}s (slow)")
+                    else:
+                        self.logger.info(f"Successfully received prompt ({len(prompt)} chars) for {node_name} in {elapsed:.2f}s")
                     return prompt
                     
             except (httpx.TimeoutException, httpx.ConnectError, httpx.HTTPStatusError, ValueError) as e:

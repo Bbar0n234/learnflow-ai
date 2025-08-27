@@ -8,6 +8,7 @@ import logging
 import asyncio
 import aiohttp
 from typing import Dict, Any, Optional
+from pathlib import Path
 
 from aiogram import Bot, Dispatcher, Router, F
 from aiogram.types import Message, PhotoSize
@@ -20,10 +21,20 @@ from .handlers.hitl_settings import router as hitl_router
 from .handlers.prompt_config import router as prompt_config_router
 from .handlers.export_handlers import router as export_router
 
+# Create logs directory if it doesn't exist
+log_dir = Path("logs")
+log_dir.mkdir(exist_ok=True)
 
-# Настройка логирования
+# Настройка логирования с файлом и консолью
+handlers = [
+    logging.StreamHandler(),  # Console output
+    logging.FileHandler(log_dir / "bot.log", encoding="utf-8")  # File output
+]
+
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+    handlers=handlers
 )
 logger = logging.getLogger(__name__)
 

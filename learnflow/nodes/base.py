@@ -144,6 +144,8 @@ class BaseWorkflowNode(ABC):
             if extra_context:
                 context.update(extra_context)
             
+            self.logger.debug(f"Context for prompt generation: {list(context.keys())}")
+            
             # Получаем промпт от сервиса
             prompt = await self.prompt_client.generate_prompt(
                 user_id=user_id,

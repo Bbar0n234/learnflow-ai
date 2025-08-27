@@ -27,6 +27,19 @@ from .exceptions import ArtifactsServiceException, map_to_http_exception
 from .settings import settings
 from .services.export import MarkdownExporter, PDFExporter, ZIPExporter
 
+# Create logs directory if it doesn't exist
+log_dir = Path("logs")
+log_dir.mkdir(exist_ok=True)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(),  # Console
+        logging.FileHandler(log_dir / "artifacts.log", encoding="utf-8")  # File
+    ]
+)
 
 # Global storage instance
 storage = ArtifactsStorage()
@@ -398,7 +411,6 @@ def main():
         "artifacts-service.main:app",
         host=settings.host,
         port=settings.port,
-        reload=True,
     )
 
 

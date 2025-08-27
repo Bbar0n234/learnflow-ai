@@ -17,6 +17,9 @@ RUN uv sync --package learnflow-core --no-dev --frozen
 # Copy the application code
 COPY learnflow/ ./learnflow/
 
+# Create logs directory
+RUN mkdir -p /app/logs && chmod 755 /app/logs
+
 # Expose port for FastAPI
 EXPOSE 8000
 

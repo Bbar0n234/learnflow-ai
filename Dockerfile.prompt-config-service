@@ -30,7 +30,8 @@ cd /app/prompt-config-service\n\
 echo "Running database migrations..."\n\
 uv run --package prompt-config-service alembic upgrade head\n\
 echo "Starting service..."\n\
-uv run --package prompt-config-service python -m main' > /app/entrypoint.sh && \
+cd /app\n\
+uv run --package prompt-config-service python -m prompt-config-service' > /app/entrypoint.sh && \
     chmod +x /app/entrypoint.sh
 
 # Запуск через entrypoint

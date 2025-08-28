@@ -25,6 +25,23 @@ LearnFlow AI solves a universal educational problem: transforming scattered educ
 - **🎯 Personalized Prompts** - Dynamic prompt generation with user-specific configurations
 - **🐳 Docker-First** - One command deployment with `docker compose up`
 
+## 👥 Who This Project Is For
+
+### 🎓 Education and Learning
+**Teachers, tutors, instructional designers** — automatic generation of educational materials, tests, and gap-analysis questions. The system processes both text queries and handwritten notes, creating personalized learning content.
+
+### 👨‍💻 Developers and Architects
+**AI-Driven Development** — practical example of delegating code writing to LLM agents while maintaining architectural control. The `docs/` directory contains all project documentation used for effective LLM collaboration.
+
+**Production-ready architecture** based on LangGraph:
+- Multi-node agent system with HITL (Human-in-the-Loop)
+- Multimodal processing (text + images)
+- Microservices: FastAPI, Telegram Bot, external integrations
+- Observability via LangFuse
+- Clean Architecture with clear separation of concerns
+
+The project demonstrates modern approaches to building production-ready AI systems.
+
 ## 🚀 Quick Start
 
 ### Prerequisites

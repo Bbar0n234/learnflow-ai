@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ThemeToggle } from './ThemeToggle';
-import { BookOpen, Menu, X } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -13,7 +13,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, sidebar }) => {
   return (
     <div className="h-screen overflow-hidden bg-bg transition-colors duration-200">
       {/* Minimal Header */}
-      <header className="sticky top-0 z-30 bg-elev/80 backdrop-blur-sm px-4 py-0" style={{ height: 'var(--header-height)' }}>
+      <header className="sticky top-0 z-30 bg-elev/80 backdrop-blur-sm px-4 py-0 border-b border-border/60" style={{ height: 'var(--header-height)' }}>
         <div className="flex items-center justify-between max-w-content mx-auto h-full">
           <div className="flex items-center gap-4">
             {/* Mobile sidebar toggle */}
@@ -31,15 +31,17 @@ export const Layout: React.FC<LayoutProps> = ({ children, sidebar }) => {
               </button>
             )}
             
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-primary rounded-sm flex items-center justify-center shadow-sm">
-                <BookOpen className="w-4 h-4 text-primary-ink" />
-              </div>
+            <div className="flex items-center gap-3 group cursor-pointer transition-all duration-200 hover:opacity-90">
+              <img 
+                src="/square_logo_without_bg.png" 
+                alt="LearnFlow AI Logo" 
+                className="w-[56px] h-[56px] object-contain transition-transform duration-200 group-hover:scale-105"
+              />
               <div className="leading-tight">
-                <h1 className="font-display text-[18px] leading-5 tracking-wide">
-                  <span className="text-ink">LearnFlow</span> <span className="text-primary">AI</span>
+                <h1 className="font-display text-[24px] font-semibold leading-6 tracking-wide transition-colors duration-200">
+                  <span className="text-ink group-hover:text-primary/90">LearnFlow</span> <span className="text-primary group-hover:text-primary/80">AI</span>
                 </h1>
-                <p className="text-[12px] text-muted">Artifacts Viewer</p>
+                <p className="text-[14px] text-muted transition-colors duration-200 group-hover:text-muted/80">Artifacts Viewer</p>
               </div>
             </div>
           </div>

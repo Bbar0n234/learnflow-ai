@@ -1,3 +1,5 @@
+![LearnFlow AI](docs/assets/banner.jpg)
+
 # LearnFlow AI
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
@@ -5,91 +7,93 @@
 [![LangGraph](https://img.shields.io/badge/Built%20with-LangGraph-orange.svg)](https://github.com/langchain-ai/langgraph)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](docker-compose.yml)
 
-A universal, LangGraph-based educational content generation system for any subject area and education level. Transform educational questions and handwritten notes into comprehensive study materials with gap analysis questions and answers.
+Универсальная система генерации образовательного контента на основе LangGraph для любой предметной области и уровня образования. Преобразует учебные вопросы и рукописные заметки в комплексные учебные материалы с вопросами для анализа пробелов и ответами.
 
-![LearnFlow AI Demo](docs/assets/demo.gif)
+## 🎯 Зачем LearnFlow AI?
 
-## 🎯 Why LearnFlow AI?
+LearnFlow AI решает универсальную образовательную проблему: преобразование разрозненных учебных вопросов и рукописных заметок в структурированные, всесторонние учебные материалы - от математики и физики до литературы и истории, от начальной школы до университетского уровня.
 
-LearnFlow AI solves a universal educational problem: transforming scattered educational questions and handwritten notes into structured, comprehensive study materials - from mathematics and physics to literature and history, from elementary school to university level.
+### Ключевые возможности
 
-### Key Features
+- **🔄 LangGraph Workflow Pipeline** - Многоузловая обработка с настраиваемыми возможностями HITL (Human-in-the-Loop)
+- **✏️ Интерактивное редактирование материалов** - Итеративное улучшение синтезированного контента с нечётким сопоставлением текста
+- **🛡️ Безопасность LLM** - Встроенная защита от инъекций промптов и jailbreak-атак
+- **🤖 Универсальная поддержка LLM** - Работает с любым OpenAI-совместимым API (включая локальные модели)
+- **📝 Распознавание рукописного текста** - Обработка как печатных, так и рукописных материалов
+- **🎨 Современный веб-интерфейс** - React-интерфейс с обновлениями в реальном времени
+- **🤖 Telegram-бот** - Диалоговый интерфейс для доступа в пути
+- **🎯 Персонализированные промпты** - Динамическая генерация промптов с пользовательскими настройками
+- **🐳 Docker-First** - Развёртывание одной командой с помощью `docker compose up`
 
-- **🔄 LangGraph Workflow Pipeline** - Multi-node processing with configurable HITL (Human-in-the-Loop) capabilities
-- **✏️ Interactive Material Editing** - Iterative refinement of synthesized content with fuzzy text matching
-- **🛡️ LLM Security** - Built-in Guardrails against prompt injection and jailbreak attacks
-- **🤖 Universal LLM Support** - Works with any OpenAI-compatible API (including local models)
-- **📝 OCR & Handwriting Recognition** - Process both typed and handwritten materials
-- **🎨 Modern Web UI** - React-based interface with real-time updates
-- **🤖 Telegram Bot** - Conversational interface for on-the-go access
-- **🎯 Personalized Prompts** - Dynamic prompt generation with user-specific configurations
-- **🐳 Docker-First** - One command deployment with `docker compose up`
+## 🚀 Быстрый старт
 
-## 🚀 Quick Start
+### Предварительные требования
 
-### Prerequisites
+- Docker и Docker Compose
+- Python 3.13+ (для локальной разработки)
+- API-ключи для выбранного вами LLM-провайдера
 
-- Docker and Docker Compose
-- Python 3.13+ (for local development)
-- API keys for your chosen LLM provider
+### Установка
 
-### Installation
-
-1. **Clone the repository**
+1. **Клонировать репозиторий**
 ```bash
-git clone https://github.com/bbaron/learnflow-ai.git
+git clone https://github.com/Bbar0n234/learnflow-ai.git
 cd learnflow-ai
 ```
 
-2. **Configure environment**
+2. **Настроить окружение**
 ```bash
 cp env.example .env
-# Edit .env with your API keys and configuration
+# Отредактируйте .env с вашими API-ключами и настройками
 ```
 
-3. **Start with Docker Compose**
+3. **Запустить с Docker Compose**
 ```bash
 docker compose up
 ```
 
-The services will be available at:
+Сервисы будут доступны по адресам:
 - FastAPI: http://localhost:8000
-- Web UI: http://localhost:3000
-- API Docs: http://localhost:8000/docs
-- Prompt Config Service: http://localhost:8002
-- Prompt Config API Docs: http://localhost:8002/docs
+- Веб-интерфейс: http://localhost:3000
+- API Документация: http://localhost:8000/docs
+- Сервис конфигурации промптов: http://localhost:8002
+- Документация Prompt Config API: http://localhost:8002/docs
 
-### Using Local LLMs
+### Использование локальных LLM
 
-LearnFlow AI supports local LLM providers out of the box:
+LearnFlow AI поддерживает локальные LLM-провайдеры из коробки:
 
 ```bash
-# With Ollama
+# С Ollama
 OPENAI_API_BASE=http://localhost:11434/v1
 OPENAI_API_KEY=ollama
 MODEL_NAME=llama3
 
-# With LM Studio
+# С LM Studio
 OPENAI_API_BASE=http://localhost:1234/v1
 OPENAI_API_KEY=lm-studio
 MODEL_NAME=local-model
 ```
 
-## 🏗️ Architecture
+## 🏗️ Архитектура
 
-LearnFlow AI uses a modular, event-driven architecture built on LangGraph:
+<div align="center">
+  <img src="docs/assets/square_logo.png" alt="LearnFlow AI Logo" width="200" />
+</div>
+
+LearnFlow AI использует модульную, событийно-ориентированную архитектуру, построенную на LangGraph:
 
 ```mermaid
 graph TD
-    A[User Input] --> B[Input Processing]
-    B --> C[Content Generation]
-    B --> D[Handwriting Recognition]
-    D --> E[Material Synthesis]
+    A[Пользовательский ввод] --> B[Обработка ввода]
+    B --> C[Генерация контента]
+    B --> D[Распознавание рукописного текста]
+    D --> E[Синтез материалов]
     C --> E
-    E --> F[Edit Material]
-    F --> G[Gap Analysis]
-    G --> H[Answer Generation]
-    H --> I[Artifacts Storage]
+    E --> F[Редактирование материала]
+    F --> G[Анализ пробелов]
+    G --> H[Генерация ответов]
+    H --> I[Хранилище артефактов]
     
     style B fill:#f9f,stroke:#333,stroke-width:2px
     style E fill:#bbf,stroke:#333,stroke-width:2px
@@ -97,114 +101,121 @@ graph TD
     style G fill:#bfb,stroke:#333,stroke-width:2px
 ```
 
-### Core Components
+### Основные компоненты
 
-- **Workflow Engine** - LangGraph-based orchestration with state management
-- **Node Architecture** - Modular processing nodes extending `BaseWorkflowNode`
-- **Security Layer** - Guardrails for input validation and threat detection
-- **Storage Layer** - Thread-based artifact management with GitHub integration
-- **Prompt Configuration Service** - Dynamic personalized prompt generation with user preferences
-- **Observability** - LangFuse integration for tracing and monitoring
+- **Workflow Engine** - Оркестрация на основе LangGraph с управлением состоянием
+- **Node Architecture** - Модульные узлы обработки, расширяющие `BaseWorkflowNode`
+- **Security Layer** - Защитные механизмы для валидации ввода и обнаружения угроз
+- **Storage Layer** - Управление артефактами на основе потоков с интеграцией GitHub
+- **Prompt Configuration Service** - Динамическая персонализированная генерация промптов с пользовательскими предпочтениями
+- **Observability** - Интеграция LangFuse для трассировки и мониторинга
 
-## 🛡️ Security Features
+## 🛡️ Функции безопасности
 
-LearnFlow AI includes comprehensive prompt injection protection:
+LearnFlow AI включает комплексную защиту от инъекций промптов:
 
-- **Universal Input Validation** - LLM-based detection with structured output across all entry points
-- **Graceful Degradation** - Security never blocks workflow execution, always maintains user experience
-- **Fuzzy Content Cleaning** - Smart removal of malicious content while preserving legitimate educational material
-- **Educational Context Aware** - Adapts to different subject areas and reduces false positives
-- **Configuration-Driven** - Security prompts and settings managed through YAML configs
-- **Complete Coverage** - Protects exam questions, OCR content, HITL feedback, and edit requests
+- **Универсальная валидация ввода** - Обнаружение на основе LLM со структурированным выводом для всех точек входа
+- **Плавная деградация** - Безопасность никогда не блокирует выполнение workflow, всегда сохраняет пользовательский опыт
+- **Нечёткая очистка контента** - Умное удаление вредоносного контента с сохранением легитимного образовательного материала
+- **Учёт образовательного контекста** - Адаптация к различным предметным областям и снижение ложных срабатываний
+- **Конфигурационное управление** - Промпты безопасности и настройки управляются через YAML-конфиги
+- **Полное покрытие** - Защищает экзаменационные вопросы, OCR-контент, HITL-обратную связь и запросы на редактирование
 
-## 📚 Documentation
+## 📚 Документация
 
-- [Architecture Overview](docs/ADR/001-architecture-overview.md)
-- [LLM Security](docs/ADR/002-llm-guardrails.md)
-- [API Reference](http://localhost:8000/docs)
-- [Development Guide](docs/conventions.md)
-- [Roadmap](docs/planning/roadmap.md)
+- [Обзор архитектуры](docs/ADR/001-architecture-overview.md)
+- [Безопасность LLM](docs/ADR/002-llm-guardrails.md)
+- [Справочник API](http://localhost:8000/docs)
+- [Руководство разработчика](docs/conventions.md)
+- [Дорожная карта](docs/planning/roadmap.md)
 
 
-## 🧪 Development
+## 🧪 Разработка
 
-### Local Setup
+### Локальная настройка
 
 ```bash
-# Install dependencies with UV
+# Установка зависимостей с помощью UV
 uv sync
 
-# Run tests
+# Запуск тестов
 uv run pytest
 
-# Start development server
+# Запуск сервера разработки
 uv run --package learnflow python -m learnflow.main
 ```
 
-### Running Tests
+### Запуск тестов
 
 ```bash
-# Unit tests
+# Unit-тесты
 uv run pytest tests/unit
 
-# Integration tests
+# Интеграционные тесты
 uv run pytest tests/integration
 
-# Coverage report
+# Отчёт о покрытии
 uv run pytest --cov=learnflow --cov-report=html
 ```
 
-## 📊 Metrics & Monitoring
+## 📊 Метрики и мониторинг
 
-LearnFlow AI includes comprehensive observability:
+LearnFlow AI включает комплексную наблюдаемость:
 
-- **LangFuse** - Trace every LLM interaction
-- **Structured Logging** - Correlation IDs for request tracking
-- **Health Checks** - `/health` endpoint for monitoring
-- **Performance Metrics** - Response times and token usage
+- **LangFuse** - Трассировка каждого взаимодействия с LLM
+- **Структурированное логирование** - ID корреляции для отслеживания запросов
+- **Health Checks** - Endpoint `/health` для мониторинга
+- **Метрики производительности** - Время отклика и использование токенов
 
-## 🌍 Universal Educational Support
+## 🌍 Универсальная образовательная поддержка
 
-LearnFlow AI adapts to any educational context:
+LearnFlow AI адаптируется к любому образовательному контексту:
 
-### Subject Areas
-- **STEM**: Mathematics, Physics, Chemistry, Biology, Computer Science
-- **Humanities**: Literature, History, Philosophy, Languages
-- **Social Sciences**: Psychology, Economics, Political Science
-- **Professional**: Law, Medicine, Engineering, Business
+### Предметные области
+- **STEM**: Математика, физика, химия, биология, информатика
+- **Гуманитарные науки**: Литература, история, философия, языки
+- **Социальные науки**: Психология, экономика, политология
+- **Профессиональные**: Юриспруденция, медицина, инженерия, бизнес
 
-### Educational Levels
-- **K-12**: Elementary through High School
-- **Higher Education**: University and Graduate programs
-- **Professional Development**: Certification and continuing education
-- **Self-Learning**: Personal study and skill development
+### Образовательные уровни
+- **K-12**: От начальной до старшей школы
+- **Высшее образование**: Университетские и аспирантские программы
+- **Профессиональное развитие**: Сертификация и непрерывное образование
+- **Самообучение**: Личное обучение и развитие навыков
 
-### Example Use Cases
-- Transform calculus problems into step-by-step learning materials
-- Convert historical essay questions into comprehensive study guides
-- Synthesize chemistry lab notes with theoretical concepts
-- Create literature analysis materials from book discussion questions
+### Примеры использования
+- Преобразование задач по математическому анализу в пошаговые учебные материалы
+- Конвертация исторических эссе в комплексные учебные пособия
+- Синтез лабораторных заметок по химии с теоретическими концепциями
+- Создание материалов для литературного анализа на основе вопросов для обсуждения книг
 
-## 📝 License
+## 📝 Лицензия
 
-This project is licensed under Apache 2.0 - see [LICENSE](LICENSE) for details.
+Этот проект лицензирован под Apache 2.0 - см. [LICENSE](LICENSE) для деталей.
 
-## 🙏 Acknowledgments
+## 🙏 Благодарности
 
-Built with:
-- [LangGraph](https://github.com/langchain-ai/langgraph) - Workflow orchestration
-- [FastAPI](https://fastapi.tiangolo.com/) - API framework
-- [React](https://react.dev/) - UI framework
-- [LangFuse](https://langfuse.com/) - LLM observability
+Создано с использованием:
+- [LangGraph](https://github.com/langchain-ai/langgraph) - Оркестрация workflow
+- [FastAPI](https://fastapi.tiangolo.com/) - API-фреймворк
+- [React](https://react.dev/) - UI-фреймворк
+- [LangFuse](https://langfuse.com/) - Наблюдаемость LLM
 
-## 📧 Contact
+## 👨‍💻 Автор
 
-- Issues: [GitHub Issues](https://github.com/bbaron/learnflow-ai/issues)
-- Discussions: [GitHub Discussions](https://github.com/bbaron/learnflow-ai/discussions)
-- Email: learnflow-ai@example.com
+**Феоктистов Станислав** - T-shaped GenAI инженер
+
+[![Telegram](https://img.shields.io/badge/Telegram-@Bbar0n234-blue?logo=telegram)](https://t.me/Bbar0n234)
+[![GitHub](https://img.shields.io/badge/GitHub-Bbar0n234-black?logo=github)](https://github.com/Bbar0n234)
+[![Email](https://img.shields.io/badge/Email-vilnus1337@gmail.com-red?logo=gmail)](mailto:vilnus1337@gmail.com)
+
+## 📧 Контакты
+
+- Проблемы: [GitHub Issues](https://github.com/Bbar0n234/learnflow-ai/issues)
+- Обсуждения: [GitHub Discussions](https://github.com/Bbar0n234/learnflow-ai/discussions)
 
 ---
 
 <p align="center">
-  Made with ❤️ by the LearnFlow AI team
+  Сделано с ❤️ Феоктистовым Станиславом
 </p>

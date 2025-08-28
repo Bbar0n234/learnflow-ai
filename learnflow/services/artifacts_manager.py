@@ -1,6 +1,5 @@
 """
 Local Artifacts Manager для LearnFlow AI.
-Заменяет GitHub integration на локальное файловое хранилище.
 """
 
 import os
@@ -277,7 +276,6 @@ class LocalArtifactsManager:
                 f"Successfully created learning material for thread {thread_id} session {session_id}"
             )
 
-            # Prepare return data compatible with GitHub API
             relative_file_path = str(file_path.relative_to(self.base_path))
             relative_session_path = str(session_path.relative_to(self.base_path))
             relative_thread_path = str(thread_path.relative_to(self.base_path))

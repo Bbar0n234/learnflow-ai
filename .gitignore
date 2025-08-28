@@ -197,5 +197,5 @@ cython_debug/
 images/
 logs/
 
-.claude/
+.claude/*.json
 data/*

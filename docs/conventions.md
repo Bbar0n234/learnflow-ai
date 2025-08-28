@@ -33,32 +33,18 @@ uv sync
 <repository-structure>
 ## Структура репозитория
 
-### Нумерация задач в backlog
-
-Для организации и навигации по задачам в `docs/backlog/` используется **префиксная нумерация**:
-
-#### Правила нумерации:
-- **Хронологический порядок**: нумерация начинается с `01-` для самой первой реализованной задачи
-- **Единая нумерация**: одна и та же задача имеет идентичный номер в `current/` и `archive/`
-- **Формат**: `XX-TYPE-description/` где XX = порядковый номер, TYPE = тип задачи (FEAT, SEC, BUG и т.д.)
-
-#### Жизненный цикл задачи:
-1. **Планирование**: задача создается в `current/XX-FEAT-YYY/` с планами реализации
-2. **Реализация**: планы заменяются на Post Implementation Summary в `current/XX-FEAT-YYY/impl/`
-3. **Архивирование**: планы реализации перемещаются в `archive/XX-FEAT-YYY/`
-
 #### Примеры:
 ```
 docs/backlog/current/
-├── 02-SEC-guardrails/impl/                  # Завершенная задача
-├── 06-FEAT-prompt-config-service/impl/      # Завершенная задача  
-├── 09-FEAT-markdown-pdf-export/             # Планируемая задача
-└── 10-FEAT-dynamic-prompt-generation/       # Планируемая задача
+├── 02-SEC-guardrails/impl/         # Завершенная задача
+├── 06-FEAT-PROMPTS/impl/           # Завершенная задача  
+├── 09-FEAT-EXPORT/                 # Планируемая задача
+└── 10-FEAT-PROMPTS-GEN/            # Планируемая задача
 
 docs/backlog/archive/
-├── 02-SEC-guardrails/                       # Архивированные планы
-├── 06-FEAT-prompt-config-service/           # Архивированные планы
-└── misc/                                    # Standalone файлы
+├── 02-SEC-guardrails/              # Архивированные планы
+├── 06-FEAT-PROMPTS/                # Архивированные планы
+└── misc/                           # Standalone файлы
 ```
 
 #### Навигация:

@@ -94,10 +94,6 @@ MODEL_NAME=local-model
 
 ## 🏗️ Архитектура
 
-<div align="center">
-  <img src="docs/assets/square_logo.png" alt="LearnFlow AI Logo" width="200" />
-</div>
-
 LearnFlow AI использует модульную, событийно-ориентированную архитектуру, построенную на LangGraph:
 
 ```mermaid
@@ -155,24 +151,8 @@ LearnFlow AI включает комплексную защиту от инъе�
 # Установка зависимостей с помощью UV
 uv sync
 
-# Запуск тестов
-uv run pytest
-
 # Запуск сервера разработки
 uv run --package learnflow python -m learnflow.main
-```
-
-### Запуск тестов
-
-```bash
-# Unit-тесты
-uv run pytest tests/unit
-
-# Интеграционные тесты
-uv run pytest tests/integration
-
-# Отчёт о покрытии
-uv run pytest --cov=learnflow --cov-report=html
 ```
 
 ## 📊 Метрики и мониторинг
@@ -216,7 +196,7 @@ LearnFlow AI адаптируется к любому образовательн
 - [LangGraph](https://github.com/langchain-ai/langgraph) - Оркестрация workflow
 - [FastAPI](https://fastapi.tiangolo.com/) - API-фреймворк
 - [React](https://react.dev/) - UI-фреймворк
-- [LangFuse](https://langfuse.com/) - Наблюдаемость LLM
+- [LangFuse](https://langfuse.com/) - LLM Observability
 
 ## 👨‍💻 Автор
 

@@ -1,3 +1,5 @@
+![LearnFlow AI](docs/assets/banner.jpg)
+
 # LearnFlow AI
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
@@ -155,24 +157,8 @@ LearnFlow AI includes comprehensive prompt injection protection:
 # Install dependencies with UV
 uv sync
 
-# Run tests
-uv run pytest
-
 # Start development server
 uv run --package learnflow python -m learnflow.main
-```
-
-### Running Tests
-
-```bash
-# Unit tests
-uv run pytest tests/unit
-
-# Integration tests
-uv run pytest tests/integration
-
-# Coverage report
-uv run pytest --cov=learnflow --cov-report=html
 ```
 
 ## 📊 Metrics & Monitoring

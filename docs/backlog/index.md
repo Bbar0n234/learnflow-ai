@@ -38,9 +38,6 @@
 - `09-FEAT-EXPORT/` - Экспорт в Markdown и PDF
   - `IP-01-post-implementation-summary.md` - ✅ Export functionality completed (2025-08-26)
 
-### Активные инициативы
-- `10-FEAT-PROMPTS-GEN/` - Динамическая генерация промптов (планируется)
-
 ## Архив (archive)
 Планы реализации (Implementation Plans), которые были перемещены из current/ после завершения задач:
 

@@ -38,8 +38,7 @@ uv sync
 docs/backlog/current/
 ├── 02-SEC-guardrails/impl/         # Завершенная задача
 ├── 06-FEAT-PROMPTS/impl/           # Завершенная задача  
-├── 09-FEAT-EXPORT/                 # Планируемая задача
-└── 10-FEAT-PROMPTS-GEN/            # Планируемая задача
+└── 09-FEAT-EXPORT/                 # Планируемая задача
 
 docs/backlog/archive/
 ├── 02-SEC-guardrails/              # Архивированные планы

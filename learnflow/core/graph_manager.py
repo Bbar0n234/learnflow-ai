@@ -11,7 +11,7 @@ GraphManager – единая оболочка вокруг LangGraph workflow.
 
 import uuid
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple, Callable
 
 from langgraph.types import Command
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
@@ -42,6 +42,34 @@ class GraphManager:
     Управляет единым экземпляром LangGraph для множества пользователей.
     Состояния разделяются по thread_id в Postgres-checkpointer.
     """
+
+    # Конфигурация артефактов для каждого узла
+    NODE_ARTIFACT_CONFIG: Dict[str, Dict[str, Any]] = {
+        "generating_content": {
+            "condition": lambda node_data, state: bool(node_data.get("generated_material")),
+            "handler": "_save_learning_material"
+        },
+        "recognition_handwritten": {
+            "condition": lambda node_data, state: bool(node_data.get("recognized_notes")),
+            "handler": "_save_recognized_notes"
+        },
+        "synthesis_material": {
+            "condition": lambda node_data, state: bool(node_data.get("synthesized_material")),
+            "handler": "_save_synthesized_material"
+        },
+        "edit_material": {
+            "condition": lambda node_data, state: node_data.get("last_action") == "edit",
+            "handler": "_save_synthesized_material"  # Тот же метод, перезапись
+        },
+        "generating_questions": {
+            "condition": lambda node_data, state: bool(node_data.get("gap_questions")),
+            "handler": "_save_gap_questions"
+        },
+        "answer_question": {
+            "condition": lambda node_data, state: bool(node_data.get("gap_q_n_a")),
+            "handler": "_save_answers"
+        }
+    }
 
     def __init__(self) -> None:
         self.workflow = create_workflow()
@@ -165,79 +193,6 @@ class GraphManager:
 
     # ---------- local artifacts management ----------
 
-    async def _push_learning_material_to_artifacts(
-        self, thread_id: str, state_vals: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Пушит обучающий материал в локальное хранилище после генерации контента.
-
-        Args:
-            thread_id: Идентификатор потока
-            state_vals: Значения состояния графа
-
-        Returns:
-            Словарь с данными для обновления состояния или None
-        """
-        if not self.artifacts_manager:
-            logger.debug(
-                "Artifacts manager not configured, skipping learning material push"
-            )
-            return None
-
-        # Проверяем, что есть необходимые данные
-        exam_question = state_vals.get("exam_question", "")
-        generated_material = state_vals.get("generated_material", "")
-        display_name = state_vals.get(
-            "display_name"
-        )  # Получаем display_name из состояния
-
-        if not exam_question or not generated_material:
-            logger.warning(
-                f"Missing learning material data for thread {thread_id}, skipping GitHub push"
-            )
-            return None
-
-        try:
-            # Пушим обучающий материал
-            result = await self.artifacts_manager.push_learning_material(
-                thread_id=thread_id,
-                exam_question=exam_question,
-                generated_material=generated_material,
-                display_name=display_name,
-            )
-
-            if result.get("success"):
-                logger.info(
-                    f"Successfully pushed learning material for thread {thread_id} to local storage: {result.get('file_path')}"
-                )
-
-                # Данные для обновления состояния
-                artifacts_data = {
-                    "local_session_path": result.get("folder_path"),
-                    "local_thread_path": result.get("thread_path"),
-                    "session_id": result.get("session_id"),
-                    "local_learning_material_path": result.get("file_path"),
-                    "local_folder_path": result.get("folder_path"),
-                }
-
-                # Сохраняем данные в словарь GraphManager
-                if thread_id not in self.artifacts_data:
-                    self.artifacts_data[thread_id] = {}
-                self.artifacts_data[thread_id].update(artifacts_data)
-
-                return artifacts_data
-            else:
-                logger.error(
-                    f"Failed to push learning material for thread {thread_id}: {result.get('error')}"
-                )
-                return None
-
-        except Exception as e:
-            logger.error(
-                f"Error pushing learning material to local storage for thread {thread_id}: {e}"
-            )
-            return None
-
     async def _push_complete_materials_to_artifacts(
         self, thread_id: str, state_vals: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
@@ -313,26 +268,10 @@ class GraphManager:
             )
             return None
 
-    async def _push_questions_to_artifacts(
-        self, thread_id: str, state_vals: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Пушит вопросы и ответы в локальное хранилище перед удалением thread.
-        DEPRECATED: Теперь используется _push_complete_materials_to_artifacts
-
-        Args:
-            thread_id: Идентификатор потока
-            state_vals: Значения состояния графа
-
-        Returns:
-            Словарь с данными для обновления состояния или None
-        """
-        # Используем комплексный метод вместо отдельного пуша вопросов
-        return await self._push_complete_materials_to_artifacts(thread_id, state_vals)
 
     async def process_step(self, thread_id: str, query: str, image_paths: List[str] = None) -> Dict[str, Any]:
         """
-        Универсальный метод для обработки шагов workflow.
+        Упрощенный главный метод для обработки шагов workflow.
         
         Args:
             thread_id: Идентификатор потока
@@ -342,10 +281,63 @@ class GraphManager:
         Returns:
             Результат обработки с thread_id и сообщениями
         """
+        # 1. Подготовка
+        thread_id, input_state, cfg = await self._prepare_workflow(
+            thread_id, query, image_paths
+        )
+        
+        # 2. Выполнение workflow
+        await self._run_workflow(thread_id, input_state, cfg)
+        
+        # 3. Финализация
+        return await self._finalize_workflow(thread_id)
+
+    async def get_current_step(self, thread_id: str) -> Dict[str, str]:
+        """Получение текущего шага workflow"""
+        state = await self._get_state(thread_id)
+        node = None
+        if state and state.interrupts:
+            node = state.interrupts[0].ns[0].split(":")[0]
+
+        current_step = {
+            "node": node,
+            "description": NODE_DESCRIPTIONS.get(node, NODE_DESCRIPTIONS[None]),
+        }
+        logger.debug(f"Current step for thread {thread_id}: {current_step}")
+        return current_step
+
+    async def get_thread_state(self, thread_id: str) -> Optional[Dict[str, Any]]:
+        """Получение полного состояния thread'а"""
+        try:
+            state = await self._get_state(thread_id)
+            if state and state.values:
+                return state.values
+            return None
+        except Exception as e:
+            logger.error(f"Error getting state for thread {thread_id}: {str(e)}")
+            return None
+
+    # ---------- New refactored methods ----------
+
+    async def _prepare_workflow(
+        self, thread_id: str, query: str, image_paths: Optional[List[str]]
+    ) -> Tuple[str, Any, Dict[str, Any]]:
+        """
+        Подготовка workflow: thread_id, начальное состояние, конфигурация
+
+        Args:
+            thread_id: Идентификатор потока
+            query: Текстовый запрос
+            image_paths: Опциональный список путей к изображениям
+
+        Returns:
+            Tuple[thread_id, input_state, config]
+        """
+        # Генерируем thread_id если не передан
         if not thread_id:
             thread_id = str(uuid.uuid4())
             logger.info(f"Created new thread: {thread_id}")
-        
+
         # Валидируем image_paths
         image_paths = image_paths or []
         if image_paths:
@@ -353,7 +345,7 @@ class GraphManager:
 
         state = await self._get_state(thread_id)
 
-        # определяем input_state и session_id для LangFuse
+        # Определяем input_state и session_id для LangFuse
         if not state.values:  # fresh run - новый workflow
             logger.info(f"Starting fresh run for thread {thread_id}")
             input_state = ExamState(
@@ -377,11 +369,9 @@ class GraphManager:
                 input_state = Command(resume=query)
             
             # Используем существующий session_id
-            session_id = self.get_session_id(thread_id) or self.create_new_session(
-                thread_id
-            )
+            session_id = self.get_session_id(thread_id) or self.create_new_session(thread_id)
 
-        # конфигурация с LangFuse трассировкой
+        # Конфигурация с LangFuse трассировкой
         cfg = {
             "configurable": {"thread_id": thread_id},
             "callbacks": [self.langfuse_handler],
@@ -391,108 +381,83 @@ class GraphManager:
             },
         }
 
-        # запускаем/продолжаем граф
+        return thread_id, input_state, cfg
+
+    async def _run_workflow(
+        self, thread_id: str, input_state: Any, cfg: Dict[str, Any]
+    ) -> None:
+        """
+        Запуск workflow и обработка событий
+
+        Args:
+            thread_id: Идентификатор потока
+            input_state: Начальное состояние или команда
+            cfg: Конфигурация запуска
+        """
         await self._ensure_setup()
         
         async with AsyncPostgresSaver.from_conn_string(
             self.settings.database_url
         ) as saver:
             graph = self.workflow.compile(checkpointer=saver)
-
+            
             async for event in graph.astream(input_state, cfg, stream_mode="updates"):
-                # HITL сообщения наружу
-                logger.debug(f"Event: {event}")
+                await self._handle_workflow_event(event, thread_id)
 
-                for node_name, node_data in event.items():
-                    # Пуш обучающего материала после завершения generating_content
-                    if node_name == "generating_content":
-                        logger.info(
-                            f"Content generation completed for thread {thread_id}, pushing to GitHub..."
-                        )
-                        current_state = await self._get_state(thread_id)
-                        artifacts_data = (
-                            await self._push_learning_material_to_artifacts(
-                                thread_id,
-                                {
-                                    "exam_question": current_state.values.get(
-                                        "exam_question"
-                                    ),
-                                    "generated_material": node_data.get(
-                                        "generated_material"
-                                    ),
-                                    "display_name": current_state.values.get(
-                                        "display_name"
-                                    ),
-                                },
-                            )
-                        )
-                        if artifacts_data:
-                            await self._update_state(thread_id, artifacts_data)
+    async def _handle_workflow_event(self, event: Dict, thread_id: str) -> None:
+        """
+        Обработка одного события workflow
 
-                    # Пуш синтезированного материала после synthesis_material
-                    elif node_name == "synthesis_material" and node_data.get(
-                        "synthesized_material"
-                    ):
-                        logger.info(
-                            f"Synthesis completed for thread {thread_id}, pushing to artifacts..."
-                        )
-                        if self.artifacts_manager:
-                            local_folder = self.artifacts_data.get(thread_id, {}).get(
-                                "local_folder_path"
-                            )
-                            if local_folder:
-                                try:
-                                    await self.artifacts_manager.push_synthesized_material(
-                                        folder_path=local_folder,
-                                        synthesized_material=node_data.get(
-                                            "synthesized_material"
-                                        ),
-                                        thread_id=thread_id,
-                                    )
-                                    logger.info(
-                                        f"Auto-saved synthesized material to {local_folder}"
-                                    )
-                                except Exception as e:
-                                    logger.error(
-                                        f"Failed to auto-save synthesized material: {e}"
-                                    )
+        Args:
+            event: Событие от графа
+            thread_id: Идентификатор потока
+        """
+        logger.debug(f"Event: {event}")
+        
+        for node_name, node_data in event.items():
+            await self._process_node_artifacts(node_name, node_data, thread_id)
 
-                    # Автосохранение после каждой правки в edit_material
-                    elif (
-                        node_name == "edit_material"
-                        and node_data.get("last_action") == "edit"
-                    ):
-                        logger.info(
-                            f"Edit applied in thread {thread_id}, auto-saving to artifacts..."
-                        )
-                        if self.artifacts_manager:
-                            current_state = await self._get_state(thread_id)
-                            local_folder = self.artifacts_data.get(thread_id, {}).get(
-                                "local_folder_path"
-                            )
-                            if local_folder and current_state.values.get(
-                                "synthesized_material"
-                            ):
-                                try:
-                                    await self.artifacts_manager.push_synthesized_material(
-                                        folder_path=local_folder,
-                                        synthesized_material=current_state.values.get(
-                                            "synthesized_material"
-                                        ),
-                                        thread_id=thread_id,
-                                    )
-                                    logger.info(
-                                        f"Auto-saved edited material to {local_folder}"
-                                    )
-                                except Exception as e:
-                                    logger.error(
-                                        f"Failed to auto-save edited material: {e}"
-                                    )
+    async def _process_node_artifacts(
+        self, node_name: str, node_data: Dict, thread_id: str
+    ) -> None:
+        """
+        Универсальная обработка артефактов для узла
 
-        # после завершения / остановки
+        Args:
+            node_name: Имя узла
+            node_data: Данные узла
+            thread_id: Идентификатор потока
+        """
+        config = self.NODE_ARTIFACT_CONFIG.get(node_name)
+        if not config:
+            return
+        
+        # Получаем текущее состояние
+        state = await self._get_state(thread_id)
+        
+        # Проверяем условие сохранения
+        if not config["condition"](node_data, state.values):
+            return
+        
+        logger.info(f"Saving artifacts for {node_name}, thread {thread_id}")
+        
+        # Вызываем соответствующий обработчик
+        handler = getattr(self, config["handler"])
+        await handler(thread_id, node_data, state.values)
+
+    async def _finalize_workflow(self, thread_id: str) -> Dict[str, Any]:
+        """
+        Завершение workflow: обработка прерываний или финальная очистка
+
+        Args:
+            thread_id: Идентификатор потока
+
+        Returns:
+            Dict с результатом выполнения
+        """
         final_state = await self._get_state(thread_id)
 
-        print(f"final_state interrupts: {final_state.interrupts}")
+        logger.debug(f"final_state interrupts: {final_state.interrupts}")
 
         if final_state.interrupts:
             interrupt_data = final_state.interrupts[0].value
@@ -523,7 +488,6 @@ class GraphManager:
                     )
 
             logger.info(f"Workflow interrupted for thread {thread_id}")
-
             return {"thread_id": thread_id, "result": msgs}
 
         # happy path – всё закончено
@@ -547,32 +511,208 @@ class GraphManager:
         await self.delete_thread(thread_id)
 
         return_data = {"thread_id": thread_id, "result": final_message}
-
         logger.debug(f"return_data: {return_data}")
 
         return return_data
 
-    async def get_current_step(self, thread_id: str) -> Dict[str, str]:
-        """Получение текущего шага workflow"""
-        state = await self._get_state(thread_id)
-        node = None
-        if state and state.interrupts:
-            node = state.interrupts[0].ns[0].split(":")[0]
+    # ---------- Специализированные методы сохранения артефактов ----------
 
-        current_step = {
-            "node": node,
-            "description": NODE_DESCRIPTIONS.get(node, NODE_DESCRIPTIONS[None]),
-        }
-        logger.debug(f"Current step for thread {thread_id}: {current_step}")
-        return current_step
+    async def _save_learning_material(
+        self, thread_id: str, node_data: Dict, state_values: Dict
+    ) -> None:
+        """
+        Создает новую сессию и сохраняет обучающий материал
 
-    async def get_thread_state(self, thread_id: str) -> Optional[Dict[str, Any]]:
-        """Получение полного состояния thread'а"""
+        Args:
+            thread_id: Идентификатор потока
+            node_data: Данные от узла
+            state_values: Текущие значения состояния графа
+        """
+        if not self.artifacts_manager:
+            logger.debug(
+                "Artifacts manager not configured, skipping learning material save"
+            )
+            return
+        
+        result = await self.artifacts_manager.push_learning_material(
+            thread_id=thread_id,
+            exam_question=state_values.get("exam_question", ""),
+            generated_material=node_data.get("generated_material", ""),
+            display_name=state_values.get("display_name")
+        )
+        
+        if result.get("success"):
+            logger.info(
+                f"Successfully saved learning material for thread {thread_id}: {result.get('file_path')}"
+            )
+            
+            # Сохраняем пути в локальном словаре
+            if thread_id not in self.artifacts_data:
+                self.artifacts_data[thread_id] = {}
+            
+            self.artifacts_data[thread_id].update({
+                "local_session_path": result.get("folder_path"),
+                "local_folder_path": result.get("folder_path"),
+                "session_id": result.get("session_id"),
+                "local_learning_material_path": result.get("file_path")
+            })
+            
+            # Обновляем состояние графа
+            await self._update_state(thread_id, self.artifacts_data[thread_id])
+        else:
+            logger.error(
+                f"Failed to save learning material for thread {thread_id}: {result.get('error')}"
+            )
+
+    async def _save_recognized_notes(
+        self, thread_id: str, node_data: Dict, state_values: Dict
+    ) -> None:
+        """
+        Сохраняет распознанные конспекты в существующую сессию
+
+        Args:
+            thread_id: Идентификатор потока
+            node_data: Данные от узла
+            state_values: Текущие значения состояния графа
+        """
+        if not self.artifacts_manager:
+            logger.debug(
+                "Artifacts manager not configured, skipping recognized notes save"
+            )
+            return
+            
+        folder_path = self.artifacts_data.get(thread_id, {}).get("local_folder_path")
+        if not folder_path:
+            logger.warning(f"No folder path for thread {thread_id}, skipping recognized notes save")
+            return
+        
         try:
-            state = await self._get_state(thread_id)
-            if state and state.values:
-                return state.values
-            return None
+            await self.artifacts_manager.push_recognized_notes(
+                folder_path=folder_path,
+                recognized_notes=node_data.get("recognized_notes", ""),
+                thread_id=thread_id
+            )
+            logger.info(f"Successfully saved recognized notes for thread {thread_id}")
         except Exception as e:
-            logger.error(f"Error getting state for thread {thread_id}: {str(e)}")
-            return None
+            logger.error(f"Failed to save recognized notes for thread {thread_id}: {e}")
+
+    async def _save_synthesized_material(
+        self, thread_id: str, node_data: Dict, state_values: Dict
+    ) -> None:
+        """
+        Сохраняет или перезаписывает синтезированный материал
+
+        Args:
+            thread_id: Идентификатор потока
+            node_data: Данные от узла
+            state_values: Текущие значения состояния графа
+        """
+        if not self.artifacts_manager:
+            logger.debug(
+                "Artifacts manager not configured, skipping synthesized material save"
+            )
+            return
+            
+        folder_path = self.artifacts_data.get(thread_id, {}).get("local_folder_path")
+        if not folder_path:
+            logger.warning(f"No folder path for thread {thread_id}, skipping synthesized material save")
+            return
+        
+        # Для edit_material берем из состояния, для synthesis_material из node_data
+        is_edit_node = node_data.get("last_action") == "edit"
+        material = (state_values.get("synthesized_material") 
+                    if is_edit_node
+                    else node_data.get("synthesized_material", ""))
+        
+        if not material:
+            logger.warning(f"No synthesized material to save for thread {thread_id}")
+            return
+        
+        try:
+            await self.artifacts_manager.push_synthesized_material(
+                folder_path=folder_path,
+                synthesized_material=material,
+                thread_id=thread_id
+            )
+            action = "edited" if is_edit_node else "synthesized"
+            logger.info(f"Successfully saved {action} material for thread {thread_id}")
+        except Exception as e:
+            logger.error(f"Failed to save synthesized material for thread {thread_id}: {e}")
+
+    async def _save_gap_questions(
+        self, thread_id: str, node_data: Dict, state_values: Dict
+    ) -> None:
+        """
+        Сохраняет gap questions
+
+        Args:
+            thread_id: Идентификатор потока
+            node_data: Данные от узла
+            state_values: Текущие значения состояния графа
+        """
+        if not self.artifacts_manager:
+            logger.debug(
+                "Artifacts manager not configured, skipping gap questions save"
+            )
+            return
+            
+        folder_path = self.artifacts_data.get(thread_id, {}).get("local_folder_path")
+        if not folder_path:
+            logger.warning(f"No folder path for thread {thread_id}, skipping gap questions save")
+            return
+        
+        gap_questions = node_data.get("gap_questions", [])
+        if not gap_questions:
+            logger.warning(f"No gap questions to save for thread {thread_id}")
+            return
+        
+        try:
+            # Сохраняем только вопросы без ответов
+            await self.artifacts_manager.push_questions_and_answers(
+                folder_path=folder_path,
+                gap_questions=gap_questions,
+                gap_q_n_a=[],  # Пустой список, т.к. ответов еще нет
+                thread_id=thread_id
+            )
+            logger.info(f"Successfully saved gap questions for thread {thread_id}")
+        except Exception as e:
+            logger.error(f"Failed to save gap questions for thread {thread_id}: {e}")
+
+    async def _save_answers(
+        self, thread_id: str, node_data: Dict, state_values: Dict
+    ) -> None:
+        """
+        Сохраняет ответы на вопросы
+
+        Args:
+            thread_id: Идентификатор потока
+            node_data: Данные от узла
+            state_values: Текущие значения состояния графа
+        """
+        if not self.artifacts_manager:
+            logger.debug(
+                "Artifacts manager not configured, skipping answers save"
+            )
+            return
+            
+        folder_path = self.artifacts_data.get(thread_id, {}).get("local_folder_path")
+        if not folder_path:
+            logger.warning(f"No folder path for thread {thread_id}, skipping answers save")
+            return
+        
+        gap_q_n_a = state_values.get("gap_q_n_a", [])
+        if not gap_q_n_a:
+            logger.warning(f"No answers to save for thread {thread_id}")
+            return
+        
+        try:
+            # Обновляем файл с вопросами и ответами
+            await self.artifacts_manager.push_questions_and_answers(
+                folder_path=folder_path,
+                gap_questions=state_values.get("gap_questions", []),
+                gap_q_n_a=gap_q_n_a,
+                thread_id=thread_id
+            )
+            logger.info(f"Successfully saved answers for thread {thread_id}")
+        except Exception as e:
+            logger.error(f"Failed to save answers for thread {thread_id}: {e}")

@@ -37,6 +37,8 @@
   - `IP-01-post-implementation-summary.md` - ✅ Multi-provider support completed (2025-08-26)
 - `09-FEAT-EXPORT/` - Экспорт в Markdown и PDF
   - `IP-01-post-implementation-summary.md` - ✅ Export functionality completed (2025-08-26)
+- `10-REFACTOR-graph-manager/` - Рефакторинг GraphManager
+  - `POST-IMPL-01-artifact-saving-refactoring.md` - ✅ Artifact saving refactoring completed (2025-08-28)
 
 ## Архив (archive)
 Планы реализации (Implementation Plans), которые были перемещены из current/ после завершения задач:
@@ -60,6 +62,8 @@
   - `IP-01-multi-provider-llm-support.md` - ✅ Completed: Multi-Provider LLM Support через OpenAI-совместимые API (2025-08-26)
 - `09-FEAT-EXPORT/`
   - `IP-01-markdown-pdf-export.md` - ✅ Completed: Markdown и PDF экспорт заметок (2025-08-26)
+- `10-REFACTOR-graph-manager/`
+  - `IP-01-artifact-saving-refactoring.md` - ✅ Completed: GraphManager Artifact Saving System Refactoring (2025-08-28)
 - `misc/`
   - `IP-01-artifacts-manager.md` - ✅ Completed: Local Artifacts Manager implementation
 

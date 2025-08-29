@@ -7,6 +7,7 @@ import type {
   FileOperationResponse,
   ApiError
 } from './types';
+import { authService } from './AuthService';
 
 export class ApiClient {
   private baseURL: string;
@@ -26,9 +27,28 @@ export class ApiClient {
   }
 
   private setupInterceptors(): void {
+    // Request interceptor to add auth token
+    this.axiosInstance.interceptors.request.use(
+      (config) => {
+        const token = authService.getToken();
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
+
+    // Response interceptor for error handling
     this.axiosInstance.interceptors.response.use(
       (response) => response,
       (error: AxiosError) => {
+        // Handle 401 Unauthorized - token expired or invalid
+        if (error.response?.status === 401) {
+          authService.logout();
+          window.location.href = '/login';
+        }
+        
         const apiError: ApiError = {
           message: error.message || 'An unexpected error occurred',
           status: error.response?.status,
@@ -40,7 +60,17 @@ export class ApiClient {
   }
 
   async getThreads(): Promise<ThreadsListResponse> {
-    const response = await this.axiosInstance.get<ThreadsListResponse>('/threads');
+    const user = authService.getCurrentUser();
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+    
+    // Filter threads by current user ID
+    const response = await this.axiosInstance.get<ThreadsListResponse>('/threads', {
+      params: {
+        user_id: user.userId
+      }
+    });
     return response.data;
   }
 

@@ -14,6 +14,7 @@ The LearnFlow AI Web UI provides an intuitive interface for:
 ## Features
 
 ### Core Functionality
+- **Secure Authentication**: JWT-based authentication with Telegram bot integration
 - **Question Input**: Text area for educational questions from any subject area
 - **Note Upload**: Drag-and-drop interface for handwritten note images
 - **Workflow Visualization**: Real-time progress tracking through LangGraph nodes
@@ -22,6 +23,7 @@ The LearnFlow AI Web UI provides an intuitive interface for:
 - **Export Options**: PDF and Markdown export with customizable templates
 - **Deep Linking**: Direct URL navigation to specific threads, sessions, and files
 - **Browser Navigation**: Full support for back/forward buttons and bookmarks
+- **Multi-tenancy**: User-specific data isolation and access control
 
 ### UI Components
 - **Material Viewer**: Rich markdown rendering with LaTeX support
@@ -45,6 +47,10 @@ The LearnFlow AI Web UI provides an intuitive interface for:
 web-ui/
 ├── src/
 │   ├── components/           # Reusable UI components
+│   │   ├── auth/            # Authentication components
+│   │   │   ├── LoginPage/   # Login form with code verification
+│   │   │   ├── AuthGuard/   # Protected route wrapper
+│   │   │   └── UserIndicator/ # User status display
 │   │   ├── AccordionSidebar/ # Hierarchical navigation with URL-driven state
 │   │   ├── RouteGuard/       # Route validation and protection
 │   │   ├── QuestionInput/    # Educational question input form
@@ -52,22 +58,45 @@ web-ui/
 │   │   ├── WorkflowViewer/   # Workflow progress visualization
 │   │   ├── MaterialEditor/   # Interactive content editor
 │   │   └── ExportDialog/     # Export configuration modal
+│   ├── contexts/             # React contexts
+│   │   └── AuthContext.tsx   # Global authentication state
 │   ├── hooks/                # Custom React hooks
+│   │   ├── useAuth.ts        # Authentication utilities
+│   │   ├── useAuthGuard.ts   # Route protection hook
 │   │   ├── useNavigation.ts  # Navigation utilities and routing
 │   │   ├── useUrlDrivenExpansion.ts # URL-based accordion state
 │   │   ├── useWorkflow.ts    # Workflow state management
 │   │   ├── useFileUpload.ts  # File upload handling
 │   │   └── useExport.ts      # Export functionality
 │   ├── services/             # API communication layer
-│   │   ├── api.ts           # LearnFlow API client
-│   │   └── websocket.ts     # Real-time updates
-│   ├── RouterWrapper.tsx     # Router configuration and routes
+│   │   ├── AuthService.ts    # JWT authentication service
+│   │   ├── ApiClient.ts      # LearnFlow API client with auth
+│   │   └── websocket.ts      # Real-time updates
+│   ├── RouterWrapper.tsx     # Router configuration with auth
 │   ├── AppWithRouter.tsx     # Main app with routing support
 │   ├── types/               # TypeScript type definitions
 │   └── utils/               # Helper utilities
 ├── public/                  # Static assets
 └── docs/                    # Component documentation
 ```
+
+### Authentication and Security
+
+The application implements JWT-based authentication integrated with Telegram:
+
+#### Authentication Flow
+1. **Code Generation**: Users request auth code via `/web_auth` command in Telegram bot
+2. **Login**: Enter Telegram username and 6-digit code in web UI
+3. **JWT Token**: Server validates code and returns JWT token (24-hour validity)
+4. **Persistent Session**: Token stored in localStorage for session persistence
+5. **Auto-logout**: Automatic logout on token expiration or 401 responses
+
+#### Security Features
+- **Protected Routes**: All routes except `/login` require authentication
+- **User Isolation**: Data filtered by user ID from JWT token
+- **Thread Ownership**: Validation that user can only access their own threads
+- **Retry Mechanism**: Automatic retry with exponential backoff for network failures
+- **Secure Storage**: JWT tokens with proper expiration handling
 
 ### Navigation and Routing
 
@@ -150,7 +179,10 @@ npm run type-check  # TypeScript validation
 
 ### Environment Variables
 ```bash
-# LearnFlow AI Backend
+# Artifacts Service API
+VITE_ARTIFACTS_API_URL=http://localhost:8001
+
+# LearnFlow AI Backend (optional, for future integration)
 VITE_API_BASE_URL=http://localhost:8000
 VITE_WS_URL=ws://localhost:8000/ws
 

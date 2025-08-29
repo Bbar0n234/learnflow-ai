@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ThemeToggle } from './ThemeToggle';
+import { UserIndicator } from './auth/UserIndicator';
 import { Menu, X } from 'lucide-react';
 
 interface LayoutProps {
@@ -45,7 +46,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, sidebar }) => {
               </div>
             </div>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-3">
+            <UserIndicator />
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 

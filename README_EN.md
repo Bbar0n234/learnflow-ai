@@ -2,12 +2,14 @@
 
 # LearnFlow AI
 
+**English | [Русский](README.md)**
+
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.13%2B-green.svg)](https://www.python.org/downloads/)
 [![LangGraph](https://img.shields.io/badge/Built%20with-LangGraph-orange.svg)](https://github.com/langchain-ai/langgraph)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](docker-compose.yml)
 
-A universal, LangGraph-based educational content generation system for any subject area and education level. Transform educational questions and handwritten notes into comprehensive study materials with gap analysis questions and answers.
+A universal, LangGraph-based educational content generation system for any subject area and education level. Transform educational questions and handwritten notes into comprehensive study materials with analysis questions and answers.
 
 ## 🎯 Why LearnFlow AI?
 

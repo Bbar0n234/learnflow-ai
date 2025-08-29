@@ -41,8 +41,9 @@
   - `POST-IMPL-01-artifact-saving-refactoring.md` - ✅ Artifact saving refactoring completed (2025-08-28)
 - `11-FEAT-deep-linking/` - React Router Deep Linking Integration
   - `POST-IMPLEMENTATION-SUMMARY.md` - ✅ Deep linking functionality completed (2025-08-29)
-- `12-FEAT-multi-tenancy/` - Multi-Tenancy Security Phase 1
-  - `POST-IMPLEMENTATION-SUMMARY.md` - ✅ Security implementation completed (2025-08-29)
+- `12-FEAT-multi-tenancy/` - Multi-Tenancy Security Implementation
+  - `POST-IMPLEMENTATION-SUMMARY.md` - ✅ Phase 1: Security infrastructure completed (2025-08-29)
+  - `IP-02-phase2-COMPLETED.md` - ✅ Phase 2: Web UI authentication completed (2025-08-29)
 
 ## Архив (archive)
 Планы реализации (Implementation Plans), которые были перемещены из current/ после завершения задач:
@@ -72,6 +73,7 @@
   - `IP-01-react-router-integration.md` - ✅ Completed: React Router Deep Linking Integration (2025-08-29)
 - `12-FEAT-multi-tenancy/`
   - `IP-01-phase1-security-implementation.md` - ✅ Completed: Multi-Tenancy Security Phase 1 (2025-08-29)
+  - `IP-02-phase2-web-ui-auth.md` - ✅ Completed: Web UI Authentication Phase 2 (2025-08-29)
 - `misc/`
   - `IP-01-artifacts-manager.md` - ✅ Completed: Local Artifacts Manager implementation
 

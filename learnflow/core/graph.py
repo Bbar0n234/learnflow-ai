@@ -31,7 +31,7 @@ def create_workflow() -> StateGraph:
     3. generating_content -> recognition_handwritten (распознавание конспектов с HITL)
     4. recognition_handwritten -> synthesis_material (синтез финального материала)
     5. synthesis_material -> edit_material (итеративное редактирование с HITL)
-    6. edit_material -> generating_questions (генерация gap questions с HITL)
+    6. edit_material -> generating_questions (генерация контрольных вопросов с HITL)
     7. generating_questions -> answer_question (параллельная генерация ответов)
     8. answer_question -> END
 

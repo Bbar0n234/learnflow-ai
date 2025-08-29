@@ -29,7 +29,7 @@ NODE_DESCRIPTIONS = { # TODO: переформулировать
     "recognition_handwritten": "Распознавание рукописных конспектов",
     "synthesis_material": "Синтез финального материала",
     "edit_material": "Итеративное редактирование материала",
-    "generating_questions": "Генерация и правка gap questions",
+    "generating_questions": "Генерация и правка контрольных вопросов",
     "answer_question": "Генерация ответов на вопросы",
     None: "Готов к новому входному контенту",
 }
@@ -643,7 +643,7 @@ class GraphManager:
         self, thread_id: str, node_data: Dict, state_values: Dict
     ) -> None:
         """
-        Сохраняет gap questions
+        Сохраняет контрольные вопросы
 
         Args:
             thread_id: Идентификатор потока
@@ -652,18 +652,18 @@ class GraphManager:
         """
         if not self.artifacts_manager:
             logger.debug(
-                "Artifacts manager not configured, skipping gap questions save"
+                "Artifacts manager not configured, skipping assessment questions save"
             )
             return
             
         folder_path = self.artifacts_data.get(thread_id, {}).get("local_folder_path")
         if not folder_path:
-            logger.warning(f"No folder path for thread {thread_id}, skipping gap questions save")
+            logger.warning(f"No folder path for thread {thread_id}, skipping assessment questions save")
             return
         
         questions = node_data.get("questions", [])
         if not questions:
-            logger.warning(f"No gap questions to save for thread {thread_id}")
+            logger.warning(f"No assessment questions to save for thread {thread_id}")
             return
         
         try:
@@ -674,9 +674,9 @@ class GraphManager:
                 questions_and_answers=[],  # Пустой список, т.к. ответов еще нет
                 thread_id=thread_id
             )
-            logger.info(f"Successfully saved gap questions for thread {thread_id}")
+            logger.info(f"Successfully saved assessment questions for thread {thread_id}")
         except Exception as e:
-            logger.error(f"Failed to save gap questions for thread {thread_id}: {e}")
+            logger.error(f"Failed to save assessment questions for thread {thread_id}: {e}")
 
     async def _save_answers(
         self, thread_id: str, node_data: Dict, state_values: Dict

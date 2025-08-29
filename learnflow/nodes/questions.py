@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 class QuestionGenerationNode(FeedbackNode):
     """
-    Узел генерации gap questions с HITL циклом.
+    Узел генерации контрольных вопросов с HITL циклом.
     Использует FeedbackNode паттерн для взаимодействия с пользователем.
     """
 

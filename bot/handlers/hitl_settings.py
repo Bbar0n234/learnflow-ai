@@ -84,7 +84,7 @@ async def toggle_node_hitl(callback: CallbackQuery):
         # Show confirmation
         node_display_name = {
             "edit_material": "Редактирование материала",
-            "generating_questions": "Генерация вопросов",
+            "generating_questions": "Генерация контрольных вопросов",
         }.get(node_name, node_name)
 
         new_status = "включен" if getattr(updated_config, node_name) else "отключен"

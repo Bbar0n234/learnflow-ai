@@ -1,5 +1,5 @@
 """
-Узел генерации ответов на gap questions.
+Узел генерации ответов на контрольные вопросы.
 Адаптирован из answer_question_node в main.ipynb для параллельной обработки.
 """
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 class AnswerGenerationNode(BaseWorkflowNode):
     """
-    Узел для генерации ответов на отдельные gap questions.
+    Узел для генерации ответов на отдельные контрольные вопросы.
     Используется в параллельных задачах через Send.
     """
 
@@ -42,7 +42,7 @@ class AnswerGenerationNode(BaseWorkflowNode):
         self, data: Dict[str, Any], config=None
     ) -> Command[Literal["__end__"]]:
         """
-        Генерирует ответ на один gap question.
+        Генерирует ответ на один контрольный вопрос.
 
         Args:
             data: Словарь с ключом 'question' содержащий вопрос для обработки

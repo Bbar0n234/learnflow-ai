@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 LearnFlow AI is a universal LangGraph-based educational content generation system for any subject area and education level. It processes educational questions and handwritten note images to generate comprehensive study materials with gap analysis questions and answers. The system consists of:
 
-- **FastAPI service** (`learnflow/`) - REST API for processing exam materials
+- **FastAPI service** (`learnflow/`) - REST API for processing educational content
 - **Telegram bot** (`bot/`) - User interface for interacting with the system
 - **LangGraph workflow** - Multi-node processing pipeline with HITL (Human-in-the-Loop) capabilities
 - **Image recognition module** - OCR and handwritten text recognition for student notes
@@ -115,8 +115,8 @@ The system uses a multi-node workflow defined in `learnflow/graph.py`:
 2. **generating_content** - Generates comprehensive study material from educational questions and tasks
 3. **recognition_handwritten** - Unified notes processing: OCR for images, direct text input (>=50 chars), or skip
 4. **synthesis_material** - Combines generated content with recognized notes
-5. **generating_questions** - Creates gap analysis questions with HITL review
-6. **answer_question** - Generates detailed answers for gap questions
+5. **generating_questions** - Creates knowledge assessment questions with HITL review
+6. **answer_question** - Generates detailed answers for assessment questions
 
 #### State Management
 - **GeneralState** (`learnflow/state.py`) - Typed state model for workflow data
@@ -179,7 +179,7 @@ Contains all system prompts for different workflow nodes:
 - `generating_content_system_prompt` - Comprehensive material generation
 - `recognition_system_prompt` - Handwritten notes processing
 - `synthesize_system_prompt` - Content synthesis logic
-- `gen_question_system_prompt` - Gap question generation
+- `gen_question_system_prompt` - Assessment question generation
 - `gen_answer_system_prompt` - Answer generation
 
 #### Environment Variables (`.env`)

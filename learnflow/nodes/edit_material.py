@@ -11,7 +11,7 @@ from langgraph.types import interrupt, Command
 from fuzzysearch import find_near_matches
 
 from .base import BaseWorkflowNode
-from ..core.state import ExamState, ActionDecision, EditDetails, EditMessageDetails
+from ..core.state import GeneralState, ActionDecision, EditDetails, EditMessageDetails
 # from ..utils.utils import render_system_prompt
 from ..services.hitl_manager import get_hitl_manager
 
@@ -96,7 +96,7 @@ class EditMaterialNode(BaseWorkflowNode):
         return new_document, True, match.matched, similarity
 
     async def handle_edit_action(
-        self, state: ExamState, action: EditDetails, messages: list
+        self, state: GeneralState, action: EditDetails, messages: list
     ) -> Command:
         """Обработка действия редактирования"""
         document = state.synthesized_material
@@ -150,7 +150,7 @@ class EditMaterialNode(BaseWorkflowNode):
         return Command(goto="edit_material", update=update_dict)
 
     async def handle_message_action(
-        self, state: ExamState, action: EditMessageDetails, messages: list
+        self, state: GeneralState, action: EditMessageDetails, messages: list
     ) -> Command:
         """Обработка сообщения пользователю"""
         messages.append(AIMessage(content=action.content))
@@ -165,7 +165,7 @@ class EditMaterialNode(BaseWorkflowNode):
             },
         )
 
-    async def handle_complete_action(self, state: ExamState) -> Command:
+    async def handle_complete_action(self, state: GeneralState) -> Command:
         """Завершение редактирования"""
         self.logger.info("Edit session completed")
 
@@ -179,7 +179,7 @@ class EditMaterialNode(BaseWorkflowNode):
             },
         )
 
-    async def __call__(self, state: ExamState, config: RunnableConfig) -> Command:
+    async def __call__(self, state: GeneralState, config: RunnableConfig) -> Command:
         """
         Главная логика узла редактирования.
         Обрабатывает цикл: запрос ввода -> анализ -> действие -> повтор

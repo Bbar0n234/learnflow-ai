@@ -6,7 +6,7 @@ GraphManager – единая оболочка вокруг LangGraph workflow.
 • передачу сообщений HITL-узлов наружу
 • пуш артефактов
 • трассировку в LangFuse
-Адаптирован из project_documentation.md для ExamState.
+Адаптирован из project_documentation.md для GeneralState.
 """
 
 import uuid
@@ -18,12 +18,12 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langfuse.callback import CallbackHandler
 
 from .graph import create_workflow
-from .state import ExamState
+from .state import GeneralState
 from ..config.settings import get_settings
 from ..services.artifacts_manager import LocalArtifactsManager, ArtifactsConfig
 
 
-NODE_DESCRIPTIONS = {
+NODE_DESCRIPTIONS = { # TODO: переформулировать
     "input_processing": "Обработка пользовательского ввода",
     "generating_content": "Генерация обучающего материала",
     "recognition_handwritten": "Распознавание рукописных конспектов",
@@ -31,7 +31,7 @@ NODE_DESCRIPTIONS = {
     "edit_material": "Итеративное редактирование материала",
     "generating_questions": "Генерация и правка gap questions",
     "answer_question": "Генерация ответов на вопросы",
-    None: "Готов к новому экзаменационному вопросу",
+    None: "Готов к новому входному контенту",
 }
 
 logger = logging.getLogger(__name__)
@@ -62,11 +62,11 @@ class GraphManager:
             "handler": "_save_synthesized_material"  # Тот же метод, перезапись
         },
         "generating_questions": {
-            "condition": lambda node_data, state: bool(node_data.get("gap_questions")),
-            "handler": "_save_gap_questions"
+            "condition": lambda node_data, state: bool(node_data.get("questions")),
+            "handler": "_save_questions"
         },
         "answer_question": {
-            "condition": lambda node_data, state: bool(node_data.get("gap_q_n_a")),
+            "condition": lambda node_data, state: bool(node_data.get("questions_and_answers")),
             "handler": "_save_answers"
         }
     }
@@ -215,13 +215,13 @@ class GraphManager:
 
         try:
             # Извлекаем все материалы из состояния
-            exam_question = state_vals.get("exam_question", "")
+            input_content = state_vals.get("input_content", "")
             generated_material = state_vals.get("generated_material", "")
             recognized_notes = state_vals.get("recognized_notes", "")
             synthesized_material = state_vals.get("synthesized_material", "")
             image_paths = state_vals.get("image_paths", [])
-            gap_questions = state_vals.get("gap_questions", [])
-            gap_q_n_a = state_vals.get("gap_q_n_a", [])
+            questions = state_vals.get("questions", [])
+            questions_and_answers = state_vals.get("questions_and_answers", [])
 
             # Подготавливаем данные для комплексного пуша
             all_materials = {
@@ -229,14 +229,14 @@ class GraphManager:
                 "recognized_notes": recognized_notes,
                 "synthesized_material": synthesized_material,
                 "image_paths": image_paths,
-                "gap_questions": gap_questions,
-                "gap_q_n_a": gap_q_n_a,
+                "questions": questions,
+                "questions_and_answers": questions_and_answers,
             }
 
             # Используем комплексный метод Artifacts manager
             result = await self.artifacts_manager.push_complete_materials(
                 thread_id=thread_id,
-                exam_question=exam_question,
+                input_content=input_content,
                 all_materials=all_materials,
             )
 
@@ -348,8 +348,8 @@ class GraphManager:
         # Определяем input_state и session_id для LangFuse
         if not state.values:  # fresh run - новый workflow
             logger.info(f"Starting fresh run for thread {thread_id}")
-            input_state = ExamState(
-                exam_question=query,
+            input_state = GeneralState(
+                input_content=query,
                 image_paths=image_paths  # Добавляем изображения в начальное состояние
             )
             # Создаем новый session_id для нового диалога
@@ -498,7 +498,7 @@ class GraphManager:
         await self._push_complete_materials_to_artifacts(thread_id, final_state_values)
 
         # Формируем финальное сообщение со ссылкой на GitHub директорию (до удаления thread'а)
-        final_message = ["Готово 🎉 – присылайте следующий экзаменационный вопрос!"]
+        final_message = ["Готово 🎉 – присылайте следующий вопрос!"]
 
         local_folder_path = self.artifacts_data.get(thread_id, {}).get(
             "local_folder_path"
@@ -536,7 +536,7 @@ class GraphManager:
         
         result = await self.artifacts_manager.push_learning_material(
             thread_id=thread_id,
-            exam_question=state_values.get("exam_question", ""),
+            input_content=state_values.get("input_content", ""),
             generated_material=node_data.get("generated_material", ""),
             display_name=state_values.get("display_name")
         )
@@ -639,7 +639,7 @@ class GraphManager:
         except Exception as e:
             logger.error(f"Failed to save synthesized material for thread {thread_id}: {e}")
 
-    async def _save_gap_questions(
+    async def _save_questions(
         self, thread_id: str, node_data: Dict, state_values: Dict
     ) -> None:
         """
@@ -661,8 +661,8 @@ class GraphManager:
             logger.warning(f"No folder path for thread {thread_id}, skipping gap questions save")
             return
         
-        gap_questions = node_data.get("gap_questions", [])
-        if not gap_questions:
+        questions = node_data.get("questions", [])
+        if not questions:
             logger.warning(f"No gap questions to save for thread {thread_id}")
             return
         
@@ -670,8 +670,8 @@ class GraphManager:
             # Сохраняем только вопросы без ответов
             await self.artifacts_manager.push_questions_and_answers(
                 folder_path=folder_path,
-                gap_questions=gap_questions,
-                gap_q_n_a=[],  # Пустой список, т.к. ответов еще нет
+                questions=questions,
+                questions_and_answers=[],  # Пустой список, т.к. ответов еще нет
                 thread_id=thread_id
             )
             logger.info(f"Successfully saved gap questions for thread {thread_id}")
@@ -700,8 +700,8 @@ class GraphManager:
             logger.warning(f"No folder path for thread {thread_id}, skipping answers save")
             return
         
-        gap_q_n_a = state_values.get("gap_q_n_a", [])
-        if not gap_q_n_a:
+        questions_and_answers = state_values.get("questions_and_answers", [])
+        if not questions_and_answers:
             logger.warning(f"No answers to save for thread {thread_id}")
             return
         
@@ -709,8 +709,8 @@ class GraphManager:
             # Обновляем файл с вопросами и ответами
             await self.artifacts_manager.push_questions_and_answers(
                 folder_path=folder_path,
-                gap_questions=state_values.get("gap_questions", []),
-                gap_q_n_a=gap_q_n_a,
+                questions=state_values.get("questions", []),
+                questions_and_answers=questions_and_answers,
                 thread_id=thread_id
             )
             logger.info(f"Successfully saved answers for thread {thread_id}")

@@ -337,7 +337,7 @@ async def process_exam_request(message: Message):
 ### 1. Thread ID Management
 - **Проблема:** Отсутствие thread_id в некоторых сценариях
 - **Решение:** Fallback на "default" thread_id
-- **Валидация:** Проверка наличия user_id в ExamState
+- **Валидация:** Проверка наличия user_id в GeneralState
 
 ### 2. Память и масштабирование
 - **Особенность:** Конфигурации хранятся постоянно для каждого пользователя

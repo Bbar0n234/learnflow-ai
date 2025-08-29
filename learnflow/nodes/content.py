@@ -8,7 +8,7 @@ from typing import Literal, Union
 from langchain_core.messages import SystemMessage
 from langgraph.types import Command
 
-from ..core.state import ExamState
+from ..core.state import GeneralState
 from .base import BaseWorkflowNode
 
 
@@ -32,12 +32,12 @@ class ContentGenerationNode(BaseWorkflowNode):
     def _build_context_from_state(self, state) -> dict:
         """Строит контекст для промпта из состояния workflow"""
         return {
-            "exam_question": state.exam_question if hasattr(state, 'exam_question') else "",
-            "input_content": state.exam_question if hasattr(state, 'exam_question') else ""
+            "input_content": state.input_content if hasattr(state, 'input_content') else "",
+            "input_content": state.input_content if hasattr(state, 'input_content') else ""
         }
 
     async def __call__(
-        self, state: ExamState, config
+        self, state: GeneralState, config
     ) -> Union[
         Command[Literal["recognition_handwritten"]],
         Command[Literal["generating_questions"]],
@@ -61,7 +61,7 @@ class ContentGenerationNode(BaseWorkflowNode):
         messages = [SystemMessage(content=prompt_content)]
 
         # Генерируем материал
-        logger.debug(f"Generating content for question: {state.exam_question[:100]}...")
+        logger.debug(f"Generating content for question: {state.input_content[:100]}...")
         response = await self.model.ainvoke(messages)
 
         logger.info(f"Content generated successfully for thread {thread_id}")

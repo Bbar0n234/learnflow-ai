@@ -8,7 +8,7 @@ from typing import Literal
 from langgraph.types import Command
 from pathlib import Path
 
-from ..core.state import ExamState
+from ..core.state import GeneralState
 from ..services.file_utils import ImageFileManager
 from .base import BaseWorkflowNode
 
@@ -32,13 +32,13 @@ class InputProcessingNode(BaseWorkflowNode):
         return "input_processing"
 
     async def __call__(
-        self, state: ExamState, config
+        self, state: GeneralState, config
     ) -> Command[Literal["generating_content"]]:
         """
         Обрабатывает пользовательский ввод и валидирует изображения.
 
         Args:
-            state: Текущее состояние с exam_question и потенциально image_paths
+            state: Текущее состояние с input_content и потенциально image_paths
             config: Конфигурация LangGraph
 
         Returns:
@@ -47,17 +47,11 @@ class InputProcessingNode(BaseWorkflowNode):
         thread_id = config["configurable"]["thread_id"]
         logger.info(f"Starting input processing for thread {thread_id}")
 
-        # Извлекаем экзаменационный вопрос из message (если он был передан через message)
-        exam_question = state.exam_question.strip()
-        if not exam_question:
-            logger.error(f"Empty exam question for thread {thread_id}")
-            raise ValueError("Экзаменационный вопрос не может быть пустым")
-
-        # Валидация exam_question на самом входе в систему
+        # Валидация input_content на самом входе в систему
         logger.debug(f"Security guard status: {self.security_guard is not None}")
         if self.security_guard:
             logger.info("Validating exam question for security threats")
-            exam_question = await self.validate_input(exam_question)
+            input_content = await self.validate_input(input_content)
         else:
             logger.warning("Security guard not initialized - skipping validation")
 
@@ -66,7 +60,7 @@ class InputProcessingNode(BaseWorkflowNode):
         try:
             model = self.create_model()
             display_name_prompt = f"""Создай краткое название (3-5 слов) для следующего экзаменационного вопроса:
-"{exam_question}"
+"{input_content}"
 
 Требования:
 - Максимум 5 слов
@@ -82,7 +76,7 @@ class InputProcessingNode(BaseWorkflowNode):
         except Exception as e:
             logger.warning(f"Failed to generate display_name: {e}")
             # Fallback: используем первые слова вопроса
-            words = exam_question.split()[:5]
+            words = input_content.split()[:5]
             display_name = " ".join(words)
             if len(words) > 5:
                 display_name += "..."
@@ -104,14 +98,14 @@ class InputProcessingNode(BaseWorkflowNode):
 
         # Обновляем состояние
         update_data = {
-            "exam_question": exam_question,
+            "input_content": input_content,
             "image_paths": validated_image_paths,
             "display_name": display_name,  # Добавляем display_name в состояние
         }
 
         logger.info(
             f"Input processing completed for thread {thread_id}. "
-            f"Question: '{exam_question[:100]}...', Images: {len(validated_image_paths)}"
+            f"Question: '{input_content[:100]}...', Images: {len(validated_image_paths)}"
         )
 
         return Command(goto="generating_content", update=update_data)

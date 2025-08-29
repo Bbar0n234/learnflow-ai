@@ -16,7 +16,7 @@ from recognition.normal_recognition import RECOGNITION_PROMPT_TEMPLATE
 model_name = "gpt-4.1-mini"
 
 # Экзаменационный вопрос по умолчанию
-default_exam_question = "Слепая подпись Чаума и ее использование в протоколе «Электронное голосование» Протокол «Игра в покер по переписке»( Ментальный покер)"
+default_input_content = "Слепая подпись Чаума и ее использование в протоколе «Электронное голосование» Протокол «Игра в покер по переписке»( Ментальный покер)"
 
 # Пути к конфигурационным файлам
 prompts_config_path = "configs/prompts.yaml"
@@ -86,13 +86,13 @@ def recognize_lecture_notes(images_folder: str, client: OpenAI) -> str:
 
 
 def generate_additional_material(
-    exam_question: str, client: OpenAI, prompts_config: dict
+    input_content: str, client: OpenAI, prompts_config: dict
 ) -> str:
     """
     Генерирует дополнительный обучающий материал
 
     Args:
-        exam_question: Экзаменационный вопрос
+        input_content: Экзаменационный вопрос
         client: OpenAI клиент
         prompts_config: Конфигурация промптов
 
@@ -105,7 +105,7 @@ def generate_additional_material(
 
     # Подставляем экзаменационный вопрос в промпт
     template = Template(generating_content_prompt)
-    prompt_content = template.render(exam_question=exam_question)
+    prompt_content = template.render(input_content=input_content)
 
     messages = [{"role": "system", "content": prompt_content}]
 
@@ -121,7 +121,7 @@ def generate_additional_material(
 
 
 def synthesize_material(
-    exam_question: str,
+    input_content: str,
     lecture_notes: str,
     additional_material: str,
     client: OpenAI,
@@ -131,7 +131,7 @@ def synthesize_material(
     Синтезирует финальный материал на основе конспектов и дополнительного материала
 
     Args:
-        exam_question: Экзаменационный вопрос
+        input_content: Экзаменационный вопрос
         lecture_notes: Распознанные конспекты
         additional_material: Сгенерированный дополнительный материал
         client: OpenAI клиент
@@ -147,7 +147,7 @@ def synthesize_material(
     # Подставляем все данные в промпт для синтезирования
     template = Template(synthesize_prompt)
     prompt_content = template.render(
-        exam_question=exam_question,
+        input_content=input_content,
         lecture_notes=lecture_notes,
         additional_material=additional_material,
     )
@@ -171,7 +171,7 @@ def save_markdown(filepath, content):
 
 
 def save_results(
-    exam_question: str,
+    input_content: str,
     lecture_notes: str,
     additional_material: str,
     synthesized_material: str,
@@ -188,8 +188,8 @@ def save_results(
 
     # Сохраняем экзаменационный вопрос
     save_markdown(
-        os.path.join(dated_dir, "exam_question.md"),
-        "# Экзаменационный вопрос\n\n" + exam_question.strip(),
+        os.path.join(dated_dir, "input_content.md"),
+        "# Экзаменационный вопрос\n\n" + input_content.strip(),
     )
     # Сохраняем распознанные конспекты
     save_markdown(
@@ -213,7 +213,7 @@ def main():
     """Основная функция синтезирования материала"""
     parser = argparse.ArgumentParser(description="Синтезирование учебного материала")
     parser.add_argument(
-        "--exam-question", default=default_exam_question, help="Экзаменационный вопрос"
+        "--exam-question", default=default_input_content, help="Экзаменационный вопрос"
     )
     parser.add_argument(
         "--images-folder",
@@ -239,7 +239,7 @@ def main():
     args = parser.parse_args()
 
     print("🚀 Запускаю процесс синтезирования материала")
-    print(f"📝 Экзаменационный вопрос: {args.exam_question}")
+    print(f"📝 Экзаменационный вопрос: {args.input_content}")
 
     # Загружаем конфигурацию промптов
     prompts_config = load_prompts_config()
@@ -259,7 +259,7 @@ def main():
     additional_material = ""
     if not args.skip_generation:
         additional_material = generate_additional_material(
-            args.exam_question, client, prompts_config
+            args.input_content, client, prompts_config
         )
     else:
         print("⏭️  Пропускаю этап генерации дополнительного материала")
@@ -269,12 +269,12 @@ def main():
 
     # Этап 3: Синтезирование материала
     synthesized_material = synthesize_material(
-        args.exam_question, lecture_notes, additional_material, client, prompts_config
+        args.input_content, lecture_notes, additional_material, client, prompts_config
     )
 
     # Сохранение результатов
     save_results(
-        args.exam_question,
+        args.input_content,
         lecture_notes,
         additional_material,
         synthesized_material,

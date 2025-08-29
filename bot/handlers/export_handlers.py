@@ -355,7 +355,7 @@ async def handle_document_selection(callback: CallbackQuery, state: FSMContext):
     
     doc_names = {
         "synthesized_material": "Синтезированный материал",
-        "gap_questions": "Вопросы для закрепления",
+        "questions": "Вопросы для закрепления",
         "generated_material": "Сгенерированный материал",
         "recognized_notes": "Распознанные заметки"
     }

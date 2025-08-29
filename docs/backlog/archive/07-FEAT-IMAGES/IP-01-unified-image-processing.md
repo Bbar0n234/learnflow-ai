@@ -21,7 +21,7 @@
 2. Bot накапливает медиа в `pending_media` 
 3. Bot загружает изображения через `/upload-images/{thread_id}`
 4. Bot вызывает унифицированный `process_step()` с параметром `image_paths`
-5. GraphManager создает новое состояние с `exam_question` и `image_paths`
+5. GraphManager создает новое состояние с `input_content` и `image_paths`
 6. RecognitionNode обнаруживает изображения и обрабатывает их
 7. При успехе идет синтез материалов, при ошибке - пропуск к вопросам
 
@@ -81,8 +81,8 @@ Telegram Bot -> API /process -> GraphManager.process_step()
                                  /          \
                                Да           Нет  
                                /              \
-                        ExamState         Command(resume)
-                     (exam_question,       (+update если
+                        GeneralState         Command(resume)
+                     (input_content,       (+update если
                       image_paths)         есть image_paths)
                             |                    |
                             v                    v
@@ -133,8 +133,8 @@ class GraphManager:
         
         if not state.values:
             # Новый workflow - создаем начальное состояние
-            input_state = ExamState(
-                exam_question=query,
+            input_state = GeneralState(
+                input_content=query,
                 image_paths=image_paths or []
             )
             session_id = self.create_new_session(thread_id)
@@ -179,7 +179,7 @@ class RecognitionNode(BaseWorkflowNode):
     
     MIN_TEXT_LENGTH = 50  # Минимальная длина для валидного текста конспекта
     
-    async def __call__(self, state: ExamState, config) -> Command:
+    async def __call__(self, state: GeneralState, config) -> Command:
         thread_id = config["configurable"]["thread_id"]
         logger.info(f"RecognitionNode started for thread {thread_id}")
         

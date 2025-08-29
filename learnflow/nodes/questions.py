@@ -11,7 +11,7 @@ from langgraph.types import Command
 from langchain_core.utils.function_calling import convert_to_openai_function
 
 from .base import FeedbackNode
-from ..core.state import ExamState, GapQuestions, GapQuestionsHITL
+from ..core.state import GeneralState, Questions, QuestionsHITL
 from ..utils.utils import Config
 from ..services.hitl_manager import get_hitl_manager
 
@@ -40,7 +40,7 @@ class QuestionGenerationNode(FeedbackNode):
         # который уже содержит правильный маппинг
         return {}
 
-    def is_initial(self, state: ExamState) -> bool:
+    def is_initial(self, state: GeneralState) -> bool:
         """Проверяет, нужно ли делать первую генерацию"""
         return not state.feedback_messages
 
@@ -49,7 +49,7 @@ class QuestionGenerationNode(FeedbackNode):
         return "gen_question"
 
     def get_prompt_kwargs(
-        self, state: ExamState, user_feedback: str = None, config=None
+        self, state: GeneralState, user_feedback: str = None, config=None
     ) -> Dict[str, Any]:
         """Возвращает параметры для промпта в зависимости от варианта"""
         # Используем synthesized_material если есть, иначе generated_material как fallback
@@ -59,44 +59,44 @@ class QuestionGenerationNode(FeedbackNode):
             # Первичная генерация (initial variant) # TODO: почему Code in unreachable?
             self._current_stage = "initial"
             return {
-                "input_content": state.exam_question,
+                "input_content": state.input_content,
                 "study_material": study_material,
-                "json_schema": convert_to_openai_function(GapQuestions),
+                "json_schema": convert_to_openai_function(Questions),
             }
         else:
             # Уточнение на основе feedback (further variant)
             self._current_stage = "refine"
             return {
-                "input_content": state.exam_question,
+                "input_content": state.input_content,
                 "study_material": study_material,
-                "current_questions": state.gap_questions,
-                "json_schema": convert_to_openai_function(GapQuestionsHITL),
+                "current_questions": state.questions,
+                "json_schema": convert_to_openai_function(QuestionsHITL),
             }
 
     def get_model(self):
         """Возвращает модель для генерации с structured output"""
         # Используем staged logic из get_prompt_kwargs
         if hasattr(self, "_current_stage") and self._current_stage == "refine":
-            return self.model.with_structured_output(GapQuestionsHITL)
-        return self.model.with_structured_output(GapQuestions)
+            return self.model.with_structured_output(QuestionsHITL)
+        return self.model.with_structured_output(Questions)
 
     def format_initial_response(self, response) -> str:
         """Форматирует ответ для отображения пользователю"""
-        questions = response.gap_questions
+        questions = response.questions
         # Форматируем вопросы как нумерованный список
         return "\n".join([f"{i + 1}. {q}" for i, q in enumerate(questions)])
 
-    def is_approved(self, response: GapQuestionsHITL) -> bool:
+    def is_approved(self, response: QuestionsHITL) -> bool:
         """Проверяет, готовы ли вопросы к финализации"""
         return response.next_step == "finalize"
 
-    def get_next_node(self, state: ExamState, approved: bool = False) -> str:
+    def get_next_node(self, state: GeneralState, approved: bool = False) -> str:
         """Определяет следующий узел"""
         if approved:
             # Возвращаем список параллельных задач
             return [
                 Send("answer_question", {"question": question})
-                for question in state.gap_questions
+                for question in state.questions
             ]
         return "generating_questions"
 
@@ -104,10 +104,10 @@ class QuestionGenerationNode(FeedbackNode):
         """Возвращает промпт для пользователя"""
         return "Оцените предложенные вопросы. Вы можете запросить изменения или подтвердить, что вопросы готовы к использованию."
 
-    def get_update_on_approve(self, state: ExamState, response) -> Dict[str, Any]:
+    def get_update_on_approve(self, state: GeneralState, response) -> Dict[str, Any]:
         """Обновление состояния при одобрении"""
         return {
-            "gap_questions": response.gap_questions,
+            "questions": response.questions,
             "feedback_messages": [],  # Очищаем историю feedback
         }
 
@@ -116,23 +116,23 @@ class QuestionGenerationNode(FeedbackNode):
         return "generating_questions"
 
     def get_initial_update(self, response) -> Dict[str, Any]:
-        """Переопределяем для сохранения gap_questions в состоянии"""
+        """Переопределяем для сохранения questions в состоянии"""
         formatted = self.format_initial_response(response)
         return {
-            "gap_questions": response.gap_questions,
+            "questions": response.questions,
             "feedback_messages": [AIMessage(content=formatted)],
         }
 
     def get_continue_update(
         self, state, user_feedback: str, response
     ) -> Dict[str, Any]:
-        """Переопределяем для обновления gap_questions"""
+        """Переопределяем для обновления questions"""
         self.logger.debug(f"User feedback: {user_feedback}")
         self.logger.debug(f"Response: {response}")
         formatted = self.format_initial_response(response)
         self.logger.debug(f"Formatted: {formatted}")
         return {
-            "gap_questions": response.gap_questions,
+            "questions": response.questions,
             "feedback_messages": state.feedback_messages
             + [
                 HumanMessage(content=user_feedback),
@@ -157,17 +157,17 @@ class QuestionGenerationNode(FeedbackNode):
             )
 
             prompt = self.render_prompt(state, config=config)
-            model = self.model.with_structured_output(GapQuestions)
+            model = self.model.with_structured_output(Questions)
             response = await model.ainvoke([SystemMessage(content=prompt)])
 
             # Move directly to answer generation
             return Command(
                 goto=[
                     Send("answer_question", {"question": question})
-                    for question in response.gap_questions
+                    for question in response.questions
                 ],
                 update={
-                    "gap_questions": response.gap_questions,
+                    "questions": response.questions,
                     "feedback_messages": [],
                     "agent_message": "Вопросы сгенерированы автоматически (автономный режим)",
                 },

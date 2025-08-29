@@ -353,13 +353,13 @@ async def get_recent_sessions(
                 summary = SessionSummary(
                     thread_id=thread.thread_id,
                     session_id=session.session_id,
-                    exam_question=session.exam_question,
-                    question_preview=session.exam_question[:30] + "..." 
-                        if len(session.exam_question) > 30 else session.exam_question,
-                    display_name=f"{session.exam_question[:30]}... - {session.created.strftime('%d.%m.%Y')}",
+                    input_content=session.input_content,
+                    question_preview=session.input_content[:30] + "..." 
+                        if len(session.input_content) > 30 else session.input_content,
+                    display_name=f"{session.input_content[:30]}... - {session.created.strftime('%d.%m.%Y')}",
                     created_at=session.created,
                     has_synthesized=False,  # Check if synthesized_material.md exists
-                    has_questions=False,     # Check if gap_questions.md exists
+                    has_questions=False,     # Check if questions.md exists
                     answers_count=0          # Count answer files
                 )
                 sessions_list.append(summary)

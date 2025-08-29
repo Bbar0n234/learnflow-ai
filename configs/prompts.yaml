@@ -270,7 +270,7 @@ gen_question_further_system_prompt: |
       - If user expresses satisfaction (e.g., "всё хорошо", "отлично", "good", 
         "perfect", "looks great"), set next_step to "finalize"
       - If user requests corrections or improvements, set next_step to "clarify"
-      - Provide improved questions in the gap_questions field when refining
+      - Provide improved questions in the questions field when refining
     </approval_detection>
 
     <question_parameters>

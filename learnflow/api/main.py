@@ -1,5 +1,5 @@
 """
-FastAPI сервис для обработки экзаменационных материалов.
+FastAPI сервис для обработки учебных материалов.
 REST API эндпойнты для взаимодействия с LangGraph workflow.
 """
 
@@ -144,7 +144,7 @@ async def lifespan(app: FastAPI):
 # Создание FastAPI приложения
 app = FastAPI(
     title="LearnFlow AI",
-    description="Система подготовки экзаменационных материалов на базе LangGraph с поддержкой изображений",
+    description="Система подготовки учебных материалов на базе LangGraph с поддержкой изображений",
     version="1.1.0",
     lifespan=lifespan,
 )
@@ -245,7 +245,7 @@ async def upload_images(thread_id: str, files: List[UploadFile] = File(...)):
 @app.post("/process", response_model=ProcessResponse)
 async def process_request(request: ProcessRequest):
     """
-    Универсальный эндпойнт для обработки экзаменационного материала.
+    Универсальный эндпойнт для обработки учебного материала.
     Поддерживает все сценарии: с изображениями, текстовыми конспектами и без них.
 
     Args:

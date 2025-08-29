@@ -21,7 +21,7 @@ Pre-OSS Release
 
 ### Completed Implementation: Enhanced Guardrails Integration
 - ✅ **SecurityGuard класс** с универсальным методом `validate_and_clean()`
-- ✅ **Покрытие всех входов**: exam_question, OCR content, HITL feedback, edit requests  
+- ✅ **Покрытие всех входов**: input_content, OCR content, HITL feedback, edit requests  
 - ✅ **LLM-based detection** с structured output (Pydantic)
 - ✅ **Fuzzy string matching** для очистки injection контента
 - ✅ **Graceful degradation** - никогда не блокирует workflow
@@ -70,7 +70,7 @@ from learnflow.nodes.input_processing import InputProcessingNode
 
 # SecurityGuard автоматически инициализируется и валидирует:
 node = InputProcessingNode()
-# node.validate_input() вызывается автоматически для exam_question
+# node.validate_input() вызывается автоматически для input_content
 
 # Прямое использование SecurityGuard (если нужно)
 from learnflow.security import SecurityGuard

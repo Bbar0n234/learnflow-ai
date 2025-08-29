@@ -22,7 +22,7 @@ from recognition.utils import get_openai_client
 # ================== НАСТРОЙКИ ==================
 # Измените эти параметры под ваши нужды
 
-EXAM_QUESTION = "Слепая подпись Чаума и ее использование в протоколе «Электронное голосование» Протокол «Игра в покер по переписке»( Ментальный покер)"
+input_content = "Слепая подпись Чаума и ее использование в протоколе «Электронное голосование» Протокол «Игра в покер по переписке»( Ментальный покер)"
 
 IMAGES_FOLDER = "images/clipped"  # Папка с изображениями конспектов
 
@@ -44,7 +44,7 @@ def main():
     print()
 
     print("📝 Экзаменационный вопрос:")
-    print(f"   {EXAM_QUESTION}")
+    print(f"   {input_content}")
     print()
 
     print(f"📁 Папка с изображениями: {IMAGES_FOLDER}")
@@ -98,7 +98,7 @@ def main():
             print("📚 ЭТАП 2: ГЕНЕРАЦИЯ ДОПОЛНИТЕЛЬНОГО МАТЕРИАЛА")
             print("=" * 40)
             additional_material = generate_additional_material(
-                EXAM_QUESTION, client, prompts_config
+                input_content, client, prompts_config
             )
         else:
             print("\n⏭️  Пропускаю этап генерации дополнительного материала")
@@ -110,7 +110,7 @@ def main():
             print("🔄 ЭТАП 3: СИНТЕЗИРОВАНИЕ МАТЕРИАЛА")
             print("=" * 40)
             synthesized_material = synthesize_material(
-                EXAM_QUESTION,
+                input_content,
                 lecture_notes,
                 additional_material,
                 client,
@@ -129,7 +129,7 @@ def main():
         os.makedirs(os.path.dirname(OUTPUT_DIR), exist_ok=True)
 
         save_results(
-            EXAM_QUESTION,
+            input_content,
             lecture_notes,
             additional_material,
             synthesized_material,

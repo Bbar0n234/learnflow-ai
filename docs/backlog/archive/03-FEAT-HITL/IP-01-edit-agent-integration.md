@@ -21,7 +21,7 @@ Minimal integration of an edit agent into LearnFlow AI workflow for MVP. The age
 **Base Class**: Extends `BaseWorkflowNode` (using existing HITL pattern from recognition/questions nodes)
 
 **Core Components**:
-- Reuses `synthesized_material` from ExamState as document to edit
+- Reuses `synthesized_material` from GeneralState as document to edit
 - Fuzzy text matching using `fuzzysearch` library (direct port from Jupyter notebook)
 - Action-based workflow (edit, message, complete)
 - Auto-save to LocalArtifactsManager after each edit
@@ -30,10 +30,10 @@ Minimal integration of an edit agent into LearnFlow AI workflow for MVP. The age
 
 **Modified State**: `learnflow/core/state.py`
 
-Add only these fields to existing `ExamState`:
+Add only these fields to existing `GeneralState`:
 
 ```python
-# Minimal additions to ExamState
+# Minimal additions to GeneralState
 edit_count: int = Field(default=0, description="Total number of edits performed")
 needs_user_input: bool = Field(default=True, description="Flag for HITL interaction")
 agent_message: Optional[str] = Field(default=None, description="Message from edit agent to user")
@@ -119,7 +119,7 @@ learnflow/
 ```
 learnflow/
 ├── core/
-│   ├── state.py                 # Add 4 fields to ExamState
+│   ├── state.py                 # Add 4 fields to GeneralState
 │   └── graph.py                 # Add edit_material node to workflow
 └── nodes/
     └── __init__.py              # Export EditMaterialNode
@@ -533,7 +533,7 @@ System: Document saved to artifacts. Editing session completed.
    - Copy `fuzzy_find_and_replace()` function from Jupyter
    - Add basic tests
 
-3. **Extend ExamState**
+3. **Extend GeneralState**
    - Add 4 fields to `learnflow/core/state.py`:
      - `edit_count: int = 0`
      - `needs_user_input: bool = True`
@@ -561,7 +561,7 @@ System: Document saved to artifacts. Editing session completed.
            """Возвращает имя узла для поиска конфигурации"""
            return "edit_material"
        
-       async def process(self, state: ExamState) -> Command:
+       async def process(self, state: GeneralState) -> Command:
            """Process edit request with HITL pattern"""
            
            # Работа с synthesized_material из state
@@ -696,9 +696,9 @@ return Command(
 )
 ```
 
-### Работа с ExamState
+### Работа с GeneralState
 
-**Важно**: Агент работает напрямую с полем `synthesized_material` в ExamState, не создавая отдельное поле `document`:
+**Важно**: Агент работает напрямую с полем `synthesized_material` в GeneralState, не создавая отдельное поле `document`:
 
 ```python
 # Правильно - используем существующее поле
@@ -756,11 +756,11 @@ async def push_edited_material(self, thread_id: str, synthesized_material: str) 
             # Если сессия ещё не создана, создаём через push_learning_material
             # (это случай, если edit_material вызывается до других пушей)
             state_vals = await self.get_state(thread_id)
-            exam_question = state_vals.get("exam_question", "")
+            input_content = state_vals.get("input_content", "")
             
             result = await self.artifacts_manager.push_learning_material(
                 thread_id=thread_id,
-                exam_question=exam_question,
+                input_content=input_content,
                 generated_material=state_vals.get("generated_material", "")
             )
             folder_path = result.get("folder_path")
@@ -838,7 +838,7 @@ async for event in graph.astream(
 ```python
 # learnflow/nodes/edit_material.py
 
-async def __call__(self, state: ExamState, config) -> Command:
+async def __call__(self, state: GeneralState, config) -> Command:
     """Главная функция узла - только логика редактирования"""
     
     # ... логика редактирования ...

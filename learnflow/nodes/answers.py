@@ -84,7 +84,7 @@ class AnswerGenerationNode(BaseWorkflowNode):
             return Command(
                 goto="__end__",
                 update={
-                    "gap_q_n_a": [formatted_qna],
+                    "questions_and_answers": [formatted_qna],
                 },
             )
 
@@ -97,6 +97,6 @@ class AnswerGenerationNode(BaseWorkflowNode):
             return Command(
                 goto="__end__",
                 update={
-                    "gap_q_n_a": [error_qna],
+                    "questions_and_answers": [error_qna],
                 },
             )

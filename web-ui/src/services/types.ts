@@ -11,7 +11,7 @@ export interface Session {
   files_count: number;
   created: string;
   modified: string;
-  exam_question?: string;
+  input_content?: string;
   display_name?: string | null;
   status?: string;
 }

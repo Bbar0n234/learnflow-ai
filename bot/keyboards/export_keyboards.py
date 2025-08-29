@@ -72,7 +72,7 @@ def get_document_selection_keyboard() -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton(
                 text="❓ Вопросы для закрепления",
-                callback_data="doc:gap_questions"
+                callback_data="doc:questions"
             )
         ],
         [

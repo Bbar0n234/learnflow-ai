@@ -42,25 +42,6 @@ def pretty_print_pydantic(pydantic_model) -> str:
     return json.dumps(pydantic_model.model_json_schema(), indent=4)
 
 
-def save_general_state_to_markdown(state: Dict[str, Any]) -> str:
-    """Сохраняет состояние в формате Markdown"""
-    md = []
-    md.append(f"# Экзаменационный вопрос\n\n{state['exam_question']}\n")
-
-    if state["generated_material"]:
-        md.append("## Общий материал\n")
-        md.append(state["generated_material"])
-        md.append("")
-
-    if state["gap_q_n_a"]:
-        md.append("## Дополнительные вопросы и ответы")
-        for i, qna in enumerate(state["gap_q_n_a"], 1):
-            md.append(f"{i}. {qna}")
-        md.append("")
-
-    return "\n".join(md)
-
-
 def render_system_prompt(
     template_type: str, template_variant: str = "initial", **kwargs: Any
 ) -> str:

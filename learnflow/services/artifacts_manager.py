@@ -87,7 +87,7 @@ class LocalArtifactsManager:
         return f"session-{timestamp}"
 
     def _create_thread_metadata(
-        self, thread_id: str, exam_question: str
+        self, thread_id: str, input_content: str
     ) -> Dict[str, Any]:
         """Создание thread-level metadata.json"""
         now = datetime.now().isoformat()
@@ -96,7 +96,7 @@ class LocalArtifactsManager:
             "created": now,
             "last_activity": now,
             "sessions_count": 1,
-            "exam_question": exam_question,
+            "input_content": input_content,
             "user_info": None,
         }
 
@@ -104,7 +104,7 @@ class LocalArtifactsManager:
         self,
         session_id: str,
         thread_id: str,
-        exam_question: str,
+        input_content: str,
         display_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Создание session-level metadata.json"""
@@ -112,7 +112,7 @@ class LocalArtifactsManager:
         return {
             "session_id": session_id,
             "thread_id": thread_id,
-            "exam_question": exam_question,
+            "input_content": input_content,
             "display_name": display_name,
             "created": now,
             "modified": now,
@@ -171,7 +171,7 @@ class LocalArtifactsManager:
 
     def _create_learning_material_content(
         self,
-        exam_question: str,
+        input_content: str,
         generated_material: str,
         thread_id: str = "",
         session_id: str = "",
@@ -186,7 +186,7 @@ class LocalArtifactsManager:
 
 ## Исходный экзаменационный вопрос
 
-{exam_question}
+{input_content}
 
 ## Сгенерированный материал
 
@@ -196,7 +196,7 @@ class LocalArtifactsManager:
         return content
 
     def _create_questions_content(
-        self, gap_questions: list, gap_q_n_a: list, thread_id: str = ""
+        self, questions: list, questions_and_answers: list, thread_id: str = ""
     ) -> str:
         """Создает содержимое markdown файла с вопросами и ответами."""
 
@@ -206,12 +206,12 @@ class LocalArtifactsManager:
 
 """
 
-        for i, question in enumerate(gap_questions, 1):
+        for i, question in enumerate(questions, 1):
             content += f"{i}. {question}\n"
 
         content += "\n## Вопросы и ответы\n\n"
 
-        for i, qa in enumerate(gap_q_n_a, 1):
+        for i, qa in enumerate(questions_and_answers, 1):
             content += f"### {i}. Q&A\n\n{qa}\n\n---\n\n"
 
         return content
@@ -219,7 +219,7 @@ class LocalArtifactsManager:
     async def push_learning_material(
         self,
         thread_id: str,
-        exam_question: str,
+        input_content: str,
         generated_material: str,
         display_name: Optional[str] = None,
     ) -> Dict[str, Any]:
@@ -228,7 +228,7 @@ class LocalArtifactsManager:
 
         Args:
             thread_id: Идентификатор потока
-            exam_question: Исходный экзаменационный вопрос
+            input_content: Исходный экзаменационный вопрос
             generated_material: Сгенерированный обучающий материал
 
         Returns:
@@ -246,7 +246,7 @@ class LocalArtifactsManager:
             self._ensure_directory_exists(session_path)
 
             # Create thread metadata
-            thread_metadata = self._create_thread_metadata(thread_id, exam_question)
+            thread_metadata = self._create_thread_metadata(thread_id, input_content)
             thread_metadata_file = thread_path / "metadata.json"
             self._atomic_write_file(
                 thread_metadata_file,
@@ -255,7 +255,7 @@ class LocalArtifactsManager:
 
             # Create session metadata
             session_metadata = self._create_session_metadata(
-                session_id, thread_id, exam_question, display_name
+                session_id, thread_id, input_content, display_name
             )
             session_metadata_file = session_path / "session_metadata.json"
             self._atomic_write_file(
@@ -413,17 +413,17 @@ class LocalArtifactsManager:
     async def push_questions_and_answers(
         self,
         folder_path: str,
-        gap_questions: list,
-        gap_q_n_a: list,
+        questions: list,
+        questions_and_answers: list,
         thread_id: str,
     ) -> Dict[str, Any]:
         """
-        Сохраняет gap_questions.md и отдельные answer файлы
+        Сохраняет questions.md и отдельные answer файлы
 
         Args:
             folder_path: Путь к session
-            gap_questions: Список gap questions
-            gap_q_n_a: Список Q&A пар
+            questions: Список gap questions
+            questions_and_answers: Список Q&A пар
             thread_id: Для логирования
 
         Returns:
@@ -440,20 +440,20 @@ class LocalArtifactsManager:
 
             # Create gap questions content
             markdown_content = self._create_questions_content(
-                gap_questions=gap_questions, gap_q_n_a=gap_q_n_a, thread_id=thread_id
+                questions=questions, questions_and_answers=questions_and_answers, thread_id=thread_id
             )
 
             # Write main questions file
-            questions_file = session_path / "gap_questions.md"
+            questions_file = session_path / "questions.md"
             self._atomic_write_file(questions_file, markdown_content)
-            created_files.append("gap_questions.md")
+            created_files.append("questions.md")
 
             # Create answers directory if there are individual answers
-            if gap_q_n_a:
+            if questions_and_answers:
                 answers_dir = session_path / "answers"
                 self._ensure_directory_exists(answers_dir)
 
-                for i, qa in enumerate(gap_q_n_a, 1):
+                for i, qa in enumerate(questions_and_answers, 1):
                     answer_file = answers_dir / f"answer_{i:03d}.md"
                     answer_content = f"""# Ответ {i}
 
@@ -499,14 +499,14 @@ class LocalArtifactsManager:
             return {"success": False, "error": str(e)}
 
     async def push_complete_materials(
-        self, thread_id: str, exam_question: str, all_materials: Dict[str, Any]
+        self, thread_id: str, input_content: str, all_materials: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Комплексное сохранение всех материалов
 
         Args:
             thread_id: Идентификатор потока
-            exam_question: Экзаменационный вопрос
+            input_content: Экзаменационный вопрос
             all_materials: Словарь со всеми материалами
 
         Returns:
@@ -518,7 +518,7 @@ class LocalArtifactsManager:
             # 1. Создаем базовую папку и сохраняем основной материал
             learning_result = await self.push_learning_material(
                 thread_id=thread_id,
-                exam_question=exam_question,
+                input_content=input_content,
                 generated_material=all_materials.get("generated_material", ""),
             )
 
@@ -549,13 +549,13 @@ class LocalArtifactsManager:
                 results["synthesized_material"] = synthesis_result
 
             # 4. Сохраняем вопросы и ответы если есть
-            gap_questions = all_materials.get("gap_questions", [])
-            gap_q_n_a = all_materials.get("gap_q_n_a", [])
-            if gap_questions or gap_q_n_a:
+            questions = all_materials.get("questions", [])
+            questions_and_answers = all_materials.get("questions_and_answers", [])
+            if questions or questions_and_answers:
                 questions_result = await self.push_questions_and_answers(
                     folder_path=folder_path,
-                    gap_questions=gap_questions,
-                    gap_q_n_a=gap_q_n_a,
+                    questions=questions,
+                    questions_and_answers=questions_and_answers,
                     thread_id=thread_id,
                 )
                 results["questions_and_answers"] = questions_result

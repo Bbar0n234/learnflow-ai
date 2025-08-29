@@ -65,7 +65,7 @@ learnflow/
 
 **BaseWorkflowNode (расширение):**
 - `async get_system_prompt(state, config)` - метод получения промпта из сервиса
-  - Параметры: state (ExamState), config (RunnableConfig)
+  - Параметры: state (GeneralState), config (RunnableConfig)
   - Возвращает: str с системным промптом
   - Извлекает user_id из thread_id
   - Формирует context из состояния workflow

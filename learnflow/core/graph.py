@@ -6,7 +6,7 @@
 import logging
 from langgraph.graph import StateGraph
 
-from .state import ExamState
+from .state import GeneralState
 from ..nodes import (
     InputProcessingNode,
     ContentGenerationNode,
@@ -41,7 +41,7 @@ def create_workflow() -> StateGraph:
     logger.info("Creating enhanced exam workflow with image recognition...")
 
     # Создаем граф с типизированным состоянием
-    workflow = StateGraph(ExamState)
+    workflow = StateGraph(GeneralState)
 
     # Инициализируем все узлы
     input_processing_node = InputProcessingNode()

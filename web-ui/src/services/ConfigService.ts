@@ -74,25 +74,25 @@ export class ConfigService {
   
   /**
    * Get display name for session
-   * @param session - Session object with display_name and exam_question
-   * @returns Display name or fallback to exam_question
+   * @param session - Session object with display_name and input_content
+   * @returns Display name or fallback to input_content
    */
-  static getSessionDisplayName(session: { display_name?: string | null; exam_question?: string }): string {
+  static getSessionDisplayName(session: { display_name?: string | null; input_content?: string }): string {
     if (session.display_name) {
       return session.display_name;
     }
     
-    if (!session.exam_question) {
+    if (!session.input_content) {
       return 'Unnamed Session';
     }
     
-    // Fallback: use first 50 characters of exam_question
+    // Fallback: use first 50 characters of input_content
     const maxLength = 50;
-    if (session.exam_question.length <= maxLength) {
-      return session.exam_question;
+    if (session.input_content.length <= maxLength) {
+      return session.input_content;
     }
     
-    return session.exam_question.substring(0, maxLength) + '...';
+    return session.input_content.substring(0, maxLength) + '...';
   }
   
   /**

@@ -11,7 +11,7 @@
 class SessionMetadata(BaseModel):
     session_id: str
     thread_id: str 
-    exam_question: str
+    input_content: str
     display_name: Optional[str] = None  # НОВОЕ ПОЛЕ - краткое название 3-5 слов
     created: datetime
     modified: datetime
@@ -21,12 +21,12 @@ class SessionMetadata(BaseModel):
 ### 1.2 Генерация display_name в InputProcessingNode
 **Файл:** `learnflow/nodes/input_processing.py`
 
-После валидации exam_question через guardrails:
+После валидации input_content через guardrails:
 ```python
 # Генерируем краткое название для папки
 display_name_prompt = f"""
 Создай краткое название (3-5 слов) для следующего экзаменационного вопроса:
-"{exam_question}"
+"{input_content}"
 
 Требования:
 - Максимум 5 слов
@@ -56,7 +56,7 @@ display_name = await self.llm.ainvoke(display_name_prompt)
     "synthesized_material.md": "Синтезированный материал", 
     "final_answer.md": "Финальный ответ",
     "recognized_text.md": "Распознанный текст",
-    "gap_questions.md": "Вопросы для проверки"
+    "questions.md": "Вопросы для проверки"
   },
   "folders": {
     "answers": "Ответы на вопросы"
@@ -146,7 +146,7 @@ interface AccordionSidebarProps {
 
 // Иерархия:
 // Thread (показываем thread_id как Telegram ID)
-//   └── Session (показываем display_name или exam_question)
+//   └── Session (показываем display_name или input_content)
 //       ├── File (показываем user-friendly название)
 //       └── Folder: answers/
 //           ├── answer_001.md → "Ответ на вопрос 1"
@@ -160,7 +160,7 @@ interface AccordionSidebarProps {
 - Использовать состояние для управления раскрытыми секциями
 - Сохранять состояние в localStorage
 - Sticky headers для каждого уровня
-- Обработка дубликатов exam_question через ConfigService.deduplicateNames()
+- Обработка дубликатов input_content через ConfigService.deduplicateNames()
 
 ### 3.2 Исправить проблемы с высотой sidebar
 **Файл:** `web-ui/src/styles/sidebar.css`
@@ -224,8 +224,8 @@ interface AccordionSidebarProps {
 5. Маппинг файлов работает с fallback
 
 ### 5.2 Edge cases
-- Пустой display_name → использовать exam_question
-- Дубликаты exam_question → автоматическая нумерация
+- Пустой display_name → использовать input_content
+- Дубликаты input_content → автоматическая нумерация
 - Очень длинные названия → обрезка с троеточием
 - Отсутствие сессий → показать placeholder
 
@@ -234,7 +234,7 @@ interface AccordionSidebarProps {
 ### Опция 1: Lazy migration
 При первом обращении к сессии без display_name:
 1. Проверить наличие display_name
-2. Если нет - сгенерировать из exam_question
+2. Если нет - сгенерировать из input_content
 3. Сохранить в metadata
 
 ### Опция 2: Background job
@@ -243,8 +243,8 @@ interface AccordionSidebarProps {
 # scripts/migrate_display_names.py
 for thread in get_all_threads():
     for session in thread.sessions:
-        if not session.display_name and session.exam_question:
-            session.display_name = generate_display_name(session.exam_question)
+        if not session.display_name and session.input_content:
+            session.display_name = generate_display_name(session.input_content)
             save_session_metadata(session)
 ```
 
@@ -288,7 +288,7 @@ def update_session_metadata(thread_id: str, session_id: str):
         metadata = {
             "session_id": session_id,
             "thread_id": thread_id,
-            "exam_question": "Тестовый экзаменационный вопрос",
+            "input_content": "Тестовый экзаменационный вопрос",
             "created": datetime.now().isoformat(),
             "modified": datetime.now().isoformat(),
             "status": "active"

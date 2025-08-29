@@ -30,7 +30,7 @@ class SessionInfo(BaseModel):
     """Information about a session."""
 
     session_id: str = Field(description="Unique session identifier")
-    exam_question: str = Field(description="Exam question text")
+    input_content: str = Field(description="Exam question text")
     display_name: Optional[str] = Field(
         default=None, description="Short display name (3-5 words) for the session"
     )
@@ -45,7 +45,7 @@ class SessionMetadata(BaseModel):
 
     session_id: str = Field(description="Unique session identifier")
     thread_id: str = Field(description="Thread identifier")
-    exam_question: str = Field(description="Exam question text")
+    input_content: str = Field(description="Exam question text")
     display_name: Optional[str] = Field(
         default=None, description="Short display name (3-5 words) for the session"
     )
@@ -55,7 +55,7 @@ class SessionMetadata(BaseModel):
         default="active", description="Session status (active, completed, failed)"
     )
     workflow_data: Optional[Dict[str, Any]] = Field(
-        default=None, description="Data from ExamState workflow"
+        default=None, description="Data from GeneralState workflow"
     )
 
 
@@ -169,7 +169,7 @@ class SessionSummary(BaseModel):
     
     thread_id: str = Field(description="Thread identifier")
     session_id: str = Field(description="Session identifier")
-    exam_question: str = Field(description="Original exam question")
+    input_content: str = Field(description="Original exam question")
     question_preview: str = Field(description="First 30 characters of question")
     display_name: str = Field(description="Formatted name for display")
     created_at: datetime = Field(description="Session creation time")

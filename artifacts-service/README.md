@@ -18,7 +18,7 @@ data/artifacts/
         generated_material.md
         recognized_notes.md
         synthesized_material.md
-        gap_questions.md
+        questions.md
         answers/
           question_1.md
           question_2.md

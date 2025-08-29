@@ -54,16 +54,16 @@ class BaseWorkflowNode(ABC):
         self.tracer = self._setup_tracer()
     
     @abstractmethod
-    async def validate_input_state(self, state: ExamState) -> bool:
+    async def validate_input_state(self, state: GeneralState) -> bool:
         """Validate state before processing"""
         pass
     
     @abstractmethod
-    async def process(self, state: ExamState) -> ExamState:
+    async def process(self, state: GeneralState) -> GeneralState:
         """Main processing logic"""
         pass
     
-    async def __call__(self, state: ExamState) -> ExamState:
+    async def __call__(self, state: GeneralState) -> GeneralState:
         """Orchestrate validation, processing, and error handling"""
         if not await self.validate_input_state(state):
             raise InvalidStateError()
@@ -86,13 +86,13 @@ Benefits:
 Using Pydantic models with LangGraph annotations:
 
 ```python
-class ExamState(BaseModel):
+class GeneralState(BaseModel):
     thread_id: str
-    exam_question: str
+    input_content: str
     generated_content: Annotated[str, accumulate]
     recognized_text: Annotated[List[str], accumulate]
     synthesized_material: str
-    gap_questions: Annotated[List[Question], accumulate]
+    questions: Annotated[List[Question], accumulate]
     answers: Annotated[List[Answer], accumulate]
     hitl_feedback: Optional[HITLFeedback]
 ```

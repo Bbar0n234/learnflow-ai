@@ -31,7 +31,7 @@ data/artifacts/{thread_id}/sessions/{session_id}/
 ├── generated_material.md       # Сгенерированный материал
 ├── recognized_notes.md         # Распознанные рукописные заметки
 ├── synthesized_material.md     # Синтезированный материал
-├── gap_questions.md            # Вопросы для gap-анализа
+├── questions.md            # Вопросы для gap-анализа
 └── answers/
     ├── answer_001.md
     ├── answer_002.md
@@ -54,7 +54,7 @@ data/artifacts/{thread_id}/sessions/{session_id}/
   - `generated_material.md` - первичная генерация
   - `recognized_notes.md` - распознанные заметки
   - `synthesized_material.md` - финальный материал
-  - `gap_questions.md` - вопросы для закрепления
+  - `questions.md` - вопросы для закрепления
   - `answers/answer_XXX.md` - отдельные ответы
 
 ##### 2.2.2 Экспорт пакета документов
@@ -62,7 +62,7 @@ data/artifacts/{thread_id}/sessions/{session_id}/
 - Два режима пакета:
   - **"Финальные документы"** (по умолчанию):
     - `synthesized_material.md`
-    - `gap_questions.md`
+    - `questions.md`
     - Все файлы из `answers/`
   - **"Все документы"**:
     - Включает также промежуточные: `generated_material.md`, `recognized_notes.md`
@@ -157,7 +157,7 @@ data/artifacts/{thread_id}/sessions/{session_id}/
 async def export_single_document(
     thread_id: str,
     session_id: str,
-    document_name: str,  # e.g., "synthesized_material", "gap_questions"
+    document_name: str,  # e.g., "synthesized_material", "questions"
     format: ExportFormat = Query(ExportFormat.MARKDOWN)
 ) -> FileResponse:
     """Экспорт одного документа"""
@@ -387,7 +387,7 @@ def get_sessions_keyboard(sessions: List[SessionSummary]) -> InlineKeyboardMarku
 ```
 session_[YYYYMMDD_HHMMSS]_export.zip
 ├── synthesized_material.md (или .pdf)
-├── gap_questions.md (или .pdf)
+├── questions.md (или .pdf)
 ├── answers/
 │   ├── answer_001.md (или .pdf)
 │   ├── answer_002.md (или .pdf)

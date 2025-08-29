@@ -9,7 +9,7 @@ from typing import Literal
 from langchain_core.messages import SystemMessage
 from langgraph.types import Command
 
-from ..core.state import ExamState
+from ..core.state import GeneralState
 from .base import BaseWorkflowNode
 
 
@@ -34,8 +34,8 @@ class SynthesisNode(BaseWorkflowNode):
         """Строит контекст для промпта из состояния workflow"""
         context = {}
         
-        if hasattr(state, 'exam_question'):
-            context['input_content'] = state.exam_question
+        if hasattr(state, 'input_content'):
+            context['input_content'] = state.input_content
         
         if hasattr(state, 'recognized_notes'):
             context['handwritten_notes'] = state.recognized_notes
@@ -46,7 +46,7 @@ class SynthesisNode(BaseWorkflowNode):
         return context
 
     async def __call__(
-        self, state: ExamState, config
+        self, state: GeneralState, config
     ) -> Command[Literal["edit_material"]]:
         """
         Синтезирует финальный материал из generated_material и recognized_notes.

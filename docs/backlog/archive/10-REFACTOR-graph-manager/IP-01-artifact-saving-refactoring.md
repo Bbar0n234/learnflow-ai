@@ -51,12 +51,12 @@ NODE_ARTIFACT_CONFIG = {
         "requires_session": True
     },
     "generating_questions": {
-        "condition": lambda node_data, state: bool(node_data.get("gap_questions")),
-        "handler": "_save_gap_questions",
+        "condition": lambda node_data, state: bool(node_data.get("questions")),
+        "handler": "_save_questions",
         "requires_session": True
     },
     "answer_question": {
-        "condition": lambda node_data, state: bool(node_data.get("gap_q_n_a")),
+        "condition": lambda node_data, state: bool(node_data.get("questions_and_answers")),
         "handler": "_save_answers",
         "requires_session": True
     }
@@ -142,7 +142,7 @@ async def _save_learning_material(self, thread_id: str,
     
     result = await self.artifacts_manager.push_learning_material(
         thread_id=thread_id,
-        exam_question=state_values.get("exam_question", ""),
+        input_content=state_values.get("input_content", ""),
         generated_material=node_data.get("generated_material", ""),
         display_name=state_values.get("display_name")
     )
@@ -203,7 +203,7 @@ async def _save_synthesized_material(self, thread_id: str,
         thread_id=thread_id
     )
 
-async def _save_gap_questions(self, thread_id: str, 
+async def _save_questions(self, thread_id: str, 
                              node_data: Dict, 
                              state_values: Dict) -> None:
     """Сохраняет gap questions"""
@@ -217,8 +217,8 @@ async def _save_gap_questions(self, thread_id: str,
     # Сохраняем только вопросы без ответов
     await self.artifacts_manager.push_questions_and_answers(
         folder_path=folder_path,
-        gap_questions=node_data.get("gap_questions", []),
-        gap_q_n_a=[],  # Пустой список, т.к. ответов еще нет
+        questions=node_data.get("questions", []),
+        questions_and_answers=[],  # Пустой список, т.к. ответов еще нет
         thread_id=thread_id
     )
 
@@ -236,8 +236,8 @@ async def _save_answers(self, thread_id: str,
     # Обновляем файл с вопросами и ответами
     await self.artifacts_manager.push_questions_and_answers(
         folder_path=folder_path,
-        gap_questions=state_values.get("gap_questions", []),
-        gap_q_n_a=state_values.get("gap_q_n_a", []),
+        questions=state_values.get("questions", []),
+        questions_and_answers=state_values.get("questions_and_answers", []),
         thread_id=thread_id
     )
 ```
@@ -245,7 +245,7 @@ async def _save_answers(self, thread_id: str,
 ## Взаимодействие компонентов
 
 ```
-process_step -> _prepare_workflow -> ExamState/Command
+process_step -> _prepare_workflow -> GeneralState/Command
                 |
                 v
             _run_workflow -> graph.astream -> events
@@ -268,7 +268,7 @@ process_step -> _prepare_workflow -> ExamState/Command
 ### Этап 1: Рефакторинг структуры (безопасная подготовка)
 1. Добавить `NODE_ARTIFACT_CONFIG` в начало класса `GraphManager`
 2. Создать новые методы-заглушки (`_prepare_workflow`, `_run_workflow`, `_handle_workflow_event`, `_process_node_artifacts`, `_finalize_workflow`) рядом с существующим кодом
-3. Создать специализированные методы сохранения (`_save_learning_material`, `_save_recognized_notes`, `_save_synthesized_material`, `_save_gap_questions`, `_save_answers`)
+3. Создать специализированные методы сохранения (`_save_learning_material`, `_save_recognized_notes`, `_save_synthesized_material`, `_save_questions`, `_save_answers`)
 4. Протестировать, что существующий код продолжает работать
 
 ### Этап 2: Миграция логики (поэтапный перенос)

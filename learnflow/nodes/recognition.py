@@ -9,7 +9,7 @@ from typing import List
 from langchain_core.messages import SystemMessage, AIMessage, HumanMessage
 from langgraph.types import Command, interrupt
 
-from ..core.state import ExamState
+from ..core.state import GeneralState
 from .base import BaseWorkflowNode
 
 
@@ -64,7 +64,7 @@ class RecognitionNode(BaseWorkflowNode):
             # Узел recognition не требует контекста из state для промпта
         }
 
-    async def __call__(self, state: ExamState, config) -> Command:
+    async def __call__(self, state: GeneralState, config) -> Command:
         """
         Основная логика узла распознавания.
 
@@ -157,7 +157,7 @@ class RecognitionNode(BaseWorkflowNode):
             update={"recognized_notes": cleaned_text}
         )
 
-    async def _process_images(self, image_paths: List[str], state: ExamState, config) -> str:
+    async def _process_images(self, image_paths: List[str], state: GeneralState, config) -> str:
         """
         Обрабатывает изображения с помощью GPT-4-vision.
 

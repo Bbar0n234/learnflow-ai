@@ -120,7 +120,7 @@ class ExportEngine(ABC):
         # Final documents (always included)
         final_docs = [
             "synthesized_material.md",
-            "gap_questions.md"
+            "questions.md"
         ]
         
         for doc in final_docs:

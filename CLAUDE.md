@@ -119,7 +119,7 @@ The system uses a multi-node workflow defined in `learnflow/graph.py`:
 6. **answer_question** - Generates detailed answers for gap questions
 
 #### State Management
-- **ExamState** (`learnflow/state.py`) - Typed state model for workflow data
+- **GeneralState** (`learnflow/state.py`) - Typed state model for workflow data
 - Supports image paths, recognized text, synthesized materials, and HITL feedback
 - Uses Pydantic for validation and LangGraph annotations for accumulation
 

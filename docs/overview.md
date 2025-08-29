@@ -140,17 +140,17 @@ REST API для обработки запросов и управления work
   - Запросы на редактирование (EditMaterialNode)
 
 ### 6. **Управление состоянием** (`learnflow/state.py`)
-Типизированная модель состояния **ExamState** включает:
+Типизированная модель состояния **GeneralState** включает:
 
 ```python
-class ExamState(BaseModel):
-    exam_question: str              # Исходный образовательный вопрос или задание
+class GeneralState(BaseModel):
+    input_content: str              # Исходный образовательный вопрос или задание
     image_paths: List[str]          # Пути к загруженным изображениям
     recognized_notes: str           # Распознанный текст из конспектов
     generated_material: str         # Сгенерированный материал
     synthesized_material: str       # Финальный синтезированный материал
-    gap_questions: List[str]        # Дополнительные вопросы
-    gap_q_n_a: List[str]           # Вопросы и ответы (аккумулирующее поле)
+    questions: List[str]        # Дополнительные вопросы
+    questions_and_answers: List[str]           # Вопросы и ответы (аккумулирующее поле)
     feedback_messages: List[Any]    # HITL сообщения
     # GitHub интеграция и экспорт
     github_folder_path: Optional[str]

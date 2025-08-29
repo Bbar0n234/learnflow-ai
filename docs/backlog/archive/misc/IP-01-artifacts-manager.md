@@ -24,7 +24,7 @@
    │           ├── generated_material.md    # push_learning_material()
    │           ├── recognized_notes.md      # push_recognized_notes()
    │           ├── synthesized_material.md  # push_synthesized_material()
-   │           ├── gap_questions.md         # push_questions_and_answers()
+   │           ├── questions.md         # push_questions_and_answers()
    │           └── answers/                 # Individual answer files
    │               ├── answer_001.md
    │               └── answer_002.md
@@ -58,11 +58,11 @@ class ArtifactsConfig(BaseModel):
 
 #### Основные методы (сохраняют совместимость с GitHub API)
 
-**push_learning_material(thread_id, exam_question, generated_material) -> Dict[str, Any]**
+**push_learning_material(thread_id, input_content, generated_material) -> Dict[str, Any]**
 - Назначение: Создает session и сохраняет generated_material.md
 - Параметры:
   - thread_id: str - идентификатор потока
-  - exam_question: str - исходный экзаменационный вопрос  
+  - input_content: str - исходный экзаменационный вопрос  
   - generated_material: str - сгенерированный материал
 - Возвращает: 
   ```python
@@ -90,29 +90,29 @@ class ArtifactsConfig(BaseModel):
 - Параметры: аналогично recognized_notes
 - Возвращает: success/error status + file paths
 
-**push_questions_and_answers(folder_path, gap_questions, gap_q_n_a, thread_id) -> Dict[str, Any]**
-- Назначение: Сохраняет gap_questions.md и отдельные answer файлы
+**push_questions_and_answers(folder_path, questions, questions_and_answers, thread_id) -> Dict[str, Any]**
+- Назначение: Сохраняет questions.md и отдельные answer файлы
 - Параметры:
   - folder_path: str - путь к session
-  - gap_questions: List[str] - список gap questions
-  - gap_q_n_a: List[str] - список Q&A пар
+  - questions: List[str] - список gap questions
+  - questions_and_answers: List[str] - список Q&A пар
   - thread_id: str - для логирования
 - Возвращает: success/error status + файлы paths
 
-**push_complete_materials(thread_id, exam_question, all_materials) -> Dict[str, Any]**
+**push_complete_materials(thread_id, input_content, all_materials) -> Dict[str, Any]**
 - Назначение: Комплексное сохранение всех материалов
 - Параметры:
   - thread_id: str
-  - exam_question: str
+  - input_content: str
   - all_materials: Dict с ключами generated_material, recognized_notes, etc.
 - Возвращает: сводную информацию обо всех сохраненных файлах
 
 #### Вспомогательные методы
 
-**_create_thread_metadata(thread_id, exam_question) -> Dict[str, Any]**
+**_create_thread_metadata(thread_id, input_content) -> Dict[str, Any]**
 - Создание thread-level metadata.json
 
-**_create_session_metadata(session_id, thread_id, exam_question) -> Dict[str, Any]**  
+**_create_session_metadata(session_id, thread_id, input_content) -> Dict[str, Any]**  
 - Создание session-level metadata.json
 
 **_ensure_directory_exists(path) -> None**
@@ -121,15 +121,15 @@ class ArtifactsConfig(BaseModel):
 **_atomic_write_file(file_path, content) -> None**
 - Атомарная запись файла (temp file + rename)
 
-**_generate_session_id(thread_id, exam_question) -> str**
+**_generate_session_id(thread_id, input_content) -> str**
 - Генерация уникального session ID
 
 #### Content Creation Methods (из GitHub integration)
 
-**_create_learning_material_content(exam_question, generated_material, thread_id, session_id) -> str**
+**_create_learning_material_content(input_content, generated_material, thread_id, session_id) -> str**
 **_create_recognized_notes_content(recognized_notes, thread_id) -> str**  
 **_create_synthesized_material_content(synthesized_material, thread_id) -> str**
-**_create_questions_content(gap_questions, gap_q_n_a, thread_id) -> str**
+**_create_questions_content(questions, questions_and_answers, thread_id) -> str**
 
 ### Metadata Структуры
 
@@ -149,7 +149,7 @@ class ArtifactsConfig(BaseModel):
 {
     "session_id": str,
     "thread_id": str,
-    "exam_question": str,
+    "input_content": str,
     "created": str,
     "modified": str,
     "status": str,            # "active", "completed"
@@ -243,7 +243,7 @@ artifacts_max_file_size: int = 10 * 1024 * 1024  # 10MB
 
 ### State Model Changes
 ```python
-# Заменить в ExamState
+# Заменить в GeneralState
 local_session_path: Optional[str] = None
 local_thread_path: Optional[str] = None  
 session_id: Optional[str] = None
@@ -288,7 +288,7 @@ session_id: Optional[str] = None
 
 ### Phase 2: Direct Migration  
 1. **Полная замена** `GitHubArtifactPusher` на `LocalArtifactsManager` в `GraphManager`
-2. **Прямое удаление** GitHub-specific fields из `ExamState` model
+2. **Прямое удаление** GitHub-specific fields из `GeneralState` model
 3. **Немедленное обновление** всех вызовов к новому API
 4. Add integration tests
 

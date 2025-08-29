@@ -174,7 +174,7 @@ export const SessionsList: React.FC<SessionsListProps> = ({
         isOpen={exportDialogOpen}
         onClose={() => setExportDialogOpen(false)}
         onExport={handleExport}
-        availableDocuments={['synthesized_material', 'gap_questions', 'generated_material', 'recognized_notes']}
+        availableDocuments={['synthesized_material', 'questions', 'generated_material', 'recognized_notes']}
       />
     </div>
   );

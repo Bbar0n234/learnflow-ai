@@ -17,7 +17,7 @@ Successfully integrated an edit agent into LearnFlow AI workflow, enabling itera
 - **Auto-save Mechanism**: Automatic artifact storage after each successful edit
 
 ### ✅ Architecture Integration
-- **Minimal State Extensions**: Added only 4 fields to existing `ExamState`
+- **Minimal State Extensions**: Added only 4 fields to existing `GeneralState`
 - **Workflow Integration**: Clean integration between `synthesis_material → edit_material → generating_questions`
 - **Existing Patterns Reuse**: Leveraged established HITL patterns from recognition/questions nodes
 - **Configuration Management**: System prompts managed via existing `configs/prompts.yaml`
@@ -35,7 +35,7 @@ Successfully integrated an edit agent into LearnFlow AI workflow, enabling itera
 - `learnflow/utils/fuzzy_matcher.py` - Fuzzy text matching utilities
 
 ### Files Modified
-- `learnflow/core/state.py` - Extended ExamState with edit-specific fields
+- `learnflow/core/state.py` - Extended GeneralState with edit-specific fields
 - `learnflow/core/graph.py` - Added edit node to workflow
 - `learnflow/nodes/__init__.py` - Exported EditMaterialNode
 - `configs/prompts.yaml` - Added edit agent system prompt
@@ -47,7 +47,7 @@ Successfully integrated an edit agent into LearnFlow AI workflow, enabling itera
 
 ### State Management
 ```python
-# Added to ExamState
+# Added to GeneralState
 edit_count: int = 0
 needs_user_input: bool = True  
 agent_message: Optional[str] = None

@@ -67,7 +67,7 @@ OSS Launch
 - `question_formats` - форматы вопросов
 
 **Контентные данные (передаются из LearnFlow в runtime):**
-- `exam_question` - вопрос экзамена
+- `input_content` - входной контент
 - `study_material` - учебный материал
 - `lecture_notes` - конспекты лекций
 - `recognized_notes` - распознанные заметки
@@ -249,7 +249,7 @@ POST /generate-prompt
   "user_id": 123456,
   "node_name": "generating_content",
   "context": {
-    "exam_question": "Объясните процесс фотосинтеза"
+    "input_content": "Объясните процесс фотосинтеза"
   }
 }
 
@@ -398,7 +398,7 @@ system_prompt = prompt_service.get_prompt(
         "subject_keywords": user_config.subject_keywords,
         "role_perspective": user_config.role_perspective,
         "subject_name": user_config.subject_name,
-        "input_content": state.exam_question,
+        "input_content": state.input_content,
         # ... другие плейсхолдеры
     }
 )
@@ -409,7 +409,7 @@ prompt_response = await prompt_config_service.post(
     json={
         "user_id": state.thread_id,  # thread_id = user_id
         "node_name": "generating_content",
-        "context": {"exam_question": state.exam_question}
+        "context": {"input_content": state.input_content}
     }
 )
 system_prompt = prompt_response["prompt"]

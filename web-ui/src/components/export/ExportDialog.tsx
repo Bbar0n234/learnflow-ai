@@ -37,7 +37,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
 
   const documentLabels: Record<string, string> = {
     'synthesized_material': 'Синтезированный материал',
-    'gap_questions': 'Вопросы для закрепления',
+    'questions': 'Вопросы для закрепления',
     'generated_material': 'Сгенерированный материал',
     'recognized_notes': 'Распознанные заметки'
   };

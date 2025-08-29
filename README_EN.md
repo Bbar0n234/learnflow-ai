@@ -9,8 +9,6 @@
 
 A universal, LangGraph-based educational content generation system for any subject area and education level. Transform educational questions and handwritten notes into comprehensive study materials with gap analysis questions and answers.
 
-![LearnFlow AI Demo](docs/assets/demo.gif)
-
 ## 🎯 Why LearnFlow AI?
 
 LearnFlow AI solves a universal educational problem: transforming scattered educational questions and handwritten notes into structured, comprehensive study materials - from mathematics and physics to literature and history, from elementary school to university level.
@@ -20,6 +18,7 @@ LearnFlow AI solves a universal educational problem: transforming scattered educ
 - **🔄 LangGraph Workflow Pipeline** - Multi-node processing with configurable HITL (Human-in-the-Loop) capabilities
 - **✏️ Interactive Material Editing** - Iterative refinement of synthesized content with fuzzy text matching
 - **🛡️ LLM Security** - Built-in Guardrails against prompt injection and jailbreak attacks
+- **🔐 Multi-tenancy Security** - API keys and JWT authentication for user data protection
 - **🤖 Universal LLM Support** - Works with any OpenAI-compatible API (including local models)
 - **📝 OCR & Handwriting Recognition** - Process both typed and handwritten materials
 - **🎨 Modern Web UI** - React-based interface with real-time updates
@@ -56,7 +55,7 @@ The project demonstrates modern approaches to building production-ready AI syste
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/bbaron/learnflow-ai.git
+git clone https://github.com/Bbar0n234/learnflow-ai.git
 cd learnflow-ai
 ```
 
@@ -95,10 +94,6 @@ MODEL_NAME=local-model
 ```
 
 ## 🏗️ Architecture
-
-<div align="center">
-  <img src="docs/assets/square_logo.png" alt="LearnFlow AI Logo" width="200" />
-</div>
 
 LearnFlow AI uses a modular, event-driven architecture built on LangGraph:
 

@@ -4,11 +4,14 @@ import logging
 from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
-from fastapi import FastAPI, HTTPException, status, Path as PathParam, Query
+from fastapi import FastAPI, HTTPException, status, Path as PathParam, Query, Depends
 from fastapi.responses import PlainTextResponse, JSONResponse, FileResponse, Response
 from contextlib import asynccontextmanager
+from pydantic import BaseModel
 
 from .storage import ArtifactsStorage
+from .auth import auth_service, require_auth, verify_resource_owner
+from .auth_models_api import AuthCodeRequest, AuthTokenResponse
 from .models import (
     HealthResponse,
     ThreadsListResponse,
@@ -54,8 +57,11 @@ async def lifespan(app: FastAPI):
     # Startup
     # Ensure data directory exists
     storage.base_path.mkdir(parents=True, exist_ok=True)
+    # Connect auth service
+    await auth_service.connect()
     yield
     # Shutdown - cleanup if needed
+    await auth_service.disconnect()
 
 
 # FastAPI application
@@ -91,7 +97,34 @@ async def health_check():
         )
 
 
-@app.get("/threads", response_model=ThreadsListResponse)
+@app.post("/auth/verify", response_model=AuthTokenResponse)
+async def verify_auth_code(request: AuthCodeRequest):
+    """Verify auth code and return JWT token."""
+    if not auth_service.pool:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service not available"
+        )
+    
+    user_id = await auth_service.verify_auth_code(request.username, request.code)
+    
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired auth code"
+        )
+    
+    # Create JWT token
+    token = auth_service.create_jwt_token(user_id, request.username)
+    
+    return AuthTokenResponse(
+        access_token=token,
+        token_type="bearer",
+        expires_in=settings.jwt_expiration_minutes * 60
+    )
+
+
+@app.get("/threads", response_model=ThreadsListResponse, dependencies=[Depends(require_auth)])
 async def get_threads():
     """Get list of all threads."""
     try:
@@ -105,7 +138,10 @@ async def get_threads():
 
 
 @app.get("/threads/{thread_id}", response_model=ThreadDetailResponse)
-async def get_thread(thread_id: str = PathParam(description="Thread identifier")):
+async def get_thread(
+    thread_id: str = PathParam(description="Thread identifier"),
+    user_id: str = Depends(verify_resource_owner)
+):
     """Get information about a specific thread."""
     try:
         thread_info = storage.get_thread_info(thread_id)
@@ -126,6 +162,7 @@ async def get_thread(thread_id: str = PathParam(description="Thread identifier")
 async def get_session_files(
     thread_id: str = PathParam(description="Thread identifier"),
     session_id: str = PathParam(description="Session identifier"),
+    user_id: str = Depends(verify_resource_owner)
 ):
     """Get list of files in a session."""
     try:
@@ -142,6 +179,7 @@ async def get_file(
     thread_id: str = PathParam(description="Thread identifier"),
     session_id: str = PathParam(description="Session identifier"),
     file_path: str = PathParam(description="File path relative to session"),
+    user_id: str = Depends(verify_resource_owner)
 ):
     """Get file content."""
     try:
@@ -166,6 +204,7 @@ async def create_or_update_file(
     thread_id: str = PathParam(description="Thread identifier"),
     session_id: str = PathParam(description="Session identifier"),
     file_path: str = PathParam(description="File path relative to session"),
+    user_id: str = Depends(verify_resource_owner)
 ):
     """Create or update a file in a session."""
     try:
@@ -203,6 +242,7 @@ async def delete_file(
     thread_id: str = PathParam(description="Thread identifier"),
     session_id: str = PathParam(description="Session identifier"),
     file_path: str = PathParam(description="File path relative to session"),
+    user_id: str = Depends(verify_resource_owner)
 ):
     """Delete a file from a session."""
     try:
@@ -218,6 +258,7 @@ async def delete_file(
 async def delete_session(
     thread_id: str = PathParam(description="Thread identifier"),
     session_id: str = PathParam(description="Session identifier"),
+    user_id: str = Depends(verify_resource_owner)
 ):
     """Delete an entire session with all files."""
     try:
@@ -228,7 +269,10 @@ async def delete_session(
 
 
 @app.delete("/threads/{thread_id}", response_model=FileOperationResponse)
-async def delete_thread(thread_id: str = PathParam(description="Thread identifier")):
+async def delete_thread(
+    thread_id: str = PathParam(description="Thread identifier"),
+    user_id: str = Depends(verify_resource_owner)
+):
     """Delete an entire thread with all sessions."""
     try:
         storage.delete_thread(thread_id)
@@ -249,6 +293,7 @@ async def export_single_document(
     session_id: str = PathParam(description="Session identifier"),
     document_name: str = Query(description="Document name to export"),
     format: ExportFormat = Query(ExportFormat.MARKDOWN, description="Export format"),
+    user_id: str = Depends(verify_resource_owner)
 ):
     """Export a single document."""
     try:
@@ -300,6 +345,7 @@ async def export_package(
     session_id: str = PathParam(description="Session identifier"),
     package_type: PackageType = Query(PackageType.FINAL, description="Package type"),
     format: ExportFormat = Query(ExportFormat.MARKDOWN, description="Export format"),
+    user_id: str = Depends(verify_resource_owner)
 ):
     """Export a package of documents as ZIP archive."""
     try:
@@ -338,16 +384,28 @@ async def export_package(
 async def get_recent_sessions(
     user_id: str = PathParam(description="User identifier"),
     limit: int = Query(5, max=5, description="Maximum number of sessions"),
+    auth_user_id: str = Depends(require_auth)
 ):
     """Get list of recent sessions for export."""
+    # Verify user can only access their own sessions
+    if user_id != auth_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access to other users' sessions is forbidden"
+        )
+    
     try:
-        # Find user's threads
-        # In production, this would query a database for user-thread mapping
-        # For now, we'll return all recent sessions
-        all_threads = storage.get_threads()
+        # Get user's thread (thread_id equals user_id in our system)
+        threads_to_check = []
+        try:
+            thread_info = storage.get_thread_info(user_id)
+            threads_to_check = [thread_info]
+        except:
+            # User has no threads yet
+            return []
         
         sessions_list = []
-        for thread in all_threads[:limit]:  # Limit threads for performance
+        for thread in threads_to_check:
             for session in thread.sessions[:limit]:
                 # Create session summary
                 summary = SessionSummary(
@@ -366,9 +424,6 @@ async def get_recent_sessions(
                 
                 if len(sessions_list) >= limit:
                     break
-            
-            if len(sessions_list) >= limit:
-                break
         
         return sessions_list
     except Exception as e:
@@ -381,9 +436,17 @@ async def get_recent_sessions(
 
 @app.get("/users/{user_id}/export-settings", response_model=ExportSettings)
 async def get_export_settings(
-    user_id: str = PathParam(description="User identifier")
+    user_id: str = PathParam(description="User identifier"),
+    auth_user_id: str = Depends(require_auth)
 ):
     """Get user export settings."""
+    # Verify user can only access their own settings
+    if user_id != auth_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access to other users' settings is forbidden"
+        )
+    
     # Return existing settings or create default
     if user_id not in user_settings:
         user_settings[user_id] = ExportSettings(user_id=user_id)
@@ -395,8 +458,16 @@ async def get_export_settings(
 async def update_export_settings(
     user_id: str = PathParam(description="User identifier"),
     settings: ExportSettings = ...,
+    auth_user_id: str = Depends(require_auth)
 ):
     """Update user export settings."""
+    # Verify user can only update their own settings
+    if user_id != auth_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access to other users' settings is forbidden"
+        )
+    
     settings.user_id = user_id
     settings.modified = datetime.now()
     user_settings[user_id] = settings

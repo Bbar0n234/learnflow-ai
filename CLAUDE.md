@@ -9,10 +9,12 @@ LearnFlow AI is a universal LangGraph-based educational content generation syste
 - **FastAPI service** (`learnflow/`) - REST API for processing educational content
 - **Telegram bot** (`bot/`) - User interface for interacting with the system
 - **Web UI** (`web-ui/`) - React-based web interface with deep linking and routing support
+- **Artifacts Service** (`artifacts-service/`) - Secure file storage with multi-tenancy support
 - **LangGraph workflow** - Multi-node processing pipeline with HITL (Human-in-the-Loop) capabilities
 - **Image recognition module** - OCR and handwritten text recognition for student notes
 - **GitHub integration** - Automatic artifact storage and sharing
 - **Prompt Configuration Service** (`prompt-config-service/`) - Dynamic personalized prompt generation service
+- **Security Layer** - API key and JWT authentication for protecting user data
 
 ## Development Commands
 
@@ -69,6 +71,7 @@ uv run --package bot python -m bot.main
 - `/export_menu` - Export with custom parameters selection
 - `/sessions` or `/history` - Show last 5 sessions for export
 - `/export_settings` - Configure default export settings
+- `/web_auth` - Generate authentication code for Web UI access (valid for 5 minutes)
 
 #### Web UI Only
 ```bash
@@ -94,10 +97,15 @@ docker-compose up
 
 #### Artifacts Service Only
 ```bash
+# Apply database migrations first (if using local PostgreSQL)
+DATABASE_URL="postgresql://postgres:postgres@localhost:5433/learnflow" \
+  uv run --package artifacts-service alembic upgrade head
+
+# Run the service
 uv run --package artifacts-service python main.py
 # Service available at http://localhost:8001
 # API docs at http://localhost:8001/docs
-# Provides document storage and export functionality
+# Provides secure document storage with authentication
 ```
 
 #### Prompt Configuration Service Only

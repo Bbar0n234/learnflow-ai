@@ -50,6 +50,11 @@ class BotSettings(BaseSettings):
     api: APISettings = Field(default_factory=APISettings)
     prompt_service: PromptServiceSettings = Field(default_factory=PromptServiceSettings)
     log_level: str = Field(default="INFO", description="Logging level (DEBUG, INFO, WARNING, ERROR)")
+    
+    # Database and authentication settings
+    database_url: Optional[str] = Field(default=None, description="PostgreSQL database URL")
+    artifacts_service_url: str = Field(default="http://localhost:8001", description="Artifacts service URL")
+    bot_api_key: Optional[str] = Field(default=None, description="API key for bot authentication")
 
     class Config:
         env_file = ".env"

@@ -1,6 +1,7 @@
 """Settings configuration for Artifacts Service."""
 
 from pathlib import Path
+from typing import Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -42,6 +43,35 @@ class Settings(BaseSettings):
     
     # Logging
     log_level: str = Field(default="INFO", description="Logging level (DEBUG, INFO, WARNING, ERROR)")
+    
+    # Database settings
+    database_url: Optional[str] = Field(
+        default=None,
+        description="PostgreSQL database URL",
+        alias="DATABASE_URL"
+    )
+    
+    # Authentication settings
+    bot_api_key: Optional[str] = Field(
+        default=None,
+        description="API key for bot service authentication"
+    )
+    jwt_secret_key: Optional[str] = Field(
+        default=None,
+        description="Secret key for JWT token generation"
+    )
+    jwt_algorithm: str = Field(
+        default="HS256",
+        description="JWT encoding algorithm"
+    )
+    jwt_expiration_minutes: int = Field(
+        default=60 * 24,  # 24 hours
+        description="JWT token expiration time in minutes"
+    )
+    auth_code_expiration_minutes: int = Field(
+        default=5,
+        description="Auth code expiration time in minutes"
+    )
 
 
 # Global settings instance

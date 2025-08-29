@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { ChevronDown, ChevronRight, Folder, FolderOpen, File, User } from 'lucide-react';
 import type { Thread, Session, FileInfo } from '../services/types';
 import { ConfigService } from '../services/ConfigService';
 import { cn } from '../utils/cn';
+import { useUrlDrivenExpansion } from '../hooks/useUrlDrivenExpansion';
 
 interface AccordionSidebarProps {
   threads: Thread[];
@@ -13,12 +14,6 @@ interface AccordionSidebarProps {
   onSelect: (thread: string, session?: string, file?: string) => void;
 }
 
-interface ExpandedState {
-  threads: Set<string>;
-  sessions: Set<string>;
-  folders: Set<string>;
-}
-
 export const AccordionSidebar: React.FC<AccordionSidebarProps> = ({
   threads,
   sessionFiles,
@@ -27,92 +22,8 @@ export const AccordionSidebar: React.FC<AccordionSidebarProps> = ({
   selectedFile,
   onSelect,
 }) => {
-  const [expanded, setExpanded] = useState<ExpandedState>(() => {
-    // Try to load from localStorage
-    const saved = localStorage.getItem('accordion-expanded');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return {
-          threads: new Set(parsed.threads || []),
-          sessions: new Set<string>(), // Don't restore sessions - files need to be loaded first
-          folders: new Set(parsed.folders || []),
-        };
-      } catch (e) {
-        // Fallback to default
-      }
-    }
-    
-    return {
-      threads: new Set<string>(),
-      sessions: new Set<string>(),
-      folders: new Set<string>(),
-    };
-  });
-
-  // Save expanded state to localStorage
-  useEffect(() => {
-    const toSave = {
-      threads: Array.from(expanded.threads),
-      sessions: Array.from(expanded.sessions),
-      folders: Array.from(expanded.folders),
-    };
-    localStorage.setItem('accordion-expanded', JSON.stringify(toSave));
-  }, [expanded]);
-
-  // Auto-expand selected items
-  useEffect(() => {
-    if (selectedThread) {
-      setExpanded(prev => ({
-        ...prev,
-        threads: new Set(prev.threads).add(selectedThread),
-      }));
-    }
-    if (selectedSession) {
-      const sessionKey = `${selectedThread}-${selectedSession}`;
-      setExpanded(prev => ({
-        ...prev,
-        sessions: new Set(prev.sessions).add(sessionKey),
-      }));
-    }
-  }, [selectedThread, selectedSession]);
-
-  const toggleThread = (threadId: string) => {
-    setExpanded(prev => {
-      const threads = new Set(prev.threads);
-      if (threads.has(threadId)) {
-        threads.delete(threadId);
-      } else {
-        threads.add(threadId);
-      }
-      return { ...prev, threads };
-    });
-  };
-
-  const toggleSession = (threadId: string, sessionId: string) => {
-    const key = `${threadId}-${sessionId}`;
-    setExpanded(prev => {
-      const sessions = new Set(prev.sessions);
-      if (sessions.has(key)) {
-        sessions.delete(key);
-      } else {
-        sessions.add(key);
-      }
-      return { ...prev, sessions };
-    });
-  };
-
-  const toggleFolder = (folderId: string) => {
-    setExpanded(prev => {
-      const folders = new Set(prev.folders);
-      if (folders.has(folderId)) {
-        folders.delete(folderId);
-      } else {
-        folders.add(folderId);
-      }
-      return { ...prev, folders };
-    });
-  };
+  // Get expansion state from URL
+  const expanded = useUrlDrivenExpansion();
 
   const renderFile = (file: FileInfo, threadId: string, sessionId: string, indent: number) => {
     const displayName = ConfigService.getDisplayName(file.path);
@@ -165,7 +76,10 @@ export const AccordionSidebar: React.FC<AccordionSidebarProps> = ({
           <div
             className="sidebar-item"
             style={{ paddingLeft: `${indent}px` }}
-            onClick={() => toggleFolder(folderId)}
+            onClick={(e) => {
+              // Folders don't navigate, they just show/hide visually
+              e.stopPropagation();
+            }}
           >
             {isExpanded ? (
               <>
@@ -218,7 +132,6 @@ export const AccordionSidebar: React.FC<AccordionSidebarProps> = ({
             paddingLeft: `${indent}px`
           }}
           onClick={() => {
-            toggleSession(thread.thread_id, session.session_id);
             onSelect(thread.thread_id, session.session_id);
           }}
         >
@@ -271,7 +184,6 @@ export const AccordionSidebar: React.FC<AccordionSidebarProps> = ({
             isSelected && !selectedSession && 'sidebar-item-active'
           )}
           onClick={() => {
-            toggleThread(thread.thread_id);
             onSelect(thread.thread_id);
           }}
         >

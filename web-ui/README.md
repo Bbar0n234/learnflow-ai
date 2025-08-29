@@ -20,6 +20,8 @@ The LearnFlow AI Web UI provides an intuitive interface for:
 - **Material Preview**: Live preview of generated educational content
 - **Interactive Editing**: In-browser editing with syntax highlighting
 - **Export Options**: PDF and Markdown export with customizable templates
+- **Deep Linking**: Direct URL navigation to specific threads, sessions, and files
+- **Browser Navigation**: Full support for back/forward buttons and bookmarks
 
 ### UI Components
 - **Material Viewer**: Rich markdown rendering with LaTeX support
@@ -34,6 +36,7 @@ The LearnFlow AI Web UI provides an intuitive interface for:
 - **Build Tool**: Vite for fast development and optimized builds
 - **Styling**: CSS Modules + Modern CSS features
 - **State Management**: React Context + Hooks
+- **Routing**: React Router with deep linking support
 - **HTTP Client**: Fetch API with custom hooks
 - **File Handling**: HTML5 File API for uploads
 
@@ -42,23 +45,50 @@ The LearnFlow AI Web UI provides an intuitive interface for:
 web-ui/
 ├── src/
 │   ├── components/           # Reusable UI components
+│   │   ├── AccordionSidebar/ # Hierarchical navigation with URL-driven state
+│   │   ├── RouteGuard/       # Route validation and protection
 │   │   ├── QuestionInput/    # Educational question input form
 │   │   ├── ImageUpload/      # Drag-and-drop file upload
 │   │   ├── WorkflowViewer/   # Workflow progress visualization
 │   │   ├── MaterialEditor/   # Interactive content editor
 │   │   └── ExportDialog/     # Export configuration modal
 │   ├── hooks/                # Custom React hooks
+│   │   ├── useNavigation.ts  # Navigation utilities and routing
+│   │   ├── useUrlDrivenExpansion.ts # URL-based accordion state
 │   │   ├── useWorkflow.ts    # Workflow state management
 │   │   ├── useFileUpload.ts  # File upload handling
 │   │   └── useExport.ts      # Export functionality
 │   ├── services/             # API communication layer
 │   │   ├── api.ts           # LearnFlow API client
 │   │   └── websocket.ts     # Real-time updates
+│   ├── RouterWrapper.tsx     # Router configuration and routes
+│   ├── AppWithRouter.tsx     # Main app with routing support
 │   ├── types/               # TypeScript type definitions
 │   └── utils/               # Helper utilities
 ├── public/                  # Static assets
 └── docs/                    # Component documentation
 ```
+
+### Navigation and Routing
+
+The application features a comprehensive routing system with:
+
+#### Deep Linking Support
+- **Thread URLs**: `/thread/:threadId` - Direct access to specific threads
+- **Session URLs**: `/thread/:threadId/session/:sessionId` - Direct session navigation
+- **File URLs**: `/thread/:threadId/session/:sessionId/file/*` - Deep links to specific files
+- **Browser Navigation**: Full back/forward button support with proper state management
+
+#### URL-Driven State Management
+- **Single Source of Truth**: URL contains all navigation state information
+- **No localStorage Dependency**: Accordion expansion state derived from URL parameters
+- **Tab Independence**: Each browser tab maintains independent navigation state
+- **Shareable Links**: Users can bookmark and share links to specific content
+
+#### Route Validation
+- **API Integration**: Routes validated against backend data availability
+- **Graceful Fallbacks**: Invalid URLs redirect to nearest valid navigation level
+- **Loading States**: Proper loading indicators during route validation
 
 ### Integration with LearnFlow AI
 

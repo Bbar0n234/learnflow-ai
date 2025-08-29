@@ -39,6 +39,8 @@
   - `IP-01-post-implementation-summary.md` - ✅ Export functionality completed (2025-08-26)
 - `10-REFACTOR-graph-manager/` - Рефакторинг GraphManager
   - `POST-IMPL-01-artifact-saving-refactoring.md` - ✅ Artifact saving refactoring completed (2025-08-28)
+- `11-FEAT-deep-linking/` - React Router Deep Linking Integration
+  - `POST-IMPLEMENTATION-SUMMARY.md` - ✅ Deep linking functionality completed (2025-08-29)
 
 ## Архив (archive)
 Планы реализации (Implementation Plans), которые были перемещены из current/ после завершения задач:
@@ -64,6 +66,8 @@
   - `IP-01-markdown-pdf-export.md` - ✅ Completed: Markdown и PDF экспорт заметок (2025-08-26)
 - `10-REFACTOR-graph-manager/`
   - `IP-01-artifact-saving-refactoring.md` - ✅ Completed: GraphManager Artifact Saving System Refactoring (2025-08-28)
+- `11-FEAT-deep-linking/`
+  - `IP-01-react-router-integration.md` - ✅ Completed: React Router Deep Linking Integration (2025-08-29)
 - `misc/`
   - `IP-01-artifacts-manager.md` - ✅ Completed: Local Artifacts Manager implementation
 

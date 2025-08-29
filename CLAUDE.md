@@ -8,6 +8,7 @@ LearnFlow AI is a universal LangGraph-based educational content generation syste
 
 - **FastAPI service** (`learnflow/`) - REST API for processing educational content
 - **Telegram bot** (`bot/`) - User interface for interacting with the system
+- **Web UI** (`web-ui/`) - React-based web interface with deep linking and routing support
 - **LangGraph workflow** - Multi-node processing pipeline with HITL (Human-in-the-Loop) capabilities
 - **Image recognition module** - OCR and handwritten text recognition for student notes
 - **GitHub integration** - Automatic artifact storage and sharing
@@ -68,6 +69,22 @@ uv run --package bot python -m bot.main
 - `/export_menu` - Export with custom parameters selection
 - `/sessions` or `/history` - Show last 5 sessions for export
 - `/export_settings` - Configure default export settings
+
+#### Web UI Only
+```bash
+cd web-ui
+npm install
+npm run dev
+# Web interface available at http://localhost:5173
+# Features: Deep linking, React Router navigation, accordion state management
+```
+
+**Key Features:**
+- Deep linking support for threads, sessions, and files
+- Browser navigation (back/forward buttons)
+- URL-based accordion state (no localStorage dependency)
+- Route validation with graceful fallbacks
+- Shareable URLs for all content levels
 
 #### Docker Compose (Full Stack with LangFuse)
 ```bash

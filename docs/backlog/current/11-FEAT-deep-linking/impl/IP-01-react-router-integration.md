@@ -11,7 +11,7 @@
 - **AppWithRouter** (`src/AppWithRouter.tsx`) - модифицированный App компонент с поддержкой роутинга
 - **RouteGuard** (`src/components/RouteGuard.tsx`) - компонент для валидации маршрутов
 - **useNavigation** (`src/hooks/useNavigation.ts`) - хук для навигации и синхронизации состояния
-- **useRouteSync** (`src/hooks/useRouteSync.ts`) - хук для синхронизации URL с состоянием компонентов
+- **useUrlDrivenExpansion** (`src/hooks/useUrlDrivenExpansion.ts`) - хук для определения состояния раскрытия accordion из URL (без localStorage)
 
 ### Структура маршрутов
 ```
@@ -40,7 +40,7 @@
    - useParams извлекает параметры из нового URL
    - Компоненты реагируют на изменения параметров через useEffect
    - Состояние приложения синхронизируется с URL
-   - Sidebar автоматически раскрывается до нужного элемента
+   - Sidebar раскрывается на основе текущего URL
 
 4. **Обработка невалидных URL**:
    - RouteGuard проверяет существование thread/session/file
@@ -56,10 +56,11 @@
 - **navigateHome()** - возврат на главную
 - **getCurrentRoute()** - получение текущих параметров маршрута
 
-### useRouteSync hook
-- **syncUrlToState(params)** - синхронизация URL параметров с состоянием
-- **syncStateToUrl(state)** - синхронизация состояния с URL
-- **isValidRoute(params)** - проверка валидности маршрута
+### useUrlDrivenExpansion hook
+- **getExpandedFromUrl()** - получение состояния раскрытия из текущего URL
+- **expandedThreads** - Set с ID раскрытых threads
+- **expandedSessions** - Set с ID раскрытых sessions
+- **expandedFolders** - Set с ID раскрытых папок
 
 ### RouteGuard component props
 - **threadId** - ID thread для проверки
@@ -72,9 +73,10 @@
 
 ```
 URL изменение -> React Router -> useParams -> AppWithRouter -> State Update -> AccordionSidebar
-                                                     |
-                                                     v
-                                                API calls -> Content Loading
+                                                     |                            |
+                                                     v                            v
+                                                API calls -> Content     useUrlDrivenExpansion
+                                                             Loading      (раскрытие из URL)
 
 Sidebar Click -> handleSelect -> navigate() -> URL Update -> React Router -> State Sync
 ```
@@ -91,10 +93,10 @@ Sidebar Click -> handleSelect -> navigate() -> URL Update -> React Router -> Sta
    - Добавление useParams в App для извлечения параметров
    - Синхронизация параметров URL с состоянием компонента
 
-3. **Автоматическое раскрытие sidebar**
-   - Добавление логики auto-expand при изменении URL
-   - Обновление useEffect в AccordionSidebar
-   - Сохранение expanded состояния при навигации
+3. **URL-driven раскрытие sidebar**
+   - Создание useUrlDrivenExpansion хука
+   - Удаление всей логики localStorage из AccordionSidebar
+   - Состояние раскрытия вычисляется только из URL параметров
 
 4. **Обработка прямых ссылок**
    - Загрузка данных при mount с параметрами из URL
@@ -128,7 +130,187 @@ Sidebar Click -> handleSelect -> navigate() -> URL Update -> React Router -> Sta
 - Graceful fallback на ближайший валидный уровень
 - Сохранение частично валидного пути (например, если session не существует, остаться на thread)
 
-### Синхронизация localStorage с URL
-- Приоритет URL параметров над localStorage при конфликте
-- Обновление localStorage expanded state при навигации через URL
-- Очистка устаревших данных из localStorage
+### URL как единственный источник истины
+- Полный отказ от localStorage для состояния accordion
+- Состояние раскрытия вычисляется исключительно из URL
+- При перезагрузке страницы раскрывается только активный путь
+- Каждая вкладка браузера имеет независимое состояние
+
+## Детальные шаги реализации
+
+### 1. Создание RouterWrapper (src/RouterWrapper.tsx)
+```tsx
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import AppWithRouter from './AppWithRouter';
+
+export const RouterWrapper = () => {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<AppWithRouter />} />
+        <Route path="/thread/:threadId" element={<AppWithRouter />} />
+        <Route path="/thread/:threadId/session/:sessionId" element={<AppWithRouter />} />
+        <Route path="/thread/:threadId/session/:sessionId/file/*" element={<AppWithRouter />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+};
+```
+
+### 2. Создание хука useUrlDrivenExpansion (src/hooks/useUrlDrivenExpansion.ts)
+```typescript
+import { useParams } from 'react-router-dom';
+import { useMemo } from 'react';
+
+export const useUrlDrivenExpansion = () => {
+  const params = useParams();
+  const { threadId, sessionId } = params;
+  const filePath = params['*']; // для wildcard route
+  
+  const expanded = useMemo(() => {
+    const expandedThreads = new Set<string>();
+    const expandedSessions = new Set<string>();
+    const expandedFolders = new Set<string>();
+    
+    // Если есть threadId в URL - раскрываем этот thread
+    if (threadId) {
+      expandedThreads.add(threadId);
+    }
+    
+    // Если есть sessionId в URL - раскрываем эту session
+    if (sessionId && threadId) {
+      expandedSessions.add(`${threadId}-${sessionId}`);
+    }
+    
+    // Если есть файл с путём - раскрываем папки
+    if (filePath && filePath.includes('/')) {
+      const parts = filePath.split('/');
+      parts.pop(); // убираем имя файла
+      
+      let currentPath = '';
+      parts.forEach(folder => {
+        currentPath = currentPath ? `${currentPath}/${folder}` : folder;
+        expandedFolders.add(`${threadId}-${sessionId}-${currentPath}`);
+      });
+    }
+    
+    return {
+      threads: expandedThreads,
+      sessions: expandedSessions,
+      folders: expandedFolders
+    };
+  }, [threadId, sessionId, filePath]);
+  
+  return expanded;
+};
+```
+
+### 3. Модификация AccordionSidebar для URL-driven состояния
+```tsx
+// Удаляем всю логику localStorage и заменяем на useUrlDrivenExpansion
+import { useUrlDrivenExpansion } from '../hooks/useUrlDrivenExpansion';
+
+export const AccordionSidebar: React.FC<AccordionSidebarProps> = ({
+  threads,
+  sessionFiles,
+  selectedThread,
+  selectedSession,
+  selectedFile,
+  onSelect,
+}) => {
+  // Получаем состояние раскрытия из URL
+  const expanded = useUrlDrivenExpansion();
+  
+  // Удаляем все useState, useEffect с localStorage
+  // Удаляем функции toggleThread, toggleSession, toggleFolder
+  
+  // В рендере используем expanded напрямую:
+  const isThreadExpanded = expanded.threads.has(thread.thread_id);
+  const isSessionExpanded = expanded.sessions.has(sessionKey);
+  const isFolderExpanded = expanded.folders.has(folderId);
+  
+  // Клики теперь только вызывают onSelect для навигации
+  onClick={() => onSelect(thread.thread_id)}
+  onClick={() => onSelect(thread.thread_id, session.session_id)}
+  onClick={() => onSelect(thread.thread_id, session.session_id, file.path)}
+};
+```
+
+### 4. Модификация App.tsx для использования навигации
+```tsx
+import { useNavigate, useParams } from 'react-router-dom';
+
+function AppWithRouter() {
+  const navigate = useNavigate();
+  const params = useParams();
+  const { threadId, sessionId } = params;
+  const filePath = params['*'];
+  
+  // Состояние инициализируется из URL параметров
+  const [appState, setAppState] = useState<AppState>({
+    selectedThread: threadId || null,
+    selectedSession: sessionId || null,
+    selectedFile: filePath || null,
+    // ...
+  });
+  
+  // Модифицируем handleSelect для навигации
+  const handleSelect = (threadId: string, sessionId?: string, filePath?: string) => {
+    // Формируем URL на основе выбора
+    let url = '/';
+    if (threadId) {
+      url = `/thread/${threadId}`;
+      if (sessionId) {
+        url += `/session/${sessionId}`;
+        if (filePath) {
+          url += `/file/${filePath}`;
+        }
+      }
+    }
+    
+    // Навигация изменит URL и вызовет перерендер
+    navigate(url);
+  };
+  
+  // Синхронизация с URL при изменении параметров
+  useEffect(() => {
+    setAppState(prev => ({
+      ...prev,
+      selectedThread: threadId || null,
+      selectedSession: sessionId || null,
+      selectedFile: filePath || null,
+    }));
+    
+    // Загружаем данные если нужно
+    if (threadId && sessionId && filePath) {
+      loadFileContent(threadId, sessionId, filePath);
+    }
+  }, [threadId, sessionId, filePath]);
+}
+```
+
+### 5. Обновление main.tsx
+```tsx
+import { RouterWrapper } from './RouterWrapper';
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <RouterWrapper />
+  </StrictMode>,
+);
+```
+
+## Риски и их митигация
+
+1. **Потеря состояния раскрытия при навигации**
+   - Риск: Пользователь может быть разочарован, что раскрытые элементы сворачиваются
+   - Митигация: Четкая визуальная индикация активного пути, быстрая анимация раскрытия
+
+2. **Производительность при частой навигации**
+   - Риск: Частые перерендеры при изменении URL
+   - Митигация: Использование useMemo в useUrlDrivenExpansion, React.memo для компонентов
+
+3. **Невалидные URL при прямом доступе**
+   - Риск: 404 ошибки или белый экран
+   - Митигация: RouteGuard с валидацией и graceful fallback

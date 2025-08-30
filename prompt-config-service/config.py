@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", description="Logging level")
     
     model_config = {
-        "env_file": ".env",
+        "env_file": [".env.local", ".env"],
         "env_file_encoding": "utf-8",
         "case_sensitive": False,
         "extra": "ignore"

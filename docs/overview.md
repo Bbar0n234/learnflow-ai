@@ -251,47 +251,181 @@ SECURITY_MIN_CONTENT_LENGTH=10
 <deployment>
 ## Развертывание
 
-### Локальная разработка
+### Docker Compose (рекомендуется для продакшн)
 
-1. **Установка зависимостей:**
+1. **Клонирование репозитория:**
 ```bash
-uv sync
+git clone https://github.com/Bbar0n234/learnflow-ai.git
+cd learnflow-ai
 ```
 
 2. **Настройка окружения:**
 ```bash
 cp env.example .env
-# Редактировать .env с API ключами
+# Отредактируйте .env и заполните ваши API ключи
 ```
 
-3. **Запуск сервисов:**
+3. **Запуск всех сервисов:**
 ```bash
-# Только FastAPI
-uv run --package learnflow python -m learnflow.main
-
-# Только бот
-uv run --package bot python -m bot.main
-
-# Оба сервиса (рекомендуется)
-./run.sh
-```
-
-### Docker Compose (продакшн)
-
-```bash
-docker-compose up
+docker compose up -d
 ```
 
 Включает полный стек:
-- **FastAPI сервис** (порт 8000)
-- **Telegram бот**
-- **Prompt Configuration Service** (порт 8002)
-- **Artifacts Service** (порт 8001)
-- **LangFuse** с веб-интерфейсом (порт 3000)
-- **PostgreSQL** (порт 5433)
-- **Redis** (порт 6379)
-- **ClickHouse** (порт 8123)
-- **MinIO** (порт 9090)
+- **FastAPI сервис** (http://localhost:8000)
+- **Web UI** (http://localhost:3001)
+- **Telegram бот** (работает внутри контейнера)
+- **Prompt Configuration Service** (http://localhost:8002)
+- **Artifacts Service** (http://localhost:8001)
+- **LangFuse** с веб-интерфейсом (http://localhost:3000)
+- **PostgreSQL** (localhost:5433 для внешнего доступа)
+- **Redis** (localhost:6379)
+- **ClickHouse** (localhost:8123)
+- **MinIO** (localhost:9090)
+
+### Локальная разработка
+
+#### Автоматизированный запуск (рекомендуется)
+
+Используйте готовые скрипты для быстрого старта:
+
+```bash
+# Запуск всех сервисов одной командой
+./local-dev.sh
+# или через Makefile
+make local-dev
+```
+
+**Что делает `./local-dev.sh`:**
+1. Проверяет наличие `.env.local` (создает из примера если нет)
+2. Устанавливает зависимости через `uv sync` (при первом запуске)
+3. Запускает PostgreSQL в Docker (порт 5433)
+4. Создает базы данных `learnflow` и `prompts_db`
+5. Применяет миграции для Artifacts Service (Alembic)
+6. Запускает все сервисы локально с логированием в `logs/`
+7. Проверяет health endpoints каждого сервиса
+8. Показывает цветной статус и подсказки
+9. Обрабатывает Ctrl+C для корректной остановки всех процессов
+
+**Дополнительные скрипты:**
+
+```bash
+# Просмотр логов всех сервисов в реальном времени
+./local-logs.sh
+# или
+make local-logs
+
+# Полный сброс окружения (БД, venv, логи)
+./local-reset.sh
+# или
+make local-reset
+```
+
+#### Ручной запуск (альтернатива)
+
+Если предпочитаете контролировать каждый шаг:
+
+1. **Настройка локального окружения:**
+```bash
+cp .env.local.example .env.local
+# Отредактируйте .env.local с вашими API ключами
+```
+
+2. **Установка зависимостей:**
+```bash
+# Установка UV если еще не установлен
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Установка зависимостей проекта
+uv sync
+```
+
+3. **Запуск базы данных:**
+```bash
+# Используйте Docker только для PostgreSQL
+docker compose up -d postgres
+```
+
+4. **Применение миграций:**
+```bash
+# Для Artifacts Service
+cd artifacts-service
+DATABASE_URL="postgresql://postgres:postgres@localhost:5433/learnflow" \
+  uv run alembic upgrade head
+cd ..
+```
+
+5. **Запуск сервисов локально:**
+```bash
+# Все сервисы одной командой
+./run.sh
+
+# Или отдельные сервисы:
+uv run --package learnflow python -m learnflow.main  # FastAPI на localhost:8000
+uv run --package bot python -m bot.main              # Telegram бот
+uv run --package artifacts-service python main.py    # Artifacts на localhost:8001
+uv run --package prompt-config-service python -m main # Prompts на localhost:8002
+
+# Web UI (в отдельном терминале)
+cd web-ui
+npm install
+npm run dev  # Запустится на localhost:5173
+```
+
+### Различия между окружениями
+
+| Параметр | Docker (.env) | Локальная разработка (.env.local) |
+|----------|---------------|-----------------------------------|
+| **LANGFUSE_HOST** | http://langfuse-web:3000 | http://localhost:3000 |
+| **LEARNFLOW_HOST** | graph | localhost |
+| **DATABASE_URL** | postgres:5432 | localhost:5433 |
+| **PROMPT_SERVICE_URL** | http://prompt-config-service:8002 | http://localhost:8002 |
+| **ARTIFACTS_SERVICE_URL** | http://artifacts-service:8001 | http://localhost:8001 |
+| **PROMPT_CONFIG_DATABASE_URL** | postgres:5432/prompts_db | localhost:5433/prompts_db |
+
+### Переключение между режимами
+
+**Для Docker:**
+- Используется файл `.env` автоматически
+- Все сервисы общаются через внутреннюю сеть Docker
+
+**Для локальной разработки:**
+- Сервисы автоматически читают `.env.local` (если существует)
+- Если `.env.local` нет, используется `.env` как fallback
+- Все сервисы используют localhost для коммуникации
+
+### Troubleshooting
+
+**Проблемы с портами:**
+```bash
+# Проверить занятые порты
+lsof -i :8000  # FastAPI
+lsof -i :8001  # Artifacts
+lsof -i :8002  # Prompt Config
+lsof -i :3000  # LangFuse
+lsof -i :5433  # PostgreSQL
+```
+
+**Очистка Docker:**
+```bash
+# Остановить и удалить контейнеры
+docker compose down
+
+# Удалить все данные (volumes)
+docker compose down -v
+
+# Пересобрать образы
+docker compose build --no-cache
+```
+
+**Проблемы с зависимостями:**
+```bash
+# Обновить зависимости
+uv sync --upgrade
+
+# Переустановить все зависимости
+rm -rf .venv
+uv sync
+```
 </deployment>
 
 <workflow>

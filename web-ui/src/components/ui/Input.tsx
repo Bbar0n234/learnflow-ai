@@ -10,11 +10,12 @@ interface TextAreaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
 }
 
 const inputStyles = cn(
-  'flex w-full rounded border border-border bg-elev px-3 py-2',
+  'flex w-full rounded-xs border border-border bg-elev px-3 py-2',
   'text-base text-ink placeholder:text-muted',
-  'ring-offset-bg transition-colors',
+  'ring-offset-bg transition-all duration-150',
   'file:border-0 file:bg-transparent file:text-sm file:font-medium',
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+  'hover:border-border/80',
   'disabled:cursor-not-allowed disabled:opacity-50'
 )
 

@@ -11,16 +11,16 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const buttonVariants = {
-  primary: 'bg-primary text-primary-ink border border-primary hover:brightness-110 focus-visible:ring-primary',
+  primary: 'bg-primary text-primary-ink border border-primary shadow-sm hover:brightness-110 focus-visible:ring-primary',
   secondary: 'bg-elev text-ink border border-border hover:bg-opacity-80 focus-visible:ring-primary',
   ghost: 'bg-transparent text-ink border-transparent hover:bg-elev focus-visible:ring-primary',
-  danger: 'bg-danger text-white border border-danger hover:brightness-110 focus-visible:ring-danger'
+  danger: 'bg-danger text-white border border-danger shadow-sm hover:brightness-110 focus-visible:ring-danger'
 }
 
 const buttonSizes = {
   sm: 'h-7 px-3 text-xs',
   md: 'h-9 px-4 text-sm',
-  lg: 'h-11 px-5 text-base'
+  lg: 'h-11 px-5 text-base font-medium'
 }
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
@@ -39,10 +39,10 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
       ref={ref}
       className={cn(
         // Base styles
-        'inline-flex items-center justify-center rounded font-medium',
+        'inline-flex items-center justify-center rounded-xs font-medium',
         'transition-all duration-150 ease-out',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
-        'active:translate-y-px active:shadow-sm',
+        'active:translate-y-px active:shadow-none',
         
         // Variant styles
         buttonVariants[variant],

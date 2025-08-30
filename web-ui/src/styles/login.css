@@ -1,0 +1,505 @@
+/* Login Page - UI Style Guide compliant */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700&display=swap');
+
+/* CSS Variables from UI Style Guide */
+:root, .light {
+  /* Light theme */
+  --color-bg: #FFFFFF;
+  --color-elev: #F5F7FB;
+  --color-ink: #0E1116;
+  --color-muted: #5A6474;
+  --color-border: #D8DEE9;
+  --color-primary: #4A5CFF;
+  --color-primary-ink: #FFFFFF;
+  --color-info: #1479E9;
+  --color-success: #1EAD7F;
+  --color-warn: #C7901E;
+  --color-danger: #D84B4B;
+  --focus-ring: #4A5CFF;
+
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+
+  --shadow-sm: 0 1px 0 0 rgba(0,0,0,0.06);
+  --shadow-md: 0 6px 18px -8px rgba(0,0,0,0.10);
+  --shadow-lg: 0 18px 32px -12px rgba(0,0,0,0.14);
+}
+
+.dark {
+  /* Dark theme */
+  --color-bg: #0E1116;
+  --color-elev: #151923;
+  --color-ink: #E7EAF0;
+  --color-muted: #9AA3B2;
+  --color-border: #242B38;
+  --color-primary: #6A7BFF;
+  --color-primary-ink: #0E1116;
+  --color-info: #3CA6FF;
+  --color-success: #37D399;
+  --color-warn: #F4C152;
+  --color-danger: #FF7676;
+  --focus-ring: #6A7BFF;
+
+  --shadow-sm: 0 1px 0 0 rgba(0,0,0,0.25);
+  --shadow-md: 0 6px 18px -8px rgba(0,0,0,0.35);
+  --shadow-lg: 0 18px 32px -12px rgba(0,0,0,0.45);
+}
+
+/* Login container */
+.login-container {
+  background: var(--color-bg);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Form wrapper */
+.login-form-wrapper {
+  width: 100%;
+  max-width: 28rem;
+  margin: auto;
+  flex-shrink: 0;
+}
+
+/* Card with elevation */
+.login-card {
+  background: var(--color-elev);
+  border-radius: var(--radius-sm);
+  padding: 2.5rem;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border);
+}
+
+/* Instruction section */
+.instruction-section {
+  margin-bottom: 2rem;
+}
+
+.instruction-card {
+  background: color-mix(in srgb, var(--color-info) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-info) 20%, transparent);
+  border-radius: var(--radius-xs);
+  padding: 1.25rem;
+}
+
+.instruction-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-info);
+  margin-bottom: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  font-family: 'Manrope', 'Inter', sans-serif;
+}
+
+.instruction-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.instruction-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-ink);
+}
+
+.instruction-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: var(--color-primary);
+  color: var(--color-primary-ink);
+  border-radius: 50%;
+  font-weight: 600;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.command-code {
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 0.8125rem;
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* Form section */
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  letter-spacing: 0.01em;
+  font-family: 'Manrope', 'Inter', sans-serif;
+}
+
+.form-input {
+  width: 100%;
+  height: 3rem;
+  padding: 0 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xs);
+  font-size: 0.9375rem;
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  background: var(--color-elev);
+  color: var(--color-ink);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 20%, transparent);
+}
+
+.form-input:disabled {
+  background: color-mix(in srgb, var(--color-elev) 50%, var(--color-bg) 50%);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.form-input::placeholder {
+  color: var(--color-muted);
+}
+
+.form-hint {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  margin-top: 0.25rem;
+}
+
+/* Code input specific */
+.code-input-wrapper {
+  position: relative;
+}
+
+.code-input {
+  width: 100%;
+  height: 3.5rem;
+  padding: 0 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xs);
+  font-size: 1.5rem;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.5em;
+  text-align: center;
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  background: var(--color-elev);
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.code-input:focus {
+  outline: none;
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 20%, transparent);
+}
+
+.code-input::placeholder {
+  letter-spacing: 0.3em;
+  opacity: 0.3;
+  color: var(--color-muted);
+}
+
+.code-dots {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+}
+
+.code-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-border);
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.code-dot.active {
+  background: var(--color-primary);
+  transform: scale(1.2);
+}
+
+/* Error message */
+.error-message {
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 20%, transparent);
+  color: var(--color-danger);
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-xs);
+  font-size: 0.875rem;
+  animation: slideIn 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+  20%, 40%, 60%, 80% { transform: translateX(2px); }
+}
+
+.error-shake {
+  animation: shake 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Submit button - Primary style from UI guide */
+.submit-button {
+  width: 100%;
+  height: 3rem;
+  border-radius: var(--radius-xs);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  background: var(--color-primary);
+  color: var(--color-primary-ink);
+  border: none;
+  cursor: pointer;
+  margin-top: 0.5rem;
+  box-shadow: var(--shadow-sm);
+  font-family: 'Inter', sans-serif;
+}
+
+.submit-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+  filter: brightness(1.1);
+}
+
+.submit-button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
+.submit-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--color-muted);
+}
+
+.submit-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--focus-ring);
+}
+
+/* Shimmer effect */
+.submit-button::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
+  transform: translateX(-100%);
+  transition: transform 0.6s ease;
+}
+
+.submit-button:hover:not(:disabled)::after {
+  transform: translateX(100%);
+}
+
+/* Footer section */
+.footer-section {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.footer-text {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* Text center utility */
+.text-center {
+  text-align: center;
+}
+
+/* Margin utilities */
+.mb-6 {
+  margin-bottom: 1.5rem;
+}
+
+.mb-4 {
+  margin-bottom: 1rem;
+}
+
+.mb-2 {
+  margin-bottom: 0.5rem;
+}
+
+/* Display utilities */
+.inline-flex {
+  display: inline-flex;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+/* Size utilities */
+.w-16 {
+  width: 4rem;
+}
+
+.h-16 {
+  height: 4rem;
+}
+
+.w-8 {
+  width: 2rem;
+}
+
+.h-8 {
+  height: 2rem;
+}
+
+/* Icon container styling */
+.inline-flex.items-center.justify-center {
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
+  border-radius: var(--radius-xs);
+}
+
+.inline-flex svg {
+  color: var(--color-primary);
+}
+
+/* Typography with style guide fonts */
+.font-display {
+  font-family: 'Manrope', 'Inter', sans-serif;
+}
+
+.font-bold {
+  font-weight: 700;
+}
+
+.text-2xl {
+  font-size: 1.5rem;
+  line-height: 2rem;
+}
+
+.text-base {
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+
+.tracking-tight {
+  letter-spacing: -0.02em;
+}
+
+/* Text colors */
+.text-ink {
+  color: var(--color-ink);
+}
+
+.text-muted {
+  color: var(--color-muted);
+}
+
+.text-primary {
+  color: var(--color-primary);
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .login-card {
+    padding: 2rem 1.5rem;
+    border-radius: var(--radius-xs);
+  }
+  
+  .instruction-card {
+    padding: 1rem;
+  }
+  
+  .code-input {
+    font-size: 1.25rem;
+  }
+}
+
+/* Ensure scrolling on small viewports */
+@media (max-height: 750px) {
+  .login-container {
+    align-items: flex-start;
+  }
+  
+  .login-form-wrapper {
+    margin: 2rem auto;
+  }
+}
+
+/* Additional animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.login-card {
+  animation: fadeIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Ensure proper font loading */
+body {
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', 'Roboto', 'Ubuntu', 'Cantarell', 'Noto Sans', 'Arial', sans-serif;
+}

@@ -24,5 +24,15 @@ RUN mkdir -p /app/logs && chmod 755 /app/logs
 # Expose port
 EXPOSE 8001
 
-# Run the application
-CMD ["uv", "run", "--package", "artifacts-service", "python", "-m", "artifacts-service"]
+# Create entrypoint script
+RUN echo '#!/bin/sh\n\
+cd /app/artifacts-service\n\
+echo "Running database migrations..."\n\
+uv run --package artifacts-service alembic upgrade head\n\
+echo "Starting service..."\n\
+cd /app\n\
+uv run --package artifacts-service python -m artifacts-service' > /app/entrypoint.sh && \
+    chmod +x /app/entrypoint.sh
+
+# Run through entrypoint
+CMD ["/app/entrypoint.sh"]

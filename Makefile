@@ -1,4 +1,4 @@
-.PHONY: install sync-bot sync-learnflow sync-artifacts run-bot run-learnflow test-bot test-learnflow test-artifacts test-all lint format clean dev-services ruff-check ruff-fix ruff-format ruff-check-bot ruff-fix-bot ruff-format-bot ruff-check-learnflow ruff-fix-learnflow ruff-format-learnflow ruff-check-artifacts ruff-fix-artifacts ruff-format-artifacts mypy-bot mypy-learnflow mypy-artifacts fix-bot fix-learnflow fix-artifacts
+.PHONY: install sync-bot sync-learnflow sync-artifacts run-bot run-learnflow test-bot test-learnflow test-artifacts test-all lint format clean dev-services ruff-check ruff-fix ruff-format ruff-check-bot ruff-fix-bot ruff-format-bot ruff-check-learnflow ruff-fix-learnflow ruff-format-learnflow ruff-check-artifacts ruff-fix-artifacts ruff-format-artifacts mypy-bot mypy-learnflow mypy-artifacts fix-bot fix-learnflow fix-artifacts local-dev local-logs local-reset
 
 # Installation commands
 install:
@@ -90,6 +90,16 @@ fix-artifacts:
 	uv run --package artifacts-service --group dev ruff check artifacts-service/ --fix
 	uv run --package artifacts-service --group dev ruff format artifacts-service/
 	uv run --package artifacts-service --group dev mypy artifacts-service/
+
+# Local development commands (new scripts)
+local-dev:
+	./local-dev.sh
+
+local-logs:
+	./local-logs.sh
+
+local-reset:
+	./local-reset.sh
 
 # Docker commands
 dev-services:

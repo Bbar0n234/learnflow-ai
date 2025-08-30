@@ -4,12 +4,14 @@ import { useAuthGuard } from '../../hooks/useAuthGuard';
 import { Button } from '../ui';
 import { Input } from '../ui';
 import { Card } from '../ui';
+import '../../styles/login.css';
 
 export const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showError, setShowError] = useState(false);
   const { login } = useAuth();
   
   // Redirect if already authenticated
@@ -37,91 +39,132 @@ export const LoginPage: React.FC = () => {
       // Redirect will happen automatically in AuthContext
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка авторизации');
+      setShowError(true);
+      setTimeout(() => setShowError(false), 400);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-      <Card className="w-full max-w-md p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold mb-2">Вход в LearnFlow AI</h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Для доступа к материалам необходима авторизация
-          </p>
-        </div>
-
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
-          <h3 className="font-semibold mb-2 text-blue-900 dark:text-blue-100">
-            Как получить код доступа:
-          </h3>
-          <ol className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
-            <li>1. Откройте @LearnFlowBot в Telegram</li>
-            <li>2. Отправьте команду <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">/web_auth</code></li>
-            <li>3. Бот отправит вам 6-значный код (действителен 5 минут)</li>
-            <li>4. Введите ваш username и код ниже</li>
-          </ol>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="username" className="block text-sm font-medium mb-1">
-              Username из Telegram
-            </label>
-            <Input
-              id="username"
-              type="text"
-              placeholder="user_123456"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              disabled={isSubmitting}
-              autoComplete="username"
-              className="w-full"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Формат: user_XXXXXX (как в боте)
+    <div className="login-container">
+      <div className="login-form-wrapper">
+        <Card variant="elevated" className="login-card">
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center justify-center w-16 h-16 mb-4 rounded-sm bg-primary/10 border border-primary/20">
+              <svg className="w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-display font-bold text-ink mb-2 tracking-tight">
+              LearnFlow AI
+            </h1>
+            <p className="text-base text-muted">
+              Авторизуйтесь для доступа к материалам
             </p>
           </div>
 
-          <div>
-            <label htmlFor="code" className="block text-sm font-medium mb-1">
-              Код авторизации
-            </label>
-            <Input
-              id="code"
-              type="text"
-              placeholder="123456"
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              disabled={isSubmitting}
-              autoComplete="one-time-code"
-              className="w-full font-mono text-lg tracking-wider text-center"
-              maxLength={6}
-            />
+          <div className="instruction-section">
+            <div className="instruction-card">
+              <h3 className="instruction-title">
+                Как получить код доступа
+              </h3>
+              <ol className="instruction-list">
+                <li>
+                  <span className="instruction-number">1</span>
+                  <span>Откройте <strong>@LearnFlowBot</strong> в Telegram</span>
+                </li>
+                <li>
+                  <span className="instruction-number">2</span>
+                  <span>Отправьте команду <code className="command-code">/web_auth</code></span>
+                </li>
+                <li>
+                  <span className="instruction-number">3</span>
+                  <span>Скопируйте 6-значный код из чата <span className="text-muted">(действует 5 минут)</span></span>
+                </li>
+                <li>
+                  <span className="instruction-number">4</span>
+                  <span>Введите username и код ниже</span>
+                </li>
+              </ol>
+            </div>
           </div>
 
-          {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm">
-              {error}
+          <form onSubmit={handleSubmit} className="form-section">
+            <div className="form-field">
+              <label htmlFor="username" className="form-label">
+                Username
+              </label>
+              <Input
+                id="username"
+                type="text"
+                placeholder="user_123456"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                disabled={isSubmitting}
+                autoComplete="username"
+                className="form-input"
+                autoFocus
+              />
+              <p className="form-hint">
+                user_XXXXXX (как в боте)
+              </p>
             </div>
-          )}
 
-          <Button
-            type="submit"
-            disabled={isSubmitting || !username || code.length !== 6}
-            className="w-full"
-          >
-            {isSubmitting ? 'Проверка кода...' : 'Войти'}
-          </Button>
-        </form>
+            <div className="form-field">
+              <label htmlFor="code" className="form-label">
+                Код авторизации
+              </label>
+              <div className="code-input-wrapper">
+                <Input
+                  id="code"
+                  type="text"
+                  placeholder="123456"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.slice(0, 6))}
+                  disabled={isSubmitting}
+                  autoComplete="one-time-code"
+                  className="code-input"
+                  maxLength={6}
+                />
+                <div className="code-dots">
+                  {[...Array(6)].map((_, i) => (
+                    <div
+                      key={i}
+                      className={`code-dot ${
+                        i < code.length ? 'active' : ''
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
 
-        <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-          <p className="text-xs text-center text-gray-500 dark:text-gray-400">
-            После входа токен действителен 24 часа. При истечении потребуется повторная авторизация.
-          </p>
-        </div>
-      </Card>
+            {error && (
+              <div className={`error-message ${showError ? 'error-shake' : ''}`}>
+                {error}
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              disabled={isSubmitting || !username.trim() || code.length !== 6}
+              className="submit-button"
+              loading={isSubmitting}
+            >
+              {isSubmitting ? 'Проверка кода...' : 'Войти'}
+            </Button>
+          </form>
+
+          <div className="footer-section">
+            <p className="footer-text">
+              Токен действует 24 часа. После истечения потребуется повторная авторизация.
+            </p>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 };

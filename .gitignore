@@ -129,6 +129,7 @@ celerybeat.pid
 
 # Environments
 .env
+.env.local
 .venv
 env/
 venv/
@@ -195,6 +196,7 @@ cython_debug/
 .cursor
 
 images/
+logs/*.log
 logs/
 
 .claude/*.json

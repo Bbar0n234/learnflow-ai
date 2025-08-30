@@ -1,7 +1,7 @@
 /* LearnFlow AI Design Tokens */
 
-:root {
-  /* Light theme (fallback) */
+:root, .light {
+  /* Light theme */
   --color-bg: #FFFFFF;
   --color-elev: #F5F7FB;
   --color-ink: #0E1116;
@@ -95,33 +95,10 @@
 
   /* Animation */
   --duration-fast: 120ms;
-  --duration-normal: 150ms;
-  --duration-slow: 200ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
   --easing: cubic-bezier(0.2, 0.8, 0.2, 1);
   --easing-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
-}
-
-/* Dark theme (default via prefers-color-scheme) */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-bg: #0E1116;
-    --color-elev: #151923;
-    --color-ink: #E7EAF0;
-    --color-muted: #9AA3B2;
-    --color-border: #242B38;
-    --color-primary: #6A7BFF;
-    --color-primary-ink: #0E1116;
-    --color-info: #3CA6FF;
-    --color-success: #37D399;
-    --color-warn: #F4C152;
-    --color-danger: #FF7676;
-    --focus-ring: #6A7BFF;
-
-    /* Enhanced shadows for dark theme */
-    --shadow-sm: 0 1px 0 0 rgba(0,0,0,0.25);
-    --shadow-md: 0 6px 18px -8px rgba(0,0,0,0.35);
-    --shadow-lg: 0 18px 32px -12px rgba(0,0,0,0.45);
-  }
 }
 
 /* Manual dark mode override */
@@ -145,26 +122,6 @@
   --shadow-lg: 0 18px 32px -12px rgba(0,0,0,0.45);
 }
 
-/* Manual light mode override (forces light even if system is dark) */
-.light {
-  color-scheme: light;
-  --color-bg: #FFFFFF;
-  --color-elev: #F5F7FB;
-  --color-ink: #0E1116;
-  --color-muted: #5A6474;
-  --color-border: #D8DEE9;
-  --color-primary: #4A5CFF;
-  --color-primary-ink: #FFFFFF;
-  --color-info: #1479E9;
-  --color-success: #1EAD7F;
-  --color-warn: #C7901E;
-  --color-danger: #D84B4B;
-  --focus-ring: #4A5CFF;
-
-  --shadow-sm: 0 1px 0 0 rgba(0,0,0,0.06);
-  --shadow-md: 0 6px 18px -8px rgba(0,0,0,0.10);
-  --shadow-lg: 0 18px 32px -12px rgba(0,0,0,0.14);
-}
 
 /* Base styling */
 html, 
@@ -172,7 +129,15 @@ body {
   background: var(--color-bg);
   color: var(--color-ink);
   font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
-  transition: background-color var(--duration-normal) var(--easing), color var(--duration-normal) var(--easing);
+  transition: background-color var(--duration-normal) var(--easing),
+              color var(--duration-normal) var(--easing);
+}
+
+/* Universal transition for theme changes */
+* {
+  transition: background-color var(--duration-normal) var(--easing),
+              color var(--duration-normal) var(--easing),
+              border-color var(--duration-normal) var(--easing);
 }
 
 /* Focus styles */

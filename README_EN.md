@@ -53,7 +53,7 @@ The project demonstrates modern approaches to building production-ready AI syste
 - Python 3.13+ (for local development)
 - API keys for your chosen LLM provider
 
-### Installation
+### Docker Deployment (Recommended)
 
 1. **Clone the repository**
 ```bash
@@ -64,20 +64,65 @@ cd learnflow-ai
 2. **Configure environment**
 ```bash
 cp env.example .env
-# Edit .env with your API keys and configuration
+# Edit .env with your API keys
 ```
 
-3. **Start with Docker Compose**
+3. **Start all services**
 ```bash
-docker compose up
+docker compose up -d
 ```
 
 The services will be available at:
 - FastAPI: http://localhost:8000
-- Web UI: http://localhost:3000
+- Web UI: http://localhost:3001
+- LangFuse: http://localhost:3000
 - API Docs: http://localhost:8000/docs
+- Artifacts Service: http://localhost:8001
 - Prompt Config Service: http://localhost:8002
-- Prompt Config API Docs: http://localhost:8002/docs
+
+### Local Development
+
+1. **Configure local environment**
+```bash
+cp .env.local.example .env.local
+# Edit .env.local with your API keys
+```
+
+2. **Start all services with one command (recommended)**
+```bash
+./local-dev.sh
+# or
+make local-dev
+```
+
+This script automatically:
+- Installs dependencies via `uv sync`
+- Starts PostgreSQL in Docker
+- Creates databases and runs migrations
+- Starts all services with logging
+- Checks health status of each service
+- Handles Ctrl+C for graceful shutdown
+
+**Additional commands:**
+```bash
+./local-logs.sh   # View logs from all services
+./local-reset.sh  # Full environment reset
+```
+
+3. **Alternative manual start**
+```bash
+# Install dependencies
+uv sync
+
+# Start PostgreSQL
+docker compose up -d postgres
+
+# Start services individually:
+uv run --package learnflow python -m learnflow.main  # FastAPI
+uv run --package bot python -m bot.main              # Telegram bot
+```
+
+For more details on environment setup, see [docs/overview.md](docs/overview.md)
 
 ### Using Local LLMs
 

@@ -115,7 +115,7 @@ class AppSettings(BaseSettings):
         return bool(self.langfuse_public_key and self.langfuse_secret_key)
 
     class Config:
-        env_file = ".env"
+        env_file = [".env.local", ".env"]
         extra = "ignore"  # Игнорировать лишние переменные окружения
 
 

@@ -9,9 +9,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0.25rem;
+  border-radius: var(--radius-xs);
   font-weight: 500;
-  transition: all 0.15s ease;
+  transition: all var(--duration-fast) var(--easing);
   outline: none;
 }
 
@@ -78,11 +78,11 @@
 }
 
 .btn-ghost:hover:not(:disabled) {
-  background: var(--bg-overlay-light);
+  background: color-mix(in srgb, var(--color-elev) 60%, transparent);
 }
 
 .btn-ghost:active:not(:disabled) {
-  background: var(--bg-overlay-medium);
+  background: color-mix(in srgb, var(--color-elev) 80%, transparent);
 }
 
 .btn-danger {
@@ -250,6 +250,8 @@
   overflow-x: hidden;
   border-right: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
   background: color-mix(in srgb, var(--color-elev) 50%, transparent);
+  transition: background-color var(--duration-normal) var(--easing),
+              border-color var(--duration-normal) var(--easing);
 }
 
 /* Accordion Sidebar Styles */
@@ -519,8 +521,136 @@
 }
 
 /* =================
-   Accessibility Helpers
+   Header Profile Section
    ================= */
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.user-profile-section {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  height: 100%;
+}
+
+.user-profile-divider {
+  width: 1px;
+  height: 24px;
+  background: color-mix(in srgb, var(--color-border) 40%, transparent);
+  margin-right: var(--spacing-xs);
+}
+
+.user-profile-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, 
+    color-mix(in srgb, var(--color-primary) 80%, transparent),
+    color-mix(in srgb, var(--color-info) 80%, transparent));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: var(--text-caption);
+  font-weight: 600;
+  transition: transform var(--duration-fast) var(--easing);
+}
+
+.user-avatar:hover {
+  transform: scale(1.05);
+}
+
+.user-name {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-ink);
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-action-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--color-elev) 50%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-border) 40%, transparent);
+  color: var(--color-muted);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--easing);
+  position: relative;
+  overflow: hidden;
+}
+
+.user-action-btn:hover {
+  background: color-mix(in srgb, var(--color-elev) 80%, transparent);
+  border-color: color-mix(in srgb, var(--color-border) 60%, transparent);
+  color: var(--color-ink);
+  transform: translateY(-1px);
+}
+
+.user-action-btn:active {
+  transform: translateY(0);
+}
+
+.logout-btn {
+  width: auto;
+  padding: 0 var(--spacing-sm);
+  gap: var(--spacing-xs);
+  color: var(--color-danger);
+}
+
+.logout-btn:hover {
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-danger) 30%, transparent);
+  color: var(--color-danger);
+}
+
+.logout-btn-text {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .logout-btn-text {
+    display: inline;
+  }
+}
+
+.theme-toggle-btn:hover {
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-primary) 30%, transparent);
+  color: var(--color-primary);
+}
+
+.dark .user-action-btn {
+  background: color-mix(in srgb, var(--color-elev) 70%, transparent);
+  border-color: color-mix(in srgb, var(--color-border) 50%, transparent);
+}
+
+.dark .user-action-btn:hover {
+  background: var(--color-elev);
+  border-color: color-mix(in srgb, var(--color-border) 70%, transparent);
+}
+
+/* =================
+   Accessibility Helpers
+   =======================*/
 
 .sr-only {
   position: absolute;

@@ -15,6 +15,8 @@ const applyThemeTokens = (theme: Theme): 'light' | 'dark' => {
       ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
       : theme;
 
+  console.log('[applyThemeTokens] Applying theme:', actualTheme, 'from:', theme);
+
   // Ensure mutually exclusive classes to override system preference
   if (actualTheme === 'dark') {
     document.documentElement.classList.add('dark');
@@ -23,6 +25,10 @@ const applyThemeTokens = (theme: Theme): 'light' | 'dark' => {
     document.documentElement.classList.remove('dark');
     document.documentElement.classList.add('light');
   }
+
+  console.log('[applyThemeTokens] Classes after apply:', 
+    'dark:', document.documentElement.classList.contains('dark'),
+    'light:', document.documentElement.classList.contains('light'));
 
   return actualTheme;
 };

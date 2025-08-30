@@ -1,6 +1,6 @@
 import React from 'react';
+import { LogOut } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { Button } from '../ui';
 
 export const UserIndicator: React.FC = () => {
   const { isAuthenticated, currentUser, logout } = useAuth();
@@ -10,23 +10,30 @@ export const UserIndicator: React.FC = () => {
   }
 
   return (
-    <div className="flex items-center gap-3">
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm">
+    <div className="user-profile-section">
+      {/* Vertical divider */}
+      <div className="user-profile-divider" />
+      
+      {/* User info */}
+      <div className="user-profile-info">
+        <div className="user-avatar">
           {currentUser.username.slice(0, 2).toUpperCase()}
         </div>
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+        <span className="user-name">
           {currentUser.username}
         </span>
       </div>
-      <Button
+      
+      {/* Logout button */}
+      <button
         onClick={logout}
-        variant="ghost"
-        size="sm"
-        className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+        className="user-action-btn logout-btn"
+        aria-label="Выйти"
+        title="Выйти"
       >
-        Выйти
-      </Button>
+        <LogOut className="w-4 h-4" />
+        <span className="logout-btn-text">Выйти</span>
+      </button>
     </div>
   );
 };

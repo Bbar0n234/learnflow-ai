@@ -57,7 +57,7 @@ class BotSettings(BaseSettings):
     bot_api_key: Optional[str] = Field(default=None, description="API key for bot authentication")
 
     class Config:
-        env_file = ".env"
+        env_file = [".env.local", ".env"]
         env_nested_delimiter = "_"
         env_prefix = ""
         extra = "ignore"

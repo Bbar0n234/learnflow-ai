@@ -1,25 +1,22 @@
 import React from 'react';
 import { Moon, Sun } from 'lucide-react';
-import { useTheme } from '../hooks/useTheme';
-import { Button } from './ui/Button';
+import { useThemeContext } from '../contexts/ThemeContext';
 
 export const ThemeToggle: React.FC = () => {
-  const { isDark, toggleTheme } = useTheme();
+  const { isDark, toggleTheme } = useThemeContext();
 
   return (
-    <Button
-      variant="ghost"
-      size="md"
+    <button
       onClick={toggleTheme}
-      className="p-2 h-9 w-9"
-      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      className="user-action-btn theme-toggle-btn"
+      aria-label={isDark ? 'Переключить на светлую тему' : 'Переключить на тёмную тему'}
       title={isDark ? 'Светлая тема' : 'Тёмная тема'}
     >
       {isDark ? (
-        <Sun className="h-4 w-4" />
+        <Sun className="w-4 h-4" />
       ) : (
-        <Moon className="h-4 w-4" />
+        <Moon className="w-4 h-4" />
       )}
-    </Button>
+    </button>
   );
 };

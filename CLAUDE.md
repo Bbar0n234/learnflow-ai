@@ -19,10 +19,28 @@ LearnFlow AI is a universal LangGraph-based educational content generation syste
 ## Development Commands
 
 ### Environment Setup
+
+#### Docker Deployment (Recommended)
 ```bash
-# Copy and configure environment variables
+# Copy and configure environment variables for Docker
 cp env.example .env
-# Edit .env with your API keys
+# Edit .env with your API keys (Docker networking)
+
+# Start all services with Docker Compose
+docker compose up -d
+
+# Check service status
+docker compose ps
+
+# View logs
+docker compose logs -f
+```
+
+#### Local Development
+```bash
+# Copy and configure environment variables for local development
+cp .env.local.example .env.local
+# Edit .env.local with your API keys (localhost networking)
 
 # Install dependencies using UV workspace
 # Install all packages and groups
@@ -45,17 +63,48 @@ uv sync --package bot --group test        # Test deps for bot only
 ./run.sh
 ```
 
+#### Environment Configuration
+- **`.env`** - Used for Docker Compose (container networking)
+- **`.env.local`** - Used for local development (localhost networking)
+- Services automatically read `.env.local` first, then fall back to `.env`
+
 ### Running Services
 
-#### FastAPI Service Only
+#### Quick Local Development (Recommended)
 ```bash
+# Start all services with one command (PostgreSQL in Docker, services locally)
+./local-dev.sh
+
+# View logs in another terminal
+./local-logs.sh
+
+# Reset everything if needed
+./local-reset.sh
+
+# Or use Makefile
+make local-dev   # Same as ./local-dev.sh
+make local-logs  # Same as ./local-logs.sh
+make local-reset # Same as ./local-reset.sh
+```
+
+**What `./local-dev.sh` does:**
+1. Checks/creates `.env.local` configuration
+2. Installs dependencies if needed (`uv sync`)
+3. Starts PostgreSQL in Docker (port 5433)
+4. Creates databases (`learnflow`, `prompts_db`)
+5. Runs migrations for Artifacts Service
+6. Starts all services locally with logging to `logs/`
+7. Shows health check status for each service
+8. Handles Ctrl+C for graceful shutdown
+
+#### Manual Service Start (Alternative)
+```bash
+# FastAPI Service Only
 uv run --package learnflow python -m learnflow.main
 # Service available at http://localhost:8000
 # API docs at http://localhost:8000/docs
-```
 
-#### Telegram Bot Only
-```bash
+# Telegram Bot Only
 uv run --package bot python -m bot.main
 ```
 

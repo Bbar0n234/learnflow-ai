@@ -6,6 +6,7 @@ from typing import List, Optional
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, status, Path as PathParam, Query, Depends
 from fastapi.responses import PlainTextResponse, JSONResponse, FileResponse, Response
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
 
@@ -70,6 +71,22 @@ app = FastAPI(
     description="File storage system for LearnFlow AI artifacts",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+# Configure CORS for Web UI
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",  # Vite dev server
+        "http://localhost:5174",  # Vite preview
+        "http://localhost:3000",  # Alternative dev port
+        "http://127.0.0.1:5173",  # IP access for Telegram bot links
+        "http://127.0.0.1:5174",  # IP access preview
+        "http://127.0.0.1:3000",  # IP access alternative
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

@@ -108,8 +108,8 @@ class AppSettings(BaseSettings):
 
     # Web UI settings
     web_ui_base_url: str = Field(
-        default="http://localhost:5173",
-        description="Базовый URL для Web UI интерфейса",
+        default="http://127.0.0.1:5173",
+        description="Базовый URL для Web UI интерфейса (используем IP вместо localhost для корректной работы ссылок в Telegram)",
     )
 
     def is_artifacts_configured(self) -> bool:

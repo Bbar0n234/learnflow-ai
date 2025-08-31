@@ -237,19 +237,39 @@ class GraphManager:
     
     def _get_pending_urls(self, thread_id: str) -> List[str]:
         """
-        Получает список неотправленных URL с метками
+        Получает список неотправленных URL с метками в формате Markdown
         
         Args:
             thread_id: Идентификатор потока
         
         Returns:
-            Список строк с URL и метками для отправки
+            Список строк с URL и метками для отправки (одно сообщение с Markdown ссылками)
         """
         pending = self.artifacts_data.get(thread_id, {}).get("pending_urls", {})
-        messages = []
+        if not pending:
+            logger.debug(f"No pending URLs for thread {thread_id}")
+            return []
+        
+        # Формируем единое сообщение с Markdown ссылками
+        links = []
         for artifact_type, data in pending.items():
-            messages.append(f"{data['label']}: {data['url']}")
-        return messages
+            # Разделяем эмодзи и текст
+            label = data['label']
+            # Ищем первый пробел после эмодзи
+            if ' ' in label:
+                emoji, text = label.split(' ', 1)
+                # Формат: эмодзи [текст](ссылка)
+                link = f"{emoji} [{text}]({data['url']})"
+            else:
+                # Если нет пробела, используем как есть
+                link = f"[{label}]({data['url']})"
+            links.append(link)
+            logger.debug(f"Adding link for {artifact_type}: {link}")
+        
+        # Объединяем все ссылки в одно сообщение
+        message = "📚 **Материалы готовы:**\n\n" + "\n".join(links)
+        logger.info(f"Generated message with {len(links)} links for thread {thread_id}: {message}")
+        return [message]
     
     def _mark_urls_as_sent(self, thread_id: str, artifact_types: List[str]) -> None:
         """
@@ -471,13 +491,14 @@ class GraphManager:
             # Добавляем неотправленные URL к сообщению
             pending_urls = self._get_pending_urls(thread_id)
             if pending_urls:
-                msgs.extend(pending_urls)
+                # Помещаем ссылки в начало, перед сообщением агента
+                msgs = pending_urls + msgs
                 # Помечаем URL как отправленные
                 pending_types = list(self.artifacts_data.get(thread_id, {}).get("pending_urls", {}).keys())
                 self._mark_urls_as_sent(thread_id, pending_types)
                 logger.debug(f"Added {len(pending_urls)} pending URLs to interrupt message for thread {thread_id}")
 
-            logger.info(f"Workflow interrupted for thread {thread_id}")
+            logger.info(f"Workflow interrupted for thread {thread_id}, returning messages: {msgs}")
             return {"thread_id": thread_id, "result": msgs}
 
         # happy path – всё закончено
@@ -550,13 +571,13 @@ class GraphManager:
                 url = self._generate_web_ui_url(
                     thread_id=thread_id,
                     session_id=session_id,
-                    file_name="learning_material.md"
+                    file_name="generated_material.md"
                 )
                 self._track_artifact_url(
                     thread_id=thread_id,
                     artifact_type="learning_material",
                     url=url,
-                    label="📚 Обучающий материал"
+                    label="📚 Сгенерированный материал"  # Эмодзи будет вынесен отдельно при формировании
                 )
             
             # Обновляем состояние графа (убираем локальные пути)
@@ -597,6 +618,19 @@ class GraphManager:
                 recognized_notes=node_data.get("recognized_notes", "")
             )
             logger.info(f"Successfully saved recognized notes for thread {thread_id}")
+            
+            # Генерируем и отслеживаем URL для распознанных конспектов
+            url = self._generate_web_ui_url(
+                thread_id=thread_id,
+                session_id=session_id,
+                file_name="recognized_notes.md"
+            )
+            self._track_artifact_url(
+                thread_id=thread_id,
+                artifact_type="recognized_notes",
+                url=url,
+                label="📝 Распознанные конспекты"
+            )
         except Exception as e:
             logger.error(f"Failed to save recognized notes for thread {thread_id}: {e}")
 

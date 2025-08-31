@@ -542,18 +542,25 @@ async def _handle_api_response(message: Message, result: Dict[str, Any], user_id
     if isinstance(result_data, list):
         # HITL взаимодействие - отправляем вопросы пользователю
         for msg in result_data:
+            # DEBUG: логируем сообщение до обработки
+            logger.info(f"[DEBUG] Message before markdownify: {msg}")
+            
             # Разбиваем длинные сообщения
             if len(msg) > 4000:
                 # Отправляем по частям
                 chunks = [msg[i : i + 4000] for i in range(0, len(msg), 4000)]
                 for chunk in chunks:
+                    formatted_chunk = telegramify_markdown.markdownify(chunk)
+                    logger.info(f"[DEBUG] Chunk after markdownify: {formatted_chunk}")
                     await message.answer(
-                        telegramify_markdown.markdownify(chunk),
+                        formatted_chunk,
                         parse_mode=ParseMode.MARKDOWN_V2,
                     )
             else:
+                formatted_msg = telegramify_markdown.markdownify(msg)
+                logger.info(f"[DEBUG] Message after markdownify: {formatted_msg}")
                 await message.answer(
-                    telegramify_markdown.markdownify(msg),
+                    formatted_msg,
                     parse_mode=ParseMode.MARKDOWN_V2,
                 )
 

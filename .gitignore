@@ -201,3 +201,5 @@ logs/
 
 .claude/*.json
 data/*
+
+render_prompts.py

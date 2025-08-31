@@ -9,7 +9,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 import asyncpg
 
-from .settings import settings
+from settings import settings
 
 logger = logging.getLogger(__name__)
 

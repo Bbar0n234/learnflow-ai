@@ -75,15 +75,11 @@ uv sync --package bot --group test        # Test deps for bot only
 # Start all services with one command (PostgreSQL in Docker, services locally)
 ./local-dev.sh
 
-# View logs in another terminal
-./local-logs.sh
-
 # Reset everything if needed
 ./local-reset.sh
 
 # Or use Makefile
 make local-dev   # Same as ./local-dev.sh
-make local-logs  # Same as ./local-logs.sh
 make local-reset # Same as ./local-reset.sh
 ```
 

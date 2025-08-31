@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Переход в корневую директорию проекта
+cd "$(dirname "$0")/.."
+
 # Цвета для красивого вывода
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -22,6 +25,9 @@ fi
 # Создание директории для логов
 mkdir -p logs
 
+# Загружаем переменные окружения из .env.local для дочерних процессов
+export $(grep -v '^#' .env.local | xargs)
+
 # Проверка зависимостей
 if [ ! -d ".venv" ]; then
     echo -e "${YELLOW}📦 Installing dependencies (first time setup)...${NC}"
@@ -37,8 +43,11 @@ docker compose up -d postgres
 echo -e "${YELLOW}⏳ Waiting for PostgreSQL to be ready...${NC}"
 for i in {1..30}; do
     if docker compose exec postgres pg_isready -U postgres &>/dev/null; then
-        echo -e "${GREEN}✅ PostgreSQL is ready!${NC}"
-        break
+        # Контейнер готов, теперь проверяем доступность порта
+        if PGPASSWORD=postgres psql -h 127.0.0.1 -p 5433 -U postgres -c "SELECT 1" &>/dev/null; then
+            echo -e "${GREEN}✅ PostgreSQL is ready!${NC}"
+            break
+        fi
     fi
     if [ $i -eq 30 ]; then
         echo -e "${RED}❌ PostgreSQL failed to start${NC}"
@@ -51,10 +60,10 @@ echo ""
 
 # Создание баз данных
 echo -e "${BLUE}📁 Creating databases if needed...${NC}"
-docker compose exec postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'learnflow'" | grep -q 1 || \
-    (docker compose exec postgres psql -U postgres -c "CREATE DATABASE learnflow;" && echo -e "  Created database: learnflow")
-docker compose exec postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'prompts_db'" | grep -q 1 || \
-    (docker compose exec postgres psql -U postgres -c "CREATE DATABASE prompts_db;" && echo -e "  Created database: prompts_db")
+PGPASSWORD=postgres psql -h localhost -p 5433 -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'learnflow'" | grep -q 1 || \
+    (PGPASSWORD=postgres psql -h localhost -p 5433 -U postgres -c "CREATE DATABASE learnflow;" && echo -e "  Created database: learnflow")
+PGPASSWORD=postgres psql -h localhost -p 5433 -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'prompts_db'" | grep -q 1 || \
+    (PGPASSWORD=postgres psql -h localhost -p 5433 -U postgres -c "CREATE DATABASE prompts_db;" && echo -e "  Created database: prompts_db")
 
 # Миграции Artifacts Service
 echo -e "${BLUE}🔄 Running Artifacts Service migrations...${NC}"
@@ -64,27 +73,28 @@ echo -e "${GREEN}✅ Migrations completed${NC}"
 # Массив PID для отслеживания процессов
 declare -a PIDS
 
-# Запуск сервисов
-echo -e "${BLUE}🚀 Starting all services...${NC}"
+# Запуск сервисов с live логами
+echo -e "${BLUE}🚀 Starting all services with live logging...${NC}"
+echo ""
 
 # FastAPI
 echo -e "  ${YELLOW}→${NC} Starting FastAPI..."
-uv run python -m learnflow.main > logs/fastapi.log 2>&1 &
+uv run --package learnflow-core python -m learnflow.api.main 2>&1 | tee logs/fastapi.log | sed "s/^/${BLUE}[FastAPI]${NC} /" &
 PIDS+=($!)
 
 # Artifacts Service
 echo -e "  ${YELLOW}→${NC} Starting Artifacts Service..."
-(cd artifacts-service && uv run python main.py > ../logs/artifacts.log 2>&1) &
+(cd artifacts-service && uv run python main.py 2>&1 | tee ../logs/artifacts.log | sed "s/^/${GREEN}[Artifacts]${NC} /") &
 PIDS+=($!)
 
 # Prompt Config Service (миграции применятся автоматически при старте)
 echo -e "  ${YELLOW}→${NC} Starting Prompt Config Service..."
-uv run python -m prompt-config-service.main > logs/prompt-config.log 2>&1 &
+(cd prompt-config-service && uv run python main.py 2>&1 | tee ../logs/prompt-config.log | sed "s/^/${YELLOW}[PromptCfg]${NC} /") &
 PIDS+=($!)
 
 # Telegram Bot
 echo -e "  ${YELLOW}→${NC} Starting Telegram Bot..."
-uv run python -m bot.main > logs/bot.log 2>&1 &
+uv run --package learnflow-bot python -m bot 2>&1 | tee logs/bot.log | sed "s/^/${RED}[Bot]${NC} /" &
 PIDS+=($!)
 
 # Функция для остановки всех сервисов
@@ -160,8 +170,7 @@ echo -e "  Prompt Config:  ${YELLOW}logs/prompt-config.log${NC}"
 echo -e "  Telegram Bot:   ${YELLOW}logs/bot.log${NC}"
 
 echo -e "\n${BLUE}💡 Tips:${NC}"
-echo -e "  • View logs in another terminal: ${YELLOW}./local-logs.sh${NC}"
-echo -e "  • Reset everything: ${YELLOW}./local-reset.sh${NC}"
+echo -e "  • Reset everything: ${YELLOW}make local-reset${NC}"
 echo -e "  • Web UI: ${YELLOW}cd web-ui && npm run dev${NC}"
 
 echo -e "\n${YELLOW}Press Ctrl+C to stop all services${NC}"

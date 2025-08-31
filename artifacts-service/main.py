@@ -9,10 +9,10 @@ from fastapi.responses import PlainTextResponse, JSONResponse, FileResponse, Res
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
 
-from .storage import ArtifactsStorage
-from .auth import auth_service, require_auth, verify_resource_owner
-from .auth_models_api import AuthCodeRequest, AuthTokenResponse
-from .models import (
+from storage import ArtifactsStorage
+from auth import auth_service, require_auth, verify_resource_owner
+from auth_models_api import AuthCodeRequest, AuthTokenResponse
+from models import (
     HealthResponse,
     ThreadsListResponse,
     ThreadDetailResponse,
@@ -26,9 +26,9 @@ from .models import (
     SessionSummary,
     ExportRequest,
 )
-from .exceptions import ArtifactsServiceException, map_to_http_exception
-from .settings import settings
-from .services.export import MarkdownExporter, PDFExporter, ZIPExporter
+from exceptions import ArtifactsServiceException, map_to_http_exception
+from settings import settings
+from services.export import MarkdownExporter, PDFExporter, ZIPExporter
 
 # Create logs directory if it doesn't exist
 log_dir = Path("logs")
@@ -479,7 +479,7 @@ def main():
     import uvicorn
 
     uvicorn.run(
-        "artifacts-service.main:app",
+        app,
         host=settings.host,
         port=settings.port,
     )

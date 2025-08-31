@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     # Service
     service_name: str = Field(default="prompt-config-service", description="Service name")
     service_version: str = Field(default="1.0.0", description="Service version")
-    service_port: int = Field(default=8001, description="Service port")
+    service_port: int = Field(default=8002, description="Service port")
     service_host: str = Field(default="0.0.0.0", description="Service host")
     
     # Paths

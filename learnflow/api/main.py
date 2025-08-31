@@ -532,7 +532,7 @@ if __name__ == "__main__":
 
     settings = get_settings()
     uvicorn.run(
-        "learnflow.main:app", 
+        "learnflow.api.main:app", 
         host=settings.host, 
         port=settings.port
     )

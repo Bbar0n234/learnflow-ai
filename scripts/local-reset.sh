@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Переход в корневую директорию проекта
+cd "$(dirname "$0")/.."
+
 # Цвета для вывода
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -11,14 +14,6 @@ echo -e "${YELLOW}🔄 LearnFlow AI - Reset Development Environment${NC}"
 echo -e "${YELLOW}═══════════════════════════════════════════════${NC}"
 echo -e "${RED}⚠️  WARNING: This will delete all local data and dependencies${NC}"
 echo ""
-
-# Запрос подтверждения
-read -p "Are you sure you want to reset everything? (y/N): " -n 1 -r
-echo ""
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo -e "${GREEN}✅ Reset cancelled${NC}"
-    exit 0
-fi
 
 echo ""
 echo -e "${BLUE}Starting reset process...${NC}"
@@ -74,7 +69,7 @@ echo -e "${GREEN}✅ Reset complete!${NC}"
 echo -e "${GREEN}═══════════════════════════════════════════════${NC}"
 echo ""
 echo -e "${BLUE}Next steps:${NC}"
-echo -e "  1. Run ${YELLOW}./local-dev.sh${NC} to start fresh"
+echo -e "  1. Run ${YELLOW}make local-dev${NC} to start fresh"
 echo -e "  2. Dependencies will be reinstalled automatically"
 echo -e "  3. Databases will be recreated"
 echo -e "  4. Migrations will be applied"

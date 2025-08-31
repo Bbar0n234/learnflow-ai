@@ -99,6 +99,7 @@ class GraphManager:
         self.user_settings: Dict[str, Dict[str, Any]] = {}
 
         # хранилище артефактов данных по thread_id
+        # Структура: {thread_id: {session_id, pending_urls, sent_urls, web_ui_base_url}}
         self.artifacts_data: Dict[str, Dict[str, Any]] = {}
 
     # ---------- internal helpers ----------
@@ -191,82 +192,85 @@ class GraphManager:
             session_id = self.user_sessions.pop(thread_id)
             logger.info(f"Deleted session '{session_id}' for user {thread_id}")
 
-    # ---------- local artifacts management ----------
+    # ---------- Web UI URL generation ----------
 
-    async def _push_complete_materials_to_artifacts(
-        self, thread_id: str, state_vals: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+    def _generate_web_ui_url(
+        self, thread_id: str, session_id: str, file_name: str
+    ) -> str:
         """
-        Пушит все материалы в локальное хранилище в конце workflow.
-        Работает корректно как с изображениями/синтезом, так и без них.
-
+        Генерирует Web UI URL для конкретного файла
+        
         Args:
             thread_id: Идентификатор потока
-            state_vals: Значения состояния графа
-
+            session_id: Идентификатор сессии
+            file_name: Имя файла
+        
         Returns:
-            Словарь с данными для обновления состояния или None
+            Полный URL вида http://localhost:5173/thread/{thread_id}/session/{session_id}/file/{file_name}
         """
-        if not self.artifacts_manager:
-            logger.debug(
-                "Artifacts manager not configured, skipping complete materials push"
-            )
-            return None
-
-        try:
-            # Извлекаем все материалы из состояния
-            input_content = state_vals.get("input_content", "")
-            generated_material = state_vals.get("generated_material", "")
-            recognized_notes = state_vals.get("recognized_notes", "")
-            synthesized_material = state_vals.get("synthesized_material", "")
-            image_paths = state_vals.get("image_paths", [])
-            questions = state_vals.get("questions", [])
-            questions_and_answers = state_vals.get("questions_and_answers", [])
-
-            # Подготавливаем данные для комплексного пуша
-            all_materials = {
-                "generated_material": generated_material,
-                "recognized_notes": recognized_notes,
-                "synthesized_material": synthesized_material,
-                "image_paths": image_paths,
-                "questions": questions,
-                "questions_and_answers": questions_and_answers,
+        base_url = self.settings.web_ui_base_url.rstrip('/')
+        return f"{base_url}/thread/{thread_id}/session/{session_id}/file/{file_name}"
+    
+    def _track_artifact_url(
+        self, thread_id: str, artifact_type: str, url: str, label: str
+    ) -> None:
+        """
+        Добавляет URL в pending_urls
+        
+        Args:
+            thread_id: Идентификатор потока
+            artifact_type: Тип артефакта (learning_material, questions, etc.)
+            url: URL артефакта
+            label: Метка для отображения
+        """
+        if thread_id not in self.artifacts_data:
+            self.artifacts_data[thread_id] = {
+                "pending_urls": {},
+                "sent_urls": {}
             }
-
-            # Используем комплексный метод Artifacts manager
-            result = await self.artifacts_manager.push_complete_materials(
-                thread_id=thread_id,
-                input_content=input_content,
-                all_materials=all_materials,
-            )
-
-            if result.get("success"):
-                logger.info(
-                    f"Successfully pushed complete materials for thread {thread_id} to local storage"
-                )
-
-                # Обновляем данные в словаре GraphManager
-                if thread_id not in self.artifacts_data:
-                    self.artifacts_data[thread_id] = {}
-                self.artifacts_data[thread_id].update(
-                    {
-                        "local_session_path": result.get("folder_path"),
-                        "local_folder_path": result.get("folder_path"),
-                    }
-                )
-
-                return result
-            else:
-                logger.error(
-                    f"Failed to push complete materials for thread {thread_id}: {result.get('error')}"
-                )
-                return None
-
-        except Exception as e:
-            logger.error(
-                f"Error pushing complete materials to local storage for thread {thread_id}: {e}"
-            )
-            return None
+        
+        self.artifacts_data[thread_id]["pending_urls"][artifact_type] = {
+            "url": url,
+            "label": label
+        }
+        logger.debug(f"Tracked URL for {artifact_type}: {url}")
+    
+    def _get_pending_urls(self, thread_id: str) -> List[str]:
+        """
+        Получает список неотправленных URL с метками
+        
+        Args:
+            thread_id: Идентификатор потока
+        
+        Returns:
+            Список строк с URL и метками для отправки
+        """
+        pending = self.artifacts_data.get(thread_id, {}).get("pending_urls", {})
+        messages = []
+        for artifact_type, data in pending.items():
+            messages.append(f"{data['label']}: {data['url']}")
+        return messages
+    
+    def _mark_urls_as_sent(self, thread_id: str, artifact_types: List[str]) -> None:
+        """
+        Перемещает URL из pending в sent
+        
+        Args:
+            thread_id: Идентификатор потока
+            artifact_types: Список типов артефактов для перемещения
+        """
+        if thread_id not in self.artifacts_data:
+            return
+        
+        pending = self.artifacts_data[thread_id].get("pending_urls", {})
+        sent = self.artifacts_data[thread_id].get("sent_urls", {})
+        
+        for artifact_type in artifact_types:
+            if artifact_type in pending:
+                sent[artifact_type] = pending.pop(artifact_type)
+                logger.debug(f"Marked {artifact_type} URL as sent for thread {thread_id}")
+    
+    # ---------- local artifacts management ----------
 
 
     async def process_step(self, thread_id: str, query: str, image_paths: List[str] = None) -> Dict[str, Any]:
@@ -464,28 +468,14 @@ class GraphManager:
             logger.debug(f"Interrupt data: {interrupt_data}")
             msgs = interrupt_data.get("message", [str(interrupt_data)])
 
-            # Добавляем ссылку на обучающий материал, если это первый interrupt после generating_questions
-            learning_material_link_sent = self.artifacts_data.get(thread_id, {}).get(
-                "learning_material_link_sent", False
-            )
-            logger.debug(f"learning_material_link_sent: {learning_material_link_sent}")
-            if not learning_material_link_sent:
-                learning_material_path = self.artifacts_data.get(thread_id, {}).get(
-                    "local_learning_material_path"
-                )
-                logger.debug(f"learning_material_path: {learning_material_path}")
-                if learning_material_path:
-                    logger.debug(f"final_state.next: {final_state.next}")
-                    msgs.append(
-                        f"📚 Обучающий материал сохранён: {learning_material_path}"
-                    )
-                    # Помечаем, что ссылка уже отправлена
-                    if thread_id not in self.artifacts_data:
-                        self.artifacts_data[thread_id] = {}
-                    self.artifacts_data[thread_id]["learning_material_link_sent"] = True
-                    logger.debug(
-                        f"Marked learning_material_link_sent=True for thread {thread_id}"
-                    )
+            # Добавляем неотправленные URL к сообщению
+            pending_urls = self._get_pending_urls(thread_id)
+            if pending_urls:
+                msgs.extend(pending_urls)
+                # Помечаем URL как отправленные
+                pending_types = list(self.artifacts_data.get(thread_id, {}).get("pending_urls", {}).keys())
+                self._mark_urls_as_sent(thread_id, pending_types)
+                logger.debug(f"Added {len(pending_urls)} pending URLs to interrupt message for thread {thread_id}")
 
             logger.info(f"Workflow interrupted for thread {thread_id}")
             return {"thread_id": thread_id, "result": msgs}
@@ -493,19 +483,16 @@ class GraphManager:
         # happy path – всё закончено
         logger.info(f"Workflow completed for thread {thread_id}")
 
-        # Пуш всех материалов в GitHub перед удалением thread
-        final_state_values = final_state.values if final_state else {}
-        await self._push_complete_materials_to_artifacts(thread_id, final_state_values)
-
-        # Формируем финальное сообщение со ссылкой на GitHub директорию (до удаления thread'а)
+        # Формируем финальное сообщение со ссылкой на Web UI
         final_message = ["Готово 🎉 – присылайте следующий вопрос!"]
 
-        local_folder_path = self.artifacts_data.get(thread_id, {}).get(
-            "local_folder_path"
-        )
-        if local_folder_path:
+        # Генерируем ссылку на сессию в Web UI
+        session_id = self.artifacts_data.get(thread_id, {}).get("session_id")
+        if session_id:
+            base_url = self.settings.web_ui_base_url.rstrip('/')
+            session_url = f"{base_url}/thread/{thread_id}/session/{session_id}"
             final_message.append(
-                f"📁 Все материалы сохранены: {local_folder_path}\n\nПрисылайте следующий экзаменационный вопрос!"
+                f"📁 Все материалы доступны здесь: {session_url}\n\nПрисылайте следующий экзаменационный вопрос!"
             )
 
         await self.delete_thread(thread_id)
@@ -546,19 +533,36 @@ class GraphManager:
                 f"Successfully saved learning material for thread {thread_id}: {result.get('file_path')}"
             )
             
-            # Сохраняем пути в локальном словаре
+            # Инициализируем структуру данных для сессии
             if thread_id not in self.artifacts_data:
-                self.artifacts_data[thread_id] = {}
+                self.artifacts_data[thread_id] = {
+                    "pending_urls": {},
+                    "sent_urls": {},
+                    "session_id": result.get("session_id"),
+                    "web_ui_base_url": self.settings.web_ui_base_url
+                }
+            else:
+                self.artifacts_data[thread_id]["session_id"] = result.get("session_id")
             
-            self.artifacts_data[thread_id].update({
-                "local_session_path": result.get("folder_path"),
-                "local_folder_path": result.get("folder_path"),
-                "session_id": result.get("session_id"),
-                "local_learning_material_path": result.get("file_path")
+            # Генерируем и отслеживаем URL для обучающего материала
+            session_id = result.get("session_id")
+            if session_id:
+                url = self._generate_web_ui_url(
+                    thread_id=thread_id,
+                    session_id=session_id,
+                    file_name="learning_material.md"
+                )
+                self._track_artifact_url(
+                    thread_id=thread_id,
+                    artifact_type="learning_material",
+                    url=url,
+                    label="📚 Обучающий материал"
+                )
+            
+            # Обновляем состояние графа (убираем локальные пути)
+            await self._update_state(thread_id, {
+                "session_id": result.get("session_id")
             })
-            
-            # Обновляем состояние графа
-            await self._update_state(thread_id, self.artifacts_data[thread_id])
         else:
             logger.error(
                 f"Failed to save learning material for thread {thread_id}: {result.get('error')}"
@@ -581,16 +585,16 @@ class GraphManager:
             )
             return
             
-        folder_path = self.artifacts_data.get(thread_id, {}).get("local_folder_path")
-        if not folder_path:
-            logger.warning(f"No folder path for thread {thread_id}, skipping recognized notes save")
+        session_id = self.artifacts_data.get(thread_id, {}).get("session_id")
+        if not session_id:
+            logger.warning(f"No session_id for thread {thread_id}, skipping recognized notes save")
             return
         
         try:
             await self.artifacts_manager.push_recognized_notes(
-                folder_path=folder_path,
-                recognized_notes=node_data.get("recognized_notes", ""),
-                thread_id=thread_id
+                thread_id=thread_id,
+                session_id=session_id,
+                recognized_notes=node_data.get("recognized_notes", "")
             )
             logger.info(f"Successfully saved recognized notes for thread {thread_id}")
         except Exception as e:
@@ -613,9 +617,9 @@ class GraphManager:
             )
             return
             
-        folder_path = self.artifacts_data.get(thread_id, {}).get("local_folder_path")
-        if not folder_path:
-            logger.warning(f"No folder path for thread {thread_id}, skipping synthesized material save")
+        session_id = self.artifacts_data.get(thread_id, {}).get("session_id")
+        if not session_id:
+            logger.warning(f"No session_id for thread {thread_id}, skipping synthesized material save")
             return
         
         # Для edit_material берем из состояния, для synthesis_material из node_data
@@ -630,12 +634,27 @@ class GraphManager:
         
         try:
             await self.artifacts_manager.push_synthesized_material(
-                folder_path=folder_path,
-                synthesized_material=material,
-                thread_id=thread_id
+                thread_id=thread_id,
+                session_id=session_id,
+                synthesized_material=material
             )
             action = "edited" if is_edit_node else "synthesized"
             logger.info(f"Successfully saved {action} material for thread {thread_id}")
+            
+            # Генерируем и отслеживаем URL для синтезированного материала
+            session_id = self.artifacts_data.get(thread_id, {}).get("session_id")
+            if session_id:
+                url = self._generate_web_ui_url(
+                    thread_id=thread_id,
+                    session_id=session_id,
+                    file_name="synthesized_material.md"
+                )
+                self._track_artifact_url(
+                    thread_id=thread_id,
+                    artifact_type="synthesized_material",
+                    url=url,
+                    label="🔄 Синтезированный материал" if not is_edit_node else "✏️ Отредактированный материал"
+                )
         except Exception as e:
             logger.error(f"Failed to save synthesized material for thread {thread_id}: {e}")
 
@@ -656,9 +675,9 @@ class GraphManager:
             )
             return
             
-        folder_path = self.artifacts_data.get(thread_id, {}).get("local_folder_path")
-        if not folder_path:
-            logger.warning(f"No folder path for thread {thread_id}, skipping assessment questions save")
+        session_id = self.artifacts_data.get(thread_id, {}).get("session_id")
+        if not session_id:
+            logger.warning(f"No session_id for thread {thread_id}, skipping assessment questions save")
             return
         
         questions = node_data.get("questions", [])
@@ -669,12 +688,26 @@ class GraphManager:
         try:
             # Сохраняем только вопросы без ответов
             await self.artifacts_manager.push_questions_and_answers(
-                folder_path=folder_path,
+                thread_id=thread_id,
+                session_id=session_id,
                 questions=questions,
-                questions_and_answers=[],  # Пустой список, т.к. ответов еще нет
-                thread_id=thread_id
+                questions_and_answers=[]  # Пустой список, т.к. ответов еще нет
             )
             logger.info(f"Successfully saved assessment questions for thread {thread_id}")
+            
+            # Генерируем и отслеживаем URL для вопросов
+            if session_id:
+                url = self._generate_web_ui_url(
+                    thread_id=thread_id,
+                    session_id=session_id,
+                    file_name="questions.md"
+                )
+                self._track_artifact_url(
+                    thread_id=thread_id,
+                    artifact_type="questions",
+                    url=url,
+                    label="❓ Контрольные вопросы"
+                )
         except Exception as e:
             logger.error(f"Failed to save assessment questions for thread {thread_id}: {e}")
 
@@ -695,9 +728,9 @@ class GraphManager:
             )
             return
             
-        folder_path = self.artifacts_data.get(thread_id, {}).get("local_folder_path")
-        if not folder_path:
-            logger.warning(f"No folder path for thread {thread_id}, skipping answers save")
+        session_id = self.artifacts_data.get(thread_id, {}).get("session_id")
+        if not session_id:
+            logger.warning(f"No session_id for thread {thread_id}, skipping answers save")
             return
         
         questions_and_answers = state_values.get("questions_and_answers", [])
@@ -708,11 +741,25 @@ class GraphManager:
         try:
             # Обновляем файл с вопросами и ответами
             await self.artifacts_manager.push_questions_and_answers(
-                folder_path=folder_path,
+                thread_id=thread_id,
+                session_id=session_id,
                 questions=state_values.get("questions", []),
-                questions_and_answers=questions_and_answers,
-                thread_id=thread_id
+                questions_and_answers=questions_and_answers
             )
             logger.info(f"Successfully saved answers for thread {thread_id}")
+            
+            # Генерируем и отслеживаем URL для ответов
+            if session_id:
+                url = self._generate_web_ui_url(
+                    thread_id=thread_id,
+                    session_id=session_id,
+                    file_name="questions_and_answers.md"
+                )
+                self._track_artifact_url(
+                    thread_id=thread_id,
+                    artifact_type="answers",
+                    url=url,
+                    label="✅ Вопросы с ответами"
+                )
         except Exception as e:
             logger.error(f"Failed to save answers for thread {thread_id}: {e}")

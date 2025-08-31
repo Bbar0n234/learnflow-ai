@@ -44,6 +44,8 @@
 - `12-FEAT-multi-tenancy/` - Multi-Tenancy Security Implementation
   - `POST-IMPLEMENTATION-SUMMARY.md` - ✅ Phase 1: Security infrastructure completed (2025-08-29)
   - `IP-02-phase2-COMPLETED.md` - ✅ Phase 2: Web UI authentication completed (2025-08-29)
+- `13-FEAT-web-ui-urls/` - Replace Local Paths with Web UI URLs
+  - `IP-01-post-implementation-summary.md` - ✅ Web UI URLs implementation completed (2025-08-31)
 
 ## Архив (archive)
 Планы реализации (Implementation Plans), которые были перемещены из current/ после завершения задач:
@@ -74,6 +76,8 @@
 - `12-FEAT-multi-tenancy/`
   - `IP-01-phase1-security-implementation.md` - ✅ Completed: Multi-Tenancy Security Phase 1 (2025-08-29)
   - `IP-02-phase2-web-ui-auth.md` - ✅ Completed: Web UI Authentication Phase 2 (2025-08-29)
+- `13-FEAT-web-ui-urls/`
+  - `IP-01-replace-local-paths-with-urls.md` - ✅ Completed: Replace Local File Paths with Web UI URLs (2025-08-31)
 - `misc/`
   - `IP-01-artifacts-manager.md` - ✅ Completed: Local Artifacts Manager implementation
 

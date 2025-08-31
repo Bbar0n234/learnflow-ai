@@ -16,6 +16,7 @@ services:
       - ARTIFACTS_SERVICE_URL=${ARTIFACTS_SERVICE_URL}
       - DATABASE_URL=${DATABASE_URL}
       - LOG_LEVEL=${LOG_LEVEL}
+      - WEB_UI_BASE_URL=${WEB_UI_BASE_URL}
     restart: always
     depends_on:
       - graph
@@ -45,6 +46,7 @@ services:
       - ARTIFACTS_BASE_PATH=${ARTIFACTS_BASE_PATH:-data/artifacts}
       - ARTIFACTS_ENSURE_PERMISSIONS=${ARTIFACTS_ENSURE_PERMISSIONS:-true}
       - ARTIFACTS_MAX_FILE_SIZE=${ARTIFACTS_MAX_FILE_SIZE:-10485760}
+      - WEB_UI_BASE_URL=${WEB_UI_BASE_URL}
       
     ports:
       - "8000:8000"

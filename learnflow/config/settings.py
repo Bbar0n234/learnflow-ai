@@ -106,6 +106,12 @@ class AppSettings(BaseSettings):
         description="Количество retry попыток для Prompt Service",
     )
 
+    # Web UI settings
+    web_ui_base_url: str = Field(
+        default="http://localhost:5173",
+        description="Базовый URL для Web UI интерфейса",
+    )
+
     def is_artifacts_configured(self) -> bool:
         """Проверка настройки локального хранилища артефактов"""
         return bool(self.artifacts_base_path)

@@ -90,8 +90,6 @@ cp .env.local.example .env.local
 
 2. **Запустить все сервисы одной командой (рекомендуется)**
 ```bash
-./local-dev.sh
-# или
 make local-dev
 ```
 

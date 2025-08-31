@@ -76,23 +76,8 @@ class GeneralState(BaseModel):
         default_factory=list, description="История сообщений для HITL взаимодействия"
     )
 
-    # Local artifacts storage
-    local_session_path: Optional[str] = Field(
-        default=None, description="Путь к сессии в локальном хранилище"
-    )
-    local_thread_path: Optional[str] = Field(
-        default=None, description="Путь к потоку в локальном хранилище"
-    )
+    # Artifacts storage
     session_id: Optional[str] = Field(default=None, description="Идентификатор сессии")
-    local_learning_material_path: Optional[str] = Field(
-        default=None, description="Путь к обучающему материалу"
-    )
-    local_folder_path: Optional[str] = Field(
-        default=None, description="Путь к папке сессии"
-    )
-    learning_material_link_sent: bool = Field(
-        default=False, description="Флаг отправки ссылки на материал"
-    )
 
     # Edit agent fields (minimal for MVP)
     edit_count: int = Field(default=0, description="Total number of edits performed")

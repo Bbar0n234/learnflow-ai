@@ -297,24 +297,24 @@ class LocalArtifactsManager:
 
     async def push_recognized_notes(
         self,
-        folder_path: str,
-        recognized_notes: str,
         thread_id: str,
+        session_id: str,
+        recognized_notes: str,
     ) -> Dict[str, Any]:
         """
         Сохраняет recognized_notes.md в существующую session
 
         Args:
-            folder_path: Путь к session (из предыдущего вызова)
+            thread_id: Идентификатор потока
+            session_id: Идентификатор сессии
             recognized_notes: Распознанный текст
-            thread_id: Для логирования
 
         Returns:
             success/error status + file paths
         """
         try:
-            # Convert relative path back to absolute
-            session_path = self.base_path / folder_path
+            # Build session path from thread_id and session_id
+            session_path = self.base_path / thread_id / "sessions" / session_id
 
             if not session_path.exists():
                 raise ValueError(f"Session path does not exist: {session_path}")
@@ -353,24 +353,24 @@ class LocalArtifactsManager:
 
     async def push_synthesized_material(
         self,
-        folder_path: str,
-        synthesized_material: str,
         thread_id: str,
+        session_id: str,
+        synthesized_material: str,
     ) -> Dict[str, Any]:
         """
         Сохраняет synthesized_material.md
 
         Args:
-            folder_path: Путь к session
+            thread_id: Идентификатор потока
+            session_id: Идентификатор сессии
             synthesized_material: Синтезированный материал
-            thread_id: Для логирования
 
         Returns:
             success/error status + file paths
         """
         try:
-            # Convert relative path back to absolute
-            session_path = self.base_path / folder_path
+            # Build session path from thread_id and session_id
+            session_path = self.base_path / thread_id / "sessions" / session_id
 
             if not session_path.exists():
                 raise ValueError(f"Session path does not exist: {session_path}")
@@ -412,26 +412,26 @@ class LocalArtifactsManager:
 
     async def push_questions_and_answers(
         self,
-        folder_path: str,
+        thread_id: str,
+        session_id: str,
         questions: list,
         questions_and_answers: list,
-        thread_id: str,
     ) -> Dict[str, Any]:
         """
         Сохраняет questions.md и отдельные answer файлы
 
         Args:
-            folder_path: Путь к session
+            thread_id: Идентификатор потока
+            session_id: Идентификатор сессии
             questions: Список gap questions
             questions_and_answers: Список Q&A пар
-            thread_id: Для логирования
 
         Returns:
             success/error status + файлы paths
         """
         try:
-            # Convert relative path back to absolute
-            session_path = self.base_path / folder_path
+            # Build session path from thread_id and session_id
+            session_path = self.base_path / thread_id / "sessions" / session_id
 
             if not session_path.exists():
                 raise ValueError(f"Session path does not exist: {session_path}")
@@ -495,86 +495,5 @@ class LocalArtifactsManager:
         except Exception as e:
             logger.error(
                 f"Failed to push questions and answers for thread {thread_id}: {e}"
-            )
-            return {"success": False, "error": str(e)}
-
-    async def push_complete_materials(
-        self, thread_id: str, input_content: str, all_materials: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """
-        Комплексное сохранение всех материалов
-
-        Args:
-            thread_id: Идентификатор потока
-            input_content: Экзаменационный вопрос
-            all_materials: Словарь со всеми материалами
-
-        Returns:
-            Dict с информацией обо всех созданных файлах
-        """
-        try:
-            results = {}
-
-            # 1. Создаем базовую папку и сохраняем основной материал
-            learning_result = await self.push_learning_material(
-                thread_id=thread_id,
-                input_content=input_content,
-                generated_material=all_materials.get("generated_material", ""),
-            )
-
-            if not learning_result.get("success"):
-                return {"success": False, "error": "Failed to create base session"}
-
-            folder_path = learning_result["folder_path"]
-            results["learning_material"] = learning_result
-
-            # 2. Сохраняем распознанные конспекты если есть
-            recognized_notes = all_materials.get("recognized_notes", "")
-            if recognized_notes.strip():
-                notes_result = await self.push_recognized_notes(
-                    folder_path=folder_path,
-                    recognized_notes=recognized_notes,
-                    thread_id=thread_id,
-                )
-                results["recognized_notes"] = notes_result
-
-            # 3. Сохраняем синтезированный материал если есть
-            synthesized_material = all_materials.get("synthesized_material", "")
-            if synthesized_material.strip():
-                synthesis_result = await self.push_synthesized_material(
-                    folder_path=folder_path,
-                    synthesized_material=synthesized_material,
-                    thread_id=thread_id,
-                )
-                results["synthesized_material"] = synthesis_result
-
-            # 4. Сохраняем вопросы и ответы если есть
-            questions = all_materials.get("questions", [])
-            questions_and_answers = all_materials.get("questions_and_answers", [])
-            if questions or questions_and_answers:
-                questions_result = await self.push_questions_and_answers(
-                    folder_path=folder_path,
-                    questions=questions,
-                    questions_and_answers=questions_and_answers,
-                    thread_id=thread_id,
-                )
-                results["questions_and_answers"] = questions_result
-
-            logger.info(
-                f"Successfully pushed complete materials for thread {thread_id}"
-            )
-
-            return {
-                "success": True,
-                "folder_path": folder_path,
-                "folder_url": str(
-                    (self.base_path / folder_path).absolute()
-                ),  # Local file path
-                "results": results,
-            }
-
-        except Exception as e:
-            logger.error(
-                f"Failed to push complete materials for thread {thread_id}: {e}"
             )
             return {"success": False, "error": str(e)}

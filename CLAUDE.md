@@ -72,18 +72,12 @@ uv sync --package bot --group test        # Test deps for bot only
 
 #### Quick Local Development (Recommended)
 ```bash
-# Start all services with one command (PostgreSQL in Docker, services locally)
-./local-dev.sh
-
-# Reset everything if needed
-./local-reset.sh
-
-# Or use Makefile
-make local-dev   # Same as ./local-dev.sh
-make local-reset # Same as ./local-reset.sh
+# use Makefile
+make local-dev   # Same as ./scripts/local-dev.sh
+make local-reset # Same as ./scripts/local-reset.sh
 ```
 
-**What `./local-dev.sh` does:**
+**What `make local-dev` does:**
 1. Checks/creates `.env.local` configuration
 2. Installs dependencies if needed (`uv sync`)
 3. Starts PostgreSQL in Docker (port 5433)

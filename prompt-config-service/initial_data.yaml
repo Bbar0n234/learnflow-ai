@@ -41,6 +41,10 @@ placeholders:
       - name: backend_development
         value: backend development
         display_name: Backend-разработка
+        
+      - name: ai_llm
+        value: AI and large language models
+        display_name: AI и большие языковые модели
 
   - name: subject_keywords
     display_name: Ключевые слова предмета
@@ -65,6 +69,10 @@ placeholders:
       - name: backend_keywords
         value: REST/GraphQL APIs, databases, microservices, authentication/authorization, caching, message queues, containerization, CI/CD, system design, scalability
         display_name: Backend-разработка
+        
+      - name: ai_llm_keywords
+        value: LLM, AI, GPT, agents, Claude, Llama, transformers, self-attention, prompt engineering, fine-tuning, RLHF, RAG, vector databases, embeddings, LangChain/LangGraph, tokenization, context windows, few-shot learning, chain-of-thought
+        display_name: AI и большие языковые модели
 
   - name: language
     display_name: Язык
@@ -453,20 +461,34 @@ profiles:
       question_formats: case_studies
       topic_coverage: problem_specific
 
+  - name: ai_llm_profile
+    display_name: AI и большие языковые модели
+    category: subject
+    description: Профиль для изучения современных LLM, промпт-инжиниринга и AI-агентов
+    settings:
+      subject_name: ai_llm
+      subject_keywords: ai_llm_keywords
+      role_perspective: industry_practitioner
+      explanation_depth: balanced_coverage
+      material_type_inline: practical_workshop
+      material_type_block: practical_workshop_block
+      question_formats: open_ended
+      topic_coverage: progressive_learning
+
 # Default values for placeholders when no user or profile settings exist
 default_values:
-  role_perspective: industry_practitioner
-  subject_name: cryptography
-  subject_keywords: crypto_keywords
+  role_perspective: simplification_expert
+  subject_name: ai_llm
+  subject_keywords: ai_llm_keywords
   language: russian_tech
   style: comprehensive_detailed
-  target_audience_inline: university_students
-  target_audience_block: university_students_block
+  target_audience_inline: working_professionals
+  target_audience_block: working_professionals_block
   material_type_inline: comprehensive_study
   material_type_block: comprehensive_study_block
   explanation_depth: balanced_coverage
-  topic_coverage: core_fundamentals
-  question_formats: multiple_choice
-  question_purpose: diagnose_gaps_block
-  question_purpose_inline: diagnose_gaps
-  question_quantity: qty_10
+  topic_coverage: progressive_learning
+  question_formats: open_ended
+  question_purpose: verify_understanding_block
+  question_purpose_inline: verify_understanding
+  question_quantity: qty_3

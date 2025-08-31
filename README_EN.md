@@ -105,7 +105,6 @@ This script automatically:
 
 **Additional commands:**
 ```bash
-./local-logs.sh   # View logs from all services
 ./local-reset.sh  # Full environment reset
 ```
 

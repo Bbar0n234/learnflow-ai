@@ -146,6 +146,17 @@ class LearnFlowBot:
                     raise Exception(f"API error: {response.status}")
                 return await response.json()
 
+    async def _process_with_images(self, message: Message, thread_id: str, text: str, photos: list[bytes]) -> Dict[str, Any]:
+        """Обработка сообщения с изображениями"""
+        # Загружаем изображения в API
+        image_paths = await self._upload_images(thread_id, photos)
+        
+        if not image_paths:
+            raise Exception("Failed to upload images")
+        
+        # Отправляем запрос с изображениями
+        return await self._process_message(thread_id, text, image_paths)
+
 
 # Создаем глобальный экземпляр бота
 bot_instance: Optional[LearnFlowBot] = None
@@ -294,6 +305,7 @@ async def handle_photo(message: Message):
     if not message.from_user or not message.bot:
         return
     user_id = message.from_user.id
+    thread_id = str(user_id)
 
     try:
         # Показываем индикатор загрузки
@@ -325,20 +337,73 @@ async def handle_photo(message: Message):
         # Если есть подпись к фото, используем её как текст
         if message.caption:
             bot_instance.pending_media[user_id]["text"] = message.caption
+            
+            # Если есть подпись, сразу начинаем обработку
+            logger.info(f"Received photo with caption from user {user_id}, starting processing immediately")
+            
+            # Показываем индикатор печати
+            await message.bot.send_chat_action(
+                chat_id=message.chat.id, action=ChatAction.TYPING
+            )
+            
+            # Отправляем сообщение об обработке
+            processing_msg = await message.answer(
+                telegramify_markdown.markdownify("📸 Получены фотографии с текстом. Начинаю обработку...\n🔄 Обрабатываю ваш запрос..."),
+                parse_mode=ParseMode.MARKDOWN_V2
+            )
+            bot_instance.processing_messages[user_id] = processing_msg.message_id
+            
+            try:
+                # Обрабатываем с изображениями
+                result = await bot_instance._process_with_images(
+                    message, 
+                    thread_id, 
+                    message.caption,
+                    bot_instance.pending_media[user_id]["photos"]
+                )
+                
+                # Очищаем pending media после успешной обработки
+                del bot_instance.pending_media[user_id]
+                
+                # Обрабатываем ответ
+                await _handle_api_response(message, result, user_id)
+                
+            except Exception as e:
+                logger.error(f"Error processing photo with caption from user {user_id}: {e}")
+                
+                # Удаляем сообщение об обработке при ошибке
+                if user_id in bot_instance.processing_messages:
+                    try:
+                        await message.bot.delete_message(
+                            chat_id=message.chat.id,
+                            message_id=bot_instance.processing_messages[user_id]
+                        )
+                    except Exception as del_e:
+                        logger.debug(f"Failed to delete processing message: {del_e}")
+                    finally:
+                        del bot_instance.processing_messages[user_id]
+                
+                await message.answer(
+                    telegramify_markdown.markdownify(
+                        "❌ Произошла ошибка при обработке. Попробуйте еще раз или используйте /reset."
+                    ),
+                    parse_mode=ParseMode.MARKDOWN_V2,
+                )
+        else:
+            # Нет подписи - старое поведение (ждём текст)
+            photo_count = len(bot_instance.pending_media[user_id]["photos"])
+            
+            # Отправляем подтверждение
+            confirmation_text = (
+                f"📸 Получена фотография {photo_count}/10\n\n"
+                "Отправьте еще фото или текст с учебной темой для начала обработки.\n"
+                "Или просто отправьте любое сообщение для обработки всех загруженных фотографий."
+            )
 
-        photo_count = len(bot_instance.pending_media[user_id]["photos"])
-
-        # Отправляем подтверждение
-        confirmation_text = (
-            f"📸 Получена фотография {photo_count}/10\n\n"
-            "Отправьте еще фото или текст с учебной темой для начала обработки.\n"
-            "Или просто отправьте любое сообщение для обработки всех загруженных фотографий."
-        )
-
-        await message.answer(
-            telegramify_markdown.markdownify(confirmation_text),
-            parse_mode=ParseMode.MARKDOWN_V2,
-        )
+            await message.answer(
+                telegramify_markdown.markdownify(confirmation_text),
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
 
     except Exception as e:
         logger.error(f"Error handling photo from user {user_id}: {e}")

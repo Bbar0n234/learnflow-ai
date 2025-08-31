@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     # Database
     database_url: str = Field(
         default="postgresql://postgres:postgres@localhost:5433/prompts_db",
+        alias="PROMPT_CONFIG_DATABASE_URL",
         description="PostgreSQL database URL"
     )
     database_pool_size: int = Field(default=10, description="Database connection pool size")

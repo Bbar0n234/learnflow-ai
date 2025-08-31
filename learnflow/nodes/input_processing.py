@@ -47,6 +47,9 @@ class InputProcessingNode(BaseWorkflowNode):
         thread_id = config["configurable"]["thread_id"]
         logger.info(f"Starting input processing for thread {thread_id}")
 
+        # Получаем input_content из state
+        input_content = state.input_content
+
         # Валидация input_content на самом входе в систему
         logger.debug(f"Security guard status: {self.security_guard is not None}")
         if self.security_guard:

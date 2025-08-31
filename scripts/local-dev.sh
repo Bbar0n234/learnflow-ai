@@ -68,7 +68,12 @@ PGPASSWORD=postgres psql -h localhost -p 5433 -U postgres -tc "SELECT 1 FROM pg_
 # Миграции Artifacts Service
 echo -e "${BLUE}🔄 Running Artifacts Service migrations...${NC}"
 (cd artifacts-service && DATABASE_URL="postgresql://postgres:postgres@localhost:5433/learnflow" uv run alembic upgrade head 2>/dev/null || true)
-echo -e "${GREEN}✅ Migrations completed${NC}"
+echo -e "${GREEN}✅ Artifacts Service migrations completed${NC}"
+
+# Миграции Prompt Config Service
+echo -e "${BLUE}🔄 Running Prompt Config Service migrations...${NC}"
+(cd prompt-config-service && DATABASE_URL="postgresql://postgres:postgres@localhost:5433/prompts_db" uv run alembic upgrade head 2>/dev/null || true)
+echo -e "${GREEN}✅ Prompt Config Service migrations completed${NC}"
 
 # Массив PID для отслеживания процессов
 declare -a PIDS
@@ -87,7 +92,7 @@ echo -e "  ${YELLOW}→${NC} Starting Artifacts Service..."
 (cd artifacts-service && uv run python main.py 2>&1 | tee ../logs/artifacts.log | sed "s/^/${GREEN}[Artifacts]${NC} /") &
 PIDS+=($!)
 
-# Prompt Config Service (миграции применятся автоматически при старте)
+# Prompt Config Service
 echo -e "  ${YELLOW}→${NC} Starting Prompt Config Service..."
 (cd prompt-config-service && uv run python main.py 2>&1 | tee ../logs/prompt-config.log | sed "s/^/${YELLOW}[PromptCfg]${NC} /") &
 PIDS+=($!)

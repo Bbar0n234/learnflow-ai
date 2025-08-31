@@ -36,13 +36,9 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     logger.info(f"Starting {settings.service_name} v{settings.service_version}")
     
-    # Initialize database
-    try:
-        await init_db()
-        logger.info("Database initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize database: {e}")
-        raise
+    # Don't call init_db() here - Alembic migrations handle database setup
+    # init_db() would recreate tables and lose all migrated data
+    logger.info("Using existing database schema managed by Alembic")
     
     yield
     

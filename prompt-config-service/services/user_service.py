@@ -1,5 +1,6 @@
 """Service for user settings operations."""
 
+import logging
 import uuid
 from typing import Dict, List
 
@@ -8,26 +9,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.placeholder import PlaceholderValue
 from models.user_settings import UserPlaceholderSetting, UserProfile
 from repositories.placeholder_repo import PlaceholderRepository
+
+logger = logging.getLogger(__name__)
 from repositories.user_settings_repo import UserSettingsRepository
 
 
 # Default placeholder values - map placeholder name to value name from yaml
 DEFAULT_PLACEHOLDER_VALUES = {
     "role_perspective": "simplification_expert",
-    "subject_name": "cryptography",
-    "subject_keywords": "crypto_keywords",
+    "subject_name": "ai_llm",
+    "subject_keywords": "ai_llm_keywords",
     "language": "russian_tech",
     "style": "comprehensive_detailed",
-    "target_audience_inline": "university_students",
-    "target_audience_block": "university_students_block",
+    "target_audience_inline": "working_professionals",
+    "target_audience_block": "working_professionals_block",
     "material_type_inline": "comprehensive_study",
     "material_type_block": "comprehensive_study_block",
     "explanation_depth": "balanced_coverage",
-    "topic_coverage": "core_fundamentals",
-    "question_formats": "multiple_choice",
-    "question_purpose_inline": "diagnose_gaps",
-    "question_purpose": "diagnose_gaps_block",
-    "question_quantity": "qty_5",
+    "topic_coverage": "progressive_learning",
+    "question_formats": "open_ended",
+    "question_purpose": "verify_understanding_block",
+    "question_purpose_inline": "verify_understanding",
+    "question_quantity": "qty_3",
 }
 
 
@@ -114,6 +117,7 @@ class UserService:
         """Apply default settings to user."""
         # Delete existing settings
         await self.repo.delete_user_settings(user_id)
+        logger.info(f"Deleted existing settings for user {user_id}")
         
         # Apply default values
         settings_to_create = []
@@ -122,6 +126,7 @@ class UserService:
             # Find placeholder by name
             placeholder = await self.placeholder_repo.find_by_name(placeholder_name)
             if not placeholder:
+                logger.warning(f"Placeholder '{placeholder_name}' not found in database")
                 continue
                 
             # Find value by name
@@ -132,10 +137,17 @@ class UserService:
                     break
             
             if placeholder_value:
+                logger.debug(f"Found value '{default_value_name}' for placeholder '{placeholder_name}'")
                 settings_to_create.append({
                     "placeholder_id": placeholder.id,
                     "placeholder_value_id": placeholder_value.id
                 })
+            else:
+                logger.warning(f"Value '{default_value_name}' not found for placeholder '{placeholder_name}'. Available values: {[v.name for v in placeholder.values]}")
         
+        logger.info(f"Prepared {len(settings_to_create)} settings for user {user_id}")
         if settings_to_create:
             await self.repo.bulk_upsert(user_id, settings_to_create)
+            logger.info(f"Successfully inserted {len(settings_to_create)} settings for user {user_id}")
+        else:
+            logger.error(f"No settings to create for user {user_id}!")

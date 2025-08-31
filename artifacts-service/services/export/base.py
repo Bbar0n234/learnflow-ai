@@ -1,11 +1,14 @@
 """Base export engine for document export."""
 
+import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
 from models import ExportFormat, PackageType
+
+logger = logging.getLogger(__name__)
 
 
 class ExportEngine(ABC):
@@ -115,6 +118,7 @@ class ExportEngine(ABC):
         Returns:
             List of document paths
         """
+        logger.debug(f"get_package_documents: session_path={session_path}, package_type={package_type}")
         documents = []
         
         # Final documents (always included)
@@ -125,25 +129,32 @@ class ExportEngine(ABC):
         
         for doc in final_docs:
             doc_path = session_path / doc
+            logger.debug(f"Checking final doc: {doc_path}, exists={doc_path.exists()}")
             if doc_path.exists():
                 documents.append(doc_path)
         
         # Add all answers
         answers_dir = session_path / "answers"
+        logger.debug(f"Checking answers dir: {answers_dir}, exists={answers_dir.exists()}")
         if answers_dir.exists():
-            documents.extend(sorted(answers_dir.glob("answer_*.md")))
+            answer_files = sorted(answers_dir.glob("answer_*.md"))
+            logger.debug(f"Found {len(answer_files)} answer files")
+            documents.extend(answer_files)
         
         # Add intermediate documents if requested
         if package_type == PackageType.ALL:
+            logger.debug("Package type is ALL, adding intermediate documents")
             intermediate_docs = [
                 "generated_material.md",
                 "recognized_notes.md"
             ]
             for doc in intermediate_docs:
                 doc_path = session_path / doc
+                logger.debug(f"Checking intermediate doc: {doc_path}, exists={doc_path.exists()}")
                 if doc_path.exists():
                     documents.append(doc_path)
         
+        logger.info(f"Total documents found: {len(documents)}")
         return documents
     
     def format_filename(

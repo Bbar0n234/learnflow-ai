@@ -505,7 +505,7 @@ class GraphManager:
         logger.info(f"Workflow completed for thread {thread_id}")
 
         # Формируем финальное сообщение со ссылкой на Web UI
-        final_message = ["Готово 🎉 – присылайте следующий вопрос!"]
+        final_message = ["Готово 🎉 – присылайте следующую тему для изучения!"]
 
         # Генерируем ссылку на сессию в Web UI
         session_id = self.artifacts_data.get(thread_id, {}).get("session_id")
@@ -513,7 +513,7 @@ class GraphManager:
             base_url = self.settings.web_ui_base_url.rstrip('/')
             session_url = f"{base_url}/thread/{thread_id}/session/{session_id}"
             final_message.append(
-                f"📁 Все материалы доступны здесь: {session_url}\n\nПрисылайте следующий экзаменационный вопрос!"
+                f"📁 Все материалы доступны [здесь]({session_url})"
             )
 
         await self.delete_thread(thread_id)

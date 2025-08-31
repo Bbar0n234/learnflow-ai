@@ -54,7 +54,11 @@ class BotSettings(BaseSettings):
     # Database and authentication settings
     database_url: Optional[str] = Field(default=None, description="PostgreSQL database URL")
     artifacts_service_url: str = Field(default="http://localhost:8001", description="Artifacts service URL")
-    bot_api_key: Optional[str] = Field(default=None, description="API key for bot authentication")
+    bot_api_key: Optional[str] = Field(
+        default=None, 
+        description="API key for bot authentication",
+        alias="ARTIFACTS_BOT_API_KEY"
+    )
 
     class Config:
         env_file = [".env.local", ".env"]
@@ -72,4 +76,11 @@ def get_settings() -> BotSettings:
     global _settings
     if _settings is None:
         _settings = BotSettings()
+        # Log loaded settings
+        import logging
+        logger = logging.getLogger(__name__)
+        if _settings.bot_api_key:
+            logger.info(f"Bot API key loaded: {_settings.bot_api_key[:8]}...")
+        else:
+            logger.warning("Bot API key not loaded from environment")
     return _settings

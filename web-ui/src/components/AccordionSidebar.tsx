@@ -77,8 +77,15 @@ export const AccordionSidebar: React.FC<AccordionSidebarProps> = ({
             className="sidebar-item"
             style={{ paddingLeft: `${indent}px` }}
             onClick={(e) => {
-              // Folders don't navigate, they just show/hide visually
               e.stopPropagation();
+              // Navigate to the first file in the folder to trigger folder expansion
+              if (folderFiles.length > 0) {
+                const firstFilePath = folderFiles[0];
+                const file = files.find(f => f.path === firstFilePath);
+                if (file) {
+                  onSelect(threadId, sessionId, file.path);
+                }
+              }
             }}
           >
             {isExpanded ? (

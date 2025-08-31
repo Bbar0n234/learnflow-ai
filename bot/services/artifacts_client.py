@@ -13,13 +13,17 @@ logger = logging.getLogger(__name__)
 class ArtifactsAPIClient:
     """HTTP client for interacting with Artifacts Service."""
 
-    def __init__(self, base_url: str = None, api_key: str = None):
+    def __init__(self, base_url: str = None, api_key: str = None, timeout: int = 30):
         settings = get_settings()
         self.base_url = (base_url or settings.artifacts_service_url).rstrip("/")
         self.api_key = api_key or settings.bot_api_key
         self.session: Optional[aiohttp.ClientSession] = None
-        self.timeout = aiohttp.ClientTimeout(total=30)
+        self.timeout = aiohttp.ClientTimeout(total=timeout)
         logger.info(f"Initialized ArtifactsAPIClient with base_url: {self.base_url}")
+        if self.api_key:
+            logger.info(f"API key configured: {self.api_key[:8]}...")
+        else:
+            logger.warning("No API key configured for ArtifactsAPIClient")
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session."""
@@ -67,7 +71,9 @@ class ArtifactsAPIClient:
             if json_data:
                 logger.debug(f"Request data: {json_data}")
             if headers:
-                logger.debug(f"Auth headers present for user {user_id}")
+                logger.debug(f"Auth headers present for user {user_id}: {headers}")
+            else:
+                logger.warning(f"No auth headers for request to {url}")
 
             async with session.request(
                 method, 
@@ -282,7 +288,8 @@ def get_artifacts_client() -> ArtifactsAPIClient:
     """
     global _artifacts_client_instance
     if _artifacts_client_instance is None:
-        _artifacts_client_instance = ArtifactsAPIClient()
+        # Increase timeout to 60 seconds for PDF generation
+        _artifacts_client_instance = ArtifactsAPIClient(timeout=60)
     return _artifacts_client_instance
 
 

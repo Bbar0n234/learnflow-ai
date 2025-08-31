@@ -1,7 +1,6 @@
 """Export handlers for Telegram bot."""
 
 import logging
-import aiohttp
 from io import BytesIO
 from typing import Optional
 from datetime import datetime
@@ -20,6 +19,7 @@ from ..keyboards.export_keyboards import (
     get_settings_keyboard,
     get_confirmation_keyboard,
 )
+from ..services.artifacts_client import get_artifacts_client
 
 logger = logging.getLogger(__name__)
 
@@ -41,35 +41,27 @@ class ExportStates(StatesGroup):
 
 async def get_user_settings(user_id: str) -> dict:
     """Get user export settings from artifacts service."""
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(
-                f"{ARTIFACTS_SERVICE_URL}/users/{user_id}/export-settings"
-            ) as resp:
-                if resp.status == 200:
-                    return await resp.json()
-        except Exception as e:
-            logger.error(f"Failed to get user settings: {e}")
-    
-    # Return defaults if failed
-    return {
-        "default_format": "markdown",
-        "default_package_type": "final"
-    }
+    client = get_artifacts_client()
+    try:
+        return await client.get_export_settings(int(user_id))
+    except Exception as e:
+        logger.error(f"Failed to get user settings: {e}")
+        # Return defaults if failed
+        return {
+            "default_format": "markdown",
+            "default_package_type": "final"
+        }
 
 
 async def save_user_settings(user_id: str, settings: dict) -> bool:
     """Save user export settings."""
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.put(
-                f"{ARTIFACTS_SERVICE_URL}/users/{user_id}/export-settings",
-                json=settings
-            ) as resp:
-                return resp.status == 200
-        except Exception as e:
-            logger.error(f"Failed to save user settings: {e}")
-    return False
+    client = get_artifacts_client()
+    try:
+        await client.update_export_settings(int(user_id), settings)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to save user settings: {e}")
+        return False
 
 
 async def export_document(
@@ -79,21 +71,17 @@ async def export_document(
     format: str = "markdown"
 ) -> Optional[bytes]:
     """Export single document from artifacts service."""
-    async with aiohttp.ClientSession() as session:
-        try:
-            params = {
-                "document_name": document_name,
-                "format": format
-            }
-            async with session.get(
-                f"{ARTIFACTS_SERVICE_URL}/threads/{thread_id}/sessions/{session_id}/export/single",
-                params=params
-            ) as resp:
-                if resp.status == 200:
-                    return await resp.read()
-        except Exception as e:
-            logger.error(f"Failed to export document: {e}")
-    return None
+    client = get_artifacts_client()
+    try:
+        return await client.export_single_document(
+            int(thread_id),
+            session_id,
+            document_name,
+            format
+        )
+    except Exception as e:
+        logger.error(f"Failed to export document: {e}")
+        return None
 
 
 async def export_package(
@@ -103,37 +91,27 @@ async def export_package(
     format: str = "markdown"
 ) -> Optional[bytes]:
     """Export package of documents from artifacts service."""
-    async with aiohttp.ClientSession() as session:
-        try:
-            params = {
-                "package_type": package_type,
-                "format": format
-            }
-            async with session.get(
-                f"{ARTIFACTS_SERVICE_URL}/threads/{thread_id}/sessions/{session_id}/export/package",
-                params=params
-            ) as resp:
-                if resp.status == 200:
-                    return await resp.read()
-        except Exception as e:
-            logger.error(f"Failed to export package: {e}")
-    return None
+    client = get_artifacts_client()
+    try:
+        return await client.export_package(
+            int(thread_id),
+            session_id,
+            package_type,
+            format
+        )
+    except Exception as e:
+        logger.error(f"Failed to export package: {e}")
+        return None
 
 
 async def get_recent_sessions(user_id: str, limit: int = 5) -> list:
     """Get recent sessions for user."""
-    async with aiohttp.ClientSession() as session:
-        try:
-            params = {"limit": limit}
-            async with session.get(
-                f"{ARTIFACTS_SERVICE_URL}/users/{user_id}/sessions/recent",
-                params=params
-            ) as resp:
-                if resp.status == 200:
-                    return await resp.json()
-        except Exception as e:
-            logger.error(f"Failed to get recent sessions: {e}")
-    return []
+    client = get_artifacts_client()
+    try:
+        return await client.get_recent_sessions(int(user_id), limit)
+    except Exception as e:
+        logger.error(f"Failed to get recent sessions: {e}")
+        return []
 
 
 @router.message(Command("export"))

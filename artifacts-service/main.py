@@ -191,7 +191,7 @@ async def get_session_files(
         raise map_to_http_exception(e)
 
 
-@app.get("/threads/{thread_id}/sessions/{session_id}/{file_path:path}")
+@app.get("/threads/{thread_id}/sessions/{session_id}/files/{file_path:path}")
 async def get_file(
     thread_id: str = PathParam(description="Thread identifier"),
     session_id: str = PathParam(description="Session identifier"),
@@ -213,7 +213,7 @@ async def get_file(
 
 
 @app.post(
-    "/threads/{thread_id}/sessions/{session_id}/{file_path:path}",
+    "/threads/{thread_id}/sessions/{session_id}/files/{file_path:path}",
     response_model=FileOperationResponse,
 )
 async def create_or_update_file(
@@ -252,7 +252,7 @@ async def create_or_update_file(
 
 
 @app.delete(
-    "/threads/{thread_id}/sessions/{session_id}/{file_path:path}",
+    "/threads/{thread_id}/sessions/{session_id}/files/{file_path:path}",
     response_model=FileOperationResponse,
 )
 async def delete_file(
@@ -299,6 +299,8 @@ async def delete_thread(
 
 
 # Export API Endpoints
+# NOTE: These MUST be defined BEFORE the generic file path routes below
+# to avoid route conflicts
 
 # Store user settings in memory (in production, use a database)
 user_settings = {}
@@ -365,14 +367,33 @@ async def export_package(
     user_id: str = Depends(verify_resource_owner)
 ):
     """Export a package of documents as ZIP archive."""
+    logger.info(f"Export package request: thread_id={thread_id}, session_id={session_id}, package_type={package_type}, format={format}, user_id={user_id}")
+    
     try:
+        # Log storage base path
+        logger.debug(f"Storage base path: {storage.base_path}")
+        
+        # Check if session exists
+        session_path = storage.base_path / thread_id / "sessions" / session_id
+        logger.debug(f"Checking session path: {session_path}")
+        
+        if not session_path.exists():
+            logger.error(f"Session path does not exist: {session_path}")
+            raise FileNotFoundError(f"Session not found: {session_id}")
+        
+        # List files in session
+        files = list(session_path.iterdir())
+        logger.debug(f"Files in session: {[f.name for f in files]}")
+        
         # Use ZIP exporter
         zip_exporter = ZIPExporter(storage.base_path)
+        logger.debug(f"Created ZIPExporter with base_path: {storage.base_path}")
         
         # Export package
         content = await zip_exporter.export_session_archive(
             thread_id, session_id, package_type, format
         )
+        logger.info(f"Successfully exported package, size: {len(content)} bytes")
         
         # Format filename
         filename = f"session_{session_id}_export.zip"
@@ -385,12 +406,13 @@ async def export_package(
             }
         )
     except FileNotFoundError as e:
+        logger.error(f"File not found during export: {e}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e)
         )
     except Exception as e:
-        logger.error(f"Export failed: {e}")
+        logger.error(f"Export failed with exception: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Export failed: {str(e)}"

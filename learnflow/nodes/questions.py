@@ -8,7 +8,6 @@ from typing import Dict, Any
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.constants import Send
 from langgraph.types import Command
-from langchain_core.utils.function_calling import convert_to_openai_function
 
 from .base import FeedbackNode
 from ..core.state import GeneralState, Questions, QuestionsHITL
@@ -61,7 +60,6 @@ class QuestionGenerationNode(FeedbackNode):
             return {
                 "input_content": state.input_content,
                 "study_material": study_material,
-                "json_schema": convert_to_openai_function(Questions),
             }
         else:
             # Уточнение на основе feedback (further variant)
@@ -69,8 +67,7 @@ class QuestionGenerationNode(FeedbackNode):
             return {
                 "input_content": state.input_content,
                 "study_material": study_material,
-                "current_questions": state.questions,
-                "json_schema": convert_to_openai_function(QuestionsHITL),
+                "current_questions": "\n".join(state.questions),
             }
 
     def get_model(self):
@@ -93,9 +90,14 @@ class QuestionGenerationNode(FeedbackNode):
     def get_next_node(self, state: GeneralState, approved: bool = False) -> str:
         """Определяет следующий узел"""
         if approved:
-            # Возвращаем список параллельных задач
+            # Используем synthesized_material если есть, иначе generated_material
+            study_material = state.synthesized_material or state.generated_material
+            # Возвращаем список параллельных задач с передачей study_material
             return [
-                Send("answer_question", {"question": question})
+                Send("answer_question", {
+                    "question": question,
+                    "study_material": study_material
+                })
                 for question in state.questions
             ]
         return "generating_questions"
@@ -161,9 +163,14 @@ class QuestionGenerationNode(FeedbackNode):
             response = await model.ainvoke([SystemMessage(content=prompt)])
 
             # Move directly to answer generation
+            # Используем synthesized_material если есть, иначе generated_material
+            study_material = state.synthesized_material or state.generated_material
             return Command(
                 goto=[
-                    Send("answer_question", {"question": question})
+                    Send("answer_question", {
+                        "question": question,
+                        "study_material": study_material
+                    })
                     for question in response.questions
                 ],
                 update={

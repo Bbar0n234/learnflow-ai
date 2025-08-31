@@ -1,5 +1,6 @@
 """Markdown exporter for documents."""
 
+import logging
 import zipfile
 from pathlib import Path
 from io import BytesIO
@@ -7,6 +8,8 @@ from typing import List
 
 from .base import ExportEngine
 from models import ExportFormat, PackageType
+
+logger = logging.getLogger(__name__)
 
 
 class MarkdownExporter(ExportEngine):
@@ -55,14 +58,21 @@ class MarkdownExporter(ExportEngine):
         Returns:
             ZIP archive as bytes
         """
+        logger.info(f"MarkdownExporter.export_package called: thread_id={thread_id}, session_id={session_id}, package_type={package_type}")
+        
         session_path = self.get_session_path(thread_id, session_id)
+        logger.debug(f"Session path: {session_path}")
         
         if not session_path.exists():
+            logger.error(f"Session path does not exist: {session_path}")
             raise FileNotFoundError(f"Session not found: {session_id}")
         
+        logger.debug(f"Session path exists, getting documents for package_type={package_type}")
         documents = self.get_package_documents(session_path, package_type)
+        logger.debug(f"Found {len(documents)} documents: {[d.name for d in documents]}")
         
         if not documents:
+            logger.error(f"No documents found for export in session {session_id}")
             raise FileNotFoundError("No documents found for export")
         
         # Create ZIP archive in memory

@@ -180,10 +180,6 @@ class LocalArtifactsManager:
 
         content = f"""# Обучающий материал
 
-**Thread ID:** {thread_id}  
-**Session ID:** {session_id}  
-**Дата создания:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}  
-
 ## Исходный экзаменационный вопрос
 
 {input_content}
@@ -456,9 +452,6 @@ class LocalArtifactsManager:
                 for i, qa in enumerate(questions_and_answers, 1):
                     answer_file = answers_dir / f"answer_{i:03d}.md"
                     answer_content = f"""# Ответ {i}
-
-**Thread ID:** {thread_id}  
-**Дата создания:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}  
 
 {qa}
 """

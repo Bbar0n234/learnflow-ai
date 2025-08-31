@@ -31,10 +31,11 @@ class AnswerGenerationNode(BaseWorkflowNode):
     
     def _build_context_from_state(self, state) -> dict:
         """Строит контекст для промпта из состояния workflow"""
-        # В этом узле state - это dict с ключом 'question'
+        # В этом узле state - это dict с ключами 'question' и 'study_material'
         if isinstance(state, dict) and 'question' in state:
             return {
-                "input_content": state['question']
+                "input_content": state['question'],
+                "study_material": state.get('study_material', '')
             }
         return {}
 
@@ -45,13 +46,14 @@ class AnswerGenerationNode(BaseWorkflowNode):
         Генерирует ответ на один контрольный вопрос.
 
         Args:
-            data: Словарь с ключом 'question' содержащий вопрос для обработки
+            data: Словарь с ключами 'question' и 'study_material' для обработки
             config: Конфигурация LangGraph (опционально)
 
         Returns:
             Command с переходом к завершению и сгенерированным Q&A
         """
         question = data.get("question", "")
+        study_material = data.get("study_material", "")
 
         if config and "configurable" in config:
             thread_id = config["configurable"].get("thread_id", "unknown")
@@ -63,8 +65,11 @@ class AnswerGenerationNode(BaseWorkflowNode):
         )
 
         try:
-            # Создаем псевдо-state с вопросом для передачи в get_system_prompt
-            state_dict = {"question": question}
+            # Создаем псевдо-state с вопросом и материалом для передачи в get_system_prompt
+            state_dict = {
+                "question": question,
+                "study_material": study_material
+            }
             
             # Получаем персонализированный промпт от сервиса
             prompt_content = await self.get_system_prompt(state_dict, config)

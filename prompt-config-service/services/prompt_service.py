@@ -87,15 +87,12 @@ class PromptService:
             f"Used {len(final_values)} placeholders, prompt size: {len(prompt)} chars"
         )
         
-        # Log full prompt and placeholder values at DEBUG level
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"Full generated prompt for {node_name}:\n{prompt}")
-            logger.debug(f"Placeholder values used:")
-            for key, value in final_values.items():
-                value_preview = str(value)[:100] + "..." if len(str(value)) > 100 else str(value)
-                logger.debug(f"  - {key}: {value_preview}")
-        
-        return GeneratePromptResponse(
-            prompt=prompt,
-            used_placeholders=final_values
-        )
+        # Create and return response
+        try:
+            return GeneratePromptResponse(
+                prompt=prompt,
+                used_placeholders=final_values
+            )
+        except Exception as e:
+            logger.error(f"Response validation failed for {node_name}: {e}")
+            raise

@@ -228,9 +228,6 @@ generating_questions_system_prompt: |
   </constraints>
 
   <output_instruction>
-  Generate questions following this structure:
-  {{ json_schema }}
-  </output_instruction>
 
 gen_question_further_system_prompt: |
   KEYWORD: {{ subject_keywords }}
@@ -296,9 +293,6 @@ gen_question_further_system_prompt: |
   </constraints>
 
   <output_instruction>
-  Generate refined questions following this structure:
-  {{ json_schema }}
-  
   Set next_step field based on user feedback:
   - "finalize" if user is satisfied
   - "clarify" if further refinement is needed

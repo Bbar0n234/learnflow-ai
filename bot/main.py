@@ -65,6 +65,8 @@ class LearnFlowBot:
 
         # Хранилище для группировки медиа (photo + text)
         self.pending_media: Dict[int, Dict[str, Any]] = {}
+        # Хранилище для сообщений об обработке для каждого пользователя
+        self.processing_messages: Dict[int, int] = {}
 
     async def _process_message(
         self, thread_id: str, message_text: str, image_paths: list[str] = None
@@ -225,6 +227,17 @@ async def reset_command(message: Message):
         # Очищаем pending media для пользователя
         if user_id in bot_instance.pending_media:
             del bot_instance.pending_media[user_id]
+        # Очищаем сообщение об обработке если есть
+        if user_id in bot_instance.processing_messages:
+            try:
+                await message.bot.delete_message(
+                    chat_id=message.chat.id,
+                    message_id=bot_instance.processing_messages[user_id]
+                )
+            except Exception as e:
+                logger.debug(f"Failed to delete processing message during reset: {e}")
+            finally:
+                del bot_instance.processing_messages[user_id]
         logger.info(f"Deleted thread {thread_id} for user {user_id}")
 
         await message.answer(
@@ -352,6 +365,20 @@ async def handle_message(message: Message):
         chat_id=message.chat.id, action=ChatAction.TYPING
     )
 
+    # Отправляем сообщение об обработке
+    processing_msg = None
+    try:
+        if bot_instance:
+            processing_msg = await message.answer(
+                telegramify_markdown.markdownify("🔄 Обрабатываю ваш запрос..."),
+                parse_mode=ParseMode.MARKDOWN_V2
+            )
+            # Сохраняем ID сообщения для этого пользователя
+            bot_instance.processing_messages[user_id] = processing_msg.message_id
+
+    except Exception as e:
+        logger.warning(f"Failed to send processing message: {e}")
+
     try:
         # Используем user_id как thread_id
         thread_id = str(user_id)
@@ -406,10 +433,23 @@ async def handle_message(message: Message):
             result = await bot_instance._process_message(thread_id, message_text)
 
         # Обрабатываем ответ
-        await _handle_api_response(message, result)
+        await _handle_api_response(message, result, user_id)
 
     except Exception as e:
         logger.error(f"Error processing message from user {user_id}: {e}")
+        
+        # Удаляем сообщение об обработке при ошибке
+        if bot_instance and user_id in bot_instance.processing_messages:
+            try:
+                await message.bot.delete_message(
+                    chat_id=message.chat.id,
+                    message_id=bot_instance.processing_messages[user_id]
+                )
+            except Exception as del_e:
+                logger.debug(f"Failed to delete processing message: {del_e}")
+            finally:
+                del bot_instance.processing_messages[user_id]
+        
         await message.answer(
             telegramify_markdown.markdownify(
                 "❌ Произошла ошибка при обработке. Попробуйте еще раз или используйте /reset."
@@ -418,8 +458,20 @@ async def handle_message(message: Message):
         )
 
 
-async def _handle_api_response(message: Message, result: Dict[str, Any]):
+async def _handle_api_response(message: Message, result: Dict[str, Any], user_id: int):
     """Обработка ответа от API"""
+    # Удаляем сообщение об обработке перед отправкой результата
+    if bot_instance and user_id in bot_instance.processing_messages:
+        try:
+            await message.bot.delete_message(
+                chat_id=message.chat.id,
+                message_id=bot_instance.processing_messages[user_id]
+            )
+        except Exception as e:
+            logger.debug(f"Failed to delete processing message: {e}")
+        finally:
+            del bot_instance.processing_messages[user_id]
+    
     result_data = result.get("result", [])
 
     if isinstance(result_data, list):

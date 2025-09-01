@@ -66,20 +66,8 @@ class ContentGenerationNode(BaseWorkflowNode):
 
         logger.info(f"Content generated successfully for thread {thread_id}")
 
-        # Определяем следующий узел на основе наличия изображений
-        has_images = bool(state.image_paths)
-
-        if has_images:
-            logger.info(
-                f"Found {len(state.image_paths)} images, proceeding to recognition"
-            )
-            next_node = "recognition_handwritten"
-        else:
-            logger.info("No images found, proceeding directly to question generation")
-            next_node = "generating_questions"
-
         return Command(
-            goto=next_node,
+            goto="recognition_handwritten",
             update={
                 "generated_material": response.content,
             },

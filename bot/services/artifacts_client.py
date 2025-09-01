@@ -208,6 +208,54 @@ class ArtifactsAPIClient:
             logger.error(f"Failed to export package for user {user_id}: {e}")
             raise
 
+    async def get_recent_sessions(self, user_id: int, limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        Get list of recent sessions for a user.
+        
+        Args:
+            user_id: User identifier
+            limit: Maximum number of sessions to return
+            
+        Returns:
+            List of session summaries sorted by creation date (newest first)
+        """
+        try:
+            response = await self._make_request(
+                "GET",
+                f"/users/{user_id}/sessions/recent",
+                user_id=user_id,
+                params={"limit": limit}
+            )
+            return response if response else []
+        except Exception as e:
+            logger.error(f"Failed to get recent sessions for user {user_id}: {e}")
+            return []
+
+    async def get_session_files(self, user_id: int, session_id: str) -> List[str]:
+        """
+        Get list of available files in a session.
+        
+        Args:
+            user_id: User identifier (also used as thread_id)
+            session_id: Session identifier
+            
+        Returns:
+            List of file names available in the session
+        """
+        try:
+            response = await self._make_request(
+                "GET",
+                f"/threads/{user_id}/sessions/{session_id}",
+                user_id=user_id
+            )
+            # Extract just the file names from the response
+            # FileInfo has 'path' field, not 'name'
+            files = response.get("files", [])
+            return [file["path"] for file in files]
+        except Exception as e:
+            logger.error(f"Failed to get session files for user {user_id}, session {session_id}: {e}")
+            return []
+
     async def get_export_settings(self, user_id: int) -> Dict[str, Any]:
         """
         Get export settings for a user.

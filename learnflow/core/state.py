@@ -75,10 +75,7 @@ class GeneralState(BaseModel):
     feedback_messages: List[Any] = Field(
         default_factory=list, description="История сообщений для HITL взаимодействия"
     )
-
-    # Artifacts storage
-    session_id: Optional[str] = Field(default=None, description="Идентификатор сессии")
-
+    
     # Edit agent fields (minimal for MVP)
     edit_count: int = Field(default=0, description="Total number of edits performed")
     needs_user_input: bool = Field(

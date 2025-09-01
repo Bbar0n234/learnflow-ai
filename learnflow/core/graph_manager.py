@@ -125,16 +125,6 @@ class GraphManager:
             graph = self.workflow.compile(checkpointer=saver)
             return await graph.aget_state(cfg)
 
-    async def _update_state(self, thread_id: str, update: Dict[str, Any]):
-        """Обновление состояния для thread_id"""
-        await self._ensure_setup()
-        cfg = {"configurable": {"thread_id": thread_id}}
-        async with AsyncPostgresSaver.from_conn_string(
-            self.settings.database_url
-        ) as saver:
-            graph = self.workflow.compile(checkpointer=saver)
-            await graph.aupdate_state(cfg, update)
-
     async def delete_thread(self, thread_id: str):
         """Удаление thread и всех связанных данных"""
         await self._ensure_setup()
@@ -580,10 +570,6 @@ class GraphManager:
                     label="📚 Сгенерированный материал"  # Эмодзи будет вынесен отдельно при формировании
                 )
             
-            # Обновляем состояние графа (убираем локальные пути)
-            await self._update_state(thread_id, {
-                "session_id": result.get("session_id")
-            })
         else:
             logger.error(
                 f"Failed to save learning material for thread {thread_id}: {result.get('error')}"

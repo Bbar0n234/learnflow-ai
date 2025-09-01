@@ -122,11 +122,21 @@ async def cmd_export(message: Message, state: FSMContext):
     # Use user_id as thread_id (same as in main bot logic)
     thread_id = str(user_id)
     
-    # Get current session from state
-    data = await state.get_data()
-    # If no session_id in state, use current timestamp as session_id
-    session_id = data.get("current_session_id", datetime.now().strftime("%Y%m%d_%H%M%S"))
+    # Get artifacts client instance
+    artifacts_client = get_artifacts_client()
     
+    # Get list of recent sessions from Artifacts Service
+    recent_sessions = await artifacts_client.get_recent_sessions(int(user_id), limit=1)
+    
+    if not recent_sessions:
+        await message.answer(
+            "❌ У вас пока нет сохраненных сессий. Начните с отправки учебного вопроса или задания."
+        )
+        return
+    
+    # Get the most recent session
+    latest_session = recent_sessions[0]
+    session_id = latest_session["session_id"]
     
     # Get user settings
     settings = await get_user_settings(user_id)
@@ -196,21 +206,6 @@ async def cmd_sessions(message: Message, state: FSMContext):
     )
 
 
-@router.message(Command("export_settings"))
-async def cmd_export_settings(message: Message, state: FSMContext):
-    """Handle /export_settings command."""
-    user_id = str(message.from_user.id)
-    settings = await get_user_settings(user_id)
-    
-    await state.set_state(ExportStates.configuring_settings)
-    await state.update_data(export_settings=settings)
-    
-    await message.answer(
-        "⚙️ Настройки экспорта:",
-        reply_markup=get_settings_keyboard(settings)
-    )
-
-
 # Callback handlers
 
 @router.callback_query(F.data.startswith("export:"))
@@ -245,11 +240,42 @@ async def handle_export_callbacks(callback: CallbackQuery, state: FSMContext):
         return
     
     if action == "single":
-        # Single document export
+        # Single document export - need to fetch available files first
+        user_id = str(callback.from_user.id)
+        data = await state.get_data()
+        
+        # Get session ID from state (either from session selection or use latest)
+        session_id = data.get("current_session_id")
+        
+        if not session_id:
+            # If no session selected, get the latest one
+            client = get_artifacts_client()
+            recent_sessions = await client.get_recent_sessions(int(user_id), limit=1)
+            if not recent_sessions:
+                await callback.message.edit_text(
+                    "❌ У вас пока нет сохраненных сессий."
+                )
+                return
+            session_id = recent_sessions[0]["session_id"]
+            await state.update_data(current_session_id=session_id)
+        
+        # Fetch available files for this session
+        client = get_artifacts_client()
+        available_files = await client.get_session_files(int(user_id), session_id)
+        
+        if not available_files:
+            await callback.message.edit_text(
+                "❌ В этой сессии нет доступных документов для экспорта."
+            )
+            return
+        
+        # Store available files in state for later use
+        await state.update_data(available_files=available_files)
         await state.set_state(ExportStates.selecting_document)
+        
         await callback.message.edit_text(
             "📄 Выберите документ для экспорта:",
-            reply_markup=get_document_selection_keyboard()
+            reply_markup=get_document_selection_keyboard(available_files)
         )
         return
     
@@ -272,17 +298,30 @@ async def handle_export_callbacks(callback: CallbackQuery, state: FSMContext):
 async def handle_format_selection(callback: CallbackQuery, state: FSMContext):
     """Handle format selection."""
     format_type = callback.data.split(":")[1]
+    user_id = str(callback.from_user.id)
     data = await state.get_data()
     
-    # Use user_id as thread_id 
-    thread_id = str(callback.from_user.id)
-    session_id = data.get("current_session_id", datetime.now().strftime("%Y%m%d_%H%M%S"))
+    # Get session ID from state or use latest session
+    session_id = data.get("current_session_id")
     
-    if not thread_id:
-        await callback.message.edit_text(
-            "❌ Нет активной сессии для экспорта."
-        )
-        return
+    if not session_id:
+        # Get artifacts client instance
+        artifacts_client = get_artifacts_client()
+        
+        # Get list of recent sessions from Artifacts Service
+        recent_sessions = await artifacts_client.get_recent_sessions(int(user_id), limit=1)
+        
+        if not recent_sessions:
+            await callback.message.edit_text(
+                "❌ У вас пока нет сохраненных сессий для экспорта."
+            )
+            return
+        
+        # Get the most recent session
+        latest_session = recent_sessions[0]
+        session_id = latest_session["session_id"]
+    
+    thread_id = user_id  # Use user_id as thread_id
     
     await callback.message.edit_text("⏳ Экспортирую документы...")
     
@@ -377,6 +416,11 @@ async def handle_session_selection(callback: CallbackQuery, state: FSMContext):
         thread_id=selected_session["thread_id"],
         current_session_id=session_id
     )
+    
+    # Fetch available files for this session to store in state
+    client = get_artifacts_client()
+    available_files = await client.get_session_files(int(user_id), session_id)
+    await state.update_data(available_files=available_files)
     
     await state.set_state(ExportStates.selecting_option)
     await callback.message.edit_text(

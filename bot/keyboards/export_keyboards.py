@@ -60,40 +60,72 @@ def get_format_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
-def get_document_selection_keyboard() -> InlineKeyboardMarkup:
-    """Document selection keyboard for single export."""
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(
-                text="📝 Синтезированный материал",
-                callback_data="doc:synthesized_material"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="❓ Вопросы для закрепления",
-                callback_data="doc:questions"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="📚 Сгенерированный материал",
-                callback_data="doc:generated_material"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="✏️ Распознанные заметки",
-                callback_data="doc:recognized_notes"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="↩️ Назад",
-                callback_data="export:back"
-            )
+def get_document_selection_keyboard(available_files: List[str] = None) -> InlineKeyboardMarkup:
+    """Document selection keyboard for single export based on available files."""
+    keyboard = []
+    
+    # Default file display names mapping
+    file_display_names = {
+        "synthesized_material.md": ("📝 Синтезированный материал", "synthesized_material"),
+        "questions.md": ("❓ Вопросы для закрепления", "questions"),
+        "generated_material.md": ("📚 Сгенерированный материал", "generated_material"),
+        "recognized_notes.md": ("✏️ Распознанные заметки", "recognized_notes"),
+    }
+    
+    # Dynamically add support for answer files (up to 15)
+    for i in range(1, 16):
+        file_display_names[f"answer_{i}.md"] = (f"💡 Ответ на вопрос {i}", f"answer_{i}")
+    
+    if available_files:
+        # Show only available files
+        for file_name in available_files:
+            if file_name in file_display_names:
+                display_text, callback_data = file_display_names[file_name]
+                keyboard.append([
+                    InlineKeyboardButton(
+                        text=display_text,
+                        callback_data=f"doc:{callback_data}"
+                    )
+                ])
+    else:
+        # Fallback to showing all standard documents if no files list provided
+        # (for backward compatibility)
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    text="📝 Синтезированный материал",
+                    callback_data="doc:synthesized_material"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="❓ Вопросы для закрепления",
+                    callback_data="doc:questions"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📚 Сгенерированный материал",
+                    callback_data="doc:generated_material"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="✏️ Распознанные заметки",
+                    callback_data="doc:recognized_notes"
+                )
+            ]
         ]
+    
+    # Always add back button
+    keyboard.append([
+        InlineKeyboardButton(
+            text="↩️ Назад",
+            callback_data="export:back"
+        )
     ])
+    
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
 def get_sessions_keyboard(sessions: List[dict]) -> InlineKeyboardMarkup:

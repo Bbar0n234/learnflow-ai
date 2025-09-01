@@ -140,7 +140,7 @@ class LearnFlowBot:
         """Удаление thread'а"""
         async with aiohttp.ClientSession() as session:
             async with session.delete(
-                f"{self.api_base_url}/state/{thread_id}"
+                f"{self.api_base_url}/thread/{thread_id}"
             ) as response:
                 if response.status != 200:
                     raise Exception(f"API error: {response.status}")

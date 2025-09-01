@@ -311,7 +311,8 @@ class GraphManager:
         state = await self._get_state(thread_id)
         node = None
         if state and state.interrupts:
-            node = state.interrupts[0].ns[0].split(":")[0]
+            logger.debug(f"DEBUG LOG: state.next: {state.next[0]}")
+            node = state.next[0]
 
         current_step = {
             "node": node,
@@ -324,6 +325,7 @@ class GraphManager:
         """Получение полного состояния thread'а"""
         try:
             state = await self._get_state(thread_id)
+            logger.debug(f"State for thread {thread_id}: {state}")
             if state and state.values:
                 return state.values
             return None

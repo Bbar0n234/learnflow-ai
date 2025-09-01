@@ -11,11 +11,11 @@ placeholders:
         display_name: Академический профессор-теоретик
         
       - name: industry_practitioner
-        value: industry practitioner with hands-on experience
+        value: industry expert with deep practical understanding and applied knowledge
         display_name: Практик из индустрии
         
       - name: simplification_expert
-        value: simplification expert making complex topics accessible
+        value: experienced educator skilled in clear explanations and breaking down complex concepts
         display_name: Эксперт по упрощению сложных тем
 
   - name: subject_name
@@ -71,7 +71,7 @@ placeholders:
         display_name: Backend-разработка
         
       - name: ai_llm_keywords
-        value: LLM, AI, GPT, agents, Claude, Llama, transformers, self-attention, prompt engineering, fine-tuning, RLHF, RAG, vector databases, embeddings, LangChain/LangGraph, tokenization, context windows, few-shot learning, chain-of-thought
+        value: LLM, AI, GPT, agents, Claude, Llama, transformers, self-attention, prompt engineering, fine-tuning, RLHF, RAG, tokenization, context windows, few-shot learning, chain-of-thought
         display_name: AI и большие языковые модели
 
   - name: language
@@ -91,17 +91,17 @@ placeholders:
     description: Стиль и манера подачи материала
     values:
       - name: comprehensive_detailed
-        value: comprehensive with detailed explanations and examples
-        display_name: Подробное объяснение с примерами
-      - name: concise_structured
-        value: concise and structured with key points highlighted
-        display_name: Краткое структурированное изложение
+        value: comprehensive with detailed explanations
+        display_name: Подробное объяснение
       - name: step_by_step
-        value: step-by-step tutorial with progressive complexity
-        display_name: Пошаговое руководство с нарастающей сложностью
-      - name: problem_solving
-        value: problem-solving approach with real-world cases
-        display_name: Проблемно-ориентированный с реальными кейсами
+        value: step-by-step progression from fundamentals to advanced concepts
+        display_name: Пошаговое изложение от основ к продвинутым концепциям
+      - name: structured_modular
+        value: structured modular presentation with clear logical flow
+        display_name: Структурированное модульное изложение
+      - name: conceptual_focused
+        value: conceptual understanding focused with emphasis on why and how
+        display_name: Фокус на концептуальном понимании
       - name: academic_rigorous
         value: academic rigorous with formal definitions
         display_name: Академически строгий с формальными определениями
@@ -118,13 +118,13 @@ placeholders:
         value: university students with fundamentals
         display_name: Студенты с базовыми знаниями
         
-      - name: working_professionals
-        value: working professionals seeking growth
-        display_name: Работающие специалисты для роста
+      - name: intermediate_specialists
+        value: specialists with foundational understanding seeking deeper conceptual knowledge
+        display_name: Специалисты среднего уровня
         
-      - name: experienced_developers
-        value: experienced developers switching domains
-        display_name: Опытные разработчики меняющие область
+      - name: advanced_practitioners
+        value: advanced practitioners requiring comprehensive theoretical understanding
+        display_name: Продвинутые практики
         
       - name: researchers
         value: researchers requiring theoretical depth
@@ -135,23 +135,23 @@ placeholders:
     description: Аудитория для создания материала (блочный формат)
     values:
       - name: complete_beginners_block
-        value: Complete beginners with no prior knowledge. Assume zero prerequisites. Explain every term and concept from scratch. Use simple language and everyday analogies.
+        value: Complete beginners with no prior knowledge. Assume zero prerequisites. Explain every term and concept from scratch. Use clear language and logical progression.
         display_name: Абсолютные новички без подготовки
         
       - name: university_students_block
-        value: University students with fundamental knowledge in mathematics and programming. Can handle abstract concepts and formal notation. Need structured learning path with theory and practice.
+        value: University students with fundamental knowledge in the subject area. Can handle abstract concepts and formal notation. Ready for systematic theoretical exploration.
         display_name: Студенты с базовыми знаниями
         
-      - name: working_professionals_block
-        value: Working professionals with industry experience seeking skill advancement. Value practical applicability and time efficiency. Prefer real-world examples and best practices.
-        display_name: Работающие специалисты для роста
+      - name: intermediate_specialists_block
+        value: Specialists with foundational understanding seeking deeper conceptual mastery. Focus on explaining not just what but how and why things work. Build comprehensive mental models and theoretical frameworks.
+        display_name: Специалисты среднего уровня
         
-      - name: experienced_developers_block
-        value: Experienced developers transitioning to new technical domain. Have strong programming foundation. Can quickly grasp concepts through comparisons with familiar technologies.
-        display_name: Опытные разработчики меняющие область
+      - name: advanced_practitioners_block
+        value: Advanced practitioners requiring thorough theoretical understanding. Expect detailed explanations of underlying principles and mechanisms. Need comprehensive coverage with formal rigor.
+        display_name: Продвинутые практики
         
       - name: researchers_block
-        value: Researchers and academics requiring rigorous theoretical foundation. Expect formal definitions, mathematical proofs, and citations. Need comprehensive coverage including edge cases.
+        value: Researchers and academics requiring rigorous theoretical foundation. Expect formal definitions, mathematical proofs, and thorough analysis. Need comprehensive coverage including edge cases.
         display_name: Исследователи требующие теоретической глубины
 
   - name: material_type_inline
@@ -159,67 +159,71 @@ placeholders:
     description: Формат создаваемого материала
     values:
       - name: comprehensive_study
-        value: comprehensive study materials
-        display_name: Подробные учебные материалы
+        value: comprehensive theoretical study materials
+        display_name: Подробные теоретические материалы
         
       - name: lecture_notes
-        value: structured lecture notes
+        value: structured lecture notes with key concepts
         display_name: Структурированные конспекты
         
-      - name: exam_prep
-        value: exam preparation 
-        display_name: Подготовка к экзамену с вопросами
+      - name: theoretical_analysis
+        value: in-depth theoretical analysis and exploration
+        display_name: Углублённый теоретический анализ
         
-      - name: practical_workshop
-        value: practical workshop with hands-on tasks
-        display_name: Практический воркшоп с заданиями
+      - name: conceptual_overview
+        value: conceptual overview with relationships and frameworks
+        display_name: Концептуальный обзор с взаимосвязями
         
-      - name: reference_guide
-        value: reference guide with quick lookups
-        display_name: Справочное руководство для поиска
+      - name: systematic_exposition
+        value: systematic exposition of fundamental principles
+        display_name: Систематическое изложение принципов
 
   - name: material_type_block
     display_name: Тип материала (блочный)
     description: Формат создаваемого материала (блочный формат)
     values:
       - name: comprehensive_study_block
-        value: Comprehensive study materials with theoretical foundations, detailed explanations, and worked examples. Structure content progressively from basic to advanced topics. Include learning objectives, key concepts highlighted, and practical exercises for skill reinforcement.
-        display_name: Учебные материалы с упражнениями
+        value: Comprehensive theoretical study materials with detailed explanations and systematic coverage. Build deep understanding through thorough exploration of concepts and principles.
+        display_name: Подробные теоретические материалы
         
       - name: lecture_notes_block
-        value: Structured lecture notes optimized for learning and revision. Use clear headings, bullet points for key concepts, highlighted definitions, and summary boxes. Include margin notes for important insights and connections between topics.
-        display_name: Структурированные конспекты с резюме
+        value: Structured lecture notes optimized for learning and retention. Use clear headings, bullet points for key concepts, highlighted definitions, and logical flow between topics.
+        display_name: Структурированные конспекты
         
-      - name: exam_prep_block
-        value: Exam-focused preparation guide with typical problem patterns and solution strategies. Include time management tips, common pitfalls to avoid, and quick review sections. Emphasize frequently tested concepts and methodologies.
-        display_name: Подготовка к экзамену с вопросами
+      - name: theoretical_analysis_block
+        value: In-depth theoretical analysis exploring fundamental mechanisms and principles. Provide rigorous examination of concepts with formal definitions and systematic reasoning.
+        display_name: Углублённый теоретический анализ
         
-      - name: practical_workshop_block
-        value: Hands-on practical workshop format with step-by-step tutorials and coding exercises. Provide implementation examples, expected outputs, and debugging tips. Focus on learning by doing with real-world scenarios.
-        display_name: Практический воркшоп с заданиями
+      - name: conceptual_overview_block
+        value: Conceptual overview establishing mental models and theoretical frameworks. Map relationships between concepts and build comprehensive understanding of the domain.
+        display_name: Концептуальный обзор с взаимосвязями
         
-      - name: reference_guide_block
-        value: Quick reference guide organized for fast information retrieval. Use tables, cheat sheets, and concise summaries. Include syntax examples, command references, and decision trees for rapid problem-solving.
-        display_name: Справочное руководство для поиска
+      - name: systematic_exposition_block
+        value: Systematic exposition of fundamental principles and theoretical foundations. Present material in logical sequence with clear derivations and conceptual development.
+        display_name: Систематическое изложение принципов
 
   - name: explanation_depth
     display_name: Глубина объяснения
     description: Уровень детализации объяснений
     values:
       - name: surface_level
-        value: surface level with key concepts only
-        display_name: Поверхностный уровень только ключевые концепции
+        value: surface level overview focusing on key concepts and terminology
+        display_name: Поверхностный обзор ключевых концепций
         
-      - name: balanced_coverage
-        value: balanced theory and practice coverage
-        display_name: Сбалансированное покрытие теории и практики
+      - name: intermediate_depth
+        value: intermediate depth explaining mechanisms and causal relationships
+        display_name: Средняя глубина с объяснением механизмов
         
       - name: deep_technical
-        value: deep technical with implementation details
-        display_name: Глубокий технический с деталями реализации
+        value: deep technical exploration of how and why things work
+        display_name: Глубокое техническое понимание принципов работы
+        
+      - name: comprehensive_analysis
+        value: comprehensive analysis with thorough theoretical foundations
+        display_name: Всесторонний анализ с теоретическими основами
         
       - name: mathematical_rigor
-        value: mathematical rigor with formal proofs
+        value: mathematical rigor with formal proofs and derivations
         display_name: Математическая строгость с формальными доказательствами
         
       - name: intuitive_analogies
@@ -231,96 +235,104 @@ placeholders:
     description: Как широко должна быть раскрыта тема
     values:
       - name: exhaustive_coverage
-        value: exhaustive coverage with edge cases
-        display_name: Исчерпывающий охват с крайними случаями
+        value: exhaustive coverage including all aspects and edge cases
+        display_name: Исчерпывающий охват всех аспектов
+        
+      - name: comprehensive_standard
+        value: comprehensive standard coverage of established knowledge
+        display_name: Полный охват стандартных знаний
         
       - name: core_fundamentals
-        value: core fundamentals and essential concepts
+        value: core fundamentals and essential theoretical concepts
         display_name: Основные фундаментальные концепции
         
-      - name: practical_subset
-        value: practical subset for immediate application
-        display_name: Практическое подмножество для применения
-        
-      - name: problem_specific
-        value: problem-specific targeted knowledge
-        display_name: Целевые знания под конкретные задачи
+      - name: focused_essentials
+        value: focused on essential principles and key mechanisms
+        display_name: Фокус на ключевых принципах и механизмах
         
       - name: progressive_learning
-        value: progressive from basics to advanced
-        display_name: Прогрессивный от основ к продвинутому
+        value: progressive development from foundational to advanced concepts
+        display_name: Прогрессивное развитие от основ к продвинутому
+        
+      - name: selective_depth
+        value: selective deep coverage of critical theoretical aspects
+        display_name: Выборочная глубина критических аспектов
 
   - name: question_formats
     display_name: Форматы вопросов
     description: Форматы для генерации вопросов
     values:
       - name: multiple_choice
-        value: multiple choice with distractor analysis
-        display_name: Тесты с анализом дистракторов
+        value: multiple choice questions testing theoretical knowledge
+        display_name: Тесты на знание теории
         
       - name: open_ended
         value: open-ended conceptual understanding questions
         display_name: Открытые вопросы на понимание концепций
         
-      - name: coding_problems
-        value: practical coding problems with test cases
-        display_name: Практические задачи с тест-кейсами
+      - name: analytical_questions
+        value: analytical questions exploring relationships and mechanisms
+        display_name: Аналитические вопросы о взаимосвязях
         
-      - name: case_studies
-        value: analytical case studies with scenarios
-        display_name: Аналитические кейсы со сценариями
+      - name: comparative_analysis
+        value: comparative analysis between concepts and approaches
+        display_name: Сравнительный анализ концепций
         
-      - name: proof_tasks
-        value: step-by-step derivation and proof tasks
-        display_name: Задачи на вывод и доказательство
+      - name: theoretical_reasoning
+        value: theoretical reasoning and logical derivation questions
+        display_name: Вопросы на теоретическое обоснование
+        
+      - name: definitional_questions
+        value: precise definitional and terminological questions
+        display_name: Вопросы на определения и терминологию
 
   - name: question_purpose_inline
     display_name: Цель вопросов (inline)
     description: Назначение генерируемых вопросов (inline формат)
     values:
       - name: diagnose_gaps
-        value: diagnose knowledge gaps systematically
+        value: diagnose theoretical knowledge gaps
         display_name: Диагностика пробелов в знаниях
         
       - name: verify_understanding
         value: verify deep conceptual understanding
         display_name: Проверка глубокого понимания
         
-      - name: simulate_exam
-        value: simulate real exam conditions
-        display_name: Симуляция экзаменационных условий
+      - name: test_comprehension
+        value: test comprehension of key principles
+        display_name: Проверка понимания ключевых принципов
         
-      - name: reinforce_practice
-        value: reinforce learning through practice
-        display_name: Закрепление через практику
+      - name: explore_connections
+        value: explore connections between concepts
+        display_name: Исследование связей между концепциями
         
-      - name: assess_skills
-        value: assess practical application skills
-        display_name: Оценка практических навыков
+      - name: reinforce_fundamentals
+        value: reinforce fundamental theoretical knowledge
+        display_name: Закрепление фундаментальных знаний
 
   - name: question_purpose
     display_name: Цель вопросов
     description: Назначение генерируемых вопросов
     values:
       - name: diagnose_gaps_block
-        value: Systematically identify knowledge gaps and misconceptions. Create diagnostic questions that reveal specific areas where understanding is incomplete. Focus on common stumbling blocks and prerequisite knowledge verification.
+        value: Systematically identify theoretical knowledge gaps and misconceptions. Create diagnostic questions that reveal specific areas where conceptual understanding is incomplete. Focus on fundamental prerequisites and theoretical foundations.
         display_name: Диагностика пробелов в знаниях
         
       - name: verify_understanding_block
-        value: Verify deep conceptual understanding beyond memorization. Design questions that require synthesis, analysis, and application of concepts. Test ability to explain relationships and underlying principles.
+        value: Verify deep conceptual understanding beyond memorization. Design questions that require explanation of mechanisms, relationships between concepts, and underlying theoretical principles.
         display_name: Проверка глубокого понимания
         
-      - name: simulate_exam_block
-        value: Simulate authentic exam conditions with time pressure considerations. Include question types and difficulty levels matching actual assessments. Prepare students for format, scope, and cognitive demands of real exams.
-        display_name: Симуляция экзаменационных условий
+      - name: test_comprehension_block
+        value: Test comprehensive understanding of key principles and theoretical frameworks. Focus on ability to explain how and why concepts work, their limitations, and theoretical foundations.
+        display_name: Проверка понимания ключевых принципов
         
-      - name: reinforce_practice_block
-        value: Reinforce learning through deliberate practice and repetition. Create varied questions covering same concepts from different angles. Build confidence through progressive difficulty increase.
-        display_name: Закрепление через практику
+      - name: explore_connections_block
+        value: Explore conceptual connections and theoretical relationships. Create questions that reveal understanding of how different concepts relate, interact, and build upon each other within the theoretical framework.
+        display_name: Исследование связей между концепциями
         
-      - name: assess_skills_block
-        value: Assess ability to apply theoretical knowledge to practical scenarios. Focus on problem-solving, decision-making, and real-world application. Test transfer of learning to novel situations.
-        display_name: Оценка практических навыков
+      - name: reinforce_fundamentals_block
+        value: Reinforce fundamental theoretical knowledge through targeted questioning. Ensure solid understanding of core concepts, definitions, and theoretical principles that form the foundation of the subject.
+        display_name: Закрепление фундаментальных знаний
 
   - name: question_quantity
     display_name: Количество вопросов
@@ -343,45 +355,47 @@ placeholders:
         display_name: 20 вопросов
 
 profiles:
-  # Style profiles - разные подходы к обучению
-  - name: beginner_level
-    display_name: Начальный уровень
+  # Style profiles - три уровня сложности теоретического изложения
+  - name: foundational_level
+    display_name: Базовый уровень
     category: style
-    description: Для абсолютных новичков - максимально простое изложение с аналогиями
+    description: Фундаментальные знания для начинающих - ясное и последовательное изложение основ
     settings:
       role_perspective: simplification_expert
       target_audience_inline: complete_beginners
       target_audience_block: complete_beginners_block
       style: step_by_step
-      explanation_depth: intuitive_analogies
+      explanation_depth: surface_level
       topic_coverage: core_fundamentals
       material_type_inline: comprehensive_study
       material_type_block: comprehensive_study_block
-      question_formats: multiple_choice
-      question_purpose_inline: reinforce_practice
-      question_quantity: qty_5
+      question_formats: definitional_questions
+      question_purpose_inline: reinforce_fundamentals
+      question_purpose: reinforce_fundamentals_block
+      question_quantity: qty_3
+
+  - name: intermediate_level
+    display_name: Средний уровень
+    category: style  
+    description: Углублённое понимание для специалистов - объяснение механизмов и принципов работы
+    settings:
+      role_perspective: industry_practitioner
+      target_audience_inline: intermediate_specialists
+      target_audience_block: intermediate_specialists_block
+      style: conceptual_focused
+      explanation_depth: intermediate_depth
+      topic_coverage: focused_essentials
+      material_type_inline: conceptual_overview
+      material_type_block: conceptual_overview_block
+      question_formats: analytical_questions
+      question_purpose_inline: explore_connections
+      question_purpose: explore_connections_block
+      question_quantity: qty_3
 
   - name: advanced_level
     display_name: Продвинутый уровень
-    category: style  
-    description: Для специалистов с опытом - баланс теории и практики
-    settings:
-      role_perspective: industry_practitioner
-      target_audience_inline: working_professionals
-      target_audience_block: working_professionals_block
-      style: problem_solving
-      explanation_depth: balanced_coverage
-      topic_coverage: practical_subset
-      material_type_inline: practical_workshop
-      material_type_block: practical_workshop_block
-      question_formats: coding_problems
-      question_purpose_inline: assess_skills
-      question_quantity: qty_10
-
-  - name: expert_level
-    display_name: Экспертный уровень
     category: style
-    description: Для исследователей - максимальная глубина и формальная строгость
+    description: Максимальная теоретическая глубина для исследователей - формальная строгость и полнота
     settings:
       role_perspective: academic_professor
       target_audience_inline: researchers
@@ -389,11 +403,12 @@ profiles:
       style: academic_rigorous
       explanation_depth: mathematical_rigor
       topic_coverage: exhaustive_coverage
-      material_type_inline: lecture_notes
-      material_type_block: lecture_notes_block
-      question_formats: proof_tasks
+      material_type_inline: theoretical_analysis
+      material_type_block: theoretical_analysis_block
+      question_formats: theoretical_reasoning
       question_purpose_inline: verify_understanding
-      question_quantity: qty_15
+      question_purpose: verify_understanding_block
+      question_quantity: qty_3
 
   # Subject profiles - конфигурации для предметных областей
   - name: cryptography_profile
@@ -475,19 +490,18 @@ profiles:
       question_formats: open_ended
       topic_coverage: progressive_learning
 
-# Default values for placeholders when no user or profile settings exist
 default_values:
-  role_perspective: simplification_expert
+  role_perspective: academic_professor
   subject_name: ai_llm
   subject_keywords: ai_llm_keywords
   language: russian_tech
   style: comprehensive_detailed
-  target_audience_inline: working_professionals
-  target_audience_block: working_professionals_block
-  material_type_inline: comprehensive_study
-  material_type_block: comprehensive_study_block
-  explanation_depth: balanced_coverage
-  topic_coverage: progressive_learning
+  target_audience_inline: researchers
+  target_audience_block: researchers_block
+  material_type_inline: lecture_notes
+  material_type_block: lecture_notes_block
+  explanation_depth: deep_technical
+  topic_coverage: exhaustive_coverage
   question_formats: open_ended
   question_purpose: verify_understanding_block
   question_purpose_inline: verify_understanding

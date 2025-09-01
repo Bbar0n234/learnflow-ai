@@ -86,6 +86,8 @@ class PromptService:
             f"Successfully generated prompt for user {user_id}, node {node_name}. "
             f"Used {len(final_values)} placeholders, prompt size: {len(prompt)} chars"
         )
+
+        logger.debug(f"DEBUG LOG: prompt: {prompt}")
         
         # Create and return response
         try:

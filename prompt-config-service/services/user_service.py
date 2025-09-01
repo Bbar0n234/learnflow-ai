@@ -16,20 +16,20 @@ from repositories.user_settings_repo import UserSettingsRepository
 
 # Default placeholder values - map placeholder name to value name from yaml
 DEFAULT_PLACEHOLDER_VALUES = {
-    "role_perspective": "simplification_expert",
+    "role_perspective": "industry_practitioner",
     "subject_name": "ai_llm",
     "subject_keywords": "ai_llm_keywords",
     "language": "russian_tech",
-    "style": "comprehensive_detailed",
-    "target_audience_inline": "working_professionals",
-    "target_audience_block": "working_professionals_block",
-    "material_type_inline": "comprehensive_study",
-    "material_type_block": "comprehensive_study_block",
-    "explanation_depth": "balanced_coverage",
-    "topic_coverage": "progressive_learning",
-    "question_formats": "open_ended",
-    "question_purpose": "verify_understanding_block",
-    "question_purpose_inline": "verify_understanding",
+    "style": "conceptual_focused",
+    "target_audience_inline": "intermediate_specialists",
+    "target_audience_block": "intermediate_specialists_block",
+    "material_type_inline": "conceptual_overview",
+    "material_type_block": "conceptual_overview_block",
+    "explanation_depth": "intermediate_depth",
+    "topic_coverage": "focused_essentials",
+    "question_formats": "analytical_questions",
+    "question_purpose": "explore_connections_block",
+    "question_purpose_inline": "explore_connections",
     "question_quantity": "qty_3",
 }
 

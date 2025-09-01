@@ -1,6 +1,5 @@
 """
 Модели состояния для LangGraph workflow.
-Адаптированы из utils.py для production архитектуры.
 """
 
 import operator

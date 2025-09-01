@@ -20,5 +20,5 @@ providers:
     name: openrouter
     api_key: "{{ env.OPENROUTER_API_KEY }}"
     base_url: https://openrouter.ai/api/v1
-    supports_structured_output: false  # Зависит от модели
-    default_model: openai/gpt-4.1-mini
+    supports_structured_output: false
+    default_model: google/gemini-2.5-pro

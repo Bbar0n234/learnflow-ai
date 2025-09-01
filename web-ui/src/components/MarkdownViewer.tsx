@@ -52,32 +52,37 @@ export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
             );
           },
           h1: ({ children }) => (
-            <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '1.5rem', marginTop: '2rem' }}>
+            <h1 style={{ fontSize: '2.25rem', fontWeight: 'bold', marginBottom: '1.5rem', marginTop: '2rem' }}>
               {children}
             </h1>
           ),
           h2: ({ children }) => (
-            <h2 style={{ fontSize: '1.75rem', fontWeight: '600', marginBottom: '1.25rem', marginTop: '1.75rem' }}>
+            <h2 style={{ fontSize: '2rem', fontWeight: '600', marginBottom: '1.25rem', marginTop: '1.75rem' }}>
               {children}
             </h2>
           ),
           h3: ({ children }) => (
-            <h3 style={{ fontSize: '1.375rem', fontWeight: '600', marginBottom: '1rem', marginTop: '1.5rem' }}>
+            <h3 style={{ fontSize: '1.625rem', fontWeight: '600', marginBottom: '1rem', marginTop: '1.5rem' }}>
               {children}
             </h3>
           ),
+          h4: ({ children }) => (
+            <h4 style={{ fontSize: '1.375rem', fontWeight: '600', marginBottom: '0.25rem', marginTop: '0.75rem' }}>
+              {children}
+            </h4>
+          ),
           p: ({ children }) => (
-            <p className="text-lg mb-6 leading-relaxed">
+            <p className="text-lg mb-2 leading-relaxed">
               {children}
             </p>
           ),
           ul: ({ children }) => (
-            <ul className="mb-8 pl-6 space-y-3 text-lg list-disc">
+            <ul className="mb-4 pl-6 space-y-3 text-lg list-disc">
               {children}
             </ul>
           ),
           ol: ({ children }) => (
-            <ol className="mb-8 pl-6 space-y-3 text-lg list-decimal">
+            <ol className="mb-4 pl-6 space-y-3 text-lg list-decimal">
               {children}
             </ol>
           ),

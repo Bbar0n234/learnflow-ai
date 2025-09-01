@@ -45,7 +45,9 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     setIsExporting(true);
     try {
       const blob = await apiClient.exportPackage(threadId, sessionId, 'final', 'markdown');
-      const filename = `session_${sessionId}_export.zip`;
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const sessionShort = sessionId.slice(0, 8);
+      const filename = `session_${sessionShort}_final_markdown_${timestamp}.zip`;
       apiClient.downloadBlob(blob, filename);
     } catch (error) {
       console.error('Export failed:', error);
@@ -201,7 +203,6 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    console.log('Download file:', file.path);
                   }}
                   className="btn-ghost p-1 opacity-0 group-hover:opacity-100"
                   title="Download file"

@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
+import ReactDOM from 'react-dom';
 import { X, FileText, FileArchive, Download } from 'lucide-react';
-import { Button } from '../ui';
-
-export type ExportFormat = 'markdown' | 'pdf';
-export type PackageType = 'final' | 'all';
+import type { ExportFormat, PackageType } from '../../types/export';
 
 interface ExportDialogProps {
   isOpen: boolean;
@@ -25,7 +23,10 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   const [packageType, setPackageType] = useState<PackageType>('final');
   const [selectedDocument, setSelectedDocument] = useState<string>('');
 
-  if (!isOpen) return null;
+  if (!isOpen) {
+    return null;
+  }
+  
 
   const handleExport = () => {
     if (exportMode === 'single' && selectedDocument) {
@@ -42,17 +43,25 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
     'recognized_notes': 'Распознанные заметки'
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md">
+  const dialogContent = (
+    <>
+      {/* Backdrop */}
+      <div 
+        className="export-dialog-backdrop" 
+        onClick={onClose}
+      />
+      
+      {/* Dialog */}
+      <div className="export-dialog-container">
+        <div className="export-dialog-content">
         {/* Header */}
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+        <div className="export-dialog-header">
+          <h2 className="export-dialog-title">
             Экспорт документов
           </h2>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+            className="export-dialog-close-btn"
             disabled={loading}
           >
             <X className="w-5 h-5" />
@@ -60,49 +69,40 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
         </div>
 
         {/* Export Mode Selection */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+        <div className="export-dialog-section">
+          <label className="export-dialog-label">
             Режим экспорта
           </label>
-          <div className="flex gap-2">
+          <div className="export-dialog-mode-buttons">
             <button
               onClick={() => setExportMode('package')}
-              className={`flex-1 p-3 rounded-lg border-2 transition-colors ${
-                exportMode === 'package'
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
-                  : 'border-gray-200 dark:border-gray-600'
-              }`}
+              className={`export-dialog-mode-btn ${exportMode === 'package' ? 'active' : ''}`}
               disabled={loading}
             >
-              <FileArchive className="w-5 h-5 mx-auto mb-1" />
-              <span className="text-sm">Пакет документов</span>
+              <FileArchive className="w-5 h-5" />
+              <span>Пакет документов</span>
             </button>
             <button
               onClick={() => setExportMode('single')}
-              className={`flex-1 p-3 rounded-lg border-2 transition-colors ${
-                exportMode === 'single'
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
-                  : 'border-gray-200 dark:border-gray-600'
-              }`}
+              className={`export-dialog-mode-btn ${exportMode === 'single' ? 'active' : ''}`}
               disabled={loading}
             >
-              <FileText className="w-5 h-5 mx-auto mb-1" />
-              <span className="text-sm">Один документ</span>
+              <FileText className="w-5 h-5" />
+              <span>Один документ</span>
             </button>
           </div>
         </div>
 
         {/* Package Type Selection (for package mode) */}
         {exportMode === 'package' && (
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+          <div className="export-dialog-section">
+            <label className="export-dialog-label">
               Тип пакета
             </label>
             <select
               value={packageType}
               onChange={(e) => setPackageType(e.target.value as PackageType)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg 
-                       bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              className="export-dialog-select"
               disabled={loading}
             >
               <option value="final">Финальные документы</option>
@@ -113,15 +113,14 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
 
         {/* Document Selection (for single mode) */}
         {exportMode === 'single' && (
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+          <div className="export-dialog-section">
+            <label className="export-dialog-label">
               Выберите документ
             </label>
             <select
               value={selectedDocument}
               onChange={(e) => setSelectedDocument(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg 
-                       bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              className="export-dialog-select"
               disabled={loading}
             >
               <option value="">-- Выберите документ --</option>
@@ -135,57 +134,52 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
         )}
 
         {/* Format Selection */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+        <div className="export-dialog-section">
+          <label className="export-dialog-label">
             Формат экспорта
           </label>
-          <div className="flex gap-2">
+          <div className="export-dialog-format-buttons">
             <button
               onClick={() => setFormat('markdown')}
-              className={`flex-1 p-2 rounded-lg border-2 transition-colors ${
-                format === 'markdown'
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
-                  : 'border-gray-200 dark:border-gray-600'
-              }`}
+              className={`export-dialog-format-btn ${format === 'markdown' ? 'active' : ''}`}
               disabled={loading}
             >
-              <span className="text-sm">📝 Markdown</span>
+              <FileText className="w-4 h-4" />
+              <span>Markdown</span>
             </button>
             <button
               onClick={() => setFormat('pdf')}
-              className={`flex-1 p-2 rounded-lg border-2 transition-colors ${
-                format === 'pdf'
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
-                  : 'border-gray-200 dark:border-gray-600'
-              }`}
+              className={`export-dialog-format-btn ${format === 'pdf' ? 'active' : ''}`}
               disabled={loading}
             >
-              <span className="text-sm">📄 PDF</span>
+              <FileText className="w-4 h-4" />
+              <span>PDF</span>
             </button>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-2">
-          <Button
-            variant="ghost"
+        <div className="export-dialog-actions">
+          <button
             onClick={onClose}
-            className="flex-1"
+            className="export-dialog-action-btn export-dialog-action-btn-secondary"
             disabled={loading}
           >
             Отмена
-          </Button>
-          <Button
-            variant="primary"
+          </button>
+          <button
             onClick={handleExport}
-            className="flex-1 flex items-center justify-center gap-2"
+            className="export-dialog-action-btn export-dialog-action-btn-primary"
             disabled={loading || (exportMode === 'single' && !selectedDocument)}
           >
             <Download className="w-4 h-4" />
             {loading ? 'Экспортируем...' : 'Экспортировать'}
-          </Button>
+          </button>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
+  
+  return ReactDOM.createPortal(dialogContent, document.body);
 };

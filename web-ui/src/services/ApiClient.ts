@@ -88,7 +88,7 @@ export class ApiClient {
 
   async getFileContent(threadId: string, sessionId: string, filePath: string): Promise<string> {
     const response = await this.axiosInstance.get<string>(
-      `/threads/${threadId}/sessions/${sessionId}/${encodeURIComponent(filePath)}`,
+      `/threads/${threadId}/sessions/${sessionId}/files/${encodeURIComponent(filePath)}`,
       {
         headers: {
           'Accept': 'text/plain',
@@ -105,7 +105,7 @@ export class ApiClient {
     content: string
   ): Promise<FileOperationResponse> {
     const response = await this.axiosInstance.post<FileOperationResponse>(
-      `/threads/${threadId}/sessions/${sessionId}/${encodeURIComponent(filePath)}`,
+      `/threads/${threadId}/sessions/${sessionId}/files/${encodeURIComponent(filePath)}`,
       { content },
       {
         headers: {
@@ -122,7 +122,7 @@ export class ApiClient {
     filePath: string
   ): Promise<FileOperationResponse> {
     const response = await this.axiosInstance.delete<FileOperationResponse>(
-      `/threads/${threadId}/sessions/${sessionId}/${encodeURIComponent(filePath)}`
+      `/threads/${threadId}/sessions/${sessionId}/files/${encodeURIComponent(filePath)}`
     );
     return response.data;
   }

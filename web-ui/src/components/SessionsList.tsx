@@ -52,7 +52,9 @@ export const SessionsList: React.FC<SessionsListProps> = ({
     
     try {
       const blob = await apiClient.exportPackage(threadId, exportingSession, packageType, format);
-      const filename = `session_${exportingSession}_export.${packageType === 'final' ? 'final' : 'all'}.zip`;
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const sessionShort = exportingSession.slice(0, 8);
+      const filename = `session_${sessionShort}_${packageType}_${format}_${timestamp}.zip`;
       apiClient.downloadBlob(blob, filename);
       setExportDialogOpen(false);
     } catch (error) {

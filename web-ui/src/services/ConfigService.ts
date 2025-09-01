@@ -49,6 +49,24 @@ export class ConfigService {
   }
   
   /**
+   * Get display name for a folder
+   * @param folderPath - The folder path to get display name for
+   * @returns User-friendly display name
+   */
+  static getFolderDisplayName(folderPath: string): string {
+    // Get the last part of the folder path
+    const folderName = folderPath.split('/').pop() || folderPath;
+    
+    // Check folder mapping
+    if (this.namesMap.folders[folderName]) {
+      return this.namesMap.folders[folderName];
+    }
+    
+    // Fallback - return original folder name
+    return folderName;
+  }
+  
+  /**
    * Deduplicate names by adding counters
    * @param items - Array of items with names
    * @returns Map of original name to deduplicated name

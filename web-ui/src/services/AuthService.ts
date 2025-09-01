@@ -87,7 +87,6 @@ export class AuthService {
         this.retryConfig.maxDelay
       );
 
-      console.log(`Retry attempt ${retryCount + 1}/${this.retryConfig.maxRetries} after ${delay}ms`);
       await this.sleep(delay);
 
       return this.retryRequest(requestFn, retryCount + 1);

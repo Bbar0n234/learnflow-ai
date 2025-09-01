@@ -46,6 +46,8 @@
   - `IP-02-phase2-COMPLETED.md` - ✅ Phase 2: Web UI authentication completed (2025-08-29)
 - `13-FEAT-web-ui-urls/` - Replace Local Paths with Web UI URLs
   - `IP-01-post-implementation-summary.md` - ✅ Web UI URLs implementation completed (2025-08-31)
+- `14-FEAT-web-ui-export/` - Full Export Functionality for Web UI
+  - `PS-01-export-functionality-completed.md` - ✅ Export functionality completed (2025-09-01)
 
 ## Архив (archive)
 Планы реализации (Implementation Plans), которые были перемещены из current/ после завершения задач:
@@ -78,6 +80,8 @@
   - `IP-02-phase2-web-ui-auth.md` - ✅ Completed: Web UI Authentication Phase 2 (2025-08-29)
 - `13-FEAT-web-ui-urls/`
   - `IP-01-replace-local-paths-with-urls.md` - ✅ Completed: Replace Local File Paths with Web UI URLs (2025-08-31)
+- `14-FEAT-web-ui-export/`
+  - `IP-01-full-export-functionality.md` - ✅ Completed: Full Export Functionality for Web UI (2025-09-01)
 - `misc/`
   - `IP-01-artifacts-manager.md` - ✅ Completed: Local Artifacts Manager implementation
 

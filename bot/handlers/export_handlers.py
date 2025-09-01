@@ -286,6 +286,9 @@ async def handle_format_selection(callback: CallbackQuery, state: FSMContext):
     
     await callback.message.edit_text("⏳ Экспортирую документы...")
     
+    # Generate timestamp for unique filenames
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
     # Check if package or single export
     if "package_type" in data:
         # Package export
@@ -295,7 +298,9 @@ async def handle_format_selection(callback: CallbackQuery, state: FSMContext):
             data["package_type"],
             format_type
         )
-        filename = f"session_export.zip"
+        package_type = data["package_type"]
+        # Include package type, format and timestamp in filename
+        filename = f"session_{session_id[:8]}_{package_type}_{format_type}_{timestamp}.zip"
     else:
         # Single document export
         document_name = data.get("document_name", "synthesized_material")
@@ -306,7 +311,8 @@ async def handle_format_selection(callback: CallbackQuery, state: FSMContext):
             format_type
         )
         ext = "pdf" if format_type == "pdf" else "md"
-        filename = f"{document_name}.{ext}"
+        # Include timestamp in single document filename
+        filename = f"{document_name}_{timestamp}.{ext}"
     
     if content:
         file = BufferedInputFile(file=content, filename=filename)

@@ -3,9 +3,13 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { AccordionSidebar } from './components/AccordionSidebar';
 import { MarkdownViewer } from './components/MarkdownViewer';
+import { DocumentHeader } from './components/DocumentHeader';
+import { ExportDialog } from './components/export/ExportDialog';
 import { apiClient } from './services/ApiClient';
 import { useApi } from './hooks/useApi';
+import { useExport } from './hooks/useExport';
 import type { AppState, Thread, FileInfo } from './services/types';
+import type { ExportFormat, PackageType, ExportContext } from './types/export';
 
 function AppWithRouter() {
   const navigate = useNavigate();
@@ -26,8 +30,13 @@ function AppWithRouter() {
   const [sessionFiles, setSessionFiles] = useState<Map<string, FileInfo[]>>(new Map());
   const [threadsLoading, setThreadsLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
+  
+  // Export state
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [exportContext, setExportContext] = useState<ExportContext | null>(null);
 
   const { executeRequest } = useApi();
+  const { exportSingleDocument, exportPackage, getAvailableDocuments, isLoading: exportLoading } = useExport();
 
   // Load threads on mount
   useEffect(() => {
@@ -125,6 +134,57 @@ function AppWithRouter() {
     }
   };
 
+  const handleExportClick = (_source: 'session' | 'file') => {
+    
+    if (!appState.selectedThread || !appState.selectedSession) {
+      console.error('No thread or session selected');
+      return;
+    }
+
+    const key = `${appState.selectedThread}/${appState.selectedSession}`;
+    const files = sessionFiles.get(key) || [];
+    const availableDocuments = getAvailableDocuments(files);
+
+    const context = {
+      threadId: appState.selectedThread,
+      sessionId: appState.selectedSession,
+      availableDocuments
+    };
+    setExportContext(context);
+    
+    setIsExportDialogOpen(true);
+  };
+
+  const handleExport = async (
+    format: ExportFormat,
+    packageType: PackageType,
+    singleDocument?: string
+  ) => {
+    if (!exportContext) return;
+
+    try {
+      if (singleDocument) {
+        await exportSingleDocument(
+          exportContext.threadId,
+          exportContext.sessionId,
+          singleDocument,
+          format
+        );
+      } else {
+        await exportPackage(
+          exportContext.threadId,
+          exportContext.sessionId,
+          packageType,
+          format
+        );
+      }
+      setIsExportDialogOpen(false);
+    } catch (error) {
+      console.error('Export failed:', error);
+      // Error is handled in the hook, dialog stays open
+    }
+  };
+
   const handleSelect = async (threadId: string, sessionId?: string, filePath?: string) => {
     // Build URL based on selection
     let url = '/';
@@ -176,6 +236,10 @@ function AppWithRouter() {
     if (appState.selectedFile && appState.currentFileContent) {
       return (
         <div className="animate-fade-in">
+          <DocumentHeader
+            filename={appState.selectedFile}
+            onExport={() => handleExportClick('file')}
+          />
           <MarkdownViewer content={appState.currentFileContent} />
         </div>
       );
@@ -223,13 +287,44 @@ function AppWithRouter() {
       selectedSession={appState.selectedSession}
       selectedFile={appState.selectedFile}
       onSelect={handleSelect}
+      onExportSession={(threadId, sessionId) => {
+        const key = `${threadId}/${sessionId}`;
+        const files = sessionFiles.get(key) || [];
+        
+        if (files.length === 0) {
+          console.warn('No files found for this session! sessionFiles keys:', Array.from(sessionFiles.keys()));
+        }
+        
+        const availableDocuments = getAvailableDocuments(files);
+        
+        const context = {
+          threadId,
+          sessionId,
+          availableDocuments
+        };
+        setExportContext(context);
+        
+        setIsExportDialogOpen(true);
+      }}
     />
   );
 
+
   return (
-    <Layout sidebar={sidebar}>
-      {renderMainContent()}
-    </Layout>
+    <>
+      <Layout sidebar={sidebar}>
+        {renderMainContent()}
+      </Layout>
+      <ExportDialog
+        isOpen={isExportDialogOpen}
+        onClose={() => {
+          setIsExportDialogOpen(false);
+        }}
+        onExport={handleExport}
+        availableDocuments={exportContext?.availableDocuments || []}
+        loading={exportLoading}
+      />
+    </>
   );
 }
 

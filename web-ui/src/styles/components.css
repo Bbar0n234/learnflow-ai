@@ -649,6 +649,334 @@
 }
 
 /* =================
+   Document Header
+   ================= */
+
+.document-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--color-elev);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  margin-bottom: var(--spacing-xl);
+  border-bottom: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  min-height: 72px;
+}
+
+.document-header-title {
+  font-size: var(--text-h3);
+  font-weight: var(--text-h3-weight);
+  line-height: var(--text-h3-line);
+  color: var(--color-ink);
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.document-header-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-primary);
+  color: var(--color-primary-ink);
+  border: none;
+  border-radius: var(--radius-xs);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  font-family: 'Inter', system-ui, sans-serif;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--easing);
+  box-shadow: var(--shadow-sm);
+}
+
+.document-header-export-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.document-header-export-btn:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
+.document-header-export-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* =================
+   Export Dialog
+   ================= */
+
+.export-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: fadeIn var(--duration-fast) var(--easing);
+}
+
+.export-dialog-container {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  padding: var(--spacing-lg);
+}
+
+.export-dialog-content {
+  pointer-events: auto;
+  background: var(--color-elev);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 480px;
+  padding: var(--spacing-xl);
+  animation: scaleIn var(--duration-normal) var(--easing);
+  border: 1px solid var(--color-border);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.export-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-lg);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.export-dialog-title {
+  font-size: var(--text-h3);
+  font-weight: var(--text-h3-weight);
+  line-height: var(--text-h3-line);
+  color: var(--color-ink);
+  font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+  margin: 0;
+}
+
+.export-dialog-close-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  border: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--easing);
+}
+
+.export-dialog-close-btn:hover {
+  background: color-mix(in srgb, var(--color-elev) 80%, var(--color-bg));
+  color: var(--color-ink);
+}
+
+.export-dialog-close-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.export-dialog-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.export-dialog-label {
+  display: block;
+  font-size: var(--text-body);
+  font-weight: 600;
+  color: var(--color-ink);
+  margin-bottom: var(--spacing-sm);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.export-dialog-mode-buttons,
+.export-dialog-format-buttons {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.export-dialog-mode-btn,
+.export-dialog-format-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-md);
+  background: var(--color-bg);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--easing);
+}
+
+.export-dialog-format-btn {
+  flex-direction: row;
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.export-dialog-mode-btn:hover,
+.export-dialog-format-btn:hover {
+  background: color-mix(in srgb, var(--color-primary) 5%, var(--color-bg));
+  border-color: color-mix(in srgb, var(--color-primary) 30%, var(--color-border));
+  color: var(--color-ink);
+}
+
+.export-dialog-mode-btn.active,
+.export-dialog-format-btn.active {
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-bg));
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.export-dialog-mode-btn:disabled,
+.export-dialog-format-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.export-dialog-select {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xs);
+  color: var(--color-ink);
+  font-size: var(--text-body);
+  font-family: 'Inter', system-ui, sans-serif;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--easing);
+}
+
+.export-dialog-select:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-primary) 40%, var(--color-border));
+}
+
+.export-dialog-select:focus {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-color: var(--color-primary);
+}
+
+.export-dialog-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.export-dialog-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-xl);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+}
+
+.export-dialog-action-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: var(--radius-xs);
+  font-size: var(--text-body);
+  font-weight: 500;
+  font-family: 'Inter', system-ui, sans-serif;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--easing);
+  border: none;
+  min-height: 40px;
+}
+
+.export-dialog-action-btn-secondary {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  border: 1px solid var(--color-border);
+}
+
+.export-dialog-action-btn-secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-elev) 60%, var(--color-bg));
+  border-color: color-mix(in srgb, var(--color-border) 120%, var(--color-bg));
+}
+
+.export-dialog-action-btn-primary {
+  background: var(--color-primary);
+  color: var(--color-primary-ink);
+  box-shadow: var(--shadow-sm);
+}
+
+.export-dialog-action-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.export-dialog-action-btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
+.export-dialog-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.export-dialog-action-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .export-dialog-content {
+    max-width: calc(100vw - 2 * var(--spacing-lg));
+    padding: var(--spacing-lg);
+  }
+  
+  .export-dialog-mode-buttons {
+    flex-direction: column;
+  }
+  
+  .export-dialog-mode-btn {
+    flex-direction: row;
+    justify-content: center;
+  }
+}
+
+/* =================
    Accessibility Helpers
    =======================*/
 

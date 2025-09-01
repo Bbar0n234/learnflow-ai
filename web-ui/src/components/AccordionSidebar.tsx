@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronDown, ChevronRight, Folder, FolderOpen, File, User } from 'lucide-react';
+import { ChevronDown, ChevronRight, Folder, FolderOpen, File, User, Download } from 'lucide-react';
 import type { Thread, Session, FileInfo } from '../services/types';
 import { ConfigService } from '../services/ConfigService';
 import { cn } from '../utils/cn';
@@ -12,6 +12,7 @@ interface AccordionSidebarProps {
   selectedSession: string | null;
   selectedFile: string | null;
   onSelect: (thread: string, session?: string, file?: string) => void;
+  onExportSession?: (threadId: string, sessionId: string) => void;
 }
 
 export const AccordionSidebar: React.FC<AccordionSidebarProps> = ({
@@ -21,6 +22,7 @@ export const AccordionSidebar: React.FC<AccordionSidebarProps> = ({
   selectedSession,
   selectedFile,
   onSelect,
+  onExportSession,
 }) => {
   // Get expansion state from URL
   const expanded = useUrlDrivenExpansion();
@@ -69,7 +71,7 @@ export const AccordionSidebar: React.FC<AccordionSidebarProps> = ({
       
       const folderId = `${threadId}-${sessionId}-${folder}`;
       const isExpanded = expanded.folders.has(folderId);
-      const folderName = ConfigService.getDisplayName(folder);
+      const folderName = ConfigService.getFolderDisplayName(folder);
       
       elements.push(
         <div key={folder}>
@@ -132,7 +134,7 @@ export const AccordionSidebar: React.FC<AccordionSidebarProps> = ({
       <div key={session.session_id}>
         <div
           className={cn(
-            'sidebar-item sidebar-section-header',
+            'sidebar-item sidebar-section-header group',
             isSelected && !selectedFile && 'sidebar-item-active'
           )}
           style={{ 
@@ -150,7 +152,22 @@ export const AccordionSidebar: React.FC<AccordionSidebarProps> = ({
           <span className="text-sm font-medium truncate" title={displayName}>
             {displayName}
           </span>
-          <span className="ml-auto text-xs text-muted shrink-0">{files.length > 0 ? files.length : session.files_count}</span>
+          <div className="ml-auto flex items-center">
+            {onExportSession && files.length > 0 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onExportSession(thread.thread_id, session.session_id);
+                }}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
+                title="Экспортировать сессию"
+                style={{ minWidth: '20px', minHeight: '20px', marginRight: '5px' }}
+              >
+                <Download className="w-3 h-3" />
+              </button>
+            )}
+            <span className="text-xs text-muted shrink-0">{files.length > 0 ? files.length : session.files_count}</span>
+          </div>
         </div>
         
         {isExpanded && files.length > 0 && (

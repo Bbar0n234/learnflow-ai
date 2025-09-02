@@ -17,7 +17,7 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - LOG_LEVEL=${LOG_LEVEL}
       - WEB_UI_BASE_URL=${WEB_UI_BASE_URL}
-      - BOT_API_KEY=${BOT_API_KEY}
+      - ARTIFACTS_BOT_API_KEY=${BOT_API_KEY}
     restart: always
     depends_on:
       - graph

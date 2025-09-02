@@ -1,91 +1,93 @@
-# Documentation Guide
+# Руководство по документации
 
-Welcome to the LearnFlow AI documentation. This guide will help you navigate the documentation structure and find the information you need.
+Добро пожаловать в документацию LearnFlow AI. Это руководство поможет вам сориентироваться в структуре документации и найти необходимую информацию.
 
-## Quick Start
+## Быстрый старт
 
-- **New to LearnFlow AI?** → Start with [Overview](overview.md)
-- **Want to deploy?** → See the root [README.md](../README.md#quick-start)
-- **Need to understand the architecture?** → Check [ADR/001-architecture-overview.md](ADR/001-architecture-overview.md)
-- **Want to contribute?** → Read [Development Conventions](conventions.md)
+- **Впервые знакомитесь с LearnFlow AI?** → Начните с [Обзора](overview.md)
+- **Хотите развернуть систему?** → См. корневой [README.md](../README.md#quick-start) и [CLAUDE.md](../CLAUDE.md)
+- **Нужно понять архитектуру?** → Изучите [ADR/001-architecture-overview.md](ADR/001-architecture-overview.md)
+- **Хотите внести вклад?** → Прочитайте [Соглашения по разработке](conventions.md)
 
-## Documentation Structure
+## Структура документации
 
-### Core Documentation
-- **[Overview](overview.md)** - Complete system architecture and technical details for developers
-- **[Conventions](conventions.md)** - Development standards, coding guidelines, and project structure
-- **[Business Model](business_model.md)** - Monetization strategy and business context
+### Основная документация
+- **[Обзор](overview.md)** - Полная архитектура системы и технические детали для разработчиков
+- **[Соглашения](conventions.md)** - Стандарты разработки, руководства по кодированию и структура проекта
+- **[Бизнес-модель](business_model.md)** - Стратегия монетизации и бизнес-контекст
+- **[Руководство по стилю UI](ui_style_guide.md)** - Стандарты дизайна и компонентов пользовательского интерфейса
 
-### Planning & Strategy
-- **[Vision](planning/vision.md)** - Long-term project goals and direction
-- **[Roadmap](planning/roadmap.md)** - Development timeline and milestones
-- **[Insights](insights.md)** - AI-Driven Development philosophy and principles
+### Планирование и стратегия
+- **[Видение](planning/vision.md)** - Долгосрочные цели и направление развития проекта
+- **[Дорожная карта](planning/roadmap.md)** - График разработки и ключевые вехи
+- **[Инсайты](insights.md)** - Философия и принципы AI-управляемой разработки
 
-### Architecture & Decisions
-- **[ADR/](ADR/)** - Architecture Decision Records documenting key technical decisions
-  - [001-architecture-overview.md](ADR/001-architecture-overview.md) - System architecture
-  - [002-llm-guardrails.md](ADR/002-llm-guardrails.md) - Security implementation
-  - [ADR-004-prompt-caching-strategy.md](ADR/ADR-004-prompt-caching-strategy.md) - Performance optimization
+### Архитектура и решения
+- **[ADR/](ADR/)** - Записи архитектурных решений, документирующие ключевые технические решения
+  - [001-architecture-overview.md](ADR/001-architecture-overview.md) - Архитектура системы
+  - [002-llm-guardrails.md](ADR/002-llm-guardrails.md) - Реализация безопасности
 
-### Implementation & Development
-- **[Backlog](backlog/)** - Current and archived implementation plans
-  - [Index](backlog/index.md) - Overview of all initiatives
-  - [Current](backlog/current/) - Active development items
-  - [Archive](backlog/archive/) - Completed implementations
-- **[Tech Debt](backlog/tech-debt/)** - Technical debt analysis and refactoring plans
+### Реализация и разработка
+- **[Бэклог](backlog/)** - Текущие и архивные планы реализации
+  - [Индекс](backlog/index.md) - Обзор всех инициатив
+  - [Текущие](backlog/current/) - Активные элементы разработки (14 инициатив)
+  - [Архив](backlog/archive/) - Завершённые реализации
 
-### Research & Specifications
-- **[Research](research/)** - Technical investigations and comparisons
-- **[Specs](specs/)** - Detailed specifications for tools and technologies
-- **[Architecture](architecture/)** - Architectural diagrams and NFR documentation
+### Исследования и спецификации
+- **[Исследования](research/)** - Технические исследования и сравнения
+  - [Распознавание текста](research/recognition.md) - Исследование OCR технологий
+- **[Спецификации](specs/)** - Детальные спецификации инструментов и технологий
+  - [UV Dependency Management](specs/uv_dependency_management.md) - Управление зависимостями через UV
+- **[Архитектура](architecture/)** - Архитектурные диаграммы и документация NFR
+  - [C4 Container Diagram](architecture/c4-container-diagram.md) - Диаграмма контейнеров системы
+  - [Нефункциональные требования](architecture/NFR.md) - NFR документация
 
-### Project Management
-- **[Changelog](changelog.md)** - Version history and release notes
-- **[Testing Strategy](TESTING_STRATEGY.md)** - Quality assurance approach
+### Управление проектом
+- **[Индекс бэклога](backlog/index.md)** - Сводка по всем инициативам и их статусам
 
-## Where to Go If You Need...
+## Куда обратиться, если нужно...
 
-### Understanding the System
-- **"What is LearnFlow AI?"** → [Overview](overview.md) and root [README.md](../README.md)
-- **"How does it work technically?"** → [Architecture Overview](ADR/001-architecture-overview.md)
-- **"What are the main components?"** → [Overview - System Architecture](overview.md#system-architecture)
+### Понять систему
+- **"Что такое LearnFlow AI?"** → [Обзор](overview.md) и корневой [README.md](../README.md)
+- **"Как это работает технически?"** → [Обзор архитектуры](ADR/001-architecture-overview.md)
+- **"Каковы основные компоненты?"** → [Обзор - Архитектура системы](overview.md#system-architecture)
 
-### Getting Started
-- **"How to install and run?"** → Root [README.md](../README.md#quick-start)
-- **"How to develop locally?"** → [Conventions](conventions.md) and root [README.md](../README.md#development)
-- **"What's the project structure?"** → [Conventions](conventions.md)
+### Начать работу
+- **"Как установить и запустить?"** → Корневой [README.md](../README.md#quick-start)
+- **"Как разрабатывать локально?"** → [Соглашения](conventions.md) и корневой [README.md](../README.md#development)
+- **"Какова структура проекта?"** → [Соглашения](conventions.md)
 
-### Contributing & Development
-- **"How to contribute?"** → [Conventions](conventions.md)
-- **"What are the coding standards?"** → [Conventions](conventions.md)
-- **"How to add new features?"** → [Backlog](backlog/) for current priorities
+### Участие и разработка
+- **"Как внести вклад?"** → [Соглашения](conventions.md)
+- **"Каковы стандарты кодирования?"** → [Соглашения](conventions.md)
+- **"Как добавить новые функции?"** → [Бэклог](backlog/) для текущих приоритетов
 
-### Architecture & Technical Decisions
-- **"Why was this technology chosen?"** → [ADR/](ADR/) directory
-- **"How is security implemented?"** → [LLM Guardrails ADR](ADR/002-llm-guardrails.md)
-- **"What's the system architecture?"** → [Architecture Overview ADR](ADR/001-architecture-overview.md)
+### Архитектура и технические решения
+- **"Почему выбрана эта технология?"** → Директория [ADR/](ADR/)
+- **"Как реализована безопасность?"** → [ADR по защитным барьерам LLM](ADR/002-llm-guardrails.md)
+- **"Какова архитектура системы?"** → [ADR обзора архитектуры](ADR/001-architecture-overview.md)
 
-### Business & Strategy
-- **"What's the business model?"** → [Business Model](business_model.md)
-- **"What's the long-term vision?"** → [Vision](planning/vision.md)
-- **"What's being developed next?"** → [Roadmap](planning/roadmap.md)
+### Бизнес и стратегия
+- **"Какова бизнес-модель?"** → [Бизнес-модель](business_model.md)
+- **"Какое долгосрочное видение?"** → [Видение](planning/vision.md)
+- **"Что разрабатывается дальше?"** → [Дорожная карта](planning/roadmap.md)
 
-### Troubleshooting & Support
-- **"How to debug issues?"** → [Overview - Monitoring & Debugging](overview.md#monitoring-debugging)
-- **"How to test the system?"** → [Testing Strategy](TESTING_STRATEGY.md)
-- **"What are the current limitations?"** → [Overview - Technical Details](overview.md#technical-details)
+### Устранение неполадок и поддержка
+- **"Как отлаживать проблемы?"** → [Обзор - Мониторинг и отладка](overview.md#monitoring-debugging)
+- **"Каковы текущие ограничения?"** → [Обзор - Технические детали](overview.md#technical-details)
+- **"Какие задачи в разработке?"** → [Текущий бэклог](backlog/current/) - 14 активных инициатив
 
-## Documentation Maintenance
+## Поддержка документации
 
-This documentation follows AI-Driven Development principles:
-- **Living Documentation**: Core files are kept up-to-date with system changes
-- **Decision Recording**: All architectural decisions are documented in ADRs
-- **Implementation Tracking**: All features are planned, implemented, and archived with summaries
+Эта документация следует принципам AI-управляемой разработки:
+- **Живая документация**: Основные файлы поддерживаются в актуальном состоянии при изменениях системы
+- **Запись решений**: Все архитектурные решения документируются в ADR
+- **Отслеживание реализации**: Все функции планируются, реализуются и архивируются с резюме
 
-### Updating Documentation
-- Always update [Overview](overview.md) when system architecture changes
-- Create ADRs for significant technical decisions
-- Document completed implementations in the backlog archive
-- Keep the [Changelog](changelog.md) current with releases
+### Обновление документации
+- Всегда обновляйте [Обзор](overview.md) при изменении архитектуры системы
+- Создавайте ADR для значимых технических решений
+- Документируйте завершённые реализации в архиве бэклога
+- Обновляйте [Индекс бэклога](backlog/index.md) при добавлении новых инициатив
 
-For questions about the documentation or suggestions for improvements, please create an issue in the repository.
+По вопросам о документации или предложениям по улучшению, пожалуйста, создайте issue в репозитории.

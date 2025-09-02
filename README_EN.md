@@ -11,6 +11,14 @@
 
 A universal, LangGraph-based educational content generation system for any subject area and education level. Transform educational questions and handwritten notes into comprehensive study materials with analysis questions and answers.
 
+## 📹 Demo
+
+![Demo GIF](docs/assets/demo.GIF)
+
+### Watch demo on YouTube
+
+[![Watch demo on YouTube](https://img.youtube.com/vi/bkBHdkRn2Ao/maxresdefault.jpg)](https://youtu.be/bkBHdkRn2Ao)
+
 ## 🎯 Why LearnFlow AI?
 
 LearnFlow AI solves a universal educational problem: transforming scattered educational questions and handwritten notes into structured, comprehensive study materials - from mathematics and physics to literature and history, from elementary school to university level.

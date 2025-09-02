@@ -418,11 +418,6 @@ profiles:
     settings:
       subject_name: cryptography
       subject_keywords: crypto_keywords
-      role_perspective: academic_professor
-      explanation_depth: deep_technical
-      material_type_inline: exam_prep
-      question_formats: case_studies
-      topic_coverage: exhaustive_coverage
 
   - name: mathematics_profile
     display_name: Математика
@@ -431,11 +426,6 @@ profiles:
     settings:
       subject_name: mathematics
       subject_keywords: math_keywords
-      role_perspective: academic_professor
-      explanation_depth: mathematical_rigor
-      material_type_inline: lecture_notes
-      question_formats: proof_tasks
-      topic_coverage: progressive_learning
 
   - name: machine_learning_profile
     display_name: Машинное обучение
@@ -444,11 +434,6 @@ profiles:
     settings:
       subject_name: machine_learning
       subject_keywords: ml_keywords
-      role_perspective: industry_practitioner
-      explanation_depth: balanced_coverage
-      material_type_inline: practical_workshop
-      question_formats: coding_problems
-      topic_coverage: practical_subset
 
   - name: frontend_profile
     display_name: Frontend-разработка
@@ -457,11 +442,6 @@ profiles:
     settings:
       subject_name: frontend_development
       subject_keywords: frontend_keywords
-      role_perspective: industry_practitioner
-      explanation_depth: deep_technical
-      material_type_inline: practical_workshop
-      question_formats: coding_problems
-      topic_coverage: practical_subset
 
   - name: backend_profile
     display_name: Backend-разработка
@@ -470,11 +450,6 @@ profiles:
     settings:
       subject_name: backend_development
       subject_keywords: backend_keywords
-      role_perspective: industry_practitioner
-      explanation_depth: deep_technical
-      material_type_inline: reference_guide
-      question_formats: case_studies
-      topic_coverage: problem_specific
 
   - name: ai_llm_profile
     display_name: AI и большие языковые модели
@@ -483,12 +458,6 @@ profiles:
     settings:
       subject_name: ai_llm
       subject_keywords: ai_llm_keywords
-      role_perspective: industry_practitioner
-      explanation_depth: balanced_coverage
-      material_type_inline: practical_workshop
-      material_type_block: practical_workshop_block
-      question_formats: open_ended
-      topic_coverage: progressive_learning
 
 default_values:
   role_perspective: academic_professor

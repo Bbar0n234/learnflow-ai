@@ -5,7 +5,7 @@
 **English | [Русский](README.md)**
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/Python-3.13%2B-green.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-green.svg)](https://www.python.org/downloads/)
 [![LangGraph](https://img.shields.io/badge/Built%20with-LangGraph-orange.svg)](https://github.com/langchain-ai/langgraph)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](docker-compose.yml)
 
@@ -17,40 +17,38 @@ LearnFlow AI solves a universal educational problem: transforming scattered educ
 
 ### Key Features
 
-- **🔄 LangGraph Workflow Pipeline** - Multi-node processing with configurable HITL (Human-in-the-Loop) capabilities
-- **✏️ Interactive Material Editing** - Iterative refinement of synthesized content with fuzzy text matching
-- **🛡️ LLM Security** - Built-in Guardrails against prompt injection and jailbreak attacks
-- **🔐 Multi-tenancy Security** - API keys and JWT authentication for user data protection
-- **🤖 Universal LLM Support** - Works with any OpenAI-compatible API (including local models)
-- **📝 OCR & Handwriting Recognition** - Process both typed and handwritten materials
-- **🎨 Modern Web UI** - React-based interface with real-time updates
-- **🤖 Telegram Bot** - Conversational interface for on-the-go access
-- **🎯 Personalized Prompts** - Dynamic prompt generation with user-specific configurations
-- **🐳 Docker-First** - One command deployment with `docker compose up`
+#### For Users (Teachers, Tutors, Instructors, Students)
+- **🎯 Exceptional Content Quality** - Advanced prompt engineering techniques with XML structuring and semantic keywords ensure depth and accuracy of generated materials
+- **🔧 Universal Flexibility** - Adapts to any knowledge domain (from mathematics to literature), audience level (from school to university), material volume, and number of assessment questions
+- **💬 Convenient Telegram Interface** - Full system functionality through familiar messenger with image support and interactive commands
+- **✏️ Interactive Editing** - Iterative material improvement through dialogue with point corrections
+- **📝 Handwritten Text Recognition** - Automatic processing of both printed and handwritten notes for creating personalized educational materials
 
-## 👥 Who This Project Is For
+#### For Developers and Architects
+- **🔄 Production-ready LangGraph** - Reference implementation of multi-node workflow with HITL (Human-in-the-Loop) integration and multimodal processing
+- **🤖 AI-Driven Development** - Practical example of delegating code writing to LLM agents while maintaining architectural control. All project documentation in `docs/` is used for effective LLM collaboration
+- **🛡️ Built-in Security** - Protection against prompt injection and jailbreak attacks at the architecture level
+- **🔐 Multi-tenancy Ready** - JWT authentication and data isolation for enterprise use
+- **🎨 Modular Architecture** - Clean Architecture with clear layer separation, microservice structure (FastAPI, Telegram Bot, external integrations)
+- **📊 Observability** - LangFuse integration for complete AI operations tracing and monitoring
+- **🐳 Docker-first Approach** - Full containerization with orchestration via docker-compose
 
-### 🎓 Education and Learning
-**Teachers, tutors, instructional designers** — automatic generation of educational materials, tests, and gap-analysis questions. The system processes both text queries and handwritten notes, creating personalized learning content.
+### 📚 Examples of Generated Materials
 
-### 👨‍💻 Developers and Architects
-**AI-Driven Development** — practical example of delegating code writing to LLM agents while maintaining architectural control. The `docs/` directory contains all project documentation used for effective LLM collaboration.
+Explore how the system adapts one topic — **Qdrant vector database** — for different audience levels:
 
-**Production-ready architecture** based on LangGraph:
-- Multi-node agent system with HITL (Human-in-the-Loop)
-- Multimodal processing (text + images)
-- Microservices: FastAPI, Telegram Bot, external integrations
-- Observability via LangFuse
-- Clean Architecture with clear separation of concerns
+- 🟢 **[Beginner](_examples/beginner/)** — Intuitive explanation through analogies. From the semantic search problem to practical application.
+- 🟡 **[Intermediate](_examples/intermediate/)** — Architectural understanding: how HNSW works, why exactly this way, performance optimizations.
+- 🔴 **[Advanced](_examples/advanced/)** — Academic depth: formal definitions, proofs, mathematical apparatus.
 
-The project demonstrates modern approaches to building production-ready AI systems.
+Each set: notes → material → questions → answers. This adaptability makes LearnFlow AI universal for any educational context.
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
 - Docker and Docker Compose
-- Python 3.13+ (for local development)
+- Python 3.11+ (for local development)
 - API keys for your chosen LLM provider
 
 ### Docker Deployment (Recommended)
@@ -106,19 +104,6 @@ This script automatically:
 ./local-reset.sh  # Full environment reset
 ```
 
-3. **Alternative manual start**
-```bash
-# Install dependencies
-uv sync
-
-# Start PostgreSQL
-docker compose up -d postgres
-
-# Start services individually:
-uv run --package learnflow python -m learnflow.main  # FastAPI
-uv run --package bot python -m bot.main              # Telegram bot
-```
-
 For more details on environment setup, see [docs/overview.md](docs/overview.md)
 
 ### Using Local LLMs
@@ -143,20 +128,52 @@ LearnFlow AI uses a modular, event-driven architecture built on LangGraph:
 
 ```mermaid
 graph TD
-    A[User Input] --> B[Input Processing]
-    B --> C[Content Generation]
-    B --> D[Handwriting Recognition]
-    D --> E[Material Synthesis]
-    C --> E
-    E --> F[Edit Material]
-    F --> G[Gap Analysis]
-    G --> H[Answer Generation]
-    H --> I[Artifacts Storage]
+    subgraph "Legend"
+        L1[🛡️ Security Guard - injection protection]
+        L2[👤 Human-in-the-Loop - interactivity]
+    end
     
-    style B fill:#f9f,stroke:#333,stroke-width:2px
-    style E fill:#bbf,stroke:#333,stroke-width:2px
-    style F fill:#fcf,stroke:#333,stroke-width:2px
-    style G fill:#bfb,stroke:#333,stroke-width:2px
+    A[🛡️ Input Processing] --> B[Content Generation]
+    A --> C[🛡️ Handwriting Recognition]
+    C --> D[Material Synthesis]
+    B --> D
+    D --> E[👤🛡️ Material Editing]
+    E --> F[👤🛡️ Question Generation]
+    F --> G[Answer Generation]
+    G --> H[Artifacts Storage]
+    
+    style A fill:#ffe6e6,stroke:#ff4444,stroke-width:2px
+    style C fill:#ffe6e6,stroke:#ff4444,stroke-width:2px
+    style E fill:#e6f3ff,stroke:#0066cc,stroke-width:2px
+    style F fill:#e6f3ff,stroke:#0066cc,stroke-width:2px
+```
+
+#### How Security Guard Works
+
+```mermaid
+graph LR
+    Input[User Input] --> Guard[🛡️ Security Guard]
+    Guard --> Check{Injection Check}
+    Check -->|Safe| Process[Processing]
+    Check -->|Threat Detected| Clean[Content Cleanup]
+    Clean --> Process
+    
+    style Guard fill:#ffe6e6
+    style Check fill:#fff5f5
+```
+
+#### How Human-in-the-Loop (HITL) Works
+
+```mermaid
+graph LR
+    Node[👤 HITL Node] --> Generate[Generate Result]
+    Generate --> Review{User<br/>Reviews}
+    Review -->|Approved| Next[Next Node]
+    Review -->|Needs Edits| Edit[Edit]
+    Edit --> Generate
+    
+    style Node fill:#e6f3ff
+    style Review fill:#f0f8ff
 ```
 
 ### Core Components
@@ -181,24 +198,17 @@ LearnFlow AI includes comprehensive prompt injection protection:
 
 ## 📚 Documentation
 
-- [Architecture Overview](docs/ADR/001-architecture-overview.md)
-- [LLM Security](docs/ADR/002-llm-guardrails.md)
-- [API Reference](http://localhost:8000/docs)
-- [Development Guide](docs/conventions.md)
-- [Roadmap](docs/planning/roadmap.md)
+### For Users
+- [System Overview](docs/overview.md) - Detailed description of features and architecture
+- [Business Model](docs/business_model.md) - Monetization and development strategy
 
-
-## 🧪 Development
-
-### Local Setup
-
-```bash
-# Install dependencies with UV
-uv sync
-
-# Start development server
-uv run --package learnflow python -m learnflow.main
-```
+### For Developers
+- [Architecture Overview](docs/ADR/001-architecture-overview.md) - Key architectural decisions
+- [LLM Security](docs/ADR/002-llm-guardrails.md) - Protection against prompt injection
+- [C4 Container Diagram](docs/architecture/c4-container-diagram.md) - System architecture
+- [Non-Functional Requirements](docs/architecture/NFR.md) - Performance and limitations
+- [Development Guide](docs/conventions.md) - Coding standards and processes
+- [Roadmap](docs/planning/roadmap.md) - Development plans
 
 ## 📊 Metrics & Monitoring
 

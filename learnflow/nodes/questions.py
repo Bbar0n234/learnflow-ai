@@ -158,7 +158,7 @@ class QuestionGenerationNode(FeedbackNode):
                 "HITL disabled for generating_questions, running autonomous generation"
             )
 
-            prompt = self.render_prompt(state, config=config)
+            prompt = await self.render_prompt(state, config=config)
             model = self.model.with_structured_output(Questions)
             response = await model.ainvoke([SystemMessage(content=prompt)])
 

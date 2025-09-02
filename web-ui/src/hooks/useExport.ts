@@ -58,7 +58,19 @@ export function useExport(): UseExportReturn {
       const filename = `${baseName}_${timestamp}.${format === 'pdf' ? 'pdf' : 'md'}`;
       downloadBlob(blob, filename);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Ошибка при экспорте документа';
+      let errorMessage = 'Ошибка при экспорте документа';
+      
+      if (err instanceof Error) {
+        // Check for timeout error
+        if (err.message.includes('timeout') || err.message.includes('ECONNABORTED')) {
+          errorMessage = 'Превышено время ожидания. Попробуйте использовать формат Markdown вместо PDF для более быстрого экспорта.';
+        } else if (err.message.includes('Network Error')) {
+          errorMessage = 'Ошибка сети. Проверьте подключение к интернету и попробуйте снова.';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
       setError(errorMessage);
       throw new Error(errorMessage);
     } finally {
@@ -89,7 +101,19 @@ export function useExport(): UseExportReturn {
       const filename = `session_${sessionShort}_${packageType}_${format}_${timestamp}.zip`;
       downloadBlob(blob, filename);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Ошибка при экспорте пакета';
+      let errorMessage = 'Ошибка при экспорте пакета';
+      
+      if (err instanceof Error) {
+        // Check for timeout error
+        if (err.message.includes('timeout') || err.message.includes('ECONNABORTED')) {
+          errorMessage = 'Превышено время ожидания. Экспорт большого пакета может занимать больше времени. Попробуйте экспортировать меньший пакет или использовать формат Markdown вместо PDF.';
+        } else if (err.message.includes('Network Error')) {
+          errorMessage = 'Ошибка сети. Проверьте подключение к интернету и попробуйте снова.';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
       setError(errorMessage);
       throw new Error(errorMessage);
     } finally {

@@ -12,7 +12,6 @@ LearnFlow AI is a universal LangGraph-based educational content generation syste
 - **Artifacts Service** (`artifacts-service/`) - Secure file storage with multi-tenancy support
 - **LangGraph workflow** - Multi-node processing pipeline with HITL (Human-in-the-Loop) capabilities
 - **Image recognition module** - OCR and handwritten text recognition for student notes
-- **GitHub integration** - Automatic artifact storage and sharing
 - **Prompt Configuration Service** (`prompt-config-service/`) - Dynamic personalized prompt generation service
 - **Security Layer** - API key and JWT authentication for protecting user data
 
@@ -207,11 +206,6 @@ All processing nodes extend `BaseWorkflowNode` (`learnflow/nodes/base.py`):
 - Image validation (size, format, content type)
 - Cleanup utilities for temporary files
 
-#### GitHub Integration (`learnflow/github.py`)
-- Automatic artifact storage in specified repository
-- Branch and path management
-- Markdown file creation and updates
-
 #### Settings (`learnflow/settings.py`)
 - Pydantic-based configuration management
 - Environment variable loading with validation
@@ -254,7 +248,6 @@ Required API keys and configuration:
   - `FIREWORKS_API_KEY` - Fireworks AI for fast inference
 - `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` - Observability
 - `TELEGRAM_TOKEN` - Bot integration
-- `GITHUB_TOKEN` - Repository access for artifacts
 - `PROMPT_SERVICE_URL` - URL for Prompt Configuration Service (default: http://localhost:8002)
 - `PROMPT_SERVICE_TIMEOUT` - Service timeout in seconds (default: 5)
 - `PROMPT_SERVICE_RETRY_COUNT` - Number of retry attempts (default: 3)

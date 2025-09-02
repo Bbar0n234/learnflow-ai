@@ -17,6 +17,7 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - LOG_LEVEL=${LOG_LEVEL}
       - WEB_UI_BASE_URL=${WEB_UI_BASE_URL}
+      - BOT_API_KEY=${BOT_API_KEY}
     restart: always
     depends_on:
       - graph
@@ -32,6 +33,7 @@ services:
       dockerfile: Dockerfile
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY}
       - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY}
       - LANGFUSE_HOST=${LANGFUSE_HOST}
@@ -47,6 +49,9 @@ services:
       - ARTIFACTS_ENSURE_PERMISSIONS=${ARTIFACTS_ENSURE_PERMISSIONS:-true}
       - ARTIFACTS_MAX_FILE_SIZE=${ARTIFACTS_MAX_FILE_SIZE:-10485760}
       - WEB_UI_BASE_URL=${WEB_UI_BASE_URL}
+      - SECURITY_ENABLED=${SECURITY_ENABLED:-true}
+      - SECURITY_FUZZY_THRESHOLD=${SECURITY_FUZZY_THRESHOLD:-0.85}
+      - SECURITY_MIN_CONTENT_LENGTH=${SECURITY_MIN_CONTENT_LENGTH:-10}
       
     ports:
       - "8000:8000"
@@ -64,12 +69,12 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - ARTIFACTS_HOST=0.0.0.0
       - ARTIFACTS_PORT=8001
-      - ARTIFACTS_DATA_PATH=/app/data/artifacts
-      - ARTIFACTS_MAX_FILE_SIZE=10485760
+      - ARTIFACTS_DATA_PATH=${ARTIFACTS_DATA_PATH:-/app/data/artifacts}
+      - ARTIFACTS_MAX_FILE_SIZE=${ARTIFACTS_MAX_FILE_SIZE:-10485760}
       - ARTIFACTS_MAX_FILES_PER_THREAD=100
-      - ARTIFACTS_LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ARTIFACTS_LOG_LEVEL=${ARTIFACTS_LOG_LEVEL:-INFO}
       - ARTIFACTS_JWT_SECRET_KEY=${ARTIFACTS_JWT_SECRET_KEY:-your-secret-jwt-key-change-me}
-      - ARTIFACTS_BOT_API_KEY=${ARTIFACTS_BOT_API_KEY:-your-bot-api-key}
+      - ARTIFACTS_BOT_API_KEY=${BOT_API_KEY:-your-bot-api-key}
     ports:
       - "8001:8001"
     restart: always
@@ -93,6 +98,8 @@ services:
       args:
         - VITE_ARTIFACTS_API_URL=${VITE_ARTIFACTS_API_URL}
         - VITE_LEARNFLOW_API_URL=${VITE_LEARNFLOW_API_URL}
+        - VITE_POLLING_INTERVAL=${VITE_POLLING_INTERVAL:-5000}
+        - VITE_MAX_RETRIES=${VITE_MAX_RETRIES:-3}
     ports:
       - "3001:3001"
     depends_on:
@@ -116,6 +123,7 @@ services:
       dockerfile: Dockerfile.prompt-config-service
     environment:
       - DATABASE_URL=${PROMPT_CONFIG_DATABASE_URL}
+      - PROMPT_CONFIG_DATABASE_URL=${PROMPT_CONFIG_DATABASE_URL}
       - SERVICE_HOST=${PROMPT_CONFIG_SERVICE_HOST:-0.0.0.0}
       - SERVICE_PORT=${PROMPT_CONFIG_SERVICE_PORT:-8002}
       - LOG_LEVEL=${PROMPT_CONFIG_LOG_LEVEL:-INFO}
@@ -140,6 +148,7 @@ services:
 
   langfuse-worker:
     image: langfuse/langfuse-worker:3
+    profiles: ["langfuse"]
     depends_on: &langfuse-depends-on
       postgres:
         condition: service_healthy
@@ -198,6 +207,7 @@ services:
 
   langfuse-web:
     image: langfuse/langfuse:3
+    profiles: ["langfuse"]
     depends_on: *langfuse-depends-on
     ports:
       - 3000:3000
@@ -217,6 +227,7 @@ services:
 
   clickhouse:
     image: clickhouse/clickhouse-server
+    profiles: ["langfuse"]
     user: "101:101"
     environment:
       CLICKHOUSE_DB: default
@@ -237,6 +248,7 @@ services:
 
   minio:
     image: minio/minio
+    profiles: ["langfuse"]
     entrypoint: sh
     # create the 'langfuse' bucket before starting the service
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
@@ -257,6 +269,7 @@ services:
 
   redis:
     image: redis:7
+    profiles: ["langfuse"]
     # CHANGEME: row below to secure redis password
     command: >
       --requirepass ${REDIS_AUTH:-myredissecret}

@@ -141,7 +141,9 @@ export class ApiClient {
           document_name: documentName,
           format: format
         },
-        responseType: 'blob'
+        responseType: 'blob',
+        // Increase timeout for export operations (3 minutes)
+        timeout: 180000
       }
     );
     return response.data;
@@ -160,7 +162,10 @@ export class ApiClient {
           package_type: packageType,
           format: format
         },
-        responseType: 'blob'
+        responseType: 'blob',
+        // Increase timeout for package exports (5 minutes)
+        // Package exports can take longer, especially with PDF conversion
+        timeout: 300000
       }
     );
     return response.data;

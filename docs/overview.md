@@ -22,7 +22,6 @@
 - 🌐 **Telegram-бот**: Удобный пользовательский интерфейс для взаимодействия с системой
 - 🛡️ **Система безопасности**: Универсальная защита от prompt injection атак с graceful degradation
 - 📊 **Мониторинг и трассировка**: Интеграция с LangFuse для отслеживания выполнения workflow
-- 🚀 **GitHub интеграция**: Автоматическое сохранение результатов в GitHub репозиторий
 </general_description>
 
 <system-architecture>
@@ -152,10 +151,6 @@ class GeneralState(BaseModel):
     questions: List[str]        # Дополнительные вопросы
     questions_and_answers: List[str]           # Вопросы и ответы (аккумулирующее поле)
     feedback_messages: List[Any]    # HITL сообщения
-    # GitHub интеграция и экспорт
-    github_folder_path: Optional[str]
-    github_learning_material_url: Optional[str]
-    export_settings: Optional[dict] # Настройки экспорта в PDF/Markdown
     # ... другие поля
 ```
 </system-architecture>
@@ -228,10 +223,6 @@ LANGFUSE_SECRET_KEY=your_langfuse_secret_key
 
 # Telegram Bot
 TELEGRAM_TOKEN=your_telegram_bot_token
-
-# GitHub Integration
-GITHUB_TOKEN=your_github_token
-GITHUB_REPOSITORY=your_username/your_repository
 
 # Database
 DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/learnflow
@@ -477,7 +468,7 @@ uv sync
 - **Pillow** 11.3.0 - обработка изображений
 
 ### Требования к системе
-- **Python** 3.13+
+- **Python** 3.11+
 - **UV** для управления зависимостями
 - **PostgreSQL** для checkpoint хранения
 - **Redis** для LangFuse

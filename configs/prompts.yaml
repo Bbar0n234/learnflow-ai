@@ -239,7 +239,7 @@ generating_questions_system_prompt: |
 
   <output_instruction>
 
-gen_question_further_system_prompt: |
+generating_questions_further_system_prompt: |
   KEYWORD: {{ subject_keywords }}
   <!-- Keywords above activate domain expertise, use naturally if relevant -->
 

@@ -33,6 +33,27 @@ class QuestionGenerationNode(FeedbackNode):
         """Возвращает имя узла для поиска конфигурации"""
         return "generating_questions"
     
+    async def get_system_prompt(self, state, config, extra_context: Dict[str, Any] = None) -> str:
+        """Переопределяем для поддержки further варианта промпта"""
+        # Определяем имя узла с учетом варианта
+        node_name = self.get_node_name()
+        if extra_context and extra_context.get('template_variant') == 'further':
+            node_name = f"{node_name}_further"
+            self.logger.debug(f"Using further variant, node name: {node_name}")
+        
+        # Временно подменяем get_node_name для вызова родительского метода
+        original_get_node_name = self.get_node_name
+        self.get_node_name = lambda: node_name
+        
+        try:
+            # Вызываем родительский метод с подмененным именем узла
+            result = await super().get_system_prompt(state, config, extra_context)
+        finally:
+            # Восстанавливаем оригинальный метод
+            self.get_node_name = original_get_node_name
+        
+        return result
+    
     def _build_context_from_state(self, state) -> Dict[str, Any]:
         """Строит контекст для промпта из состояния workflow"""
         # FeedbackNode будет использовать prompt_kwargs из get_prompt_kwargs

@@ -32,7 +32,7 @@ models:
     generating_questions:
       provider: openai  # Требует structured output для генерации вопросов
       model_name: "gpt-4.1"
-      temperature: 0.2
+      temperature: 0.0
       max_tokens: 6000
       requires_structured_output: true
     

@@ -49,7 +49,7 @@ Each set: notes → material → questions → answers. This adaptability makes 
 
 - Docker and Docker Compose
 - Python 3.11+ (for local development)
-- API keys for your chosen LLM provider
+- API keys for your chosen LLM provider (see [Quick Start Guide](docs/quick_start.md) for details on obtaining keys)
 
 ### Docker Deployment (Recommended)
 

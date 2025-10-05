@@ -216,7 +216,7 @@ LearnFlow AI включает комплексную защиту от инъе�
 - [C4 Container Diagram](docs/architecture/c4-container-diagram.md) - Архитектура системы
 - [Нефункциональные требования](docs/architecture/NFR.md) - Производительность и ограничения
 - [Руководство разработчика](docs/conventions.md) - Стандарты кодирования и процессы
-- [Дорожная карта](docs/planning/roadmap.md) - Планы развития проекта
+- [Список задач](docs/backlog/tasklist.md) - Планы развития проекта и текущие задачи
 
 ## 📊 Метрики и мониторинг
 

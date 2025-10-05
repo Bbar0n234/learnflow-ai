@@ -99,7 +99,7 @@ remarkPlugins={[remarkMath, remarkGfm]}
 
 ### Документация
 - План реализации архивирован: `docs/backlog/archive/IP-01-simplified-ui-improvements.md`
-- Обновлен индекс: `docs/backlog/index.md`
+- Обновлен список задач: `docs/backlog/tasklist.md`
 - Создан этот summary: `POST-IMPLEMENTATION-SUMMARY.md`
 
 ## Заключение

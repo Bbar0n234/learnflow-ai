@@ -4,7 +4,7 @@
 1) Draft (`backlog/current/`)
 2) Active (`backlog/current/`)
 3) Completed → создать Post‑Implementation Summary
-4) Archived → переместить полный план в `backlog/archive/`, обновить `backlog/index.md`
+4) Archived → переместить полный план в `backlog/archive/`, обновить `backlog/tasklist.md`
 
 Резюме (Summary) — главный источник для ассистента; длинные планы читаются редко.
 

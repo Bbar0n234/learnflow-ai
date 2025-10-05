@@ -216,7 +216,7 @@ LearnFlow AI includes comprehensive prompt injection protection:
 - [C4 Container Diagram](docs/architecture/c4-container-diagram.md) - System architecture
 - [Non-Functional Requirements](docs/architecture/NFR.md) - Performance and limitations
 - [Development Guide](docs/conventions.md) - Coding standards and processes
-- [Roadmap](docs/planning/roadmap.md) - Development plans
+- [Task List](docs/backlog/tasklist.md) - Development plans and current tasks
 
 ## 📊 Metrics & Monitoring
 

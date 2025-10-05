@@ -71,4 +71,4 @@ synthesis_material -> edit_material (optional) -> generating_questions
 - [ADR-001: Architecture Overview](../../../ADR/001-architecture-overview.md)
 - [~~План реализации IP-01~~](../../archive/IP-01-edit-agent-integration.md) *(archived)*
 - [Post-Implementation Summary](impl/POST-IMPLEMENTATION-SUMMARY.md)
-- [Roadmap](../../../planning/roadmap.md)
+- [Task List](../../tasklist.md)

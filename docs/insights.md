@@ -55,12 +55,12 @@ AI‑Driven Development — современное продолжение коп
 
 ### Связи с остальной документацией
 - [Обзор системы](./overview.md): контекст продукта и архитектурные компоненты.
-- [Vision](./planning/vision.md) → [Roadmap](./planning/roadmap.md): стратегические цели и декомпозиция.
+- [Vision](./planning/vision.md) → [Task List](./backlog/tasklist.md): стратегические цели и декомпозиция.
 - [Conventions](./conventions.md): соглашения по разработке, чтобы агент генерировал код в едином стиле.
 - [Business Model](./business_model.md): рамки ценности/монетизации, влияющие на планирование.
 - [ADR](./ADR/): архитектурные решения и их причины (добавляем по факту решений).
 - [Specs: UV dependency management](./specs/uv_dependency_management.md): технологические спецификации.
-- [Backlog Index](./backlog/index.md): активные/архивные Implementation Plans и связи с `changelog.md`.
+- [Task List](./backlog/tasklist.md): единый список задач (milestones, initiatives, tasks) со статусами.
 
 [^vibe]: «Vibe‑coding» — термин Андрея Карпати (февраль 2025): "There's a new kind of coding I call 'vibe coding', where you fully give in to the vibes, embrace exponentials, and forget that the code even exists." На практике описывается как диалоговое делегирование с «Accept All» без чтения диффов, вставкой трассы ошибок для автопочинки и быстрыми итерациями. Подходит для прототипов/«проектов на выходных», не является инженерной методологией для продакшена.
 

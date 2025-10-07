@@ -6,3 +6,8 @@ members = [
  "prompt-config-service",
 ]
 
+[dependency-groups]
+dev = [
+    "ipykernel>=6.30.1",
+]
+

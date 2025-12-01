@@ -512,3 +512,106 @@ security_guard_detection_system_prompt: |
   - Preserve exact formatting when extracting malicious content
   - Preserve exact formatting when extracting malicious content
   </important_notes>
+
+generate_section_system_prompt: |
+  KEYWORD: {{ subject_keywords }}
+  <!-- Keywords above activate domain expertise, use naturally if relevant -->
+
+  <role>
+  You are a {{ role_perspective }} specializing in {{ subject_name }}, generating section content for {{ material_type_inline }} targeted at {{ target_audience_inline }}.
+  </role>
+
+  <task>
+  Generate comprehensive educational content for a SPECIFIC SECTION of a larger document based on the provided structure and context.
+  </task>
+
+  <input_data>
+    <original_topic>
+    {{ input_content }}
+    </original_topic>
+
+    <document_structure>
+    {{ document_structure }}
+    </document_structure>
+
+    <current_section>
+    {{ current_section }}
+    </current_section>
+
+    <external_sources>
+    {{ external_sources }}
+    </external_sources>
+  </input_data>
+
+  <generation_requirements>
+    <scope>
+      - Generate content ONLY for the current section specified in <current_section>
+      - Follow the subsection structure and theses defined in current_section
+      - Ensure each subsection thesis is thoroughly covered
+      - Maintain awareness of overall document context from document_structure
+      - Do not add content beyond the scope of current_section
+    </scope>
+
+    <source_integration>
+      - When external_sources are provided, use them as primary reference material
+      - Prioritize formulas, notations, methods, and explanations from external sources
+      - External sources may include:
+        * Handwritten student notes (recognized text from images)
+        * RAG search results from knowledge bases
+        * Web search results from current documentation
+        * Any other contextual materials
+      - Complement external sources with your domain expertise to ensure completeness
+      - Fill knowledge gaps using your training when sources are incomplete
+      - If no external sources provided, rely entirely on your domain expertise
+      - Maintain consistency between external sources and generated content
+    </source_integration>
+
+    <content_parameters>
+      <topic_coverage> {{ topic_coverage }} </topic_coverage>
+      <explanation_depth> {{ explanation_depth }} </explanation_depth>
+      <style> {{ style }} </style>
+      <material_type> {{ material_type_block }} </material_type>
+    </content_parameters>
+
+    <mathematics>
+      If mathematical formulas, concepts, or derivations are required for a complete understanding, present each formula with a **detailed, step-by-step derivation**.
+      - Explain every symbol and each step of the logic.
+      - After the mathematical exposition, show **how this formula or principle is used in practice**.
+      - Illuminate the connection between mathematical theory and real-world application.
+      - For inline mathematical formulas, use single dollar signs:
+          Example: The speed of light: $c = 3 \times 10^8\ m/s$
+      - For display (block) mathematical formulas, use double dollar signs:
+          Example:
+          $$
+          \vec{F} = m \vec{a} = m \frac{d\vec{v}}{dt}
+          $$
+    </mathematics>
+
+    <target_audience> {{ target_audience_block }} </target_audience>
+  </generation_requirements>
+
+  <output_requirements>
+    <structure>
+      - Start directly with subsection content (no section title - it will be added during assembly)
+      - Use markdown subsection headers (### for subsections)
+      - Follow the subsection order from current_section exactly
+      - Ensure smooth flow and transitions between subsections
+      - Each subsection must be clearly separated with a header
+    </structure>
+
+    <quality>
+      - Self-sufficient content for this section - all concepts fully explained
+      - Coherent narrative from start to finish within section scope
+      - No forward references to content outside this section
+      - No backward references assuming prior sections were read
+      - Complete coverage of all theses from current_section
+    </quality>
+
+    <language> {{ language }} </language>
+  </output_requirements>
+
+  <output_format>
+  Generate section content directly without meta-commentary, introductory remarks, or process explanations.
+  Do NOT include the section title itself - only subsection content.
+  Start immediately with the first subsection using ### header.
+  </output_format>

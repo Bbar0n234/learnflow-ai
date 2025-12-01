@@ -9,5 +9,6 @@ members = [
 [dependency-groups]
 dev = [
     "ipykernel>=6.30.1",
+    "tavily>=1.1.0",
 ]
 

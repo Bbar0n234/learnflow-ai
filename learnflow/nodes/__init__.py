@@ -9,6 +9,9 @@ from .input_processing import InputProcessingNode
 from .recognition import RecognitionNode
 from .synthesis import SynthesisNode
 from .edit_material import EditMaterialNode
+from .planning_structure import PlanningStructureNode  # M2-01
+from .section_generation import SectionGenerationNode  # M2-01
+from .document_assembly import DocumentAssemblyNode  # M2-01
 
 __all__ = [
     "ContentGenerationNode",
@@ -18,4 +21,7 @@ __all__ = [
     "RecognitionNode",
     "SynthesisNode",
     "EditMaterialNode",
+    "PlanningStructureNode",  # M2-01
+    "SectionGenerationNode",  # M2-01
+    "DocumentAssemblyNode",  # M2-01
 ]

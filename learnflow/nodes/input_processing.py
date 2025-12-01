@@ -33,7 +33,7 @@ class InputProcessingNode(BaseWorkflowNode):
 
     async def __call__(
         self, state: GeneralState, config
-    ) -> Command[Literal["generating_content"]]:
+    ) -> Command[Literal["recognition_handwritten"]]:
         """
         Обрабатывает пользовательский ввод и валидирует изображения.
 
@@ -42,7 +42,7 @@ class InputProcessingNode(BaseWorkflowNode):
             config: Конфигурация LangGraph
 
         Returns:
-            Command с переходом к генерации контента и обновленным состоянием
+            Command с переходом к recognition_handwritten и обновленным состоянием
         """
         thread_id = config["configurable"]["thread_id"]
         logger.info(f"Starting input processing for thread {thread_id}")
@@ -111,4 +111,5 @@ class InputProcessingNode(BaseWorkflowNode):
             f"Question: '{input_content[:100]}...', Images: {len(validated_image_paths)}"
         )
 
-        return Command(goto="generating_content", update=update_data)
+        # M2-01: recognition_handwritten теперь выполняется ПЕРЕД генерацией контента
+        return Command(goto="recognition_handwritten", update=update_data)

@@ -6,6 +6,11 @@ import operator
 from typing import List, Any, Annotated, Literal, Optional
 from pydantic import BaseModel, Field
 
+from learnflow.models.document_structure import (
+    DocumentStructure,
+    GeneratedSection,
+)
+
 
 class Questions(BaseModel):
     """Модель для генерации вопросов"""
@@ -57,7 +62,20 @@ class GeneralState(BaseModel):
 
     # Генерированный контент
     generated_material: str = Field(
-        default="", description="Сгенерированный обучающий материал"
+        default="", description="Сгенерированный обучающий материал [DEPRECATED: use synthesized_material]"
+    )
+
+    # Document structure planning (M2-01)
+    document_structure: Optional[DocumentStructure] = Field(
+        default=None,
+        description="Hierarchical document structure approved through HITL",
+    )
+    generated_sections: Annotated[List[GeneratedSection], operator.add] = Field(
+        default_factory=list,
+        description="Accumulated sections from parallel generation (uses operator.add)",
+    )
+    structure_approved: bool = Field(
+        default=False, description="Flag indicating document structure was approved by user"
     )
 
     # Questions

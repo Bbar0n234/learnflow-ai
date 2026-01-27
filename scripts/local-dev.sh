@@ -75,7 +75,8 @@ echo -e "${BLUE}🔄 Running Prompt Config Service migrations...${NC}"
 (cd prompt-config-service && DATABASE_URL="postgresql://postgres:postgres@localhost:5433/prompts_db" uv run alembic upgrade head 2>/dev/null || true)
 echo -e "${GREEN}✅ Prompt Config Service migrations completed${NC}"
 
-# Массив PID для отслеживания процессов
+# Ассоциативный массив PID -> имя сервиса для отслеживания
+declare -A PID_NAMES
 declare -a PIDS
 
 # Запуск сервисов с live логами
@@ -86,21 +87,25 @@ echo ""
 echo -e "  ${YELLOW}→${NC} Starting FastAPI..."
 uv run --package learnflow-core python -m learnflow.api.main 2>&1 | tee logs/fastapi.log | sed "s/^/${BLUE}[FastAPI]${NC} /" &
 PIDS+=($!)
+PID_NAMES[$!]="FastAPI"
 
 # Artifacts Service
 echo -e "  ${YELLOW}→${NC} Starting Artifacts Service..."
 (cd artifacts-service && uv run python main.py 2>&1 | tee ../logs/artifacts.log | sed "s/^/${GREEN}[Artifacts]${NC} /") &
 PIDS+=($!)
+PID_NAMES[$!]="Artifacts"
 
 # Prompt Config Service
 echo -e "  ${YELLOW}→${NC} Starting Prompt Config Service..."
 (cd prompt-config-service && uv run python main.py 2>&1 | tee ../logs/prompt-config.log | sed "s/^/${YELLOW}[PromptCfg]${NC} /") &
 PIDS+=($!)
+PID_NAMES[$!]="PromptConfig"
 
 # Telegram Bot
 echo -e "  ${YELLOW}→${NC} Starting Telegram Bot..."
 uv run --package learnflow-bot python -m bot 2>&1 | tee logs/bot.log | sed "s/^/${RED}[Bot]${NC} /" &
 PIDS+=($!)
+PID_NAMES[$!]="TelegramBot"
 
 # Функция для остановки всех сервисов
 cleanup() {
@@ -182,12 +187,19 @@ echo -e "\n${YELLOW}Press Ctrl+C to stop all services${NC}"
 echo -e "${GREEN}═══════════════════════════════════════════════${NC}"
 
 # Ждем пока пользователь не остановит
+# Отслеживаем уже сообщённые "мёртвые" процессы
+declare -A DEAD_PIDS
 while true; do
     sleep 1
     # Проверяем что процессы еще живы
     for pid in ${PIDS[@]}; do
         if ! kill -0 $pid 2>/dev/null; then
-            echo -e "${RED}⚠️  Process $pid died unexpectedly${NC}"
+            # Сообщаем только один раз
+            if [ -z "${DEAD_PIDS[$pid]}" ]; then
+                service_name="${PID_NAMES[$pid]:-unknown}"
+                echo -e "${RED}⚠️  ${service_name} (PID $pid) died unexpectedly${NC}"
+                DEAD_PIDS[$pid]=1
+            fi
         fi
     done
 done

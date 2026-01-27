@@ -52,12 +52,43 @@ class PlanningStructureNode(BaseWorkflowNode):
 
         Maps state fields to prompt placeholders:
         - input_content -> input_content (user's topic/question)
-        - recognized_notes -> external_sources (handwritten notes)
+        - research_report + recognized_notes -> external_sources (combined sources)
         """
+        # Combine external sources: web research + user notes
+        external_sources_parts = []
+
+        if state.research_report:
+            external_sources_parts.append(f"## Web Research Results\n{state.research_report}")
+
+        if state.recognized_notes:
+            external_sources_parts.append(f"## User Notes\n{state.recognized_notes}")
+
         return {
             "input_content": state.input_content,
-            "external_sources": state.recognized_notes or "",
+            "external_sources": "\n\n".join(external_sources_parts),
         }
+
+    async def get_system_prompt(self, state, config, extra_context: Dict[str, Any] = None) -> str:
+        """Override to support further variant prompt selection.
+
+        When template_variant='further', modifies node_name to 'planning_structure_further'
+        so Prompt Config Service looks for 'planning_structure_further_system_prompt'.
+        """
+        node_name = self.get_node_name()
+        if extra_context and extra_context.get('template_variant') == 'further':
+            node_name = f"{node_name}_further"
+            self.logger.debug(f"Using further variant, node name: {node_name}")
+
+        # Temporarily override get_node_name for parent method call
+        original_get_node_name = self.get_node_name
+        self.get_node_name = lambda: node_name
+
+        try:
+            result = await super().get_system_prompt(state, config, extra_context)
+        finally:
+            self.get_node_name = original_get_node_name
+
+        return result
 
     def is_initial(self, state: GeneralState) -> bool:
         """Checks if this is the first generation (no feedback history)"""
@@ -235,6 +266,10 @@ class PlanningStructureNode(BaseWorkflowNode):
                                 if i < len(sections) - 1
                                 else None
                             ),
+                            "research_report": state.research_report or "",
+                            "recognized_notes": state.recognized_notes or "",
+                            "document_structure": state.document_structure,
+                            "input_content": state.input_content,
                         },
                     )
                 )
@@ -245,13 +280,12 @@ class PlanningStructureNode(BaseWorkflowNode):
 
             # Return Command with goto to document_assembly and Send commands
             return Command(
-                goto="document_assembly",
+                goto=send_commands,
                 update={
                     "structure_approved": True,
                     "feedback_messages": [],  # Clear history for next HITL node
                     "generated_sections": [],  # Initialize for accumulation
                 },
-                graph=send_commands,
             )
 
         # User wants changes - generate refined structure

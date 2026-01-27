@@ -10,6 +10,10 @@ from learnflow.models.document_structure import (
     DocumentStructure,
     GeneratedSection,
 )
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from learnflow.models.research import SourceData
 
 
 class Questions(BaseModel):
@@ -103,6 +107,17 @@ class GeneralState(BaseModel):
     )
     last_action: Optional[str] = Field(
         default=None, description="Type of last action (edit/message/complete)"
+    )
+
+    # Research Agent fields (M2-03)
+    research_report: Optional[str] = Field(
+        default=None, description="Research report with citations"
+    )
+    research_sources: Optional[dict] = Field(
+        default=None, description="URL -> SourceData mapping from research"
+    )
+    needs_research: Optional[bool] = Field(
+        default=None, description="Classifier result: whether research is needed"
     )
 
 

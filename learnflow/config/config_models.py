@@ -11,11 +11,7 @@ class ProviderConfig(BaseModel):
     """Configuration for OpenAI-compatible providers"""
     name: str = Field(description="Provider name (e.g., 'openai', 'openrouter')")
     base_url: Optional[str] = Field(default=None, description="Base URL for OpenAI-compatible API")
-    api_key: Optional[str] = Field(default=None, description="API key reference (uses Jinja2 template)") 
-    supports_structured_output: bool = Field(
-        default=False, 
-        description="Whether this provider supports structured output (function calling)"
-    )
+    api_key: Optional[str] = Field(default=None, description="API key reference (uses Jinja2 template)")
     default_model: Optional[str] = Field(default=None, description="Default model for this provider")
 
 
@@ -39,8 +35,6 @@ class ModelConfig(BaseModel):
         default=None, ge=-2.0, le=2.0, description="Presence penalty"
     )
     
-    # Node requirements
-    requires_structured_output: bool = Field(default=False, description="Node requires structured output support")
 
 
 class LLMModelsConfig(BaseModel):

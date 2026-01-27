@@ -42,14 +42,7 @@ class ModelFactory:
             # Fallback to OpenAI if provider not found
             provider_config = ProviderConfig(name="openai")
             logger.warning(f"Provider '{config.provider}' not found, using OpenAI as fallback")
-        
-        # Проверяем поддержку structured output
-        if config.requires_structured_output and not provider_config.supports_structured_output:
-            raise ValueError(
-                f"Provider '{config.provider}' does not support structured output required by this node. "
-                f"Please use a provider with structured output support (e.g., 'openai', 'fireworks')"
-            )
-        
+
         # Собираем параметры для ChatOpenAI
         model_params = {
             "model": config.model_name,
@@ -130,7 +123,6 @@ def initialize_model_factory(api_key: str = None, config_manager=None) -> ModelF
             "openai": ProviderConfig(
                 name="openai",
                 api_key=api_key,
-                supports_structured_output=True
             )
         }
     

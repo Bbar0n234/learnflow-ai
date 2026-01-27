@@ -19,6 +19,28 @@ from learnflow.models.document_structure import GeneratedSection, Section
 logger = logging.getLogger(__name__)
 
 
+def check_assembly_ready(state: GeneralState) -> Command:
+    """
+    Проверяет, все ли секции сгенерированы.
+    Срабатывает N раз (по числу секций).
+    """
+    
+    # Получаем общее количество ожидаемых секций из структуры
+    total_sections_needed = len(state.document_structure.sections)
+    
+    # Получаем сколько уже готово
+    current_count = len(state.generated_sections)
+    
+    # Проверка (>= на случай, если что-то пошло не так, но обычно ==)
+    if current_count >= total_sections_needed:
+        # Если это была ПОСЛЕДНЯЯ часть -> запускаем сборку
+        return Command(goto="document_assembly")
+    
+    # Если еще не все готово -> просто гасим эту ветку.
+    # Другие ветки еще работают.
+    return Command(goto="__end__")
+
+
 class DocumentAssemblyNode(BaseWorkflowNode):
     """
     Assembles final document from generated sections.

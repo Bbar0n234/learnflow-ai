@@ -49,6 +49,10 @@ class GraphManager:
             "condition": lambda node_data, state: bool(node_data.get("generated_material")),
             "handler": "_save_learning_material"
         },
+        "document_assembly": {
+            "condition": lambda node_data, state: bool(node_data.get("synthesized_material")),
+            "handler": "_save_assembled_document"
+        },
         "recognition_handwritten": {
             "condition": lambda node_data, state: bool(node_data.get("recognized_notes")),
             "handler": "_save_recognized_notes"
@@ -575,6 +579,67 @@ class GraphManager:
         else:
             logger.error(
                 f"Failed to save learning material for thread {thread_id}: {result.get('error')}"
+            )
+
+    async def _save_assembled_document(
+        self, thread_id: str, node_data: Dict, state_values: Dict
+    ) -> None:
+        """
+        Создает новую сессию и сохраняет собранный документ (M2-01 workflow).
+
+        Аналог _save_learning_material для нового workflow с параллельной
+        генерацией секций. Вызывается из document_assembly.
+
+        Args:
+            thread_id: Идентификатор потока
+            node_data: Данные от узла (содержит synthesized_material)
+            state_values: Текущие значения состояния графа
+        """
+        if not self.artifacts_manager:
+            logger.debug(
+                "Artifacts manager not configured, skipping assembled document save"
+            )
+            return
+
+        # Создаём сессию и сохраняем материал как generated_material
+        # (структура файлов остаётся такой же, как в старом workflow)
+        result = await self.artifacts_manager.push_learning_material(
+            thread_id=thread_id,
+            input_content=state_values.get("input_content", ""),
+            generated_material=node_data.get("synthesized_material", ""),
+            display_name=state_values.get("display_name")
+        )
+
+        if result.get("success"):
+            logger.info(
+                f"Successfully saved assembled document for thread {thread_id}: {result.get('file_path')}"
+            )
+
+            # Инициализируем структуру данных для сессии
+            session_id = result.get("session_id")
+            self.artifacts_data[thread_id] = {
+                "pending_urls": {},
+                "sent_urls": {},
+                "session_id": session_id,
+                "web_ui_base_url": self.settings.web_ui_base_url
+            }
+
+            # Генерируем и отслеживаем URL для материала
+            if session_id:
+                url = self._generate_web_ui_url(
+                    thread_id=thread_id,
+                    session_id=session_id,
+                    file_name="generated_material.md"
+                )
+                self._track_artifact_url(
+                    thread_id=thread_id,
+                    artifact_type="learning_material",
+                    url=url,
+                    label="📚 Сгенерированный материал"
+                )
+        else:
+            logger.error(
+                f"Failed to save assembled document for thread {thread_id}: {result.get('error')}"
             )
 
     async def _save_recognized_notes(

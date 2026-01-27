@@ -112,6 +112,22 @@ class AppSettings(BaseSettings):
         description="Базовый URL для Web UI интерфейса (используем IP вместо localhost для корректной работы ссылок в Telegram)",
     )
 
+    # Tavily API settings (M2-03 Research Agent)
+    tavily_api_key: Optional[str] = Field(
+        default=None, description="Tavily API key for web search"
+    )
+
+    # Research Agent limits (M2-03)
+    research_max_iterations: int = Field(
+        default=8, description="Maximum iterations for research agent"
+    )
+    research_max_searches: int = Field(
+        default=6, description="Maximum web searches per research session"
+    )
+    research_max_extractions: int = Field(
+        default=5, description="Maximum page extractions per research session"
+    )
+
     def is_artifacts_configured(self) -> bool:
         """Проверка настройки локального хранилища артефактов"""
         return bool(self.artifacts_base_path)

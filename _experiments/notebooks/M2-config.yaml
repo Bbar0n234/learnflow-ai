@@ -1,0 +1,97 @@
+# M2 Flow Configuration
+# Общие настройки для всех notebooks
+
+# Test topic (можно переопределить)
+topic: "Schema-guided reasoning для разработчиков LLM-агентов"
+
+# LLM Configuration
+model: gpt-4.1
+temperature: 0.3
+
+# Provider Configuration (OpenAI-compatible)
+provider:
+  # Provider name (openai, fireworks, openrouter, etc.)
+  name: "openai"
+
+  # API base URL (null = use provider default)
+  # Examples:
+  #   OpenAI: null (default https://api.openai.com/v1)
+  #   Fireworks: "https://api.fireworks.ai/inference/v1"
+  #   OpenRouter: "https://openrouter.ai/api/v1"
+  base_url: null
+
+  # API key (will be read from environment if starts with $)
+  # Examples:
+  #   Direct: "sk-proj-abc123..."
+  #   From env: "$OPENAI_API_KEY"
+  api_key: $OPENAI_API_KEY
+
+# Tavily Configuration (for Research Agent)
+tavily:
+  api_key: $TAVILY_API_KEY
+
+# Output paths (относительно notebook директории)
+outputs_dir: "./outputs"
+research_output: "research_output.json"
+planning_output: "planning_output.json"
+final_document: "final_document.md"
+
+# Placeholder configuration (ML/intermediate preset)
+placeholders:
+  subject_keywords_key: "machine_learning"
+  role_perspective_key: "ml_expert"
+  subject_name_key: "machine_learning"
+  language_key: "russian_tech"
+  target_audience_inline_key: "intermediate"
+  target_audience_block_key: "intermediate"
+  topic_coverage_key: "focused"
+  material_type_inline_key: "study_material"
+  material_type_block_key: "study_material"
+  explanation_depth_key: "intermediate"
+  style_key: "balanced"
+
+# Placeholder values (full text values for each key)
+placeholder_values:
+  subject_keywords:
+    machine_learning: "neural networks, gradient descent, backpropagation, supervised learning, unsupervised learning, reinforcement learning, model evaluation, overfitting, underfitting, regularization, cross-validation, feature engineering, dimensionality reduction, clustering, classification, regression, decision trees, random forests, support vector machines, k-nearest neighbors, ensemble methods, deep learning, convolutional neural networks, recurrent neural networks, transformers, natural language processing, computer vision"
+
+  role_perspective:
+    ml_expert: "industry expert with deep practical understanding and applied knowledge"
+
+  subject_name:
+    machine_learning: "machine learning"
+
+  language:
+    russian_tech: "russian with preserved english technical terms and abbreviations"
+
+  target_audience_inline:
+    intermediate: "specialists with foundational understanding seeking deeper conceptual knowledge"
+
+  target_audience_block:
+    intermediate: "Reader has basic knowledge of core concepts and terminology. Focus on explaining mechanisms, connections between ideas, and practical applications. Assume familiarity with foundational principles."
+
+  topic_coverage:
+    focused: "focused on essential principles and key mechanisms"
+
+  material_type_inline:
+    study_material: "comprehensive study material"
+
+  material_type_block:
+    study_material: "Primary learning resource designed to develop conceptual understanding through structured knowledge presentation."
+
+  explanation_depth:
+    intermediate: "intermediate depth explaining mechanisms and causal relationships"
+
+  style:
+    balanced: "balanced technical precision with accessible explanations"
+
+# Research Agent Configuration
+research:
+  enabled: true
+  max_iterations: 8
+  max_searches: 6
+  max_extractions: 5
+
+# Notes
+# - Если research.enabled = false, пропускаем M2-03 и используем пустые external_sources
+# - topic можно переопределить напрямую в M2-03 для конкретного теста

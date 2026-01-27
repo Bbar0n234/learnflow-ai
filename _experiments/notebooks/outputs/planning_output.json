@@ -1,0 +1,53 @@
+{
+  "topic": "Schema-guided reasoning для разработчиков LLM-агентов",
+  "external_sources": "Schema-guided reasoning (SGR) is an advanced approach in the design and deployment of large language model (LLM) agents, where the agent's reasoning process is structured and constrained by explicit schemas—predefined templates or frameworks that guide how information is processed, interpreted, and acted upon [1]. This method contrasts with purely free-form or end-to-end reasoning, offering greater reliability, interpretability, and alignment with developer intent.\\n\\n**Key Concepts**\\n- Schema: In SGR, a schema is a formal structure (often a JSON or similar data template) that defines the expected inputs, intermediate steps, and outputs for a reasoning task. Schemas can encode workflows, tool invocation patterns, or decision trees [1].\\n- Guided Reasoning: The LLM is prompted or constrained to reason within the bounds of the schema, ensuring that its outputs are well-structured, predictable, and easier to validate or post-process [1].\\n- Applications: SGR is especially valuable in tool-augmented agents, API orchestration, complex multi-step tasks, and scenarios demanding high reliability or compliance [1][4].\\n\\n**Practical Example**\\nSuppose an LLM agent is designed to assist with travel booking. A schema might define the following reasoning steps:\\n1. Extract user intent (destination, dates, preferences)\\n2. Search for flights (using an external API)\\n3. Present options (structured as a list)\\n4. Book selected flight (with confirmation)\\n\\nThe schema would specify the expected data types and structure at each step. The LLM is prompted to fill in each part of the schema, ensuring no steps are skipped and all required information is collected [4].\\n\\n**Implementation Patterns**\\n- Prompt Engineering: Prompts are crafted to instruct the LLM to reason according to the schema, often using explicit instructions or few-shot examples [1][4].\\n- Schema Validation: Outputs are validated against the schema, catching errors or omissions early [4].\\n- Tool Integration: Schemas can define when and how external tools or APIs are invoked, making agent behavior modular and auditable [4].\\n\\n**Common Pitfalls and Best Practices**\\n- Pitfall: Overly rigid schemas can limit the flexibility and creativity of the LLM, while under-specified schemas may not provide enough guidance [1].\\n- Best Practice: Iteratively refine schemas based on observed agent behavior and user feedback [4].\\n- Pitfall: Schema drift—when the LLM's outputs diverge from the schema over time—can occur, especially with complex or ambiguous tasks [1].\\n- Best Practice: Use automated schema validation and fallback strategies to handle deviations [4].\\n\\n**Educational Takeaways**\\n- SGR bridges the gap between free-form LLM reasoning and robust, production-ready agent workflows.\\n- Developers should balance schema specificity and flexibility, leveraging validation and modular design.\\n- Practical implementation involves prompt design, schema definition, and integration with external tools and validation systems.\\n\\n**References**\\n[1] Authoritative overview and definition of schema-guided reasoning in LLM agents.\\n[4] Practical implementation examples, code snippets, and workflow patterns for SGR in agent development.",
+  "structure": {
+    "sections": [
+      {
+        "title": "Введение в Schema-guided reasoning (SGR)",
+        "subsections": [
+          {
+            "title": "Суть и задачи SGR",
+            "theses": [
+              "SGR структурирует reasoning LLM-агентов с помощью явных схем.",
+              "Обеспечивает надежность, интерпретируемость и соответствие намерениям разработчика."
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Ключевые механизмы SGR",
+        "subsections": [
+          {
+            "title": "Структура схемы",
+            "theses": [
+              "Схема задаёт шаги reasoning, типы данных и ожидаемые выходы.",
+              "Примеры: workflow, шаблоны вызова инструментов, decision trees."
+            ]
+          },
+          {
+            "title": "Реализация и контроль",
+            "theses": [
+              "Prompt engineering для следования схеме.",
+              "Автоматическая валидация выходов по схеме, обработка ошибок и schema drift.",
+              "Интеграция с инструментами и API через схемы."
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Практика и лучшие подходы",
+        "subsections": [
+          {
+            "title": "Применение и ошибки",
+            "theses": [
+              "SGR полезен для многошаговых, инструментальных и критичных задач.",
+              "Типовые ошибки: избыточная жесткость, недостаточная спецификация.",
+              "Рекомендуется итеративная доработка схем и автоматизация контроля."
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -46,6 +46,10 @@ placeholders:
         value: AI and large language models
         display_name: AI и большие языковые модели
 
+      - name: technical_information_security
+        value: technical information security protection
+        display_name: Техническая защита информации
+
   - name: subject_keywords
     display_name: Ключевые слова предмета
     description: Ключевые термины и концепции предметной области
@@ -73,6 +77,10 @@ placeholders:
       - name: ai_llm_keywords
         value: LLM, AI, GPT, agents, Claude, Llama, transformers, self-attention, prompt engineering, fine-tuning, RLHF, RAG, tokenization, context windows, few-shot learning, chain-of-thought
         display_name: AI и большие языковые модели
+
+      - name: tzi_keywords
+        value: TEMPEST, acoustic channels, electromagnetic radiation (EMR), TSCM (Technical Surveillance Counter-Measures), audio surveillance, vibro-acoustic channels, optical surveillance, signal intelligence (SIGINT), side-channel attacks, RF detection, spectrum analysis, perimeter security, electromagnetic shielding, acoustic noise generators, white noise systems, Faraday cages, emanation security (EMSEC), van Eck phreaking, compromising emanations, leakage channels
+        display_name: Техническая защита информации
 
   - name: language
     display_name: Язык
@@ -458,6 +466,14 @@ profiles:
     settings:
       subject_name: ai_llm
       subject_keywords: ai_llm_keywords
+
+  - name: tzi_profile
+    display_name: Техническая защита информации
+    category: subject
+    description: Профиль для изучения технической защиты информации и противодействия техническим каналам утечки
+    settings:
+      subject_name: technical_information_security
+      subject_keywords: tzi_keywords
 
 default_values:
   role_perspective: academic_professor

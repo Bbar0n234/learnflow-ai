@@ -92,8 +92,9 @@ class RecognitionNode(BaseWorkflowNode):
                     logger.info(
                         f"Successfully recognized text from images for thread {thread_id}"
                     )
+                    # M2-01: Recognition moved before planning
                     return Command(
-                        goto="synthesis_material",
+                        goto="planning_structure",
                         update={"recognized_notes": recognized_text},
                     )
                 else:
@@ -151,9 +152,10 @@ class RecognitionNode(BaseWorkflowNode):
             )
         
         # Текст достаточной длины - используем как распознанные конспекты
-        logger.info(f"Received text notes ({len(cleaned_text)} chars) for thread {thread_id}, proceeding to synthesis")
+        logger.info(f"Received text notes ({len(cleaned_text)} chars) for thread {thread_id}, proceeding to planning_structure")
+        # M2-01: Recognition moved before planning
         return Command(
-            goto="synthesis_material",
+            goto="planning_structure",
             update={"recognized_notes": cleaned_text}
         )
 

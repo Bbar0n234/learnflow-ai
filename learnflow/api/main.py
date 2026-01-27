@@ -121,7 +121,7 @@ async def lifespan(app: FastAPI):
 
     # Проверка LangFuse подключения
     try:
-        langfuse = Langfuse()
+        langfuse = Langfuse(enabled=False)
         if langfuse.auth_check():
             logger.info("LangFuse client authenticated successfully")
         else:

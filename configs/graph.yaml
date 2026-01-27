@@ -2,57 +2,64 @@
 models:
   # Default model configuration used as fallback
   default:
-    provider: openai  # По умолчанию используем OpenAI
-    model_name: "gpt-4.1-mini"
+    provider: openrouter
+    model_name: "google/gemini-3-pro-preview"
     temperature: 0.1
     max_tokens: 4000
 
   nodes:
-    generating_content:
-      provider: openrouter
-      model_name: "google/gemini-2.5-pro"
-      temperature: 0.5
-      max_tokens: 25000
-      requires_structured_output: false
-    
     recognition_handwritten:
       provider: openai
       model_name: "gpt-4.1-mini"
       temperature: 0.1
       max_tokens: 6000
-      requires_structured_output: false
-    
-    synthesis_material:
-      provider: openrouter
-      model_name: "google/gemini-2.5-pro"
-      temperature: 0.5
-      max_tokens: 25000
-      requires_structured_output: false
-    
+
     generating_questions:
-      provider: openai  # Требует structured output для генерации вопросов
-      model_name: "gpt-4.1"
+      provider: openrouter
+      model_name: "google/gemini-3-pro-preview"
       temperature: 0.0
       max_tokens: 6000
-      requires_structured_output: true
-    
+
     answer_question:
       provider: openrouter
-      model_name: "google/gemini-2.5-pro"
+      model_name: "google/gemini-3-pro-preview"
       temperature: 0.2
       max_tokens: 16000
-      requires_structured_output: false
 
     edit_material:
       provider: openai
-      model_name: "gpt-4.1-mini"
+      model_name: "gpt-4.1"
       temperature: 0.2
       max_tokens: 6000
-      requires_structured_output: true
 
     security_guard:
       provider: openai
       model_name: "gpt-4.1-mini"
       temperature: 0.0
       max_tokens: 1000
-      requires_structured_output: true
+
+    # M2-03 Research Agent nodes
+    research_classifier:
+      provider: openai
+      model_name: "gpt-4.1-mini"
+      temperature: 0.0
+      max_tokens: 500
+
+    research_agent:
+      provider: openai
+      model_name: "gpt-4.1"
+      temperature: 0.3
+      max_tokens: 8000
+
+    # M2-01 Document structure nodes
+    planning_structure:
+      provider: openrouter
+      model_name: "google/gemini-3-pro-preview"
+      temperature: 0.3
+      max_tokens: 4000
+
+    generate_section:
+      provider: openrouter
+      model_name: "google/gemini-3-pro-preview"
+      temperature: 0.5
+      max_tokens: 16000

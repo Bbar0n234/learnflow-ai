@@ -9,9 +9,9 @@
 - `ADR-002-<название>.md`
 - ...
 
-## Планируемые ADR
+## ADR
 
-- [ ] ADR-001: General Agent + Skills pattern
-- [ ] ADR-002: Knowledge Sphere (долгосрочная память)
-- [ ] ADR-003: Skills System
-- [ ] ADR-004: Progressive Disclosure для контекста
+- [x] [ADR-001: General Agent (ReAct)](ADR-001-general-agent.md)
+- [x] [ADR-002: Skills System](ADR-002-skills-system.md)
+- [x] [ADR-003: Knowledge Sphere](ADR-003-knowledge-sphere.md)
+- [x] [ADR-004: Progressive Disclosure](ADR-004-progressive-disclosure.md)

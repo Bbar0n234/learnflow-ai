@@ -203,3 +203,6 @@ logs/
 data/*
 
 render_prompts.py
+
+# Obsidian source (symlink)
+doc/.obsidian-source

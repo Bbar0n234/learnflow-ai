@@ -29,10 +29,10 @@
 
 | # | Документ | Что содержит | Статус |
 |---|----------|-------------|--------|
-| 1 | `doc/index.md` | Навигация по документации: структура, что где лежит, ссылки | 📋 todo |
-| 2 | `doc/workflow.md` | Процесс: AIDD, итерации, работа с агентом, жизненный цикл итерации | 📋 todo |
-| 3 | `doc/tech/conventions.md` | Технические соглашения: git (ветки, коммиты, flow), code quality (ruff, mypy), структура проекта (uv workspace), Docker, Makefile, тестирование, именование | 📋 todo |
-| 4 | `doc/tech/backend.md` | Весь бэкенд: API (endpoints, schemas, WebSocket), Agent (core, memory, skills, tools), Persistence (сущности, схема БД) | 📋 todo |
+| 1 | `doc/index.md` | Навигация по документации: структура, что где лежит, ссылки | ✅ done |
+| 2 | `doc/workflow.md` | Процесс: AIDD, итерации, работа с агентом, жизненный цикл итерации | ✅ done |
+| 3 | `doc/tech/conventions.md` | Технические соглашения: git (ветки, коммиты, flow), code quality (ruff, mypy), структура проекта (uv workspace), Docker, Makefile, тестирование, именование | ✅ done |
+| 4 | `doc/tech/backend.md` | Весь бэкенд: API (endpoints, schemas, SSE), Agent (core, memory, skills, tools), Persistence (сущности, связи) | ✅ done |
 | 5 | `doc/tech/frontend.md` | Фронтенд: React UI, chat-интерфейс, state management, API-интеграция, WebSocket | 📋 todo |
 
 ## Порядок работы

@@ -79,7 +79,7 @@ Blue задаёт темп — от неё зависит, когда Red смо
 **Планируемые техники:**
 - Файловый контент оборачивается в delimiter'ы: `[UNTRUSTED CONTENT START]...[END]`
 - System prompt явно инструктирует не выполнять инструкции из пользовательского контента
-- Classifier для KS-обновлений проверяет не только релевантность, но и "подозрительность"
+- Валидация данных перед записью в Knowledge Sphere (проверка на подозрительный контент)
 - Версионирование Knowledge Sphere (возможность diff и rollback)
 
 ### V3: Infrastructure Abuse
@@ -128,4 +128,3 @@ Blue задаёт темп — от неё зависит, когда Red смо
 
 - [Threat Model](threat-model.md) — модель угроз
 - [Red Team Brief](red-team-brief.md) — брифинг для Red Team
-- [MVP Tasklist](../tasks/tasklist-mvp.md) — план разработки

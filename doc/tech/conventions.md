@@ -31,7 +31,7 @@ Conventional Commits:
 Примеры:
 ```
 feat(agent): add ReAct loop with tool calling
-fix(api): handle WebSocket disconnect gracefully
+fix(api): handle SSE connection drop gracefully
 chore: configure ruff and pre-commit
 ```
 

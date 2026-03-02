@@ -52,7 +52,6 @@ doc/.obsidian-source → /home/bbaron/my_obsidian/projects/active/LearnFlowAI/
 | 3 | `doc/product/use-cases.md` | `Product_Vision.md` | Сценарии из JTBD, user journey, боли из опыта → конкретные use cases | ✅ done |
 | 4 | `doc/product/roadmap.md` | `Product_Vision.md` + `Architecture_v2.md` | Scope v1/v1.5/v2+ | ✅ done |
 | 5 | `doc/tech/adr/ADR-001..004` | `Architecture_v2.md` | Архитектурные решения: General Agent, Skills System, Knowledge Sphere, Progressive Disclosure | ✅ done |
-| 6 | `doc/tasks/tasklist-mvp.md` | — | Ревизия по итогам переноса (уточнение формулировок, добавление деталей) | 📋 todo |
 
 ## Что НЕ переносим
 

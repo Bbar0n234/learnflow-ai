@@ -52,7 +52,7 @@ General Agent = Based Prompt + ReAct Loop + Context Engineering + Memory + Tool 
 Мультиагентность откладывается до реальной необходимости. Эволюционный путь:
 
 ```
-v1: Single Agent + Tools + Knowledge Sphere Agent
+v1: Single Agent + Tools (включая update_sphere)
               ↓ (при перегрузке контекста)
 v2: Orchestrator + Sub-agents
               ↓ (при росте количества sub-agents)

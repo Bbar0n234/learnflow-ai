@@ -18,7 +18,7 @@
 
 ```mermaid
 graph TD
-    Frontend["Frontend (React)"] -->|HTTP/WebSocket| API["API Layer (FastAPI)"]
+    Frontend["Frontend (React)"] -->|HTTP/SSE| API["API Layer (FastAPI)"]
     API --> Runtime["Agent Runtime (LangGraph)"]
 
     subgraph Runtime
@@ -35,7 +35,7 @@ graph TD
 
 **Frontend** — React UI, минимальный chat-интерфейс. Основной клиент на MVP.
 
-**API Layer** — FastAPI. Async, типизация, OpenAPI. Принимает запросы, управляет сессиями, стримит ответы через WebSocket.
+**API Layer** — FastAPI. Async, типизация, OpenAPI. Принимает запросы, управляет сессиями, стримит ответы через SSE.
 
 **Agent Runtime** — LangGraph. General Agent с ReAct loop, подключаемыми skills, memory system и tools.
 
@@ -55,11 +55,12 @@ graph TD
    - Читает шар (контекст проекта)
    - Подгружает skill "structure"
    - Использует tools (research, generation)
+   - Обновляет шар при необходимости (tool update_sphere)
    - Отвечает пользователю
-5. Classifier: сообщение содержит новые факты?
-   - Да → Knowledge Sphere Agent обновляет шар
-6. Agent Runtime → API → Frontend: stream response
+5. Agent Runtime → API → Frontend: SSE stream response
 ```
+
+Детали API, tools и механики обновления шара — в [backend.md](tech/backend.md).
 
 ## Технический стек
 

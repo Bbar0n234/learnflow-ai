@@ -10,28 +10,9 @@ LearnFlowAI v2 — clean rewrite using AI-Driven Development (AIDD) methodology.
 
 ## Documentation Structure
 
-All documentation is in `doc/`:
+All documentation is in `doc/`. Navigation and full structure — see [doc/index.md](doc/index.md).
 
-```
-doc/
-├── idea.md                    # What and why
-├── vision.md                  # Technical vision, stack, architecture
-│
-├── product/                   # Product documentation
-│   ├── use-cases.md
-│   └── backlog.md
-│
-├── tech/                      # Technical documentation
-│   ├── adr/                   # Architecture Decision Records
-│   ├── architecture/          # Diagrams, component descriptions
-│   ├── backend/
-│   ├── frontend/
-│   └── agent/
-│
-└── tasks/                     # Task management
-    ├── tasklist-mvp.md
-    └── iterations/
-```
+<!-- TODO: актуализировать дерево структуры после завершения Phase B -->
 
 ## Development Methodology
 
@@ -44,7 +25,13 @@ This project follows **AI-Driven Development (AIDD)**:
 
 ## Current Phase
 
-**Documentation transfer** — migrating product and technical decisions from Obsidian notes to project documentation.
+**Phase B: Detailed Architecture** — designing modules, interfaces, contracts. Details: [doc/tasks/phase-b-architecture.md](doc/tasks/phase-b-architecture.md).
+
+## Agent Boundaries
+
+Agent does not make architectural decisions independently. Architecture, new components, interfaces, technology choices — only after explicit approval from the architect (user).
+
+When a decision obviously and unambiguously follows from existing documentation — proceed without asking. When there is any doubt — ask first. The cost of an unnecessary question is low; the cost of an unauthorized architectural decision is high.
 
 ## Guidelines
 

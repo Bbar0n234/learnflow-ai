@@ -33,7 +33,19 @@
 | 2 | `doc/workflow.md` | Процесс: AIDD, итерации, работа с агентом, жизненный цикл итерации | ✅ done |
 | 3 | `doc/tech/conventions.md` | Технические соглашения: git (ветки, коммиты, flow), code quality (ruff, mypy), структура проекта (uv workspace), Docker, Makefile, тестирование, именование | ✅ done |
 | 4 | `doc/tech/backend.md` | Весь бэкенд: API (endpoints, schemas, SSE), Agent (core, memory, skills, tools), Persistence (сущности, связи) | ✅ done |
-| 5 | `doc/tech/frontend.md` | Фронтенд: React UI, chat-интерфейс, state management, API-интеграция, WebSocket | 📋 todo |
+| 5 | `doc/tech/frontend.md` | Фронтенд: React UI, chat-интерфейс, state management, API-интеграция, SSE | 📋 todo |
+
+### Backend: секции к детализации
+
+| # | Секция | Что раскрыть | Статус |
+|---|--------|-------------|--------|
+| 4.0 | Layered Architecture | Слои, правила вызовов, гибридная persistence | ✅ done |
+| 4.1 | Module Structure | Карта Python-пакетов, ответственности | ✅ done |
+| 4.2 | API Schemas | Pydantic request/response модели для каждого endpoint | ✅ done |
+| 4.3 | SSE Streaming Protocol | Event types, data payload, lifecycle стрима | ✅ done |
+| 4.4 | Agent Graph | LangGraph nodes, edges, State-модель, переходы | ✅ done |
+| 4.5 | Error Handling | Стратегия ошибок: LLM сбой, таймаут, cancel, SSE disconnect | ✅ done |
+| 4.6 | Configuration | Settings-класс, env vars, конфигурируемые параметры | ✅ done |
 
 ## Порядок работы
 

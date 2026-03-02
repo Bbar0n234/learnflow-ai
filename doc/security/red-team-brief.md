@@ -49,7 +49,7 @@ graph TB
 
     subgraph API["API Layer — FastAPI"]
         REST[REST endpoints]
-        WS[WebSocket streaming]
+        SSE[SSE streaming]
         MW[Rate limiting, input validation, auth]
     end
 
@@ -66,7 +66,7 @@ graph TB
         EXT[External APIs<br/>LLM, web search]
     end
 
-    UI -->|HTTP / WebSocket| API
+    UI -->|HTTP / SSE| API
     API --> Agent
     MA --> SK
     MA --> MEM
@@ -84,7 +84,6 @@ sequenceDiagram
     participant FE as Frontend (React)
     participant API as API Layer (FastAPI)
     participant Agent as Main Agent (LangGraph)
-    participant KSA as Knowledge Sphere Agent
     participant DB as PostgreSQL
     participant LLM as LLM API
 
@@ -100,11 +99,10 @@ sequenceDiagram
         Agent->>Agent: Observe → Adjust
     end
 
-    Agent-->>FE: Streaming response
+    Agent-->>FE: SSE streaming response
 
-    Agent->>KSA: Classifier: есть новые факты?
-    alt Да
-        KSA->>DB: Интегрировать факты в шар знаний
+    opt Есть новые факты
+        Agent->>DB: update_sphere — интегрировать факты в шар знаний
     end
 ```
 
@@ -128,7 +126,7 @@ System prompt загружается при старте каждой сесси
 - **Персистентная** — сохраняется между сессиями в PostgreSQL
 - **Структурированная** — Markdown-документ с разделами
 - **Progressive Disclosure** — Index всегда в контексте, полные секции подгружаются по требованию
-- **Обновляемая** — Classifier + Knowledge Sphere Agent решают, когда интегрировать новые факты
+- **Обновляемая** — Main Agent решает, когда интегрировать новые факты (tool `update_sphere`)
 - **Влияет на поведение** — содержимое шара направляет ответы агента
 
 ### Skills System

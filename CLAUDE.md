@@ -6,13 +6,24 @@ Instructions for Claude Code when working with this repository.
 
 LearnFlowAI v2 — clean rewrite using AI-Driven Development (AIDD) methodology.
 
-**Status:** Documentation phase. Code implementation not started yet.
+**Status:** Architecture complete. Implementation phase.
 
 ## Documentation Structure
 
 All documentation is in `doc/`. Navigation and full structure — see [doc/index.md](doc/index.md).
 
-<!-- TODO: актуализировать дерево структуры после завершения Phase B -->
+```
+doc/
+├── idea.md              # Что и зачем
+├── vision.md            # Техническое видение, стек, архитектура
+├── index.md             # Навигация по документации
+│
+├── product/             # use-cases, roadmap
+├── tech/                # backend, frontend, conventions
+│   └── adr/             # Architecture Decision Records
+├── security/            # Модель угроз
+└── tasks/               # Задачи и итерации
+```
 
 ## Development Methodology
 
@@ -25,7 +36,7 @@ This project follows **AI-Driven Development (AIDD)**:
 
 ## Current Phase
 
-**Phase B: Detailed Architecture** — designing modules, interfaces, contracts. Details: [doc/tasks/phase-b-architecture.md](doc/tasks/phase-b-architecture.md).
+**Implementation** — architecture and documentation complete, moving to task decomposition and iterative development.
 
 ## Agent Boundaries
 
@@ -35,6 +46,6 @@ When a decision obviously and unambiguously follows from existing documentation 
 
 ## Guidelines
 
-- Do NOT write code until documentation is complete and approved
 - All architectural decisions must be documented as ADRs
 - Use Russian for documentation content (English for code and technical terms)
+- Follow conventions from [doc/tech/conventions.md](doc/tech/conventions.md)

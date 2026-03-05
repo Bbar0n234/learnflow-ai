@@ -12,7 +12,7 @@ doc/
 ├── tech/            # Техническая документация
 │   └── adr/         # Architecture Decision Records
 ├── security/        # Модель угроз, защита и атака
-└── tasks/           # Планы фаз, задачи
+└── tasks/           # Задачи и итерации
 ```
 
 ## Ключевые документы
@@ -26,4 +26,4 @@ doc/
 - [tech/adr/](tech/adr/) — архитектурные решения (формат: `ADR-NNN-название.md`)
 - [tech/](tech/) — конвенции, бэкенд, фронтенд
 - [security/](security/) — threat model, red/blue team (дисциплина "Защита от нейронных сетей")
-- [tasks/](tasks/) — планы фаз, задачи
+- [tasks/](tasks/) — задачи и итерации

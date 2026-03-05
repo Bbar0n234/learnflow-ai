@@ -67,6 +67,7 @@ Multi-user с простым разделением по пользовател�
 | POST | `/projects/{id}/chats` | Создать чат в проекте |
 | GET | `/projects/{id}/chats` | Список чатов проекта |
 | GET | `/projects/{id}/chats/{cid}` | История чата (сообщения) |
+| GET | `/chats/recent?limit=10` | Недавние чаты пользователя (across projects, для sidebar) |
 
 #### Messages (ядро)
 
@@ -136,9 +137,14 @@ GET /projects/{id}/chats
 
 GET /projects/{id}/chats/{cid}
   Response: { thread_id, title, messages: [{ id, role, content, created_at }] }
+
+GET /chats/recent?limit=10
+  Response: { items: [{ thread_id, title, project_id, project_name, updated_at }] }
 ```
 
 `role`: `"user" | "assistant"`. Messages достаются из checkpointer. Tool-сообщения на фронт не отдаются.
+
+Recents — последние чаты пользователя across all projects, сортировка по `updated_at` desc. Для sidebar.
 
 #### Messages
 

@@ -206,3 +206,7 @@ render_prompts.py
 
 # Obsidian source (symlink)
 doc/.obsidian-source
+
+# Personal/local docs
+doc/diagrams/
+doc/lab/

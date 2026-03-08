@@ -44,6 +44,17 @@ Agent does not make architectural decisions independently. Architecture, new com
 
 When a decision obviously and unambiguously follows from existing documentation — proceed without asking. When there is any doubt — ask first. The cost of an unnecessary question is low; the cost of an unauthorized architectural decision is high.
 
+## Tool & Library Freshness
+
+Не полагайся на обучающую выборку для версий и синтаксиса быстро меняющихся инструментов. Приоритет источников:
+
+1. **Исходный код** установленных пакетов (Python inspect, docstrings, сигнатуры)
+2. **Скиллы** (langgraph-patterns, uv-package-manager и др.)
+3. **MCP** (docs-langchain — актуальная документация LangGraph)
+4. **firecrawl** → официальная документация, PyPI, GitHub
+
+Проект использует **raw LangGraph** (не LangChain обёртки). При работе с LangGraph-кодом — проверяй API через источники выше, не генерируй по памяти.
+
 ## Guidelines
 
 - All architectural decisions must be documented as ADRs

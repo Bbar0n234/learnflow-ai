@@ -200,7 +200,11 @@ logs/*.log
 logs/
 
 .claude/*.json
+.claude/agents/
 data/*
+
+# Firecrawl cache
+.firecrawl/
 
 render_prompts.py
 

@@ -100,7 +100,7 @@ PDF — конвертация из Markdown на бэкенде (pandoc / weasy
 ### Schemas
 
 Pydantic request/response модели. Сквозные соглашения:
-- **ID** — UUID для всех app-managed сущностей. ThreadView.thread_id — str (совпадает с LangGraph thread_id).
+- **ID** — UUID для всех app-managed сущностей (включая ThreadView.thread_id). При вызовах LangGraph API — `str(thread_id)`.
 - **Списки** — обёртка `{ items: [...] }`, расширяемая пагинацией позже.
 - **Ошибки** — дефолт FastAPI (`{ detail: "..." }`, 422 с полями валидации).
 
@@ -130,16 +130,16 @@ DELETE /projects/{id}
 ```
 POST /projects/{id}/chats
   Request:  { title?: str }
-  Response: { thread_id: str, title: str, created_at: datetime }
+  Response: { thread_id: UUID, title: str, created_at: datetime }
 
 GET /projects/{id}/chats
-  Response: { items: [{ thread_id, title, created_at, updated_at }] }
+  Response: { items: [{ thread_id: UUID, title, created_at, updated_at }] }
 
 GET /projects/{id}/chats/{cid}
-  Response: { thread_id, title, messages: [{ id, role, content, created_at }] }
+  Response: { thread_id: UUID, title, messages: [{ id, role, content, created_at }] }
 
 GET /chats/recent?limit=10
-  Response: { items: [{ thread_id, title, project_id, project_name, updated_at }] }
+  Response: { items: [{ thread_id: UUID, title, project_id, project_name, updated_at }] }
 ```
 
 `role`: `"user" | "assistant"`. Messages достаются из checkpointer. Tool-сообщения на фронт не отдаются.
@@ -393,7 +393,7 @@ START → agent ──→ tools_condition? ──tool_calls──→ tools (Tool
 
 ## Persistence
 
-Одна PostgreSQL база, два механизма управления: LangGraph-managed и app-managed.
+Одна PostgreSQL база, два механизма управления: LangGraph-managed и app-managed. Миграции app-managed таблиц — через Alembic (async engine).
 
 ### LangGraph-managed
 
@@ -415,7 +415,7 @@ Project
 ├── id, user_id, name, created_at, updated_at
 
 ThreadView
-├── thread_id (PK, = LangGraph thread_id), project_id, title, created_at, updated_at
+├── thread_id (PK, UUID — при вызовах LangGraph конвертируется в str), project_id, title, created_at, updated_at
 
 Artifact
 ├── id, project_id, thread_id, title, type (markdown | ...), content, created_at
@@ -429,7 +429,7 @@ Artifact
 User 1 → N Project
 Project 1 → N ThreadView
 Project 1 → N Artifact
-ThreadView.thread_id = LangGraph thread_id (связь с checkpointer)
+ThreadView.thread_id = str(UUID) → LangGraph thread_id (связь с checkpointer)
 Artifact.thread_id → ThreadView.thread_id (артефакт создаётся в контексте чата)
 ```
 

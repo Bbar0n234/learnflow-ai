@@ -37,9 +37,10 @@
 
 ### chore-001: Monorepo + Docker + Environment
 
-**Цель:** поднять uv workspace (monorepo с backend и frontend members), docker-compose с PostgreSQL, структуру environment-файлов для двух режимов запуска (Docker и local dev).
+**Цель:** поднять uv workspace (monorepo, member: backend; frontend — отдельный Node.js проект, управляется npm), docker-compose с PostgreSQL, структуру environment-файлов для двух режимов запуска (Docker и local dev).
 
 **Статус:** 📋 Planned
+**Blocked by:** —
 **Закрывает:** Phase C: project skeleton, containerization, database
 **Ветка:** `chore/001-monorepo-docker`
 
@@ -68,6 +69,7 @@
 **Цель:** настроить трёхуровневую защиту качества кода (ruff format → ruff check → mypy) для backend и ESLint + Prettier для frontend. MVP-каркас: базовые правила, дорабатываем по мере столкновений.
 
 **Статус:** 📋 Planned
+**Blocked by:** infra/chore-001
 **Закрывает:** Phase C: code quality, pre-commit hooks
 **Ветка:** `chore/002-code-quality`
 
@@ -94,6 +96,7 @@
 **Цель:** единая точка входа для dev-команд (Makefile), заготовка для тестов (pytest config + директория), README с инструкцией запуска.
 
 **Статус:** 📋 Planned
+**Blocked by:** infra/chore-002
 **Закрывает:** Phase C: dev commands, testing infra, README
 **Ветка:** `chore/003-dev-workflow`
 

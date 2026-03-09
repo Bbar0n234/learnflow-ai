@@ -97,7 +97,7 @@ docker-compose для локальной разработки. Два режим
 
 ## Makefile
 
-Dev-команды: docker-up/down/build, lint, format, type-check, check, test, dev, dev-fe.
+Dev-команды: docker-up/down/build, lint, format, type-check, check, lint-fe, format-fe, test, dev, dev-fe.
 
 ## Именование
 

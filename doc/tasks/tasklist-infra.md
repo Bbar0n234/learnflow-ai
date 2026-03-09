@@ -22,7 +22,7 @@
 |----------|--------|-----------|
 | chore-001 | ✅ Done | Monorepo + Docker + env |
 | chore-002 | ✅ Done | Code quality tooling |
-| chore-003 | 📋 Planned | Makefile + dev workflow |
+| chore-003 | ✅ Done | Makefile + dev workflow |
 
 ## Быстро меняющиеся инструменты
 
@@ -97,22 +97,23 @@
 
 **Цель:** единая точка входа для dev-команд (Makefile), заготовка для тестов (pytest config + директория), README с инструкцией запуска.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Blocked by:** infra/chore-002
 **Закрывает:** Phase C: dev commands, testing infra, README
 **Ветка:** `chore/003-dev-workflow`
 
 #### Состав работ
-- [ ] `Makefile` (docker-up/down/build, lint, format, type-check, check, lint-fe, format-fe, dev, dev-fe, test)
-- [ ] pytest-конфигурация в `backend/pyproject.toml` (`[tool.pytest.ini_options]`)
-- [ ] Директория `tests/` с `__init__.py`
-- [ ] README с инструкцией запуска (Docker и local dev)
+- [x] `Makefile` (docker-up/down/build, lint, format, type-check, check, lint-fe, format-fe, dev, dev-fe, test)
+- [x] pytest-конфигурация в `backend/pyproject.toml` (`[tool.pytest.ini_options]`)
+- [x] Директория `tests/` с `__init__.py`
+- [x] README с инструкцией запуска (Docker и local dev)
 
 #### Критерии приёмки
-- [ ] `make check` запускает lint + format-check + type-check
-- [ ] `make docker-up` поднимает PostgreSQL
-- [ ] `make test` запускает pytest (пустой прогон, 0 тестов)
-- [ ] README: новый разработчик может запустить проект по инструкции
+- [x] `make check` запускает lint + format-check + type-check
+- [x] `make docker-up` поднимает PostgreSQL
+- [x] `make test` запускает pytest (пустой прогон, 0 тестов)
+- [x] README: новый разработчик может запустить проект по инструкции
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [Plan](iterations/infra/chore-003-dev-workflow/plan.md)
+- [Summary](iterations/infra/chore-003-dev-workflow/summary.md)

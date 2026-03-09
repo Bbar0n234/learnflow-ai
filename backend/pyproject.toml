@@ -14,6 +14,9 @@ warn_unused_ignores = true
 check_untyped_defs = true
 no_implicit_reexport = true
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.pydantic-mypy]
 init_forbid_extra = true
 init_typed = true

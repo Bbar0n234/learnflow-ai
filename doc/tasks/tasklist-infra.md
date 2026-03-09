@@ -20,7 +20,7 @@
 
 | Итерация | Статус | Закрывает |
 |----------|--------|-----------|
-| chore-001 | 📋 Planned | Monorepo + Docker + env |
+| chore-001 | ✅ Done | Monorepo + Docker + env |
 | chore-002 | 📋 Planned | Code quality tooling |
 | chore-003 | 📋 Planned | Makefile + dev workflow |
 
@@ -39,28 +39,29 @@
 
 **Цель:** поднять uv workspace (monorepo, member: backend; frontend — отдельный Node.js проект, управляется npm), docker-compose с PostgreSQL, структуру environment-файлов для двух режимов запуска (Docker и local dev).
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Blocked by:** —
 **Закрывает:** Phase C: project skeleton, containerization, database
 **Ветка:** `chore/001-monorepo-docker`
 
 #### Состав работ
-- [ ] Корневой `pyproject.toml` (uv workspace, объявление members)
-- [ ] Минимальный `backend/pyproject.toml` (имя пакета, Python version)
-- [ ] Минимальный `frontend/package.json` (каркас)
-- [ ] `docker-compose.yml` (PostgreSQL + volume)
-- [ ] `Dockerfile` (backend — базовый, собирает Python-окружение)
-- [ ] `.env.example` + `.env.local.example` (два уровня: Docker и local dev)
-- [ ] `.dockerignore`
+- [x] Корневой `pyproject.toml` (uv workspace, объявление members)
+- [x] Минимальный `backend/pyproject.toml` (имя пакета, Python version)
+- [x] Минимальный `frontend/package.json` (каркас)
+- [x] `docker-compose.yml` (PostgreSQL + volume)
+- [x] `Dockerfile` (backend — базовый, собирает Python-окружение)
+- [x] `.env.example` + `.env.local.example` (два уровня: Docker и local dev)
+- [x] `.dockerignore`
 
 #### Критерии приёмки
-- [ ] `uv sync` проходит без ошибок
-- [ ] `docker-compose up db` поднимает PostgreSQL, подключение через `psql` работает
-- [ ] `.env.example` содержит `DATABASE_URL`, `LLM_API_KEY`, `LLM_MODEL`
-- [ ] `.env.local.example` содержит те же переменные с localhost-адресами
+- [x] `uv sync` проходит без ошибок
+- [x] `docker-compose up db` поднимает PostgreSQL, подключение через `psql` работает
+- [x] `.env.example` содержит `DATABASE_URL`, `LLM_API_KEY`, `LLM_MODEL`
+- [x] `.env.local.example` содержит те же переменные с localhost-адресами
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [Plan](iterations/infra/chore-001-monorepo-docker/plan.md)
+- [Summary](iterations/infra/chore-001-monorepo-docker/summary.md)
 
 ---
 

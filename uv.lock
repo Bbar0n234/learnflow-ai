@@ -1,0 +1,19 @@
+version = 1
+revision = 3
+requires-python = ">=3.12"
+
+[manifest]
+members = [
+    "learnflow-ai",
+    "learnflow-backend",
+]
+
+[[package]]
+name = "learnflow-ai"
+version = "0.1.0"
+source = { virtual = "." }
+
+[[package]]
+name = "learnflow-backend"
+version = "0.1.0"
+source = { virtual = "backend" }

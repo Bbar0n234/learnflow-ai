@@ -115,4 +115,5 @@
 - [x] README: новый разработчик может запустить проект по инструкции
 
 #### Артефакты
+- [Plan](iterations/infra/chore-003-dev-workflow/plan.md)
 - [Summary](iterations/infra/chore-003-dev-workflow/summary.md)

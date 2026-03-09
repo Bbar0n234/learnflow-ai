@@ -1,42 +1,42 @@
-# chore-003: Makefile + Dev Workflow — Summary
+# Summary: chore-003 — Makefile + Dev Workflow
 
-## Что сделано
+## Результат
 
-1. **Makefile** — единая точка входа для dev-команд:
-   - `docker-up/down/build` — управление контейнерами
-   - `lint`, `format`, `type-check`, `check` — backend quality gates
-   - `lint-fe`, `format-fe` — frontend quality gates
-   - `test` — запуск pytest
-   - `dev`, `dev-fe` — заглушки для Phase D
+Единая точка входа для dev-команд через Makefile (12 таргетов). Инфраструктура для тестов подготовлена (pytest + директория). README переписан с полной инструкцией запуска.
 
-2. **pytest** — добавлен в dev-зависимости (`pytest>=9.0`), конфигурация в `backend/pyproject.toml` (`[tool.pytest.ini_options]`), создана директория `backend/tests/`.
+Phase C (Infrastructure Setup) полностью завершена — все три итерации закрыты.
 
-3. **README** — переписан: Prerequisites, Quick Start, таблица make-команд, два режима окружения.
+## Отклонения от плана
 
-4. **Документация** — обновлены `conventions.md` (добавлены `lint-fe`, `format-fe`), `tasklist-infra.md` (статус → Done).
+Нет. Реализация полностью соответствует плану.
 
-## Изменённые файлы
+**Ожидаемые ограничения (не отклонения):**
+- `make type-check` / `make check` — mypy вернёт ошибку "no .py files" до появления Python-кода в backend/. Задокументировано в плане, решится при старте Phase D.
+- `make test` — pytest вернёт exit code 5 (no tests collected). Ожидаемо — тесты появятся позже.
+
+## Решения, принятые при реализации
+
+Все решения были приняты на этапе планирования, дополнительных решений при реализации не потребовалось.
+
+## Артефакты
 
 | Файл | Действие |
 |------|----------|
-| `pyproject.toml` | Edit — добавлен `pytest>=9.0` в dev deps |
-| `backend/pyproject.toml` | Edit — добавлена `[tool.pytest.ini_options]` |
-| `backend/tests/__init__.py` | Create — пустой файл |
-| `Makefile` | Create — 12 таргетов |
-| `README.md` | Rewrite — полная инструкция |
-| `uv.lock` | Auto-update via `uv sync` |
-| `doc/tech/conventions.md` | Edit — lint-fe, format-fe в секцию Makefile |
-| `doc/tasks/tasklist-infra.md` | Edit — статус → Done, артефакты |
-| `doc/tasks/iterations/infra/chore-003-dev-workflow/summary.md` | Create |
+| `Makefile` | Created — 12 таргетов (docker, lint, format, check, test, dev) |
+| `backend/tests/__init__.py` | Created — пустой файл |
+| `README.md` | Rewritten — Prerequisites, Quick Start, Make Commands, Environment Modes |
+| `pyproject.toml` | Edited — добавлен `pytest>=9.0` в dev deps |
+| `backend/pyproject.toml` | Edited — добавлена `[tool.pytest.ini_options]` |
+| `uv.lock` | Updated by `uv sync` |
+| `doc/tech/conventions.md` | Edited — добавлены `lint-fe`, `format-fe` в секцию Makefile |
+| `doc/tasks/tasklist-infra.md` | Edited — статус → Done, артефакты заполнены |
 
-## Известные ограничения
+## Верификация
 
-- `make type-check` / `make check` — mypy вернёт ошибку "no .py files" до появления Python-кода в backend/. Решится при старте Phase D.
-- `make test` — pytest вернёт exit code 5 (no tests collected). Ожидаемо — тесты появятся позже.
-
-## Phase C — Complete
-
-Итерация chore-003 завершает скоуп Infrastructure Setup. Все три итерации закрыты:
-- chore-001: Monorepo + Docker + env ✅
-- chore-002: Code quality tooling ✅
-- chore-003: Makefile + dev workflow ✅
+| Проверка | Результат |
+|----------|-----------|
+| `make check` (lint + format-check + type-check) | Passed — ruff check, ruff format --check, mypy — все ок |
+| `make lint` | Passed |
+| `make test` | Passed — pytest запускается, 0 тестов, exit 5 (ожидаемо) |
+| `make -n` (все таргеты) | Passed — все 12 таргетов существуют |
+| README содержит инструкцию запуска | Passed |

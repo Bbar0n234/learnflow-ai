@@ -2,5 +2,13 @@
   "name": "learnflow-frontend",
   "version": "0.1.0",
   "private": true,
-  "description": "LearnFlowAI frontend"
+  "description": "LearnFlowAI frontend",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.0.3",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.8.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.56.1"
+  }
 }

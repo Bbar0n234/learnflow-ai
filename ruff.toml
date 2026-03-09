@@ -1,0 +1,14 @@
+target-version = "py312"
+line-length = 88
+
+[lint]
+select = ["E", "W", "F", "B", "I", "SIM"]
+ignore = ["E501"]
+fixable = ["ALL"]
+
+[lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[format]
+quote-style = "double"
+indent-style = "space"

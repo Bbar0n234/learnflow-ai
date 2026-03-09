@@ -4,6 +4,10 @@
       "command": "npx",
       "args": ["@eslint/mcp@latest"],
       "env": {}
+    },
+    "docs-langchain": {
+      "type": "http",
+      "url": "https://docs.langchain.com/mcp"
     }
   }
 }

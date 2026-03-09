@@ -4,5 +4,8 @@ version = "0.1.0"
 description = "AI-powered learning assistant"
 requires-python = ">=3.12"
 
+[dependency-groups]
+dev = ["ruff>=0.15", "mypy>=1.19", "pre-commit>=4.5"]
+
 [tool.uv.workspace]
 members = ["backend"]

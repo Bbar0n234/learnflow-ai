@@ -21,7 +21,7 @@
 | Итерация | Статус | Закрывает |
 |----------|--------|-----------|
 | chore-001 | ✅ Done | Monorepo + Docker + env |
-| chore-002 | 📋 Planned | Code quality tooling |
+| chore-002 | ✅ Done | Code quality tooling |
 | chore-003 | 📋 Planned | Makefile + dev workflow |
 
 ## Быстро меняющиеся инструменты
@@ -69,26 +69,27 @@
 
 **Цель:** настроить трёхуровневую защиту качества кода (ruff format → ruff check → mypy) для backend и ESLint + Prettier для frontend. MVP-каркас: базовые правила, дорабатываем по мере столкновений.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Blocked by:** infra/chore-001
 **Закрывает:** Phase C: code quality, pre-commit hooks
 **Ветка:** `chore/002-code-quality`
 
 #### Состав работ
-- [ ] `ruff.toml` (правила: E, W, F, B, I, SIM; ignore E501; per-file exceptions)
-- [ ] mypy-конфигурация в `backend/pyproject.toml` (disallow_untyped_defs, pydantic plugin)
-- [ ] `.pre-commit-config.yaml` (ruff check + ruff format + mypy)
-- [ ] Frontend: ESLint (`@typescript-eslint/recommended` + prettier) + Prettier (базовый конфиг)
-- [ ] MCP `@eslint/mcp` — подключить в `.mcp.json` проекта
+- [x] `ruff.toml` (правила: E, W, F, B, I, SIM; ignore E501; per-file exceptions)
+- [x] mypy-конфигурация в `backend/pyproject.toml` (disallow_untyped_defs, pydantic plugin)
+- [x] `.pre-commit-config.yaml` (ruff check + ruff format + mypy)
+- [x] Frontend: ESLint (`@typescript-eslint/recommended` + prettier) + Prettier (базовый конфиг)
+- [x] MCP `@eslint/mcp` — подключить в `.mcp.json` проекта
 
 #### Критерии приёмки
-- [ ] `ruff check .` и `ruff format --check .` проходят на пустом проекте
-- [ ] `mypy .` проходит без ошибок
-- [ ] `git commit` триггерит pre-commit хуки
-- [ ] Frontend: `eslint` и `prettier --check` проходят
+- [x] `ruff check .` и `ruff format --check .` проходят на пустом проекте
+- [x] `mypy .` проходит без ошибок (pre-commit скипает на пустом backend, см. summary)
+- [x] `git commit` триггерит pre-commit хуки
+- [x] Frontend: `eslint` и `prettier --check` проходят
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [Plan](iterations/infra/chore-002-code-quality/plan.md)
+- [Summary](iterations/infra/chore-002-code-quality/summary.md)
 
 ---
 

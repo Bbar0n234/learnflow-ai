@@ -203,6 +203,9 @@ logs/
 .claude/agents/
 data/*
 
+# Node.js
+node_modules/
+
 # Firecrawl cache
 .firecrawl/
 

@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-learnflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-learnflow}
+      POSTGRES_DB: ${POSTGRES_DB:-learnflow}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

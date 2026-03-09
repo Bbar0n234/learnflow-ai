@@ -1,0 +1,8 @@
+[project]
+name = "learnflow-ai"
+version = "0.1.0"
+description = "AI-powered learning assistant"
+requires-python = ">=3.12"
+
+[tool.uv.workspace]
+members = ["backend"]

@@ -1,4 +1,4 @@
-.PHONY: docker-up docker-down docker-build lint format type-check check lint-fe format-fe dev dev-fe test
+.PHONY: docker-up docker-down docker-build lint format type-check check lint-fe format-fe dev dev-fe test migrate migration downgrade
 
 docker-up:  ## Start PostgreSQL
 	docker compose up -d db
@@ -37,3 +37,12 @@ dev-fe:  ## Run frontend dev server
 
 test:  ## Run pytest
 	uv run pytest -c backend/pyproject.toml --rootdir backend
+
+migrate:  ## Run alembic upgrade head
+	cd backend && uv run alembic upgrade head
+
+migration:  ## Create new alembic migration (autogenerate). Usage: make migration msg="description"
+	cd backend && uv run alembic revision --autogenerate -m "$(msg)"
+
+downgrade:  ## Run alembic downgrade (one step)
+	cd backend && uv run alembic downgrade -1

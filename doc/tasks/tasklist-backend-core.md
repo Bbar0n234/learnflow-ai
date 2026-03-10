@@ -23,7 +23,7 @@ Persistence + Service + API слои бэкенда — всё кроме аге
 | feat-001 | ✅ Done | App skeleton, config, DB connection |
 | feat-002 | ✅ Done | ORM models, Alembic migrations |
 | feat-003 | ✅ Done | Repository Layer (CRUD) |
-| feat-004 | 📋 Planned | Service Layer + Agent/Sphere interfaces |
+| feat-004 | ✅ Done | Service Layer + Agent/Sphere interfaces |
 | feat-005 | 📋 Planned | API Layer (REST + SSE каркас) |
 
 ## Быстро меняющиеся инструменты
@@ -123,27 +123,28 @@ Persistence + Service + API слои бэкенда — всё кроме аге
 
 **Цель:** сервисный слой — оркестрация между API и Repository/Agent, определение интерфейсов для Agent Runtime.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Blocked by:** backend-core/feat-003
 **Закрывает:** v1: business logic layer, agent/sphere interface contracts
 **Ветка:** `feat/004-service-layer`
 
 #### Состав работ
-- [ ] ProjectService (CRUD-оркестрация, бизнес-правила)
-- [ ] ArtifactService (CRUD-оркестрация)
-- [ ] ChatService — thin layer: маппинг chat → thread, управление ThreadView, делегирование в AgentRunner
-- [ ] AgentRunner — Protocol (stream, get_history, cancel) + stub-реализация
-- [ ] SphereService — Protocol (get, update) + stub-реализация
-- [ ] Wiring: паттерн для инъекции зависимостей в сервисы
+- [x] ProjectService (CRUD-оркестрация, бизнес-правила)
+- [x] ArtifactService (CRUD-оркестрация)
+- [x] ChatService — thin layer: маппинг chat → thread, управление ThreadView, делегирование в AgentRunner
+- [x] AgentRunner — Protocol (stream, get_history, cancel) + stub-реализация
+- [x] SphereService — Protocol (get, update) + stub-реализация
+- [x] Wiring: паттерн для инъекции зависимостей в сервисы
 
 #### Критерии приёмки
-- [ ] Сервисы вызывают репозитории через инъекцию
-- [ ] AgentRunner и SphereService определены как Protocol
-- [ ] Stub-реализации позволяют вызывать API без реального агента
-- [ ] `ruff check` и `mypy` проходят
+- [x] Сервисы вызывают репозитории через инъекцию
+- [x] AgentRunner и SphereService определены как Protocol
+- [x] Stub-реализации позволяют вызывать API без реального агента
+- [x] `ruff check` и `mypy` проходят
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [plan.md](iterations/backend-core/feat-004-service-layer/plan.md)
+- [summary.md](iterations/backend-core/feat-004-service-layer/summary.md)
 
 ---
 

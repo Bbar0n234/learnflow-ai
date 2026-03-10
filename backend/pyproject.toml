@@ -3,7 +3,14 @@ name = "learnflow-backend"
 version = "0.1.0"
 description = "LearnFlowAI backend"
 requires-python = ">=3.12"
-dependencies = ["pydantic>=2.0"]
+dependencies = [
+    "fastapi>=0.135.1",
+    "psycopg[binary]>=3.3.3",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.13.1",
+    "sqlalchemy[asyncio]>=2.0.48",
+    "uvicorn[standard]>=0.41.0",
+]
 
 [tool.mypy]
 python_version = "3.12"

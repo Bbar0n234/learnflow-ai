@@ -30,7 +30,7 @@ format-fe:  ## Format frontend code with Prettier
 	cd frontend && npx prettier --write .
 
 dev:  ## Run backend dev server
-	@echo "Backend dev server not yet configured (Phase D)"
+	uv run --package learnflow-backend uvicorn app.main:app --reload --app-dir backend
 
 dev-fe:  ## Run frontend dev server
 	@echo "Frontend dev server not yet configured (Phase D)"

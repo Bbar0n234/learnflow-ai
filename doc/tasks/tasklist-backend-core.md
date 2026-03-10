@@ -20,7 +20,7 @@ Persistence + Service + API слои бэкенда — всё кроме аге
 
 | Итерация | Статус | Закрывает |
 |----------|--------|-----------|
-| feat-001 | 📋 Planned | App skeleton, config, DB connection |
+| feat-001 | ✅ Done | App skeleton, config, DB connection |
 | feat-002 | 📋 Planned | ORM models, Alembic migrations |
 | feat-003 | 📋 Planned | Repository Layer (CRUD) |
 | feat-004 | 📋 Planned | Service Layer + Agent/Sphere interfaces |
@@ -42,26 +42,27 @@ Persistence + Service + API слои бэкенда — всё кроме аге
 
 **Цель:** каркас FastAPI-приложения с подключением к PostgreSQL — фундамент для всех последующих итераций.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Blocked by:** infra/chore-001
 **Закрывает:** v1: project skeleton (backend), DB connection
 **Ветка:** `feat/001-app-skeleton`
 
 #### Состав работ
-- [ ] Структура пакетов `app/` (api/, services/, repositories/, models/, agent/, infra/)
-- [ ] `main.py` — app factory, lifespan (init/shutdown DB)
-- [ ] `config.py` — Settings (pydantic-settings), загрузка из `.env`
-- [ ] `infra/db.py` — async engine, async session factory
-- [ ] Зависимости в `backend/pyproject.toml` (fastapi, uvicorn, sqlalchemy, asyncpg, pydantic-settings)
+- [x] Структура пакетов `app/` (api/, services/, repositories/, models/, agent/, infra/)
+- [x] `main.py` — app factory, lifespan (init/shutdown DB)
+- [x] `config.py` — Settings (pydantic-settings), загрузка из `.env`
+- [x] `infra/db.py` — async engine, async session factory
+- [x] Зависимости в `backend/pyproject.toml` (fastapi, uvicorn, sqlalchemy, psycopg, pydantic-settings)
 
 #### Критерии приёмки
-- [ ] `uv run uvicorn app.main:app` стартует без ошибок
-- [ ] Health-check endpoint (`GET /health`) отвечает 200
-- [ ] Приложение подключается к PostgreSQL из docker-compose
-- [ ] `ruff check` и `mypy` проходят
+- [x] `uv run uvicorn app.main:app` стартует без ошибок
+- [x] Health-check endpoint (`GET /health`) отвечает 200
+- [x] Приложение подключается к PostgreSQL из docker-compose
+- [x] `ruff check` и `mypy` проходят
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [plan.md](iterations/backend-core/feat-001-app-skeleton/plan.md)
+- [summary.md](iterations/backend-core/feat-001-app-skeleton/summary.md)
 
 ---
 

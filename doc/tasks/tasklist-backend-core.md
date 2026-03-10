@@ -22,7 +22,7 @@ Persistence + Service + API слои бэкенда — всё кроме аге
 |----------|--------|-----------|
 | feat-001 | ✅ Done | App skeleton, config, DB connection |
 | feat-002 | ✅ Done | ORM models, Alembic migrations |
-| feat-003 | 📋 Planned | Repository Layer (CRUD) |
+| feat-003 | ✅ Done | Repository Layer (CRUD) |
 | feat-004 | 📋 Planned | Service Layer + Agent/Sphere interfaces |
 | feat-005 | 📋 Planned | API Layer (REST + SSE каркас) |
 
@@ -96,25 +96,26 @@ Persistence + Service + API слои бэкенда — всё кроме аге
 
 **Цель:** async CRUD-репозитории для каждой app-managed сущности.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Blocked by:** backend-core/feat-002
 **Закрывает:** v1: data access layer
 **Ветка:** `feat/003-repository-layer`
 
 #### Состав работ
-- [ ] UserRepository (get_or_create by name, get by id)
-- [ ] ProjectRepository (CRUD + list by user)
-- [ ] ThreadViewRepository (CRUD + list by project + recent across projects)
-- [ ] ArtifactRepository (CRUD + list by project)
-- [ ] Паттерн dependency injection (session через конструктор)
+- [x] UserRepository (get_or_create by name, get by id)
+- [x] ProjectRepository (CRUD + list by user)
+- [x] ThreadViewRepository (CRUD + list by project + recent across projects)
+- [x] ArtifactRepository (CRUD + list by project)
+- [x] Паттерн dependency injection (session через конструктор)
 
 #### Критерии приёмки
-- [ ] Все CRUD-операции для каждой сущности реализованы
-- [ ] Async session корректно пробрасывается
-- [ ] `ruff check` и `mypy` проходят
+- [x] Все CRUD-операции для каждой сущности реализованы
+- [x] Async session корректно пробрасывается
+- [x] `ruff check` и `mypy` проходят
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [plan.md](iterations/backend-core/feat-003-repository-layer/plan.md)
+- [summary.md](iterations/backend-core/feat-003-repository-layer/summary.md)
 
 ---
 

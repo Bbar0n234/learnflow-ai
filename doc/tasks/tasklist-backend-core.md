@@ -21,7 +21,7 @@ Persistence + Service + API слои бэкенда — всё кроме аге
 | Итерация | Статус | Закрывает |
 |----------|--------|-----------|
 | feat-001 | ✅ Done | App skeleton, config, DB connection |
-| feat-002 | 📋 Planned | ORM models, Alembic migrations |
+| feat-002 | ✅ Done | ORM models, Alembic migrations |
 | feat-003 | 📋 Planned | Repository Layer (CRUD) |
 | feat-004 | 📋 Planned | Service Layer + Agent/Sphere interfaces |
 | feat-005 | 📋 Planned | API Layer (REST + SSE каркас) |
@@ -70,24 +70,25 @@ Persistence + Service + API слои бэкенда — всё кроме аге
 
 **Цель:** ORM-модели для app-managed таблиц и инфраструктура миграций.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Blocked by:** backend-core/feat-001
 **Закрывает:** v1: persistence layer (app-managed tables)
 **Ветка:** `feat/002-models-migrations`
 
 #### Состав работ
-- [ ] ORM-модели: User, Project, ThreadView, Artifact (relationships, constraints)
-- [ ] Alembic setup (alembic.ini, env.py с async engine, versions/)
-- [ ] Initial migration (автогенерация из моделей)
+- [x] ORM-модели: User, Project, ThreadView, Artifact (relationships, constraints)
+- [x] Alembic setup (alembic.ini, env.py с async engine, versions/)
+- [x] Initial migration (автогенерация из моделей)
 
 #### Критерии приёмки
-- [ ] `alembic upgrade head` создаёт все таблицы в PostgreSQL
-- [ ] `alembic downgrade base` откатывает
-- [ ] Relationships корректны (FK constraints)
-- [ ] `ruff check` и `mypy` проходят
+- [x] `alembic upgrade head` создаёт все таблицы в PostgreSQL
+- [x] `alembic downgrade base` откатывает
+- [x] Relationships корректны (FK constraints)
+- [x] `ruff check` и `mypy` проходят
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [plan.md](iterations/backend-core/feat-002-models-migrations/plan.md)
+- [summary.md](iterations/backend-core/feat-002-models-migrations/summary.md)
 
 ---
 

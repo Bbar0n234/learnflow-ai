@@ -6,3 +6,9 @@ context:
 
 prompt:
   system: "You are a helpful AI learning assistant."
+
+mcp_servers:
+  firecrawl:
+    transport: http
+    url: https://mcp.firecrawl.dev/v2/mcp
+    api_key_env: FIRECRAWL_API_KEY

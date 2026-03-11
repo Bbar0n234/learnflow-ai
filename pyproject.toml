@@ -33,6 +33,10 @@ ignore_missing_imports = true
 module = "mdx_math"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "fuzzysearch"
+ignore_missing_imports = true
+
 [tool.pydantic-mypy]
 init_forbid_extra = true
 init_typed = true

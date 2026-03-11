@@ -25,6 +25,7 @@ def build_graph(
     model: BaseChatModel,
     tools: list[Any],
     agent_config: AgentConfig,
+    skills_index: str = "",
 ) -> StateGraph[Any, Any, Any, Any]:
     bound_model = model.bind_tools(tools)
 
@@ -36,7 +37,10 @@ def build_graph(
         items = await runtime.store.asearch(ns, limit=100)
         ks_index = format_index(list(items))
 
-        system = SystemMessage(content=f"{agent_config.prompt.system}\n\n{ks_index}")
+        parts = [agent_config.prompt.system, ks_index]
+        if skills_index:
+            parts.append(skills_index)
+        system = SystemMessage(content="\n\n".join(parts))
 
         trimmed = trim_messages(
             state["messages"],

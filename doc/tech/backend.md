@@ -192,13 +192,13 @@ GET /projects/{id}/artifacts/{aid}/download?format=md|pdf
 | Type | Когда | Payload |
 |------|-------|---------|
 | `text_chunk` | Каждый токен/чанк от LLM | `{ content: str }` |
-| `tool_start` | Агент вызывает tool | `{ tool: str }` |
-| `tool_end` | Tool завершился | `{ tool: str }` |
-| `artifact_created` | Агент создал артефакт | `{ id: UUID, title: str, type: str }` |
+| `tool_start` | Агент вызывает tool | `{ tool: str, call_id: str }` |
+| `tool_end` | Tool завершился | `{ tool: str, call_id: str }` |
+| `artifact_created` | Агент создал артефакт | `{ id: UUID, title: str, artifact_type: str }` |
 | `done` | Генерация завершена | `{ message_id?: str }` |
 | `error` | Ошибка в процессе | `{ detail: str }` |
 
-Tool-события отдают только имя tool — параметры и сырые результаты не отдаются.
+Tool-события отдают имя tool и `call_id` (для корреляции start/end при параллельных вызовах) — параметры и сырые результаты не отдаются.
 
 #### Lifecycle
 
@@ -207,10 +207,10 @@ POST /projects/{id}/chats/{cid}/messages → 200, Content-Type: text/event-strea
 
   data: {"type": "text_chunk", "content": "Давайте"}
   data: {"type": "text_chunk", "content": " разберём"}
-  data: {"type": "tool_start", "tool": "web_search"}
-  data: {"type": "tool_end", "tool": "web_search"}
+  data: {"type": "tool_start", "tool": "web_search", "call_id": "..."}
+  data: {"type": "tool_end", "tool": "web_search", "call_id": "..."}
   data: {"type": "text_chunk", "content": "По результатам..."}
-  data: {"type": "artifact_created", "id": "...", "title": "...", "type": "markdown"}
+  data: {"type": "artifact_created", "id": "...", "title": "...", "artifact_type": "markdown"}
   data: {"type": "done"}
 
   [connection closed]
@@ -237,8 +237,7 @@ app/
 ├── services/            # Service Layer
 │
 ├── agent/               # Agent Layer
-│   ├── tools/           # Реализации tools
-│   └── skills/          # Файлы skills (MVP: файловая система)
+│   └── tools/           # Реализации tools
 │
 ├── repositories/        # Repository Layer
 │
@@ -251,7 +250,9 @@ app/
 
 **services/** — Оркестрация и бизнес-правила. CRUD-сервисы (Project, Artifact) + thin ChatService для chat-операций (маппинг chat_id → thread_id, делегирование в AgentRunner, управление ThreadView). Зависимости (repositories, AgentRunner) — через конструктор, wiring в deps.py.
 
-**agent/** — LangGraph-граф, tools, skills, context engineering, промпт. Публичный интерфейс — AgentRunner (stream, get_history, cancel). LangGraph-типы не выходят за пределы этого пакета. tools/ и skills/ — суб-пакеты с внутренней группировкой.
+**agent/** — LangGraph-граф, tools, context engineering, промпт. Публичный интерфейс — AgentRunner (stream, get_history, cancel). LangGraph-типы не выходят за пределы этого пакета. tools/ — суб-пакет с внутренней группировкой.
+
+**skills/** — директория в корне репозитория (`skills/`, рядом с `backend/`, `configs/`). Каждый skill — поддиректория с `SKILL.md` (Claude Code compatible формат). Вынесены из backend, чтобы пользователь мог добавлять skills без необходимости лезть в код приложения.
 
 **repositories/** — CRUD-доступ к app-managed таблицам через SQLAlchemy async session. По репозиторию на сущность.
 
@@ -404,7 +405,8 @@ START → agent ──→ tools_condition? ──tool_calls──→ tools (Tool
 | Knowledge Sphere Index | Pre-loaded (auto-derived из Store, инжектится в system message) |
 | Full sections шара | Just-in-time (через get_section tool) |
 | История диалога | В контексте + compaction при приближении к лимиту |
-| Skills | Just-in-time (подгружаются когда нужны) |
+| Skills Index | Pre-loaded (scan из SKILL.md frontmatter, инжектится в system message) |
+| Full skill content | Just-in-time (через load_skill tool) |
 
 ## Persistence
 

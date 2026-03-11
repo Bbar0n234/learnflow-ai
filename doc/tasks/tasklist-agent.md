@@ -22,7 +22,7 @@
 |----------|--------|-----------|
 | feat-001 | ✅ Done | Agent Graph Skeleton — ReAct loop, AgentRunner, streaming |
 | feat-002 | ✅ Done | Knowledge Sphere — Store, progressive disclosure, tools |
-| feat-003 | 📋 Planned | Skills System + Artifacts tool |
+| feat-003 | ✅ Done | Skills System + Artifacts tool |
 | feat-004 | 📋 Planned | MCP External Tools — Firecrawl integration |
 | feat-005 | 📋 Planned | Based Prompt & Context Engineering |
 
@@ -105,26 +105,29 @@
 
 **Цель:** подгружаемые модули знаний (skills) через файловую систему и создание артефактов (файлов) в рамках проекта.
 
-**Статус:** 📋 Planned
-**Blocked by:** agent/feat-001, backend-core/feat-003 (ArtifactRepository)
+**Статус:** ✅ Done
+**Blocked by:** ~agent/feat-001~ (Done), ~backend-core/feat-003~ (Done)
 **Закрывает:** Skills (ADR-002), Artifacts tool
 **Ветка:** `feat/003-skills-artifacts`
 
 #### Состав работ
-- [ ] Skills: директория agent/skills/, формат файла (description + patterns + knowledge)
-- [ ] Tool: load_skill(skill_name) — read from filesystem, вернуть содержимое
-- [ ] Tool: create_artifact(title, content, type) — запись в app DB через repository
-- [ ] Streaming events: tool_start/tool_end для всех tools, artifact_created для create_artifact
+- [x] Skills: директория `skills/` в корне репо, формат SKILL.md (YAML frontmatter + knowledge)
+- [x] Tool: load_skill(skill_name) — read from filesystem, вернуть содержимое
+- [x] Tool: create_artifact(title, content, type) — запись в app DB через repository
+- [x] Streaming events: tool_start/tool_end для всех tools, artifact_created для create_artifact
+- [x] Skills Index: progressive disclosure (pre-loaded в system message)
 
 #### Критерии приёмки
-- [ ] load_skill() возвращает содержимое skill-файла по имени
-- [ ] create_artifact() создаёт запись в таблице Artifact, возвращает artifact_id
-- [ ] Streaming отдаёт tool_start/tool_end при вызове любого tool
-- [ ] Streaming отдаёт artifact_created при создании артефакта
-- [ ] `make lint && make type-check` проходят
+- [x] load_skill() возвращает содержимое skill-файла по имени
+- [x] create_artifact() создаёт запись в таблице Artifact, возвращает artifact_id
+- [x] Streaming отдаёт tool_start/tool_end при вызове любого tool
+- [x] Streaming отдаёт artifact_created при создании артефакта
+- [x] `make check` (ruff check + ruff format + mypy) проходят
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [plan.md](iterations/agent/feat-003-skills-artifacts/plan.md)
+- [summary.md](iterations/agent/feat-003-skills-artifacts/summary.md)
+- `doc/tech/backend.md` — обновлены секции SSE Streaming Protocol, Module Structure, Context Engineering
 
 ---
 

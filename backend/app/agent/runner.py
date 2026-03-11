@@ -4,7 +4,7 @@ import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
 
 from app.agent.graph import AgentContext
 from app.services.agent_runner import Message, StreamEvent
@@ -30,24 +30,77 @@ class LangGraphAgentRunner:
         input_msg = {"messages": [{"role": "user", "content": content}]}
 
         try:
-            async for msg_chunk, _metadata in self._graph.astream(
+            async for mode, data in self._graph.astream(
                 input_msg,
                 config,
-                stream_mode="messages",
+                stream_mode=["messages", "updates"],
                 context=context,
             ):
-                if (
-                    hasattr(msg_chunk, "content")
-                    and isinstance(msg_chunk.content, str)
-                    and msg_chunk.content
-                ):
-                    yield StreamEvent(
-                        type="text_chunk",
-                        data={"content": msg_chunk.content},
-                    )
+                if mode == "messages":
+                    msg_chunk, _metadata = data
+                    if (
+                        isinstance(msg_chunk, AIMessageChunk)
+                        and isinstance(msg_chunk.content, str)
+                        and msg_chunk.content
+                    ):
+                        yield StreamEvent(
+                            type="text_chunk",
+                            data={"content": msg_chunk.content},
+                        )
+
+                elif mode == "updates":
+                    for event in self._process_updates(data):
+                        yield event
+
             yield StreamEvent(type="done", data={})
         except Exception as e:
             yield StreamEvent(type="error", data={"detail": str(e)})
+
+    @staticmethod
+    def _process_updates(data: dict[str, Any]) -> list[StreamEvent]:
+        """Extract tool_start / tool_end / artifact_created events from updates."""
+        events: list[StreamEvent] = []
+
+        # Agent node finished — check for tool_calls
+        if "agent" in data:
+            for msg in data["agent"].get("messages", []):
+                if isinstance(msg, AIMessage) and msg.tool_calls:
+                    for tc in msg.tool_calls:
+                        events.append(
+                            StreamEvent(
+                                type="tool_start",
+                                data={
+                                    "tool": tc["name"],
+                                    "call_id": tc["id"],
+                                },
+                            )
+                        )
+
+        # Tools node finished — emit tool_end (+ artifact_created)
+        if "tools" in data:
+            for msg in data["tools"].get("messages", []):
+                if isinstance(msg, ToolMessage):
+                    events.append(
+                        StreamEvent(
+                            type="tool_end",
+                            data={
+                                "tool": msg.name or "",
+                                "call_id": msg.tool_call_id,
+                            },
+                        )
+                    )
+                    # artifact_created for create_artifact tool
+                    if msg.name == "create_artifact" and msg.artifact is not None:
+                        artifact = dict(msg.artifact)
+                        artifact["artifact_type"] = artifact.pop("type", "")
+                        events.append(
+                            StreamEvent(
+                                type="artifact_created",
+                                data=artifact,
+                            )
+                        )
+
+        return events
 
     async def get_history(
         self,

@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncIterator
 
 from fastapi import FastAPI
@@ -9,7 +10,12 @@ from sqlalchemy import text
 from app.agent.config import load_agent_config
 from app.agent.graph import build_graph, compile_graph
 from app.agent.runner import LangGraphAgentRunner
-from app.agent.tools import ks_tools
+from app.agent.tools import (
+    ks_tools,
+    make_create_artifact_tool,
+    make_load_skill_tool,
+    scan_skills_index,
+)
 from app.api.routes import artifacts, chats, messages, projects, sphere
 from app.config import Settings
 from app.infra.db import create_engine, create_session_factory
@@ -43,7 +49,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         # Agent graph
         llm = create_llm(settings, agent_config)
-        builder = build_graph(model=llm, tools=ks_tools, agent_config=agent_config)
+
+        skills_dir = Path(__file__).resolve().parents[2] / "skills"
+        load_skill = make_load_skill_tool(skills_dir)
+        skills_idx = scan_skills_index(skills_dir)
+        create_artifact = make_create_artifact_tool(app.state.session_factory)
+        all_tools = ks_tools + [load_skill, create_artifact]
+
+        builder = build_graph(
+            model=llm,
+            tools=all_tools,
+            agent_config=agent_config,
+            skills_index=skills_idx,
+        )
         graph = compile_graph(builder, checkpointer=checkpointer, store=store)
         app.state.agent_runner = LangGraphAgentRunner(graph)
 

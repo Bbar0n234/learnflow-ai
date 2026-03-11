@@ -62,6 +62,7 @@ class ChatService:
         to return a clean 404 instead of an error inside an already-opened stream.
         Validation here is defense in depth.
         """
+
         thread_view = await self._thread_view_repo.get_by_id(thread_id)
         if thread_view is None:
             raise EntityNotFoundError("Chat", thread_id)

@@ -19,7 +19,6 @@ from app.services import (
     ArtifactService,
     ChatService,
     ProjectService,
-    StubAgentRunner,
     StubSphereService,
 )
 from app.services.sphere import SphereService
@@ -62,10 +61,10 @@ def get_artifact_service(session: DBSession) -> ArtifactService:
     return ArtifactService(artifact_repo=ArtifactRepository(session))
 
 
-def get_chat_service(session: DBSession) -> ChatService:
+def get_chat_service(session: DBSession, request: Request) -> ChatService:
     return ChatService(
         thread_view_repo=ThreadViewRepository(session),
-        agent_runner=StubAgentRunner(),
+        agent_runner=request.app.state.agent_runner,
     )
 
 

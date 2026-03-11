@@ -11,12 +11,14 @@ from app.agent.tools.ks_helpers import (
 
 
 def _ns(runtime: ToolRuntime) -> tuple[str, ...]:
-    assert runtime.context is not None
+    if runtime.context is None:
+        raise RuntimeError("KS tools require AgentContext but none was provided")
     return build_namespace(runtime.context.project_id)
 
 
 def _store(runtime: ToolRuntime):  # type: ignore[no-untyped-def]
-    assert runtime.store is not None
+    if runtime.store is None:
+        raise RuntimeError("KS tools require a Store but none was provided")
     return runtime.store
 
 

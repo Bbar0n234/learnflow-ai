@@ -32,6 +32,7 @@ class ProjectRepository:
     async def update(self, project: Project, *, name: str) -> Project:
         project.name = name
         await self._session.flush()
+        await self._session.refresh(project)
         return project
 
     async def delete(self, project: Project) -> None:

@@ -1,5 +1,8 @@
 .PHONY: docker-up docker-down docker-build lint format type-check check lint-fe format-fe dev dev-fe test migrate migration downgrade
 
+# Load .env (base) then .env.local (overrides) into shell environment
+LOAD_ENV = set -a && [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; set +a
+
 docker-up:  ## Start PostgreSQL
 	docker compose up -d db
 
@@ -30,19 +33,19 @@ format-fe:  ## Format frontend code with Prettier
 	cd frontend && npx prettier --write .
 
 dev:  ## Run backend dev server
-	uv run --package learnflow-backend uvicorn app.main:app --reload --app-dir backend
+	$(LOAD_ENV) && uv run --package learnflow-backend uvicorn app.main:app --reload --app-dir backend
 
 dev-fe:  ## Run frontend dev server
 	@echo "Frontend dev server not yet configured (Phase D)"
 
 test:  ## Run pytest
-	uv run pytest -c backend/pyproject.toml --rootdir backend
+	$(LOAD_ENV) && uv run pytest -c backend/pyproject.toml --rootdir backend
 
 migrate:  ## Run alembic upgrade head
-	cd backend && uv run alembic upgrade head
+	$(LOAD_ENV) && uv run alembic -c backend/alembic.ini upgrade head
 
 migration:  ## Create new alembic migration (autogenerate). Usage: make migration msg="description"
-	cd backend && uv run alembic revision --autogenerate -m "$(msg)"
+	$(LOAD_ENV) && uv run alembic -c backend/alembic.ini revision --autogenerate -m "$(msg)"
 
 downgrade:  ## Run alembic downgrade (one step)
-	cd backend && uv run alembic downgrade -1
+	$(LOAD_ENV) && uv run alembic -c backend/alembic.ini downgrade -1

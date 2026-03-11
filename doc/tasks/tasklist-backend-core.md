@@ -24,7 +24,7 @@ Persistence + Service + API слои бэкенда — всё кроме аге
 | feat-002 | ✅ Done | ORM models, Alembic migrations |
 | feat-003 | ✅ Done | Repository Layer (CRUD) |
 | feat-004 | ✅ Done | Service Layer + Agent/Sphere interfaces |
-| feat-005 | 📋 Planned | API Layer (REST + SSE каркас) |
+| feat-005 | ✅ Done | API Layer (REST + SSE каркас) |
 
 ## Быстро меняющиеся инструменты
 
@@ -150,27 +150,28 @@ Persistence + Service + API слои бэкенда — всё кроме аге
 
 ### feat-005: API Layer (REST + SSE каркас)
 
-**Цель:** полный HTTP-интерфейс приложения — все REST endpoints (включая PDF-экспорт артефактов через pandoc/weasyprint), SSE-каркас для стриминга, auth dependency.
+**Цель:** полный HTTP-интерфейс приложения — все REST endpoints (включая PDF-экспорт артефактов), SSE-каркас для стриминга, auth dependency.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Blocked by:** backend-core/feat-004
 **Закрывает:** v1: REST API, SSE streaming protocol, auth dependency (MVP), PDF-экспорт артефактов
 **Ветка:** `feat/005-api-layer`
 
 #### Состав работ
-- [ ] `deps.py` — dependencies: DB session, user extraction (X-User-Name), инъекция сервисов
-- [ ] Pydantic schemas (request/response модели для всех ресурсов)
-- [ ] Роутеры: projects, chats, messages, artifacts, sphere
-- [ ] SSE endpoint (`POST /messages`) — формат событий по протоколу, работает через AgentRunner stub
-- [ ] PDF-экспорт артефактов: конвертация Markdown → PDF (pandoc / weasyprint), зависимость в pyproject.toml и Dockerfile
-- [ ] CORS middleware
+- [x] `deps.py` — dependencies: DB session, user extraction (X-User-Name), инъекция сервисов
+- [x] Pydantic schemas (request/response модели для всех ресурсов)
+- [x] Роутеры: projects, chats, messages, artifacts, sphere
+- [x] SSE endpoint (`POST /messages`) — формат событий по протоколу, работает через AgentRunner stub
+- [x] PDF-экспорт артефактов: конвертация Markdown → PDF (pdfkit + wkhtmltopdf), зависимость в pyproject.toml и Dockerfile
+- [x] CORS middleware
 
 #### Критерии приёмки
-- [ ] Все endpoints из backend.md реализованы и отвечают корректными статусами
-- [ ] Pydantic-валидация работает (422 на невалидные данные)
-- [ ] SSE endpoint отдаёт поток событий в задокументированном формате (через stub)
-- [ ] `X-User-Name` корректно извлекается, запросы без заголовка — 401/422
-- [ ] `ruff check` и `mypy` проходят
+- [x] Все endpoints из backend.md реализованы и отвечают корректными статусами
+- [x] Pydantic-валидация работает (422 на невалидные данные)
+- [x] SSE endpoint отдаёт поток событий в задокументированном формате (через stub)
+- [x] `X-User-Name` корректно извлекается, запросы без заголовка — 401
+- [x] `ruff check` и `mypy` проходят
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [plan.md](iterations/backend-core/feat-005-api-layer/plan.md)
+- [summary.md](iterations/backend-core/feat-005-api-layer/summary.md)

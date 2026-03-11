@@ -6,26 +6,15 @@ requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.15",
     "fastapi>=0.135.1",
+    "markdown>=3.5",
+    "pdfkit>=1.0.0",
     "psycopg[binary]>=3.3.3",
     "pydantic>=2.0",
     "pydantic-settings>=2.13.1",
+    "python-markdown-math>=0.8",
     "sqlalchemy[asyncio]>=2.0.48",
     "uvicorn[standard]>=0.41.0",
 ]
 
-[tool.mypy]
-python_version = "3.12"
-plugins = ["pydantic.mypy"]
-disallow_untyped_defs = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-check_untyped_defs = true
-no_implicit_reexport = true
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-
-[tool.pydantic-mypy]
-init_forbid_extra = true
-init_typed = true
-warn_required_dynamic_aliases = true

@@ -47,12 +47,14 @@ class ThreadViewRepository:
     async def update(self, thread_view: ThreadView, *, title: str) -> ThreadView:
         thread_view.title = title
         await self._session.flush()
+        await self._session.refresh(thread_view)
         return thread_view
 
     async def touch(self, thread_view: ThreadView) -> None:
         """Update updated_at without changing other fields."""
         thread_view.title = thread_view.title  # mark dirty to trigger onupdate
         await self._session.flush()
+        await self._session.refresh(thread_view)
 
     async def delete(self, thread_view: ThreadView) -> None:
         await self._session.delete(thread_view)

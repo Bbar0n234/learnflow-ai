@@ -23,7 +23,7 @@
 | feat-001 | ✅ Done | Agent Graph Skeleton — ReAct loop, AgentRunner, streaming |
 | feat-002 | ✅ Done | Knowledge Sphere — Store, progressive disclosure, tools |
 | feat-003 | ✅ Done | Skills System + Artifacts tool |
-| feat-004 | 📋 Planned | MCP External Tools — Firecrawl integration |
+| feat-004 | ✅ Done | MCP External Tools — Firecrawl integration |
 | feat-005 | 📋 Planned | Based Prompt & Context Engineering |
 
 ## Быстро меняющиеся инструменты
@@ -135,26 +135,27 @@
 
 **Цель:** внешние инструменты (web search, URL reading, crawling) через MCP. Default: Firecrawl MCP. Провайдер заменяем через конфигурацию.
 
-**Статус:** 📋 Planned
-**Blocked by:** agent/feat-001
+**Статус:** ✅ Done
+**Blocked by:** ~agent/feat-001~ (Done)
 **Закрывает:** External Tools (ADR-007)
 **Ветка:** `feat/004-mcp-tools`
 
 #### Состав работ
-- [ ] Infra: MultiServerMCPClient setup, MCP-конфигурация в Settings (transport, URL, API keys)
-- [ ] Firecrawl MCP server connection
-- [ ] langchain-mcp-adapters: конвертация MCP tools → BaseTool
-- [ ] Unified ToolNode: internal tools + MCP tools в одном ToolNode
+- [x] Infra: MultiServerMCPClient setup, MCP-конфигурация в Settings (transport, URL, API keys)
+- [x] Firecrawl MCP server connection
+- [x] langchain-mcp-adapters: конвертация MCP tools → BaseTool
+- [x] Unified ToolNode: internal tools + MCP tools в одном ToolNode
 
 #### Критерии приёмки
-- [ ] MCP client подключается к Firecrawl серверу при старте
-- [ ] MCP tools доступны агенту наравне с internal tools
-- [ ] Агент может выполнить web search через MCP tool и вернуть результат
-- [ ] Смена MCP-провайдера не требует изменения кода (только config)
-- [ ] `make lint && make type-check` проходят
+- [x] MCP client подключается к Firecrawl серверу при старте
+- [x] MCP tools доступны агенту наравне с internal tools
+- [x] Агент может выполнить web search через MCP tool и вернуть результат
+- [x] Смена MCP-провайдера не требует изменения кода (только config)
+- [x] `make check` проходит
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [plan.md](iterations/agent/feat-004-mcp-tools/plan.md)
+- [summary.md](iterations/agent/feat-004-mcp-tools/summary.md)
 
 ---
 

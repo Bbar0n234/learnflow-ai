@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
@@ -21,7 +22,10 @@ from app.config import Settings
 from app.infra.db import create_engine, create_session_factory
 from app.infra.langgraph import create_checkpointer, create_store
 from app.infra.llm import create_llm
+from app.infra.mcp import create_mcp_client
 from app.services.exceptions import EntityNotFoundError
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -54,7 +58,25 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         load_skill = make_load_skill_tool(skills_dir)
         skills_idx = scan_skills_index(skills_dir)
         create_artifact = make_create_artifact_tool(app.state.session_factory)
-        all_tools = ks_tools + [load_skill, create_artifact]
+
+        # MCP external tools (graceful degradation)
+        mcp_tools: list = []
+        try:
+            mcp_client = create_mcp_client(agent_config.mcp_servers)
+            if mcp_client is not None:
+                mcp_tools = await mcp_client.get_tools()
+                logger.info(
+                    "Loaded %d MCP tools from %d server(s)",
+                    len(mcp_tools),
+                    len(agent_config.mcp_servers),
+                )
+        except Exception:
+            logger.warning(
+                "Failed to initialize MCP tools, starting without external tools",
+                exc_info=True,
+            )
+
+        all_tools = ks_tools + [load_skill, create_artifact] + mcp_tools
 
         builder = build_graph(
             model=llm,

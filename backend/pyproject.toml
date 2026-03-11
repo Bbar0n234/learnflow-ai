@@ -8,6 +8,7 @@ dependencies = [
     "fastapi>=0.135.1",
     "fuzzysearch>=0.8.0",
     "langchain-core>=0.3",
+    "langchain-mcp-adapters>=0.2",
     "langchain-openai>=0.3",
     "langgraph>=0.4",
     "langgraph-checkpoint-postgres>=2.0",

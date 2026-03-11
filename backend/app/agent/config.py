@@ -16,10 +16,19 @@ class PromptConfig(BaseModel):
     system: str
 
 
+class MCPServerConfig(BaseModel):
+    transport: str  # "http", "sse", "stdio"
+    url: str | None = None
+    api_key_env: str | None = None
+    command: str | None = None
+    args: list[str] | None = None
+
+
 class AgentConfig(BaseModel):
     llm: LLMConfig
     context: ContextConfig
     prompt: PromptConfig
+    mcp_servers: dict[str, MCPServerConfig] = {}
 
 
 def load_agent_config(path: Path | None = None) -> AgentConfig:

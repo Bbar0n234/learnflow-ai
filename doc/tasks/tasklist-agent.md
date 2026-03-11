@@ -20,7 +20,7 @@
 
 | Итерация | Статус | Закрывает |
 |----------|--------|-----------|
-| feat-001 | 📋 Planned | Agent Graph Skeleton — ReAct loop, AgentRunner, streaming |
+| feat-001 | ✅ Done | Agent Graph Skeleton — ReAct loop, AgentRunner, streaming |
 | feat-002 | 📋 Planned | Knowledge Sphere — Store, progressive disclosure, tools |
 | feat-003 | 📋 Planned | Skills System + Artifacts tool |
 | feat-004 | 📋 Planned | MCP External Tools — Firecrawl integration |
@@ -43,27 +43,29 @@
 
 **Цель:** минимально работающий агент — LangGraph-граф с ReAct loop, PostgreSQL persistence, AgentRunner со streaming. Можно отправить сообщение и получить стримингом ответ LLM.
 
-**Статус:** 📋 Planned
-**Blocked by:** backend-core/feat-001 (infra/db.py — engine для checkpointer/store)
+**Статус:** ✅ Done
+**Blocked by:** ~backend-core/feat-001~ (снят, все backend-core итерации Done)
 **Закрывает:** Agent Runtime backbone (граф, persistence, streaming)
 **Ветка:** `feat/001-agent-graph`
 
 #### Состав работ
-- [ ] Custom StateGraph: agent node + ToolNode + tools_condition (ADR-006)
-- [ ] Checkpointer (PostgreSQL) + Store (PostgreSQL) — compile с обоими
-- [ ] Agent node: минимальный system prompt, LLM call с bind_tools, базовый trim_messages
-- [ ] AgentRunner: stream() → domain events, get_history(), cancel() interface
-- [ ] Infra: LLM client init (ChatAnthropic/ChatOpenAI), Checkpointer/Store factory
-- [ ] Streaming маппинг: LangGraph stream_events → domain event types (TextChunk, Done, Error)
+- [x] Custom StateGraph: agent node + ToolNode + tools_condition (ADR-006)
+- [x] Checkpointer (PostgreSQL) + Store (PostgreSQL) — compile с обоими
+- [x] Agent node: минимальный system prompt, LLM call с bind_tools, базовый trim_messages
+- [x] AgentRunner: stream() → domain events, get_history(), cancel() interface
+- [x] Infra: LLM client init (ChatOpenAI via OpenRouter), Checkpointer/Store factory
+- [x] Streaming маппинг: LangGraph stream_mode="messages" → domain event types (TextChunk, Done, Error)
 
 #### Критерии приёмки
-- [ ] Граф компилируется с checkpointer и store
-- [ ] AgentRunner.stream() возвращает TextChunk и Done events
-- [ ] Диалог сохраняется в checkpointer: повторный запрос в тот же thread_id видит историю
-- [ ] `make lint && make type-check` проходят
+- [x] Граф компилируется с checkpointer и store
+- [x] AgentRunner.stream() возвращает TextChunk и Done events
+- [x] Диалог сохраняется в checkpointer: повторный запрос в тот же thread_id видит историю
+- [x] `make check` (ruff check + ruff format + mypy) проходят
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [plan.md](iterations/agent/feat-001-agent-graph/plan.md)
+- [summary.md](iterations/agent/feat-001-agent-graph/summary.md)
+- `doc/tech/langgraph-reference.md` — секция Runtime/context_schema
 
 ---
 

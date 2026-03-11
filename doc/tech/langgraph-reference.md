@@ -191,6 +191,35 @@ def my_tool(tool_call_id: Annotated[str, InjectedToolCallId]) -> Command:
 
 ToolMessage с matching tool_call_id обязателен в update.
 
+## Runtime и context_schema (актуальный API)
+
+### Runtime — типизированный доступ к context из нод
+
+```
+from langgraph.runtime import Runtime
+
+@dataclass
+class AgentContext:
+    project_id: str
+    user_id: str
+
+builder = StateGraph(MessagesState, context_schema=AgentContext)
+
+async def agent_node(state: MessagesState, runtime: Runtime[AgentContext]) -> dict:
+    ctx = runtime.context  # AgentContext
+    store = runtime.store   # BaseStore
+    ...
+```
+
+- `context_schema` задаётся при создании StateGraph
+- `Runtime[T]` — generic, типизированный доступ к context, store
+- `context=` передаётся при вызове графа: `graph.astream(..., context=AgentContext(...))`
+
+### Legacy-паттерны (для справки)
+
+- **RunnableConfig** (`config["configurable"]["user_id"]`) — работает, но нетипизированный dict
+- **InjectedStore** в tools — работает, но `ToolRuntime` предпочтительнее для новых tools
+
 ## Context engineering
 
 ### В кастомном графе — внутри agent-ноды

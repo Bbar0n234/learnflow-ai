@@ -1,4 +1,4 @@
-.PHONY: docker-up docker-down docker-build lint format type-check check lint-fe format-fe dev dev-fe test migrate migration downgrade
+.PHONY: docker-up docker-down docker-build lint format type-check check lint-fe format-fe dev dev-remote dev-fe test migrate migration downgrade
 
 # Load .env (base) then .env.local (overrides) into shell environment
 LOAD_ENV = set -a && [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; set +a
@@ -32,8 +32,11 @@ lint-fe:  ## Run ESLint on frontend
 format-fe:  ## Format frontend code with Prettier
 	cd frontend && npx prettier --write .
 
-dev:  ## Run backend dev server
+dev:  ## Run backend dev server (localhost only)
 	$(LOAD_ENV) && uv run --package learnflow-backend uvicorn app.main:app --reload --app-dir backend
+
+dev-remote:  ## Run backend dev server (accessible by IP)
+	$(LOAD_ENV) && uv run --package learnflow-backend uvicorn app.main:app --reload --app-dir backend --host 0.0.0.0
 
 dev-fe:  ## Run frontend dev server
 	@echo "Frontend dev server not yet configured (Phase D)"

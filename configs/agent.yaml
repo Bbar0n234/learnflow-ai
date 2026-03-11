@@ -1,0 +1,8 @@
+llm:
+  model: "google/gemini-3-flash-preview"
+
+context:
+  max_tokens: 100000
+
+prompt:
+  system: "You are a helpful AI learning assistant."

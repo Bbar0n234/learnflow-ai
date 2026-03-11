@@ -12,6 +12,7 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.runtime import Runtime
 
 from app.agent.config import AgentConfig
+from app.agent.tools.ks_helpers import build_namespace, format_index
 
 
 @dataclass
@@ -28,7 +29,14 @@ def build_graph(
     bound_model = model.bind_tools(tools)
 
     async def agent_node(state: MessagesState, runtime: Runtime[AgentContext]) -> dict:
-        system = SystemMessage(content=agent_config.prompt.system)
+        # Build Knowledge Sphere index
+        if runtime.store is None:
+            raise RuntimeError("Agent graph requires a Store but none was provided")
+        ns = build_namespace(runtime.context.project_id)
+        items = await runtime.store.asearch(ns, limit=100)
+        ks_index = format_index(list(items))
+
+        system = SystemMessage(content=f"{agent_config.prompt.system}\n\n{ks_index}")
 
         trimmed = trim_messages(
             state["messages"],

@@ -21,7 +21,7 @@
 | Итерация | Статус | Закрывает |
 |----------|--------|-----------|
 | feat-001 | ✅ Done | Agent Graph Skeleton — ReAct loop, AgentRunner, streaming |
-| feat-002 | 📋 Planned | Knowledge Sphere — Store, progressive disclosure, tools |
+| feat-002 | ✅ Done | Knowledge Sphere — Store, progressive disclosure, tools |
 | feat-003 | 📋 Planned | Skills System + Artifacts tool |
 | feat-004 | 📋 Planned | MCP External Tools — Firecrawl integration |
 | feat-005 | 📋 Planned | Based Prompt & Context Engineering |
@@ -73,27 +73,31 @@
 
 **Цель:** долгосрочная память проекта через LangGraph Store. Агент видит Index шара при каждом запросе, подгружает полные секции по необходимости, обновляет шар сам.
 
-**Статус:** 📋 Planned
-**Blocked by:** agent/feat-001
+**Статус:** ✅ Done
+**Blocked by:** ~agent/feat-001~ (Done)
 **Закрывает:** Knowledge Sphere (ADR-003, ADR-004, ADR-005)
 **Ветка:** `feat/002-knowledge-sphere`
 
 #### Состав работ
-- [ ] Формат KS: structured Markdown, дизайн секций (Index + Full sections)
-- [ ] Store namespace design: `("project", project_id, "sphere")`
-- [ ] Tools: get_sphere_index(), get_section(section_id), update_sphere(facts)
-- [ ] InjectedStore + RunnableConfig для доступа к project_id в tools
-- [ ] Progressive disclosure: KS Index pre-loaded в agent node, full sections — JIT через tool
+- [x] Формат KS: structured Markdown, multi-key Store design (один key per section)
+- [x] Store namespace design: `("project", project_id, "sphere")`
+- [x] Tools: get_section, create_section, update_section (fuzzy patch + overwrite), delete_section
+- [x] ToolRuntime для доступа к project_id и Store в tools
+- [x] Progressive disclosure: KS Index auto-derived и pre-loaded в system message, full sections — JIT через get_section
+- [x] LangGraphSphereService для REST API (GET/PUT sphere через Store)
 
 #### Критерии приёмки
-- [ ] get_sphere_index() возвращает Index из Store для текущего проекта
-- [ ] get_section() возвращает полное содержание секции
-- [ ] update_sphere() записывает данные в Store, повторный get_sphere_index() отражает изменения
-- [ ] Agent node инжектит KS Index в system message при каждом вызове
-- [ ] `make lint && make type-check` проходят
+- [x] CRUD tools работают через ToolRuntime + Store
+- [x] get_section() возвращает полное содержание секции
+- [x] create/update/delete отражаются в Index при следующем вызове agent node
+- [x] Agent node инжектит KS Index в system message при каждом вызове
+- [x] REST API (GET/PUT sphere) работает через LangGraphSphereService
+- [x] `make check` (ruff check + ruff format + mypy) проходят
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [plan.md](iterations/agent/feat-002-knowledge-sphere/plan.md)
+- [summary.md](iterations/agent/feat-002-knowledge-sphere/summary.md)
+- `doc/tech/backend.md` — обновлены секции Tools и Context Engineering
 
 ---
 

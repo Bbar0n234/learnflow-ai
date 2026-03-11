@@ -3,7 +3,11 @@ from app.services.artifact import ArtifactService
 from app.services.chat import ChatDetail, ChatService
 from app.services.exceptions import EntityNotFoundError
 from app.services.project import ProjectService
-from app.services.sphere import SphereData, SphereService, StubSphereService
+from app.services.sphere import (
+    LangGraphSphereService,
+    SphereData,
+    SphereService,
+)
 
 __all__ = [
     "AgentRunner",
@@ -11,11 +15,11 @@ __all__ = [
     "ChatDetail",
     "ChatService",
     "EntityNotFoundError",
+    "LangGraphSphereService",
     "Message",
     "ProjectService",
     "SphereData",
     "SphereService",
     "StreamEvent",
     "StubAgentRunner",
-    "StubSphereService",
 ]

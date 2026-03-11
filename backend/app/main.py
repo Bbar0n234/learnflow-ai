@@ -9,6 +9,7 @@ from sqlalchemy import text
 from app.agent.config import load_agent_config
 from app.agent.graph import build_graph, compile_graph
 from app.agent.runner import LangGraphAgentRunner
+from app.agent.tools import ks_tools
 from app.api.routes import artifacts, chats, messages, projects, sphere
 from app.config import Settings
 from app.infra.db import create_engine, create_session_factory
@@ -38,9 +39,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await store.setup()
         await checkpointer.setup()
 
+        app.state.store = store
+
         # Agent graph
         llm = create_llm(settings, agent_config)
-        builder = build_graph(model=llm, tools=[], agent_config=agent_config)
+        builder = build_graph(model=llm, tools=ks_tools, agent_config=agent_config)
         graph = compile_graph(builder, checkpointer=checkpointer, store=store)
         app.state.agent_runner = LangGraphAgentRunner(graph)
 

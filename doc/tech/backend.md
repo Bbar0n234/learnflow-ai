@@ -323,25 +323,40 @@ Skills в формате Claude Code — подгружаемые модули �
 
 #### Internal (работа с системой)
 
-```
-get_sphere_index() → SphereIndex
-```
-Получить Index шара знаний. Pre-loaded в контексте при старте чата, доступен как tool для повторного запроса.
+##### Knowledge Sphere (CRUD)
+
+Index шара **не является tool** — формируется автоматически из Store и инжектится в system message при каждом вызове agent node (auto-derived, см. [ADR-004](adr/ADR-004-progressive-disclosure.md)).
 
 ```
-get_section(section_id: str) → SectionContent
+get_section(section_id: str) → str
 ```
 Получить Full секцию шара. Just-in-time подгрузка по решению агента.
+
+```
+create_section(section_id: str, description: str, content: str) → str
+```
+Создать новую секцию Knowledge Sphere.
+
+```
+update_section(section_id: str, content: str, target?: str, description?: str) → str
+```
+Обновить секцию. Два режима:
+- **Patch** (target задан): fuzzy find & replace целевого фрагмента внутри секции. LLM цитирует неточно → fuzzy matching (Levenshtein distance, threshold 0.85). Scope по секции → нет cross-section замен.
+- **Overwrite** (без target): полная перезапись content.
+
+Опционально обновляет description.
+
+```
+delete_section(section_id: str) → str
+```
+Удалить секцию Knowledge Sphere.
+
+##### Other
 
 ```
 load_skill(skill_name: str) → SkillContent
 ```
 Подгрузить skill в контекст. Just-in-time.
-
-```
-update_sphere(facts: str) → UpdateResult
-```
-Обновить Knowledge Sphere новыми фактами из диалога. Main Agent вызывает когда считает нужным (см. [ADR-005](adr/ADR-005-ks-update-mechanism.md)).
 
 #### External (MCP)
 
@@ -386,8 +401,8 @@ START → agent ──→ tools_condition? ──tool_calls──→ tools (Tool
 
 | Что | Стратегия |
 |-----|-----------|
-| Knowledge Sphere Index | Pre-loaded (всегда в контексте) |
-| Full sections шара | Just-in-time (через tool) |
+| Knowledge Sphere Index | Pre-loaded (auto-derived из Store, инжектится в system message) |
+| Full sections шара | Just-in-time (через get_section tool) |
 | История диалога | В контексте + compaction при приближении к лимиту |
 | Skills | Just-in-time (подгружаются когда нужны) |
 

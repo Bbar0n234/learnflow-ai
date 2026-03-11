@@ -19,9 +19,8 @@ from app.services import (
     ArtifactService,
     ChatService,
     ProjectService,
-    StubSphereService,
 )
-from app.services.sphere import SphereService
+from app.services.sphere import LangGraphSphereService, SphereService
 
 
 async def get_db_session(request: Request) -> AsyncGenerator[AsyncSession]:
@@ -68,8 +67,8 @@ def get_chat_service(session: DBSession, request: Request) -> ChatService:
     )
 
 
-def get_sphere_service() -> SphereService:
-    return StubSphereService()
+def get_sphere_service(request: Request) -> SphereService:
+    return LangGraphSphereService(store=request.app.state.store)
 
 
 ProjectServiceDep = Annotated[ProjectService, Depends(get_project_service)]

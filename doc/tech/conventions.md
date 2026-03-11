@@ -95,9 +95,24 @@ docker-compose для локальной разработки. Два режим
 - **Docker** (`.env`) — полный стек в контейнерах
 - **Local dev** (`.env.local`) — инфраструктура (PostgreSQL) в контейнерах, приложение локально
 
+### Конфигурация через env-файлы
+
+Код (Settings) читает только `os.environ` + дефолты — не знает про файлы. Env-файлы загружаются в окружение внешним инструментом (Makefile / docker-compose).
+
+| Файл | Содержимое | Кто читает |
+|------|-----------|------------|
+| `.env` (gitignored) | Базовая конфигурация: infra (POSTGRES_*) + app (DATABASE_URL, LLM_*) | docker-compose, Makefile (как база) |
+| `.env.local` (gitignored) | Только переопределения для local dev (обычно DATABASE_URL с localhost) | Makefile (поверх .env) |
+| `.env.example` | Шаблон `.env` | Коммитится в репо |
+| `.env.local.example` | Шаблон `.env.local` | Коммитится в репо |
+
+Переключение между режимами — другая команда, не редактирование файла.
+
 ## Makefile
 
 Dev-команды: docker-up/down/build, lint, format, type-check, check, lint-fe, format-fe, test, dev, dev-fe.
+
+Backend-команды (dev, migrate, test) используют `LOAD_ENV` — загрузку `.env` (база) затем `.env.local` (overrides) в shell env. Docker-команды — без `LOAD_ENV` (docker-compose читает `.env` самостоятельно).
 
 ## Именование
 

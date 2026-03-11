@@ -439,4 +439,4 @@ Artifact.thread_id → ThreadView.thread_id (артефакт создаётся
 
 ## Configuration
 
-`pydantic-settings` с загрузкой из env vars / `.env`. Набор параметров выводится из стека: DB URL, LLM API key/model, MCP-серверы (transport, URL, API keys), CORS origins. Структура Settings-класса — при реализации.
+`pydantic-settings` с загрузкой из env vars. Набор параметров выводится из стека: DB URL, LLM API key/model, MCP-серверы (transport, URL, API keys), CORS origins. Механика env-файлов — в [conventions.md](conventions.md#docker).

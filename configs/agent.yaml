@@ -3,9 +3,15 @@ llm:
 
 context:
   max_tokens: 100000
+  compaction_threshold_ratio: 0.75
+  recent_messages_to_keep: 10
 
 prompt:
-  system: "You are a helpful AI learning assistant."
+  system_file: "prompts/system.txt"
+
+summarization:
+  model: "google/gemini-3.1-flash-lite-preview"
+  max_summary_tokens: 500
 
 mcp_servers:
   firecrawl:

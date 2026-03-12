@@ -24,7 +24,7 @@
 | feat-002 | ✅ Done | Knowledge Sphere — Store, progressive disclosure, tools |
 | feat-003 | ✅ Done | Skills System + Artifacts tool |
 | feat-004 | ✅ Done | MCP External Tools — Firecrawl integration |
-| feat-005 | 📋 Planned | Based Prompt & Context Engineering |
+| feat-005 | ✅ Done | Based Prompt & Context Engineering |
 
 ## Быстро меняющиеся инструменты
 
@@ -163,24 +163,26 @@
 
 **Цель:** полноценный системный промпт и стратегия управления контекстом. Агент рассуждает осмысленно, эффективно использует tools и память, gracefully обрабатывает ошибки и длинные сессии.
 
-**Статус:** 📋 Planned
-**Blocked by:** agent/feat-002, agent/feat-003, agent/feat-004
+**Статус:** ✅ Done
+**Blocked by:** ~agent/feat-002~ (Done), ~agent/feat-003~ (Done), ~agent/feat-004~ (Done)
 **Закрывает:** Based Prompt, Context Engineering (ADR-004)
 **Ветка:** `feat/005-prompt-context`
 
 #### Состав работ
-- [ ] Based Prompt: мышление и планирование, реакция на ошибки, взаимодействие с пользователем, границы поведения, работа с контекстом (KS, skills, tools)
-- [ ] KS Index injection в system message (refinement)
-- [ ] Message trimming: token counting, strategy, параметры
-- [ ] History compaction: суммаризация при приближении к лимиту контекста
-- [ ] Тестирование на use-cases из [use-cases.md](../product/use-cases.md)
+- [x] Based Prompt: роль, взаимодействие, KS guidelines, artifacts, error handling, границы
+- [x] KS Index injection в system message (Jinja2 template с XML-тегами)
+- [x] Message trimming: token counting, strategy, параметры
+- [x] History compaction: суммаризация отдельной моделью при приближении к лимиту контекста
+- [x] Тестирование на use-cases (natural workflow, cross-session KS, MCP, compaction, error resilience)
 
 #### Критерии приёмки
-- [ ] Агент корректно использует tools по назначению (не вызывает лишних, не пропускает нужных)
-- [ ] При длинном диалоге (>50 сообщений) агент не теряет контекст — compaction срабатывает
-- [ ] Агент обновляет KS по ходу работы без явного запроса пользователя
-- [ ] Ответы агента соответствуют тону и формату, заданному в Based Prompt
-- [ ] `make lint && make type-check` проходят
+- [x] Агент корректно использует tools по назначению (не вызывает лишних, не пропускает нужных)
+- [x] При длинном диалоге агент не теряет контекст — compaction срабатывает
+- [x] Агент обновляет KS по ходу работы без явного запроса пользователя
+- [x] Ответы агента соответствуют тону и формату, заданному в Based Prompt
+- [x] `make check` (ruff check + ruff format + mypy) проходят
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [plan.md](iterations/agent/feat-005-prompt-context/plan.md)
+- [summary.md](iterations/agent/feat-005-prompt-context/summary.md)
+- `doc/tech/backend.md` — обновлены секции Based Prompt, Short-term Memory, Configuration

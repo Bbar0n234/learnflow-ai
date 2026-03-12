@@ -21,7 +21,7 @@ from app.api.routes import artifacts, chats, messages, projects, sphere
 from app.config import Settings
 from app.infra.db import create_engine, create_session_factory
 from app.infra.langgraph import create_checkpointer, create_store
-from app.infra.llm import create_llm
+from app.infra.llm import create_llm, create_summarization_llm
 from app.infra.mcp import create_mcp_client
 from app.services.exceptions import EntityNotFoundError
 
@@ -53,6 +53,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         # Agent graph
         llm = create_llm(settings, agent_config)
+        summarization_llm = None
+        if agent_config.summarization is not None:
+            summarization_llm = create_summarization_llm(
+                settings, agent_config.summarization
+            )
 
         skills_dir = Path(__file__).resolve().parents[2] / "skills"
         load_skill = make_load_skill_tool(skills_dir)
@@ -83,6 +88,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             tools=all_tools,
             agent_config=agent_config,
             skills_index=skills_idx,
+            summarization_model=summarization_llm,
         )
         graph = compile_graph(builder, checkpointer=checkpointer, store=store)
         app.state.agent_runner = LangGraphAgentRunner(graph)

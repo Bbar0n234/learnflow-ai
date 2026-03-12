@@ -280,13 +280,17 @@ General Agent = Based Prompt + ReAct Loop + Context Engineering + Memory + Tool 
 
 ### Based Prompt
 
-Текст промпта проектируется при реализации (Phase D). Здесь фиксируем, что Based Prompt должен покрывать:
+Текст промпта хранится в отдельном файле (не в коде). System message собирается из частей: based prompt + KS index + skills index.
 
-- **Мышление и планирование** — как агент рассуждает, декомпозирует задачу
-- **Реакция на ошибки** — что делать при сбое tool, неожиданном результате
-- **Взаимодействие с пользователем** — тон, формат ответов, когда уточнять
-- **Границы поведения** — что агент не делает, когда отказывает
-- **Работа с контекстом** — когда подгружать skills, когда обращаться к шару
+Покрывает:
+- **Роль и миссия** — AI assistant для tech-спикеров, JTBD
+- **Взаимодействие** — expert-to-expert, match user's language, direct
+- **Knowledge Sphere** — автономное обновление, когда подгружать секции
+- **Artifacts** — save deliverables, не промежуточные черновики
+- **Error handling** — retry/adapt, communicate problems
+- **Границы** — focus on material preparation, honesty about uncertainty
+
+Tool descriptions не дублируются в промпте — живут в docstrings инструментов.
 
 ### Memory
 
@@ -294,7 +298,7 @@ General Agent = Based Prompt + ReAct Loop + Context Engineering + Memory + Tool 
 
 История сообщений в пределах чата. LangGraph Checkpointer.
 
-Compaction при приближении к лимиту контекста: суммаризация истории с сохранением ключевых решений, нерешённых вопросов и текущего фокуса. Подробнее — [ADR-004](adr/ADR-004-progressive-disclosure.md).
+Compaction при приближении к лимиту контекста: суммаризация старых сообщений отдельной (дешёвой) моделью с сохранением ключевых решений и текущего фокуса. Graceful degradation: при сбое summarization — fallback на trim-only. Подробнее — [ADR-004](adr/ADR-004-progressive-disclosure.md).
 
 #### Long-term (Knowledge Sphere)
 
@@ -457,3 +461,5 @@ Artifact.thread_id → ThreadView.thread_id (артефакт создаётся
 ## Configuration
 
 `pydantic-settings` с загрузкой из env vars. Набор параметров выводится из стека: DB URL, LLM API key/model, MCP-серверы (transport, URL, API keys), CORS origins. Механика env-файлов — в [conventions.md](conventions.md#docker).
+
+Agent-специфичная конфигурация (модель, контекст, промпт, summarization, MCP) — отдельный YAML-файл, не env vars.

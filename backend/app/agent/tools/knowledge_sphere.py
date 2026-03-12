@@ -24,7 +24,10 @@ def _store(runtime: ToolRuntime):  # type: ignore[no-untyped-def]
 
 @tool
 async def get_section(section_id: str, runtime: ToolRuntime) -> str:
-    """Get full content of a Knowledge Sphere section."""
+    """Get full content of a Knowledge Sphere section by its ID.
+
+    Use when you need details beyond what the Knowledge Sphere Index shows.
+    """
     store = _store(runtime)
     item = await store.aget(_ns(runtime), section_key(section_id))
     if item is None:
@@ -39,7 +42,12 @@ async def create_section(
     content: str,
     runtime: ToolRuntime,
 ) -> str:
-    """Create a new Knowledge Sphere section."""
+    """Create a new Knowledge Sphere section.
+
+    Store significant context that should persist across sessions:
+    user goals, key decisions, domain constraints, research findings.
+    Use descriptive section IDs (e.g. "talk-audience", "outline-v2").
+    """
     store = _store(runtime)
     ns = _ns(runtime)
     key = section_key(section_id)

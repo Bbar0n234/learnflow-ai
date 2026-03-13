@@ -21,7 +21,7 @@ React SPA — chat-first интерфейс с sidebar-навигацией. Fea
 | Итерация | Статус | Закрывает |
 |----------|--------|-----------|
 | feat-001 | ✅ Done | Scaffold + app shell |
-| feat-002 | 📋 Planned | Shared infrastructure (API, state, components) |
+| feat-002 | ✅ Done | Shared infrastructure (API, state, components) |
 | feat-003 | 📋 Planned | Sidebar + projects |
 | feat-004 | 📋 Planned | Chat UI |
 | feat-005 | 📋 Planned | SSE streaming |
@@ -77,30 +77,31 @@ React SPA — chat-first интерфейс с sidebar-навигацией. Fea
 
 **Цель:** подготовить переиспользуемые модули: HTTP-клиент, TypeScript-типы, API-функции с хардкод-моками, Zustand stores, MarkdownRenderer. После итерации — фичи могут строиться поверх готового shared-слоя.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Blocked by:** frontend/feat-001
 **Закрывает:** shared/api/, stores/, shared/components/ из frontend.md
 **Ветка:** `feat/002-shared-infra`
 
 #### Состав работ
-- [ ] axios client (base URL из `VITE_API_URL`, header `X-User-Name`, error interceptor)
-- [ ] `types.ts` — TypeScript-типы 1:1 с backend schemas (Project, Chat, Message, Sphere, Artifact)
-- [ ] API-модули с хардкод-моками (projects.ts, chats.ts, sphere.ts, artifacts.ts) — каждая функция возвращает mock-данные, при подключении бэкенда моки заменяются на реальные вызовы
-- [ ] Zustand ui-store (sidebarOpen, toggleSidebar)
-- [ ] Zustand stream-store (isStreaming, streamingText, activeTool, streamingChatId + actions)
-- [ ] MarkdownRenderer — обёртка над Streamdown для переиспользования в chat, sphere, artifacts
-- [ ] Необходимые shadcn/ui примитивы (Dialog, Tabs, ScrollArea, Textarea и т.д.)
+- [x] axios client (base URL из `VITE_API_URL`, header `X-User-Name`, error interceptor)
+- [x] `types.ts` — TypeScript-типы 1:1 с backend schemas (Project, Chat, Message, Sphere, Artifact)
+- [x] API-модули с хардкод-моками (projects.ts, chats.ts, sphere.ts, artifacts.ts) — каждая функция возвращает mock-данные, при подключении бэкенда моки заменяются на реальные вызовы
+- [x] Zustand ui-store (sidebarOpen, toggleSidebar)
+- [x] Zustand stream-store (isStreaming, streamingText, activeTool, streamingChatId + actions)
+- [x] MarkdownRenderer — обёртка над Streamdown для переиспользования в chat, sphere, artifacts
+- [x] Необходимые shadcn/ui примитивы (Dialog, Tabs, ScrollArea, Textarea и т.д.)
 
 #### Критерии приёмки
-- [ ] API-модули экспортируют все функции из frontend.md (getProjects, getProject, createProject и т.д.)
-- [ ] Моки возвращают типизированные данные, соответствующие backend schemas
-- [ ] Zustand stores работают: `useUIStore().toggleSidebar()` переключает state
-- [ ] MarkdownRenderer рендерит Markdown-строку с подсветкой синтаксиса
-- [ ] Типы покрывают все сущности: Project, Chat, Message, Sphere, Artifact, SSE events
-- [ ] Линтер и TypeScript проходят без ошибок
+- [x] API-модули экспортируют все функции из frontend.md (getProjects, getProject, createProject и т.д.)
+- [x] Моки возвращают типизированные данные, соответствующие backend schemas
+- [x] Zustand stores работают: `useUIStore().toggleSidebar()` переключает state
+- [x] MarkdownRenderer рендерит Markdown-строку с подсветкой синтаксиса
+- [x] Типы покрывают все сущности: Project, Chat, Message, Sphere, Artifact, SSE events
+- [x] Линтер и TypeScript проходят без ошибок
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [Plan](iterations/frontend/feat-002-shared-infra/plan.md)
+- [Summary](iterations/frontend/feat-002-shared-infra/summary.md)
 
 ---
 

@@ -248,17 +248,18 @@ frontend/
 ├── index.html
 ├── vite.config.ts
 ├── tsconfig.json
-├── tailwind.css
 ├── components.json                — shadcn/ui конфиг
 │
 ├── src/
 │   ├── main.tsx                   — entry point: React root, providers
 │   ├── App.tsx                    — роутер, маршруты
+│   ├── index.css                  — Tailwind + shadcn theme variables
 │   │
 │   ├── app/                       — application shell
 │   │   ├── layouts/
 │   │   │   ├── AppLayout.tsx      — sidebar + центральная область
 │   │   │   └── ProjectLayout.tsx  — имя проекта, табы (Chats/Sphere/Artifacts)
+│   │   ├── components/            — app-level компоненты (WelcomePage и т.д.)
 │   │   ├── providers/             — QueryClientProvider, прочие провайдеры
 │   │   └── router.tsx             — конфигурация маршрутов
 │   │

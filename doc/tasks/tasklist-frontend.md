@@ -20,7 +20,7 @@ React SPA — chat-first интерфейс с sidebar-навигацией. Fea
 
 | Итерация | Статус | Закрывает |
 |----------|--------|-----------|
-| feat-001 | 📋 Planned | Scaffold + app shell |
+| feat-001 | ✅ Done | Scaffold + app shell |
 | feat-002 | 📋 Planned | Shared infrastructure (API, state, components) |
 | feat-003 | 📋 Planned | Sidebar + projects |
 | feat-004 | 📋 Planned | Chat UI |
@@ -46,29 +46,30 @@ React SPA — chat-first интерфейс с sidebar-навигацией. Fea
 
 **Цель:** поднять React-приложение на полном стеке (Vite + TS + Tailwind v4 + shadcn/ui), настроить роутинг и layout-каркас. После итерации — запускаемое приложение с навигацией между stub-страницами.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Blocked by:** infra/chore-001
 **Закрывает:** фундамент фронтенда, module structure из frontend.md
 **Ветка:** `feat/001-scaffold-app-shell`
 
 #### Состав работ
-- [ ] Vite + React + TypeScript setup (поверх package.json из infra)
-- [ ] Tailwind CSS v4 + базовая конфигурация
-- [ ] shadcn/ui инициализация (components.json, первые примитивы: Button, Input)
-- [ ] AppLayout (sidebar-заглушка + центральная область)
-- [ ] React Router v7 — все 6 маршрутов (stub-компоненты)
-- [ ] QueryClientProvider + прочие providers (app/providers/)
-- [ ] Welcome page (без input — создание чата только из проекта; welcome-текст / placeholder)
+- [x] Vite + React + TypeScript setup (поверх package.json из infra)
+- [x] Tailwind CSS v4 + базовая конфигурация
+- [x] shadcn/ui инициализация (components.json, первые примитивы: Button, Input)
+- [x] AppLayout (sidebar-заглушка + центральная область)
+- [x] React Router v7 — все 6 маршрутов (stub-компоненты)
+- [x] QueryClientProvider + прочие providers (app/providers/)
+- [x] Welcome page (без input — создание чата только из проекта; welcome-текст / placeholder)
 
 #### Критерии приёмки
-- [ ] `make dev-fe` запускает dev-сервер, приложение открывается в браузере
-- [ ] Навигация между всеми 6 маршрутами работает (URL меняется, stub рендерится)
-- [ ] Tailwind-классы применяются, shadcn/ui Button рендерится корректно
-- [ ] `make lint-fe` и `make format-fe` проходят без ошибок
-- [ ] TypeScript strict mode, ошибок компиляции нет
+- [x] `make dev-fe` запускает dev-сервер, приложение открывается в браузере
+- [x] Навигация между всеми 6 маршрутами работает (URL меняется, stub рендерится)
+- [x] Tailwind-классы применяются, shadcn/ui Button рендерится корректно
+- [x] `make lint-fe` и `make format-fe` проходят без ошибок
+- [x] TypeScript strict mode, ошибок компиляции нет
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [Plan](iterations/frontend/feat-001-scaffold-app-shell/plan.md)
+- [Summary](iterations/frontend/feat-001-scaffold-app-shell/summary.md)
 
 ---
 

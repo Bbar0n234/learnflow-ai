@@ -39,7 +39,7 @@ dev-remote:  ## Run backend dev server (accessible by IP)
 	$(LOAD_ENV) && uv run --package learnflow-backend uvicorn app.main:app --reload --app-dir backend --host 0.0.0.0
 
 dev-fe:  ## Run frontend dev server
-	@echo "Frontend dev server not yet configured (Phase D)"
+	cd frontend && npx vite
 
 test:  ## Run pytest
 	$(LOAD_ENV) && uv run pytest -c backend/pyproject.toml --rootdir backend

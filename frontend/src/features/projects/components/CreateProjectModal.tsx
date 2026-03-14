@@ -16,7 +16,10 @@ interface CreateProjectModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export function CreateProjectModal({ open, onOpenChange }: CreateProjectModalProps) {
+export function CreateProjectModal({
+  open,
+  onOpenChange,
+}: CreateProjectModalProps) {
   const [name, setName] = useState("");
   const navigate = useNavigate();
   const createProject = useCreateProject();

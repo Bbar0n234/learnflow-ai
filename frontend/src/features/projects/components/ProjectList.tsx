@@ -5,15 +5,25 @@ export function ProjectList() {
   const { data, isLoading, isError } = useProjects();
 
   if (isLoading) {
-    return <p className="px-3 py-1.5 text-xs text-muted-foreground">Loading...</p>;
+    return (
+      <p className="px-3 py-1.5 text-xs text-muted-foreground">Loading...</p>
+    );
   }
 
   if (isError) {
-    return <p className="px-3 py-1.5 text-xs text-destructive">Failed to load projects</p>;
+    return (
+      <p className="px-3 py-1.5 text-xs text-destructive">
+        Failed to load projects
+      </p>
+    );
   }
 
   if (!data?.items.length) {
-    return <p className="px-3 py-1.5 text-xs text-muted-foreground">No projects yet</p>;
+    return (
+      <p className="px-3 py-1.5 text-xs text-muted-foreground">
+        No projects yet
+      </p>
+    );
   }
 
   return (

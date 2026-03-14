@@ -159,11 +159,21 @@ export async function createChat(
   data: CreateChatRequest,
 ): Promise<ChatCreateResponse> {
   // TODO: return (await apiClient.post(`/projects/${projectId}/chats`, data)).data
-  void projectId;
-  return {
+  const now = new Date().toISOString();
+  const chat: Chat = {
     thread_id: crypto.randomUUID(),
     title: data.title ?? "New Chat",
-    created_at: new Date().toISOString(),
+    created_at: now,
+    updated_at: now,
+  };
+  if (!MOCK_CHATS[projectId]) {
+    MOCK_CHATS[projectId] = [];
+  }
+  MOCK_CHATS[projectId].push(chat);
+  return {
+    thread_id: chat.thread_id,
+    title: chat.title,
+    created_at: chat.created_at,
   };
 }
 

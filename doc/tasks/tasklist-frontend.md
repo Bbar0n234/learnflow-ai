@@ -23,7 +23,7 @@ React SPA — chat-first интерфейс с sidebar-навигацией. Fea
 | feat-001 | ✅ Done | Scaffold + app shell |
 | feat-002 | ✅ Done | Shared infrastructure (API, state, components) |
 | feat-003 | ✅ Done | Sidebar + projects |
-| feat-004 | 📋 Planned | Chat UI |
+| feat-004 | ✅ Done | Chat UI |
 | feat-005 | 📋 Planned | SSE streaming |
 | feat-006 | 📋 Planned | Sphere + artifacts |
 
@@ -140,30 +140,31 @@ React SPA — chat-first интерфейс с sidebar-навигацией. Fea
 
 **Цель:** реализовать интерфейс чата — список сообщений, рендеринг (user vs assistant), input с отправкой. Работает на mock-данных, без реального стриминга. После итерации — можно открыть чат, увидеть историю, "отправить" сообщение.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Blocked by:** frontend/feat-003
 **Закрывает:** features/chat/ (UI-часть) из frontend.md
 **Ветка:** `feat/004-chat-ui`
 
 #### Состав работ
-- [ ] ChatView — основной контейнер чата (на всю центральную область)
-- [ ] MessageList — список сообщений со скроллом
-- [ ] MessageItem — рендеринг сообщения (user: plain text, assistant: Markdown через MarkdownRenderer)
-- [ ] ChatInput — textarea с отправкой (Enter / кнопка Send)
-- [ ] Автоскролл к последнему сообщению
-- [ ] TanStack Query хуки: useChats, useChat, useCreateChat
-- [ ] Список чатов на табе Chats в ProjectLayout
+- [x] ChatView — основной контейнер чата (на всю центральную область)
+- [x] MessageList — список сообщений со скроллом
+- [x] MessageItem — рендеринг сообщения (user: plain text, assistant: Markdown через MarkdownRenderer)
+- [x] ChatInput — textarea с отправкой (Enter / кнопка Send)
+- [x] Автоскролл к последнему сообщению
+- [x] TanStack Query хуки: useChats, useChat, useCreateChat
+- [x] Список чатов на табе Chats в ProjectLayout
 
 #### Критерии приёмки
-- [ ] Переход в чат (`/projects/:id/chats/:cid`) рендерит историю mock-сообщений
-- [ ] User и assistant сообщения визуально различаются
-- [ ] Assistant-сообщения рендерят Markdown (заголовки, код, списки)
-- [ ] Input позволяет набрать текст и "отправить" (mock: сообщение добавляется в список)
-- [ ] Автоскролл работает при появлении нового сообщения
-- [ ] Создание нового чата из ProjectLayout работает (mock)
+- [x] Переход в чат (`/projects/:id/chats/:cid`) рендерит историю mock-сообщений
+- [x] User и assistant сообщения визуально различаются
+- [x] Assistant-сообщения рендерят Markdown (заголовки, код, списки)
+- [x] Input позволяет набрать текст и "отправить" (mock: сообщение добавляется в список)
+- [x] Автоскролл работает при появлении нового сообщения
+- [x] Создание нового чата из ProjectLayout работает (mock)
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [Plan](iterations/frontend/feat-004-chat-ui/plan.md)
+- [Summary](iterations/frontend/feat-004-chat-ui/summary.md)
 
 ---
 

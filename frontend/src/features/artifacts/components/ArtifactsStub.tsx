@@ -4,7 +4,7 @@ export function ArtifactsStub() {
   const { id } = useParams();
 
   return (
-    <div>
+    <div className="p-6">
       <h2 className="mb-2 text-lg font-semibold">Artifacts</h2>
       <p className="text-muted-foreground">
         Project <code className="rounded bg-muted px-1.5 py-0.5">{id}</code> —

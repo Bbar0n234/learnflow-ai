@@ -39,7 +39,7 @@ export function ProjectLayout() {
           </NavLink>
         </nav>
       </header>
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-hidden">
         <Outlet />
       </div>
     </div>

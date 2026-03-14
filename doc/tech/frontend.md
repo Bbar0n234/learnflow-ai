@@ -268,7 +268,7 @@ frontend/
 │   │   │   ├── components/        — ProjectCard, CreateProjectModal, ProjectList
 │   │   │   └── hooks/             — useProjects, useProject, useCreateProject, useUpdateProject, useDeleteProject
 │   │   ├── chat/
-│   │   │   ├── components/        — ChatView, MessageList, MessageItem, ChatInput, ToolIndicator, ArtifactCard
+│   │   │   ├── components/        — ChatList, ChatView, MessageList, MessageItem, ChatInput, ToolIndicator, ArtifactCard
 │   │   │   └── hooks/             — useChats, useChat, useCreateChat, useRecentChats, useAgentStream
 │   │   ├── sphere/
 │   │   │   ├── components/        — SphereViewer, SphereEditor

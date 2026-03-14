@@ -25,7 +25,7 @@ React SPA — chat-first интерфейс с sidebar-навигацией. Fea
 | feat-003 | ✅ Done | Sidebar + projects |
 | feat-004 | ✅ Done | Chat UI |
 | feat-005 | ✅ Done | SSE streaming |
-| feat-006 | 📋 Planned | Sphere + artifacts |
+| feat-006 | ✅ Done | Sphere + artifacts |
 
 ## Быстро меняющиеся инструменты
 
@@ -207,28 +207,29 @@ React SPA — chat-first интерфейс с sidebar-навигацией. Fea
 
 **Цель:** реализовать Knowledge Sphere (просмотр и редактирование) и Artifacts (список, просмотр, скачивание). После итерации — все feature-модули из frontend.md реализованы.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Blocked by:** frontend/feat-002
 **Закрывает:** features/sphere/, features/artifacts/ из frontend.md
 **Ветка:** `feat/006-sphere-artifacts`
 
 #### Состав работ
-- [ ] SphereViewer — отображение Knowledge Sphere (Markdown render через MarkdownRenderer)
-- [ ] SphereEditor — редактирование (textarea / Markdown editor, кнопка Save → PUT)
-- [ ] Переключение Viewer ↔ Editor
-- [ ] TanStack Query хуки: useSphere, useUpdateSphere
-- [ ] ArtifactList — список артефактов проекта (название, тип, дата)
-- [ ] ArtifactView — просмотр артефакта (Markdown render + кнопки скачивания md/pdf)
-- [ ] Download-функциональность (window.open / `<a href>` на endpoint download)
-- [ ] TanStack Query хуки: useArtifacts, useArtifact
+- [x] SphereViewer — отображение Knowledge Sphere (Markdown render через MarkdownRenderer)
+- [x] SphereEditor — редактирование (textarea / Markdown editor, кнопка Save → PUT)
+- [x] Переключение Viewer ↔ Editor
+- [x] TanStack Query хуки: useSphere, useUpdateSphere
+- [x] ArtifactList — список артефактов проекта (название, тип, дата)
+- [x] ArtifactView — просмотр артефакта (Markdown render + кнопки скачивания md/pdf)
+- [x] Download-функциональность (window.open / `<a href>` на endpoint download)
+- [x] TanStack Query хуки: useArtifacts, useArtifact
 
 #### Критерии приёмки
-- [ ] Таб Sphere в ProjectLayout рендерит Knowledge Sphere из mock-данных
-- [ ] Переключение Viewer → Editor → Save → Viewer работает
-- [ ] Таб Artifacts показывает список артефактов из mock-данных
-- [ ] Клик по артефакту → переход на `/projects/:id/artifacts/:aid`, контент рендерится
-- [ ] Кнопки скачивания (md/pdf) формируют корректный URL на download endpoint
-- [ ] Все хуки типизированы, линтер и TypeScript проходят
+- [x] Таб Sphere в ProjectLayout рендерит Knowledge Sphere из mock-данных
+- [x] Переключение Viewer → Editor → Save → Viewer работает
+- [x] Таб Artifacts показывает список артефактов из mock-данных
+- [x] Клик по артефакту → переход на `/projects/:id/artifacts/:aid`, контент рендерится
+- [x] Кнопки скачивания (md/pdf) формируют корректный URL на download endpoint
+- [x] Все хуки типизированы, линтер и TypeScript проходят
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [Plan](iterations/frontend/feat-006-sphere-artifacts/plan.md)
+- [Summary](iterations/frontend/feat-006-sphere-artifacts/summary.md)

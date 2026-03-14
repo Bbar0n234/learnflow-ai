@@ -4,9 +4,9 @@ import { ProjectLayout } from "./layouts/ProjectLayout";
 import { WelcomePage } from "./components/WelcomePage";
 import { ChatList } from "@/features/chat/components/ChatList";
 import { ChatView } from "@/features/chat/components/ChatView";
-import { SphereStub } from "@/features/sphere/components/SphereStub";
-import { ArtifactsStub } from "@/features/artifacts/components/ArtifactsStub";
-import { ArtifactViewStub } from "@/features/artifacts/components/ArtifactViewStub";
+import { SphereView } from "@/features/sphere/components/SphereView";
+import { ArtifactList } from "@/features/artifacts/components/ArtifactList";
+import { ArtifactView } from "@/features/artifacts/components/ArtifactView";
 
 export function AppRoutes() {
   return (
@@ -16,9 +16,9 @@ export function AppRoutes() {
         <Route path="projects/:id" element={<ProjectLayout />}>
           <Route index element={<ChatList />} />
           <Route path="chats/:cid" element={<ChatView />} />
-          <Route path="sphere" element={<SphereStub />} />
-          <Route path="artifacts" element={<ArtifactsStub />} />
-          <Route path="artifacts/:aid" element={<ArtifactViewStub />} />
+          <Route path="sphere" element={<SphereView />} />
+          <Route path="artifacts" element={<ArtifactList />} />
+          <Route path="artifacts/:aid" element={<ArtifactView />} />
         </Route>
       </Route>
     </Routes>

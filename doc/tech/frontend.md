@@ -273,7 +273,7 @@ frontend/
 │   │   │   ├── components/        — ChatList, ChatView, MessageList, MessageItem, ChatInput, ToolIndicator, ArtifactCard
 │   │   │   └── hooks/             — useChats, useChat, useCreateChat, useRecentChats, useAgentStream
 │   │   ├── sphere/
-│   │   │   ├── components/        — SphereViewer, SphereEditor
+│   │   │   ├── components/        — SphereView, SphereViewer, SphereEditor
 │   │   │   └── hooks/             — useSphere, useUpdateSphere
 │   │   └── artifacts/
 │   │       ├── components/        — ArtifactList, ArtifactView

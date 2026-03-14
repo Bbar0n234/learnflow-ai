@@ -143,9 +143,11 @@ streamStore
 ├── streamingText: string
 ├── activeTool: string | null
 ├── streamingChatId: string | null
+├── streamingArtifacts: StreamingArtifact[]
 ├── startStream(chatId)
 ├── appendText(chunk)
 ├── setTool(name | null)
+├── addArtifact(artifact)
 └── endStream()
 ```
 

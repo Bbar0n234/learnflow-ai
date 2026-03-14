@@ -24,7 +24,7 @@ React SPA — chat-first интерфейс с sidebar-навигацией. Fea
 | feat-002 | ✅ Done | Shared infrastructure (API, state, components) |
 | feat-003 | ✅ Done | Sidebar + projects |
 | feat-004 | ✅ Done | Chat UI |
-| feat-005 | 📋 Planned | SSE streaming |
+| feat-005 | ✅ Done | SSE streaming |
 | feat-006 | 📋 Planned | Sphere + artifacts |
 
 ## Быстро меняющиеся инструменты
@@ -172,33 +172,34 @@ React SPA — chat-first интерфейс с sidebar-навигацией. Fea
 
 **Цель:** реализовать real-time стриминг ответов агента через SSE. Хук useAgentStream, парсинг всех 6 event types, интеграция со stream-store, инкрементальный рендеринг, tool-индикаторы, cancel. Самая технически сложная итерация фронтенда.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Blocked by:** frontend/feat-004
 **Закрывает:** SSE-стриминг из frontend.md, stream-store интеграция
 **Ветка:** `feat/005-sse-streaming`
 
 #### Состав работ
-- [ ] useAgentStream — кастомный хук: native fetch + ReadableStream, парсинг SSE-событий
-- [ ] Обработка всех event types: `text_chunk`, `tool_start`, `tool_end`, `artifact_created`, `done`, `error`
-- [ ] Интеграция со stream-store (appendText, setTool, endStream на каждое событие)
-- [ ] Инкрементальный рендеринг текста в ChatView (streamingText из store → MarkdownRenderer)
-- [ ] ToolIndicator — компонент индикации вызова tool (название tool, спиннер)
-- [ ] ArtifactCard inline в чате (по событию `artifact_created`)
-- [ ] Кнопка Cancel (POST /cancel через axios, закрытие стрима)
-- [ ] Инвалидация TanStack Query: chat query + recents на `done`, artifacts на `artifact_created`
-- [ ] Замена mock-отправки сообщений из feat-004 на реальный SSE-поток (или mock SSE для автономной работы)
+- [x] useAgentStream — кастомный хук: native fetch + ReadableStream, парсинг SSE-событий
+- [x] Обработка всех event types: `text_chunk`, `tool_start`, `tool_end`, `artifact_created`, `done`, `error`
+- [x] Интеграция со stream-store (appendText, setTool, endStream на каждое событие)
+- [x] Инкрементальный рендеринг текста в ChatView (streamingText из store → MarkdownRenderer)
+- [x] ToolIndicator — компонент индикации вызова tool (название tool, спиннер)
+- [x] ArtifactCard inline в чате (по событию `artifact_created`)
+- [x] Кнопка Cancel (POST /cancel через axios, закрытие стрима)
+- [x] Инвалидация TanStack Query: chat query + recents на `done`, artifacts на `artifact_created`
+- [x] Замена mock-отправки сообщений из feat-004 на реальный SSE-поток (или mock SSE для автономной работы)
 
 #### Критерии приёмки
-- [ ] Отправка сообщения инициирует SSE-соединение (или mock SSE stream)
-- [ ] Текст появляется инкрементально (чанк за чанком), не целиком
-- [ ] При `tool_start` отображается индикатор, при `tool_end` — скрывается
-- [ ] При `artifact_created` в чате появляется карточка артефакта
-- [ ] Cancel прерывает стрим, UI возвращается в idle-состояние
-- [ ] После `done` — chat query инвалидируется, полное сообщение загружается с сервера
-- [ ] Ошибки SSE (`error` event) отображаются пользователю
+- [x] Отправка сообщения инициирует SSE-соединение (или mock SSE stream)
+- [x] Текст появляется инкрементально (чанк за чанком), не целиком
+- [x] При `tool_start` отображается индикатор, при `tool_end` — скрывается
+- [x] При `artifact_created` в чате появляется карточка артефакта
+- [x] Cancel прерывает стрим, UI возвращается в idle-состояние
+- [x] После `done` — chat query инвалидируется, полное сообщение загружается с сервера
+- [x] Ошибки SSE (`error` event) отображаются пользователю
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [Plan](iterations/frontend/feat-005-sse-streaming/plan.md)
+- [Summary](iterations/frontend/feat-005-sse-streaming/summary.md)
 
 ---
 

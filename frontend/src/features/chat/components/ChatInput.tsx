@@ -1,14 +1,21 @@
 import { useState, type KeyboardEvent } from "react";
-import { SendHorizontal } from "lucide-react";
+import { SendHorizontal, Square } from "lucide-react";
 import { Textarea } from "@/shared/ui/textarea";
 import { Button } from "@/shared/ui/button";
 
 interface ChatInputProps {
   onSend: (content: string) => void;
   disabled?: boolean;
+  isStreaming?: boolean;
+  onCancel?: () => void;
 }
 
-export function ChatInput({ onSend, disabled }: ChatInputProps) {
+export function ChatInput({
+  onSend,
+  disabled,
+  isStreaming,
+  onCancel,
+}: ChatInputProps) {
   const [value, setValue] = useState("");
 
   const trimmed = value.trim();
@@ -34,16 +41,22 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Type a message..."
-          disabled={disabled}
+          disabled={disabled || isStreaming}
           className="min-h-10 resize-none"
         />
-        <Button
-          size="icon"
-          onClick={handleSend}
-          disabled={disabled || !trimmed}
-        >
-          <SendHorizontal className="h-4 w-4" />
-        </Button>
+        {isStreaming ? (
+          <Button size="icon" variant="destructive" onClick={onCancel}>
+            <Square className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button
+            size="icon"
+            onClick={handleSend}
+            disabled={disabled || !trimmed}
+          >
+            <SendHorizontal className="h-4 w-4" />
+          </Button>
+        )}
       </div>
     </div>
   );

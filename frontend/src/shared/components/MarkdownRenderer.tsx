@@ -17,6 +17,7 @@ export function MarkdownRenderer({
   return (
     <Streamdown
       plugins={{ code, math, mermaid }}
+      mode={isStreaming ? "streaming" : "static"}
       animated={isStreaming}
       isAnimating={isStreaming}
     >

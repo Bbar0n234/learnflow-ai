@@ -1,3 +1,4 @@
+// TODO: import { apiClient } from "./client";
 import type {
   Chat,
   ChatCreateResponse,
@@ -180,4 +181,202 @@ export async function createChat(
 export async function getRecentChats(): Promise<ListResponse<RecentChat>> {
   // TODO: return (await apiClient.get("/chats/recent")).data
   return { items: MOCK_RECENT_CHATS };
+}
+
+// --- Cancel ---
+
+const cancelledChats = new Set<string>();
+
+export async function cancelChat(
+  projectId: string,
+  chatId: string,
+): Promise<{ ok: true }> {
+  // TODO: return (await apiClient.post(`/projects/${projectId}/chats/${chatId}/cancel`)).data
+  void projectId;
+  cancelledChats.add(chatId);
+  return { ok: true };
+}
+
+// --- Mock SSE streaming ---
+
+const MOCK_RESPONSE_TEXT = `## Ответ агента
+
+Вот что я нашёл по вашему вопросу:
+
+1. **Первый пункт** — базовое объяснение концепции
+2. **Второй пункт** — практические примеры
+
+\`\`\`typescript
+function example() {
+  return "Hello from agent!";
+}
+\`\`\`
+
+Надеюсь, это помогло! Давайте разберём подробнее.`;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function encodeSSE(data: object): Uint8Array {
+  return new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`);
+}
+
+export function mockSendMessage(
+  projectId: string,
+  chatId: string,
+  content: string,
+  abortSignal?: AbortSignal,
+): ReadableStream<Uint8Array> {
+  // Ensure MOCK_CHAT_DETAIL entry exists
+  if (!MOCK_CHAT_DETAIL[chatId]) {
+    const chatEntry = Object.values(MOCK_CHATS)
+      .flat()
+      .find((c) => c.thread_id === chatId);
+    MOCK_CHAT_DETAIL[chatId] = {
+      thread_id: chatId,
+      title: chatEntry?.title ?? "New Chat",
+      messages: [],
+    };
+  }
+
+  // Add user message
+  const userMsg = {
+    id: crypto.randomUUID(),
+    role: "user" as const,
+    content,
+    created_at: new Date().toISOString(),
+  };
+  MOCK_CHAT_DETAIL[chatId].messages.push(userMsg);
+
+  // Clear cancel flag
+  cancelledChats.delete(chatId);
+
+  void projectId;
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const chunks = MOCK_RESPONSE_TEXT.match(/.{1,30}/gs) ?? [];
+
+      // Phase 1: first half of text chunks
+      const midpoint = Math.ceil(chunks.length / 2);
+      for (let i = 0; i < midpoint; i++) {
+        if (abortSignal?.aborted) {
+          controller.close();
+          return;
+        }
+        if (cancelledChats.has(chatId)) {
+          controller.enqueue(
+            encodeSSE({ type: "error", detail: "Generation cancelled" }),
+          );
+          cancelledChats.delete(chatId);
+          controller.close();
+          return;
+        }
+        controller.enqueue(
+          encodeSSE({ type: "text_chunk", content: chunks[i] }),
+        );
+        await delay(100);
+      }
+
+      // Phase 2: tool use
+      if (abortSignal?.aborted) {
+        controller.close();
+        return;
+      }
+      if (cancelledChats.has(chatId)) {
+        controller.enqueue(
+          encodeSSE({ type: "error", detail: "Generation cancelled" }),
+        );
+        cancelledChats.delete(chatId);
+        controller.close();
+        return;
+      }
+      controller.enqueue(
+        encodeSSE({
+          type: "tool_start",
+          tool: "knowledge_search",
+          call_id: "call-1",
+        }),
+      );
+      await delay(1500);
+
+      if (abortSignal?.aborted) {
+        controller.close();
+        return;
+      }
+      if (cancelledChats.has(chatId)) {
+        controller.enqueue(
+          encodeSSE({ type: "error", detail: "Generation cancelled" }),
+        );
+        cancelledChats.delete(chatId);
+        controller.close();
+        return;
+      }
+      controller.enqueue(
+        encodeSSE({
+          type: "tool_end",
+          tool: "knowledge_search",
+          call_id: "call-1",
+        }),
+      );
+
+      // Phase 3: remaining text chunks
+      for (let i = midpoint; i < chunks.length; i++) {
+        if (abortSignal?.aborted) {
+          controller.close();
+          return;
+        }
+        if (cancelledChats.has(chatId)) {
+          controller.enqueue(
+            encodeSSE({ type: "error", detail: "Generation cancelled" }),
+          );
+          cancelledChats.delete(chatId);
+          controller.close();
+          return;
+        }
+        controller.enqueue(
+          encodeSSE({ type: "text_chunk", content: chunks[i] }),
+        );
+        await delay(100);
+      }
+
+      // Phase 4: artifact
+      if (abortSignal?.aborted) {
+        controller.close();
+        return;
+      }
+      if (cancelledChats.has(chatId)) {
+        controller.enqueue(
+          encodeSSE({ type: "error", detail: "Generation cancelled" }),
+        );
+        cancelledChats.delete(chatId);
+        controller.close();
+        return;
+      }
+      controller.enqueue(
+        encodeSSE({
+          type: "artifact_created",
+          id: crypto.randomUUID(),
+          title: "Конспект по теме",
+          artifact_type: "note",
+        }),
+      );
+      await delay(500);
+
+      // Phase 5: done
+      const assistantMsg = {
+        id: crypto.randomUUID(),
+        role: "assistant" as const,
+        content: MOCK_RESPONSE_TEXT,
+        created_at: new Date().toISOString(),
+      };
+      MOCK_CHAT_DETAIL[chatId]!.messages.push(assistantMsg);
+
+      controller.enqueue(
+        encodeSSE({ type: "done", message_id: assistantMsg.id }),
+      );
+      controller.close();
+    },
+  });
 }

@@ -35,9 +35,11 @@ export async function updateSphere(
   data: UpdateSphereRequest,
 ): Promise<Sphere> {
   // TODO: return (await apiClient.put(`/projects/${projectId}/sphere`, data)).data
-  return {
+  const updated: Sphere = {
     project_id: projectId,
     content: data.content,
     updated_at: new Date().toISOString(),
   };
+  MOCK_SPHERE[projectId] = updated;
+  return updated;
 }

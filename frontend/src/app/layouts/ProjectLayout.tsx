@@ -1,12 +1,16 @@
 import { Outlet, NavLink, useParams } from "react-router";
+import { useProject } from "@/features/projects/hooks/useProject";
 
 export function ProjectLayout() {
   const { id } = useParams();
+  const { data: project, isLoading } = useProject(id!);
+
+  const projectName = isLoading ? "Loading..." : (project?.name ?? id);
 
   return (
     <div className="flex h-full flex-col">
       <header className="border-b border-border px-6 py-4">
-        <h1 className="mb-3 text-xl font-semibold">Project: {id}</h1>
+        <h1 className="mb-3 text-xl font-semibold">{projectName}</h1>
         <nav className="flex gap-4">
           <NavLink
             to={`/projects/${id}`}

@@ -1,28 +1,34 @@
-import { Outlet, Link } from "react-router";
+import { Outlet } from "react-router";
+import { PanelLeft } from "lucide-react";
+import { cn } from "@/shared/lib/utils";
+import { Button } from "@/shared/ui/button";
+import { useUIStore } from "@/stores/ui-store";
+import { Sidebar } from "../components/Sidebar";
 
 export function AppLayout() {
+  const { sidebarOpen, toggleSidebar } = useUIStore();
+
   return (
     <div className="flex h-screen">
-      <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-sidebar p-4">
-        <h2 className="mb-4 text-lg font-semibold text-sidebar-foreground">
-          LearnFlowAI
-        </h2>
-        <nav className="flex flex-col gap-2">
-          <Link
-            to="/"
-            className="rounded-md px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent"
-          >
-            Home
-          </Link>
-          <Link
-            to="/projects/demo"
-            className="rounded-md px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent"
-          >
-            Demo Project
-          </Link>
-        </nav>
+      <aside
+        className={cn(
+          "shrink-0 border-r border-border bg-sidebar transition-all duration-200 overflow-hidden",
+          sidebarOpen ? "w-64" : "w-0 border-r-0",
+        )}
+      >
+        <Sidebar />
       </aside>
       <main className="flex-1 overflow-auto">
+        {!sidebarOpen && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={toggleSidebar}
+            className="absolute top-3 left-3 z-10"
+          >
+            <PanelLeft className="h-4 w-4" />
+          </Button>
+        )}
         <Outlet />
       </main>
     </div>

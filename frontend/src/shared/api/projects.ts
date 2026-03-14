@@ -6,9 +6,9 @@ import type {
   UpdateProjectRequest,
 } from "./types";
 
-// --- Mock data ---
+// --- Mock data (mutable for create/delete support) ---
 
-const MOCK_PROJECTS: Project[] = [
+let mockProjects: Project[] = [
   {
     id: "proj-1",
     name: "Distributed Systems Lecture",
@@ -33,23 +33,29 @@ const MOCK_PROJECTS: Project[] = [
 
 export async function getProjects(): Promise<ListResponse<Project>> {
   // TODO: return (await apiClient.get("/projects")).data
-  return { items: MOCK_PROJECTS };
+  return { items: mockProjects };
 }
 
 export async function getProject(id: string): Promise<Project> {
   // TODO: return (await apiClient.get(`/projects/${id}`)).data
-  return MOCK_PROJECTS.find((p) => p.id === id) ?? MOCK_PROJECTS[0]!;
+  const project = mockProjects.find((p) => p.id === id);
+  if (!project) throw new Error(`Project not found: ${id}`);
+  return project;
 }
 
 export async function createProject(
   data: CreateProjectRequest,
 ): Promise<ProjectCreateResponse> {
   // TODO: return (await apiClient.post("/projects", data)).data
-  return {
+  const now = new Date().toISOString();
+  const project: Project = {
     id: crypto.randomUUID(),
     name: data.name,
-    created_at: new Date().toISOString(),
+    created_at: now,
+    updated_at: now,
   };
+  mockProjects.push(project);
+  return { id: project.id, name: project.name, created_at: project.created_at };
 }
 
 export async function updateProject(
@@ -67,5 +73,5 @@ export async function updateProject(
 
 export async function deleteProject(id: string): Promise<void> {
   // TODO: await apiClient.delete(`/projects/${id}`)
-  console.log(`[Mock] deleteProject: ${id}`);
+  mockProjects = mockProjects.filter((p) => p.id !== id);
 }

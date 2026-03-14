@@ -22,7 +22,7 @@ React SPA — chat-first интерфейс с sidebar-навигацией. Fea
 |----------|--------|-----------|
 | feat-001 | ✅ Done | Scaffold + app shell |
 | feat-002 | ✅ Done | Shared infrastructure (API, state, components) |
-| feat-003 | 📋 Planned | Sidebar + projects |
+| feat-003 | ✅ Done | Sidebar + projects |
 | feat-004 | 📋 Planned | Chat UI |
 | feat-005 | 📋 Planned | SSE streaming |
 | feat-006 | 📋 Planned | Sphere + artifacts |
@@ -109,29 +109,30 @@ React SPA — chat-first интерфейс с sidebar-навигацией. Fea
 
 **Цель:** реализовать sidebar-навигацию (список проектов, recent chats, кнопки создания) и ProjectLayout с табами. После итерации — полноценная навигация по приложению, создание проектов.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Blocked by:** frontend/feat-002
 **Закрывает:** features/projects/, Sidebar, ProjectLayout из frontend.md
 **Ветка:** `feat/003-sidebar-projects`
 
 #### Состав работ
-- [ ] Sidebar (замена заглушки из feat-001): список проектов, секция recents, кнопка New Project, кнопка New Chat (активна только в контексте проекта — project_id из URL)
-- [ ] ProjectList в sidebar (карточки проектов)
-- [ ] CreateProjectModal (Dialog + input название + кнопка создания)
-- [ ] ProjectLayout — обёртка project-level маршрутов: имя проекта, табы Chats / Sphere / Artifacts
-- [ ] TanStack Query хуки: useProjects, useProject, useCreateProject, useUpdateProject, useDeleteProject, useRecentChats
-- [ ] Интеграция sidebar toggle с Zustand ui-store
+- [x] Sidebar (замена заглушки из feat-001): список проектов, секция recents, кнопка New Project, кнопка New Chat (активна только в контексте проекта — project_id из URL)
+- [x] ProjectList в sidebar (карточки проектов)
+- [x] CreateProjectModal (Dialog + input название + кнопка создания)
+- [x] ProjectLayout — обёртка project-level маршрутов: имя проекта, табы Chats / Sphere / Artifacts
+- [x] TanStack Query хуки: useProjects, useProject, useCreateProject, useUpdateProject, useDeleteProject, useRecentChats
+- [x] Интеграция sidebar toggle с Zustand ui-store
 
 #### Критерии приёмки
-- [ ] Sidebar отображает список проектов из mock-данных
-- [ ] Клик по проекту в sidebar → навигация на `/projects/:id`
-- [ ] CreateProjectModal открывается, создаёт проект (mock), проект появляется в sidebar
-- [ ] ProjectLayout рендерит табы, переключение табов работает (Chats / Sphere / Artifacts)
-- [ ] Recent chats отображаются в sidebar, клик → навигация в чат
-- [ ] Sidebar складывается/разворачивается (toggle)
+- [x] Sidebar отображает список проектов из mock-данных
+- [x] Клик по проекту в sidebar → навигация на `/projects/:id`
+- [x] CreateProjectModal открывается, создаёт проект (mock), проект появляется в sidebar
+- [x] ProjectLayout рендерит табы, переключение табов работает (Chats / Sphere / Artifacts)
+- [x] Recent chats отображаются в sidebar, клик → навигация в чат
+- [x] Sidebar складывается/разворачивается (toggle)
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [Plan](iterations/frontend/feat-003-sidebar-projects/plan.md)
+- [Summary](iterations/frontend/feat-003-sidebar-projects/summary.md)
 
 ---
 

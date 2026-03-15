@@ -64,6 +64,7 @@ export function useAgentStream(
           const reader = response.body!.getReader();
           const decoder = new TextDecoder();
           let buffer = "";
+          let terminated = false;
 
           for (;;) {
             const { done, value } = await reader.read();
@@ -100,6 +101,7 @@ export function useAgentStream(
                   });
                   break;
                 case "done":
+                  terminated = true;
                   endStream();
                   queryClient.invalidateQueries({
                     queryKey: ["projects", projectId, "chats", chatId],
@@ -110,6 +112,7 @@ export function useAgentStream(
                   optionsRef.current?.onDone?.();
                   break;
                 case "error":
+                  terminated = true;
                   endStream();
                   if (!isCancellingRef.current) {
                     optionsRef.current?.onError?.(event.detail);
@@ -118,8 +121,16 @@ export function useAgentStream(
               }
             }
           }
+
+          if (!terminated) {
+            endStream();
+            optionsRef.current?.onError?.("Connection lost");
+          }
         } catch (err) {
-          if (err instanceof DOMException && err.name === "AbortError") return;
+          if (err instanceof DOMException && err.name === "AbortError") {
+            if (isCancellingRef.current) endStream();
+            return;
+          }
           console.error("[SSE stream error]", err);
           endStream();
           optionsRef.current?.onError?.(
@@ -133,7 +144,14 @@ export function useAgentStream(
 
   const cancel = useCallback(() => {
     isCancellingRef.current = true;
-    cancelChat(projectId, chatId);
+    cancelChat(projectId, chatId)
+      .then(({ ok }) => {
+        if (!ok) abortRef.current?.abort();
+      })
+      .catch((err) => {
+        console.error("[cancel error]", err);
+        abortRef.current?.abort();
+      });
   }, [projectId, chatId]);
 
   return { send, cancel };

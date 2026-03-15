@@ -23,7 +23,7 @@
 | feat-001 | ✅ Done | Backend internal wiring (stubs → real) |
 | fix-001 | ✅ Done | Contract alignment (frontend ↔ backend mismatches) |
 | feat-002 | ✅ Done | Frontend → Backend connection (mocks → real) + MVP auth UI |
-| feat-003 | 📋 Planned | SSE Streaming E2E |
+| feat-003 | ✅ Done | SSE Streaming E2E |
 | feat-004 | 📋 Planned | Docker full stack |
 | feat-005 | 📋 Planned | E2E scenarios + polish |
 
@@ -163,28 +163,29 @@ Frontend определяет `ProjectCreateResponse` и `ChatCreateResponse` (�
 
 **Цель:** сквозной стриминг от пользовательского ввода до инкрементального рендеринга в UI. Самая критичная точка интеграции — все 6 event types, cancel, error handling.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Blocked by:** integration/feat-002
 **Закрывает:** SSE end-to-end (frontend SSE client ↔ backend SSE endpoint ↔ LangGraph stream)
 **Ветка:** `feat/003-sse-e2e`
 
 #### Состав работ
-- [ ] useAgentStream подключён к реальному SSE endpoint бэкенда
-- [ ] Верификация всех event types: text_chunk (инкрементальный рендеринг), tool_start/tool_end (индикаторы), artifact_created (карточка + инвалидация), done (инвалидация chat query + recents), error (UI feedback)
-- [ ] Cancel E2E: кнопка Cancel → POST /cancel → сервер отправляет error event → стрим закрывается → UI в idle
-- [ ] TanStack Query инвалидация после done и artifact_created (полное сообщение с сервера)
-- [ ] Error handling: ошибки LLM, сетевые разрывы, таймауты — graceful degradation в UI
+- [x] useAgentStream подключён к реальному SSE endpoint бэкенда
+- [x] Верификация всех event types: text_chunk (инкрементальный рендеринг), tool_start/tool_end (индикаторы), artifact_created (карточка + инвалидация), done (инвалидация chat query + recents), error (UI feedback)
+- [x] Cancel E2E: кнопка Cancel → POST /cancel → сервер отправляет error event → стрим закрывается → UI в idle
+- [x] TanStack Query инвалидация после done и artifact_created (полное сообщение с сервера)
+- [ ] Error handling: ошибки LLM, сетевые разрывы, таймауты — graceful degradation в UI (код на месте, E2E не верифицирован)
 
 #### Критерии приёмки
-- [ ] Отправка сообщения → текст появляется инкрементально (чанк за чанком)
-- [ ] При вызове tool агентом — индикатор появляется и исчезает корректно
-- [ ] При создании артефакта — карточка в чате, список артефактов обновляется
-- [ ] Cancel прерывает генерацию, UI возвращается в idle без ошибок
-- [ ] После done — chat query инвалидируется, полное сообщение загружается с сервера
-- [ ] Сетевой разрыв во время стриминга — пользователь видит сообщение об ошибке, UI не зависает
+- [x] Отправка сообщения → текст появляется инкрементально (чанк за чанком)
+- [x] При вызове tool агентом — индикатор появляется и исчезает корректно
+- [x] При создании артефакта — карточка в чате, список артефактов обновляется
+- [x] Cancel прерывает генерацию, UI возвращается в idle без ошибок
+- [x] После done — chat query инвалидируется, полное сообщение загружается с сервера
+- [ ] Сетевой разрыв во время стриминга — пользователь видит сообщение об ошибке, UI не зависает (код на месте, E2E не верифицирован)
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [plan.md](iterations/integration/feat-003-sse-e2e/plan.md)
+- [summary.md](iterations/integration/feat-003-sse-e2e/summary.md)
 
 ---
 

@@ -19,12 +19,12 @@ format:  ## Format Python code
 	uv run ruff format .
 
 type-check:  ## Run mypy type checking
-	uv run mypy backend/
+	uv run --package learnflow-backend mypy backend/
 
 check:  ## Run all backend checks (CI gate)
 	uv run ruff check .
 	uv run ruff format --check .
-	uv run mypy backend/
+	uv run --package learnflow-backend mypy backend/
 
 lint-fe:  ## Run ESLint on frontend
 	cd frontend && npx eslint .
@@ -42,7 +42,7 @@ dev-fe:  ## Run frontend dev server
 	cd frontend && npx vite
 
 test:  ## Run pytest
-	$(LOAD_ENV) && uv run pytest -c backend/pyproject.toml --rootdir backend
+	$(LOAD_ENV) && uv run --package learnflow-backend pytest -c backend/pyproject.toml --rootdir backend
 
 migrate:  ## Run alembic upgrade head
 	$(LOAD_ENV) && uv run alembic -c backend/alembic.ini upgrade head

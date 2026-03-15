@@ -20,7 +20,7 @@
 
 | Итерация | Статус | Закрывает |
 |----------|--------|-----------|
-| feat-001 | 📋 Planned | Backend internal wiring (stubs → real) |
+| feat-001 | ✅ Done | Backend internal wiring (stubs → real) |
 | fix-001 | 📋 Planned | Contract alignment (frontend ↔ backend mismatches) |
 | feat-002 | 📋 Planned | Frontend → Backend connection (mocks → real) + MVP auth UI |
 | feat-003 | 📋 Planned | SSE Streaming E2E |
@@ -41,7 +41,7 @@
 
 **Цель:** заменить стабы в Service Layer реальными реализациями из Agent Runtime. После итерации — через API можно отправить сообщение и получить реальный ответ LLM со стримингом.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Blocked by:** backend-core/feat-005, agent/feat-002
 **Закрывает:** интеграция Backend Core ↔ Agent Runtime
 **Ветка:** `feat/001-backend-wiring`
@@ -53,21 +53,22 @@
 > Если всё подтверждается — итерация закрывается без кодовых изменений (только удаление мёртвого кода `StubAgentRunner`).
 
 #### Состав работ
-- [ ] Верификация wiring: убедиться, что deps.py инжектит реальные реализации (не стабы)
-- [ ] Smoke test: POST message через curl/httpie → SSE stream с реальным LLM-ответом
-- [ ] Smoke test: GET/PUT sphere → данные из LangGraph Store
-- [ ] Smoke test: диалог сохраняется (повторный запрос видит историю)
-- [ ] Удаление мёртвого кода (`StubAgentRunner` в `services/agent_runner.py`) если не используется
+- [x] Верификация wiring: убедиться, что deps.py инжектит реальные реализации (не стабы)
+- [x] Smoke test: POST message через curl/httpie → SSE stream с реальным LLM-ответом
+- [x] Smoke test: GET/PUT sphere → данные из LangGraph Store
+- [x] Smoke test: диалог сохраняется (повторный запрос видит историю)
+- [x] Удаление мёртвого кода (`StubAgentRunner` в `services/agent_runner.py`) если не используется
 
 #### Критерии приёмки
-- [ ] POST /messages возвращает SSE-поток с реальными text_chunk от LLM
-- [ ] GET /sphere возвращает Knowledge Sphere из LangGraph Store
-- [ ] PUT /sphere записывает данные в Store, повторный GET отражает изменения
-- [ ] Диалог сохраняется: повторный запрос в тот же чат видит историю
-- [ ] `make lint && make type-check` проходят
+- [x] POST /messages возвращает SSE-поток с реальными text_chunk от LLM
+- [x] GET /sphere возвращает Knowledge Sphere из LangGraph Store
+- [x] PUT /sphere записывает данные в Store, повторный GET отражает изменения
+- [x] Диалог сохраняется: повторный запрос в тот же чат видит историю
+- [x] `make lint && make type-check` проходят
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [plan.md](iterations/integration/feat-001-backend-wiring/plan.md)
+- [summary.md](iterations/integration/feat-001-backend-wiring/summary.md)
 
 ---
 

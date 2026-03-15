@@ -46,24 +46,3 @@ class AgentRunner(Protocol):
         *,
         thread_id: uuid.UUID,
     ) -> bool: ...
-
-
-class StubAgentRunner:
-    async def stream(
-        self,
-        *,
-        thread_id: uuid.UUID,
-        content: str,
-        project_id: uuid.UUID,
-        user_id: uuid.UUID,
-    ) -> AsyncIterator[StreamEvent]:
-        yield StreamEvent(
-            type="text_chunk", data={"content": f"Stub response to: {content}"}
-        )
-        yield StreamEvent(type="done", data={})
-
-    async def get_history(self, *, thread_id: uuid.UUID) -> list[Message]:
-        return []
-
-    async def cancel(self, *, thread_id: uuid.UUID) -> bool:
-        return True

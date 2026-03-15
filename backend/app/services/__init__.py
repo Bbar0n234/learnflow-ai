@@ -1,4 +1,4 @@
-from app.services.agent_runner import AgentRunner, Message, StreamEvent, StubAgentRunner
+from app.services.agent_runner import AgentRunner, Message, StreamEvent
 from app.services.artifact import ArtifactService
 from app.services.chat import ChatDetail, ChatService
 from app.services.exceptions import EntityNotFoundError
@@ -21,5 +21,4 @@ __all__ = [
     "SphereData",
     "SphereService",
     "StreamEvent",
-    "StubAgentRunner",
 ]

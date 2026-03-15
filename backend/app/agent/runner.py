@@ -43,12 +43,16 @@ class LangGraphAgentRunner:
             project_id=str(project_id),
             user_id=str(user_id),
         )
-        input_msg = {"messages": [
-            HumanMessage(
-                content=content,
-                additional_kwargs={"created_at": datetime.now(timezone.utc).isoformat()},
-            )
-        ]}
+        input_msg = {
+            "messages": [
+                HumanMessage(
+                    content=content,
+                    additional_kwargs={
+                        "created_at": datetime.now(timezone.utc).isoformat()
+                    },
+                )
+            ]
+        }
 
         try:
             async for mode, data in self._graph.astream(
@@ -159,9 +163,7 @@ class LangGraphAgentRunner:
                 id=str(m.id),
                 role="user" if isinstance(m, HumanMessage) else "assistant",
                 content=m.content if isinstance(m.content, str) else "",
-                created_at=_parse_created_at(
-                    m.additional_kwargs.get("created_at")
-                ),
+                created_at=_parse_created_at(m.additional_kwargs.get("created_at")),
             )
             for m in messages
             if isinstance(m, (HumanMessage, AIMessage))

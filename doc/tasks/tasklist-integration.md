@@ -24,7 +24,7 @@
 | fix-001 | ✅ Done | Contract alignment (frontend ↔ backend mismatches) |
 | feat-002 | ✅ Done | Frontend → Backend connection (mocks → real) + MVP auth UI |
 | feat-003 | ✅ Done | SSE Streaming E2E |
-| feat-004 | 📋 Planned | Docker full stack |
+| feat-004 | ✅ Done | Docker full stack |
 | feat-005 | 📋 Planned | E2E scenarios + polish |
 
 ## Быстро меняющиеся инструменты
@@ -193,28 +193,29 @@ Frontend определяет `ProjectCreateResponse` и `ChatCreateResponse` (�
 
 **Цель:** полный стек в docker-compose. `make docker-up` → рабочее приложение в браузере.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Blocked by:** integration/feat-003
 **Закрывает:** контейнеризация всех сервисов, production-ready запуск
 **Ветка:** `feat/004-docker-stack`
 
 #### Состав работ
-- [ ] Backend Dockerfile (production: uvicorn, multi-stage build)
-- [ ] Frontend: build + static serving (конкретный подход — при реализации, без nginx)
-- [ ] docker-compose.yml: backend + frontend + PostgreSQL (volumes, networks, depends_on)
-- [ ] Environment configuration для Docker-режима (.env)
-- [ ] Health checks (backend readiness: DB connection)
-- [ ] Makefile: `docker-up`, `docker-down`, `docker-build` — полный стек
+- [x] Backend Dockerfile (production: uvicorn, multi-stage build)
+- [x] Frontend: build + static serving (конкретный подход — при реализации, без nginx)
+- [x] docker-compose.yml: backend + frontend + PostgreSQL (volumes, networks, depends_on)
+- [x] Environment configuration для Docker-режима (.env)
+- [x] Health checks (backend readiness: DB connection)
+- [x] Makefile: `docker-up`, `docker-down`, `docker-build` — полный стек
 
 #### Критерии приёмки
-- [ ] `make docker-build && make docker-up` → все сервисы поднимаются без ошибок
-- [ ] Приложение доступно в браузере, можно создать проект и отправить сообщение
-- [ ] Данные персистятся между перезапусками (PostgreSQL volume)
-- [ ] `make docker-down` корректно останавливает всё
-- [ ] Новый разработчик может запустить проект по README (clone → env → docker-up)
+- [x] `make docker-build && make docker-up` → все сервисы поднимаются без ошибок
+- [x] Приложение доступно в браузере, можно создать проект и отправить сообщение
+- [x] Данные персистятся между перезапусками (PostgreSQL volume)
+- [x] `make docker-down` корректно останавливает всё
+- [x] Новый разработчик может запустить проект по README (clone → env → docker-up)
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [plan.md](iterations/integration/feat-004-docker-stack/plan.md)
+- [summary.md](iterations/integration/feat-004-docker-stack/summary.md)
 
 ---
 

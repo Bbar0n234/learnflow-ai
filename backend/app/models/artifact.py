@@ -36,7 +36,9 @@ class Artifact(Base):
     type: Mapped[str] = mapped_column(String(50))
     content: Mapped[str] = mapped_column(Text)
     message_id: Mapped[str | None] = mapped_column(
-        String(100), nullable=True, index=True,
+        String(100),
+        nullable=True,
+        index=True,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

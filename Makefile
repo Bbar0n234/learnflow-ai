@@ -1,9 +1,12 @@
-.PHONY: docker-up docker-down docker-build lint format type-check check lint-fe format-fe dev dev-remote dev-fe test migrate migration downgrade
+.PHONY: docker-up docker-up-db docker-down docker-build docker-logs lint format type-check check lint-fe format-fe dev dev-remote dev-fe test migrate migration downgrade
 
 # Load .env (base) then .env.local (overrides) into shell environment
 LOAD_ENV = set -a && [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; set +a
 
-docker-up:  ## Start PostgreSQL
+docker-up:  ## Start full stack (app + db)
+	docker compose up -d
+
+docker-up-db:  ## Start only PostgreSQL (for local dev)
 	docker compose up -d db
 
 docker-down:  ## Stop all containers
@@ -11,6 +14,9 @@ docker-down:  ## Stop all containers
 
 docker-build:  ## Build Docker images
 	docker compose build
+
+docker-logs:  ## Show app container logs
+	docker compose logs -f app
 
 lint:  ## Run ruff linter
 	uv run ruff check .

@@ -27,4 +27,5 @@ class ArtifactDetailResponse(BaseModel):
     type: str
     content: str
     thread_id: uuid.UUID | None
+    message_id: str | None = None
     created_at: datetime

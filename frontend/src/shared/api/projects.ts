@@ -2,7 +2,6 @@ import type {
   CreateProjectRequest,
   ListResponse,
   Project,
-  ProjectCreateResponse,
   UpdateProjectRequest,
 } from "./types";
 
@@ -45,7 +44,7 @@ export async function getProject(id: string): Promise<Project> {
 
 export async function createProject(
   data: CreateProjectRequest,
-): Promise<ProjectCreateResponse> {
+): Promise<Project> {
   // TODO: return (await apiClient.post("/projects", data)).data
   const now = new Date().toISOString();
   const project: Project = {
@@ -55,7 +54,7 @@ export async function createProject(
     updated_at: now,
   };
   mockProjects.push(project);
-  return { id: project.id, name: project.name, created_at: project.created_at };
+  return project;
 }
 
 export async function updateProject(

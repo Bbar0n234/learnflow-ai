@@ -87,7 +87,7 @@ export function useAgentStream(
                   addArtifact({
                     id: event.id,
                     title: event.title,
-                    artifact_type: event.artifact_type,
+                    type: event.artifact_type,
                   });
                   queryClient.invalidateQueries({
                     queryKey: ["projects", projectId, "artifacts"],

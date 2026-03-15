@@ -64,6 +64,7 @@ def get_chat_service(session: DBSession, request: Request) -> ChatService:
     return ChatService(
         thread_view_repo=ThreadViewRepository(session),
         agent_runner=request.app.state.agent_runner,
+        artifact_repo=ArtifactRepository(session),
     )
 
 

@@ -1,7 +1,7 @@
 // TODO: import { apiClient } from "./client";
 import type {
+  Artifact,
   Chat,
-  ChatCreateResponse,
   ChatDetail,
   CreateChatRequest,
   ListResponse,
@@ -65,6 +65,7 @@ const MOCK_CHAT_DETAIL: Record<string, ChatDetail> = {
         role: "user",
         content: "Explain the CAP theorem in simple terms",
         created_at: "2025-12-15T14:00:00Z",
+        artifacts: [],
       },
       {
         id: "msg-2",
@@ -72,12 +73,21 @@ const MOCK_CHAT_DETAIL: Record<string, ChatDetail> = {
         content:
           "## CAP Theorem\n\nThe CAP theorem states that a distributed system can only guarantee **two out of three** properties simultaneously:\n\n- **Consistency** — every read receives the most recent write\n- **Availability** — every request receives a response\n- **Partition Tolerance** — the system continues to operate despite network partitions\n\n```typescript\ntype CAPChoice = \n  | 'CP' // Consistency + Partition Tolerance\n  | 'AP' // Availability + Partition Tolerance\n  | 'CA' // Consistency + Availability (no partitions)\n```\n\nIn practice, since network partitions are unavoidable, you're really choosing between **CP** and **AP** systems.",
         created_at: "2025-12-15T14:01:00Z",
+        artifacts: [
+          {
+            id: "art-1",
+            title: "CAP Theorem Summary",
+            type: "markdown",
+            created_at: "2025-12-15T14:30:00Z",
+          },
+        ],
       },
       {
         id: "msg-3",
         role: "user",
         content: "Give me real-world examples of CP and AP systems",
         created_at: "2025-12-15T14:05:00Z",
+        artifacts: [],
       },
       {
         id: "msg-4",
@@ -85,6 +95,14 @@ const MOCK_CHAT_DETAIL: Record<string, ChatDetail> = {
         content:
           "### CP Systems (Consistency + Partition Tolerance)\n\n- **ZooKeeper** — leader-based, rejects writes during partition\n- **HBase** — strong consistency, may become unavailable\n- **MongoDB** (with majority write concern)\n\n### AP Systems (Availability + Partition Tolerance)\n\n- **Cassandra** — always writable, eventual consistency\n- **DynamoDB** — high availability, configurable consistency\n- **CouchDB** — multi-master replication\n\n> $E = mc^2$ — just kidding, but math rendering works too!\n\n```mermaid\ngraph LR\n    CP[CP Systems] --> ZK[ZooKeeper]\n    CP --> HB[HBase]\n    AP[AP Systems] --> CS[Cassandra]\n    AP --> DDB[DynamoDB]\n```",
         created_at: "2025-12-15T14:06:00Z",
+        artifacts: [
+          {
+            id: "art-2",
+            title: "Consensus Algorithms Comparison",
+            type: "markdown",
+            created_at: "2025-12-14T11:00:00Z",
+          },
+        ],
       },
     ],
   },
@@ -97,6 +115,7 @@ const MOCK_CHAT_DETAIL: Record<string, ChatDetail> = {
         role: "user",
         content: "How does gradient descent work?",
         created_at: "2025-12-10T15:00:00Z",
+        artifacts: [],
       },
       {
         id: "msg-6",
@@ -104,6 +123,14 @@ const MOCK_CHAT_DETAIL: Record<string, ChatDetail> = {
         content:
           "## Gradient Descent\n\nGradient descent is an optimization algorithm that iteratively adjusts parameters to minimize a loss function.\n\n### The Update Rule\n\n$$\\theta_{t+1} = \\theta_t - \\alpha \\nabla J(\\theta_t)$$\n\nWhere:\n- $\\theta$ — model parameters\n- $\\alpha$ — learning rate\n- $\\nabla J(\\theta)$ — gradient of the loss function\n\n```python\ndef gradient_descent(gradient_fn, init_params, lr=0.01, steps=100):\n    params = init_params\n    for _ in range(steps):\n        grad = gradient_fn(params)\n        params = params - lr * grad\n    return params\n```\n\nThe key intuition: move in the **opposite direction** of the gradient (steepest descent).",
         created_at: "2025-12-10T15:01:00Z",
+        artifacts: [
+          {
+            id: "art-3",
+            title: "Gradient Descent Cheat Sheet",
+            type: "markdown",
+            created_at: "2025-12-10T16:45:00Z",
+          },
+        ],
       },
     ],
   },
@@ -158,7 +185,7 @@ export async function getChat(
 export async function createChat(
   projectId: string,
   data: CreateChatRequest,
-): Promise<ChatCreateResponse> {
+): Promise<Chat> {
   // TODO: return (await apiClient.post(`/projects/${projectId}/chats`, data)).data
   const now = new Date().toISOString();
   const chat: Chat = {
@@ -171,11 +198,7 @@ export async function createChat(
     MOCK_CHATS[projectId] = [];
   }
   MOCK_CHATS[projectId].push(chat);
-  return {
-    thread_id: chat.thread_id,
-    title: chat.title,
-    created_at: chat.created_at,
-  };
+  return chat;
 }
 
 export async function getRecentChats(): Promise<ListResponse<RecentChat>> {
@@ -246,6 +269,7 @@ export function mockSendMessage(
     role: "user" as const,
     content,
     created_at: new Date().toISOString(),
+    artifacts: [] as Artifact[],
   };
   MOCK_CHAT_DETAIL[chatId].messages.push(userMsg);
 
@@ -354,12 +378,18 @@ export function mockSendMessage(
         controller.close();
         return;
       }
+      const mockArtifact: Artifact = {
+        id: crypto.randomUUID(),
+        title: "Конспект по теме",
+        type: "note",
+        created_at: new Date().toISOString(),
+      };
       controller.enqueue(
         encodeSSE({
           type: "artifact_created",
-          id: crypto.randomUUID(),
-          title: "Конспект по теме",
-          artifact_type: "note",
+          id: mockArtifact.id,
+          title: mockArtifact.title,
+          artifact_type: mockArtifact.type,
         }),
       );
       await delay(500);
@@ -370,6 +400,7 @@ export function mockSendMessage(
         role: "assistant" as const,
         content: MOCK_RESPONSE_TEXT,
         created_at: new Date().toISOString(),
+        artifacts: [mockArtifact],
       };
       MOCK_CHAT_DETAIL[chatId]!.messages.push(assistantMsg);
 

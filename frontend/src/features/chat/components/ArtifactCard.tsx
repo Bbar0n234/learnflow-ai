@@ -2,7 +2,7 @@ import { Link } from "react-router";
 import { FileText } from "lucide-react";
 
 interface ArtifactCardProps {
-  artifact: { id: string; title: string; artifact_type: string };
+  artifact: { id: string; title: string; type: string };
   projectId: string;
 }
 
@@ -16,7 +16,7 @@ export function ArtifactCard({ artifact, projectId }: ArtifactCardProps) {
       <div className="min-w-0">
         <p className="truncate text-sm font-medium">{artifact.title}</p>
         <p className="text-xs text-muted-foreground">
-          {artifact.artifact_type}
+          {artifact.type}
         </p>
       </div>
     </Link>

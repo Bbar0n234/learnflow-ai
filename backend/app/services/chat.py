@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 
 from app.models.thread_view import ThreadView
+from app.repositories.artifact import ArtifactRepository
 from app.repositories.thread_view import ThreadViewRepository
 from app.services.agent_runner import AgentRunner, Message, StreamEvent
 from app.services.exceptions import EntityNotFoundError
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -24,9 +28,11 @@ class ChatService:
         *,
         thread_view_repo: ThreadViewRepository,
         agent_runner: AgentRunner,
+        artifact_repo: ArtifactRepository,
     ) -> None:
         self._thread_view_repo = thread_view_repo
         self._agent_runner = agent_runner
+        self._artifact_repo = artifact_repo
 
     async def create_chat(self, *, project_id: uuid.UUID, title: str) -> ThreadView:
         return await self._thread_view_repo.create(project_id=project_id, title=title)
@@ -67,13 +73,45 @@ class ChatService:
         if thread_view is None:
             raise EntityNotFoundError("Chat", thread_id)
         await self._thread_view_repo.touch(thread_view)
+
+        artifact_ids: list[str] = []
+        had_error = False
+
         async for event in self._agent_runner.stream(
             thread_id=thread_id,
             content=content,
             project_id=project_id,
             user_id=user_id,
         ):
+            if event.type == "artifact_created":
+                artifact_ids.append(event.data["id"])
+            if event.type == "error":
+                had_error = True
             yield event
+
+        # error and done are mutually exclusive terminal events (SSE contract).
+        # If runner already emitted error — skip post-hoc and don't emit done.
+        if had_error:
+            return
+
+        # Post-hoc: link artifacts to final message
+        message_id: str | None = None
+        try:
+            if artifact_ids:
+                message_id = await self._agent_runner.get_last_ai_message_id(
+                    thread_id=thread_id
+                )
+                if message_id:
+                    await self._artifact_repo.set_message_id(
+                        [uuid.UUID(aid) for aid in artifact_ids],
+                        message_id,
+                    )
+        except Exception:
+            # Post-hoc linking failure is non-critical:
+            # artifacts remain linked to thread_id, just without message_id.
+            logger.warning("Post-hoc artifact linking failed", exc_info=True)
+
+        yield StreamEvent(type="done", data={"message_id": message_id or ""})
 
     async def cancel(self, *, thread_id: uuid.UUID) -> bool:
         return await self._agent_runner.cancel(thread_id=thread_id)

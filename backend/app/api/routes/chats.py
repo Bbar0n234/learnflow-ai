@@ -4,7 +4,8 @@ import uuid
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.api.deps import ChatServiceDep, CurrentUser, UserProject
+from app.api.deps import ArtifactServiceDep, ChatServiceDep, CurrentUser, UserProject
+from app.api.schemas.artifacts import ArtifactListItem
 from app.api.schemas.chats import (
     ChatCreate,
     ChatDetailResponse,
@@ -43,11 +44,21 @@ async def get_chat(
     chat_id: uuid.UUID,
     project: UserProject,
     service: ChatServiceDep,
+    artifact_service: ArtifactServiceDep,
 ) -> ChatDetailResponse:
     chat_detail = await service.get_chat(chat_id)
     # Verify chat belongs to this project
     if chat_detail.thread_view.project_id != project.id:
         raise HTTPException(status_code=404, detail="Chat not found")
+
+    # Get artifacts for this thread, group by message_id
+    artifacts = await artifact_service.list_by_thread(chat_id)
+    artifacts_by_msg: dict[str | None, list[ArtifactListItem]] = {}
+    for a in artifacts:
+        artifacts_by_msg.setdefault(a.message_id, []).append(
+            ArtifactListItem.model_validate(a)
+        )
+
     return ChatDetailResponse(
         thread_id=chat_detail.thread_view.thread_id,
         title=chat_detail.thread_view.title,
@@ -57,6 +68,7 @@ async def get_chat(
                 role=m.role,
                 content=m.content,
                 created_at=m.created_at,
+                artifacts=artifacts_by_msg.get(m.id, []),
             )
             for m in chat_detail.messages
         ],

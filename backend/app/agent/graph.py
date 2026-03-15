@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
@@ -110,6 +111,7 @@ def build_graph(
 
         # 4. LLM call
         response = await bound_model.ainvoke([system, *trimmed])
+        response.additional_kwargs["created_at"] = datetime.now(timezone.utc).isoformat()
         return {"messages": [*result_prefix, response]}
 
     tool_node = ToolNode(tools)

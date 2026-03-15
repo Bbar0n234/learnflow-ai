@@ -1,12 +1,14 @@
 import type { Message } from "@/shared/api/types";
 import { MarkdownRenderer } from "@/shared/components/MarkdownRenderer";
 import { cn } from "@/shared/lib/utils";
+import { ArtifactCard } from "./ArtifactCard";
 
 interface MessageItemProps {
   message: Message;
+  projectId: string;
 }
 
-export function MessageItem({ message }: MessageItemProps) {
+export function MessageItem({ message, projectId }: MessageItemProps) {
   const isUser = message.role === "user";
 
   return (
@@ -24,6 +26,14 @@ export function MessageItem({ message }: MessageItemProps) {
         ) : (
           <MarkdownRenderer>{message.content}</MarkdownRenderer>
         )}
+        {!isUser &&
+          message.artifacts.map((artifact) => (
+            <ArtifactCard
+              key={artifact.id}
+              artifact={artifact}
+              projectId={projectId}
+            />
+          ))}
       </div>
     </div>
   );

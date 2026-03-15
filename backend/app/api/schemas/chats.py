@@ -5,6 +5,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from app.api.schemas.artifacts import ArtifactListItem
+
 
 class ChatCreate(BaseModel):
     title: str | None = None
@@ -40,6 +42,7 @@ class MessageOut(BaseModel):
     role: str
     content: str
     created_at: datetime | None = None
+    artifacts: list[ArtifactListItem] = []
 
 
 class ChatDetailResponse(BaseModel):

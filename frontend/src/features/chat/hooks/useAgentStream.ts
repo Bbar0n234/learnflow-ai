@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { cancelChat, mockSendMessage } from "@/shared/api/chats";
+import { cancelChat } from "@/shared/api/chats";
+import { getUsername } from "@/shared/api/client";
 import type { SSEEvent } from "@/shared/api/types";
 import { useStreamStore } from "@/stores/stream-store";
 
@@ -39,26 +40,31 @@ export function useAgentStream(
       const controller = new AbortController();
       abortRef.current = controller;
 
-      const stream = mockSendMessage(
-        projectId,
-        chatId,
-        content,
-        controller.signal,
-      );
-      // TODO: replace with fetch() when backend is ready
-      // const response = await fetch(`/projects/${projectId}/chats/${chatId}/messages`, {
-      //   method: "POST",
-      //   body: JSON.stringify({ content }),
-      //   signal: controller.signal,
-      // });
-      // const stream = response.body!;
-
-      const reader = stream.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      async function read() {
+      (async () => {
         try {
+          const response = await fetch(
+            `/api/projects/${projectId}/chats/${chatId}/messages`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-User-Name": getUsername(),
+              },
+              body: JSON.stringify({ content }),
+              signal: controller.signal,
+            },
+          );
+
+          if (!response.ok) {
+            endStream();
+            optionsRef.current?.onError?.(`HTTP ${response.status}`);
+            return;
+          }
+
+          const reader = response.body!.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+
           for (;;) {
             const { done, value } = await reader.read();
             if (done) break;
@@ -116,10 +122,11 @@ export function useAgentStream(
           if (err instanceof DOMException && err.name === "AbortError") return;
           console.error("[SSE stream error]", err);
           endStream();
+          optionsRef.current?.onError?.(
+            err instanceof Error ? err.message : "Connection error",
+          );
         }
-      }
-
-      read();
+      })();
     },
     [projectId, chatId, queryClient],
   );

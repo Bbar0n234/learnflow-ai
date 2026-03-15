@@ -22,7 +22,7 @@
 |----------|--------|-----------|
 | feat-001 | ✅ Done | Backend internal wiring (stubs → real) |
 | fix-001 | ✅ Done | Contract alignment (frontend ↔ backend mismatches) |
-| feat-002 | 📋 Planned | Frontend → Backend connection (mocks → real) + MVP auth UI |
+| feat-002 | ✅ Done | Frontend → Backend connection (mocks → real) + MVP auth UI |
 | feat-003 | 📋 Planned | SSE Streaming E2E |
 | feat-004 | 📋 Planned | Docker full stack |
 | feat-005 | 📋 Planned | E2E scenarios + polish |
@@ -132,29 +132,30 @@ Frontend определяет `ProjectCreateResponse` и `ChatCreateResponse` (�
 
 **Цель:** заменить хардкод-моки в API-модулях фронтенда реальными HTTP-вызовами к бэкенду. Добавить MVP-авторизацию (ввод username). После итерации — фронтенд работает с живым API (REST-часть).
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Blocked by:** integration/fix-001, frontend/feat-006
 **Закрывает:** интеграция Frontend ↔ Backend API (REST), MVP auth UI
 **Ветка:** `feat/002-frontend-backend`
 
 #### Состав работ
-- [ ] Убрать моки из shared/api/ модулей (projects.ts, chats.ts, sphere.ts, artifacts.ts), включить реальные axios-вызовы
-- [ ] Проверить CORS-конфигурацию: frontend dev server успешно делает запросы к бэкенду без CORS-ошибок
-- [ ] Vite dev proxy или CORS для dev-режима (frontend dev server → backend)
-- [ ] MVP auth UI: простой ввод username (модалка/prompt при первом визите, сохранение в localStorage, передача в `X-User-Name` header). Backend уже поддерживает: `get_current_user()` в deps.py извлекает header, `get_or_create` user
-- [ ] Верификация REST-потоков: projects CRUD, chats list/create, sphere GET/PUT, artifacts list/view/download
+- [x] Убрать моки из shared/api/ модулей (projects.ts, chats.ts, sphere.ts, artifacts.ts), включить реальные axios-вызовы
+- [x] Проверить CORS-конфигурацию: frontend dev server успешно делает запросы к бэкенду без CORS-ошибок
+- [x] Vite dev proxy или CORS для dev-режима (frontend dev server → backend)
+- [x] MVP auth UI: простой ввод username (модалка/prompt при первом визите, сохранение в localStorage, передача в `X-User-Name` header). Backend уже поддерживает: `get_current_user()` в deps.py извлекает header, `get_or_create` user
+- [x] Верификация REST-потоков: projects CRUD, chats list/create, sphere GET/PUT, artifacts list/view/download
 
 #### Критерии приёмки
-- [ ] Пользователь может ввести имя при первом визите, имя сохраняется между сессиями
-- [ ] Фронтенд создаёт проект → проект появляется в sidebar (данные из реального API)
-- [ ] Список чатов, sphere, artifacts загружаются с бэкенда
-- [ ] CRUD-операции с проектами работают через UI
-- [ ] Sphere: просмотр и редактирование через UI → данные персистятся на бэкенде
-- [ ] Нет hardcoded mock-данных в API-модулях
-- [ ] `make lint-fe` и TypeScript проходят без ошибок
+- [x] Пользователь может ввести имя при первом визите, имя сохраняется между сессиями
+- [x] Фронтенд создаёт проект → проект появляется в sidebar (данные из реального API)
+- [x] Список чатов, sphere, artifacts загружаются с бэкенда
+- [x] CRUD-операции с проектами работают через UI
+- [x] Sphere: просмотр и редактирование через UI → данные персистятся на бэкенде
+- [x] Нет hardcoded mock-данных в API-модулях
+- [x] `make lint-fe` и TypeScript проходят без ошибок
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [plan.md](iterations/integration/feat-002-frontend-backend/plan.md)
+- [summary.md](iterations/integration/feat-002-frontend-backend/summary.md)
 
 ---
 

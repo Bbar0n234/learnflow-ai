@@ -3,9 +3,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from app.agent.config import load_agent_config
@@ -118,16 +119,45 @@ def create_app() -> FastAPI:
     ) -> JSONResponse:
         return JSONResponse(status_code=404, content={"detail": str(exc)})
 
-    # Routes
+    # Health check (no /api prefix — used by Docker health check)
     @app.get("/health")
-    async def health() -> dict[str, str]:
+    async def health(request: Request) -> dict[str, str]:
+        async with request.app.state.engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
         return {"status": "ok"}
 
-    app.include_router(projects.router)
-    app.include_router(chats.router)
-    app.include_router(messages.router)
-    app.include_router(artifacts.router)
-    app.include_router(sphere.router)
+    # API routes
+    api_prefix = "/api"
+    app.include_router(projects.router, prefix=api_prefix)
+    app.include_router(chats.router, prefix=api_prefix)
+    app.include_router(messages.router, prefix=api_prefix)
+    app.include_router(artifacts.router, prefix=api_prefix)
+    app.include_router(sphere.router, prefix=api_prefix)
+
+    # Serve frontend static files (only when dist exists — Docker mode)
+    frontend_dir = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+    if frontend_dir.exists():
+        frontend_resolved = frontend_dir.resolve()
+
+        # JS, CSS, images from Vite build
+        app.mount(
+            "/assets",
+            StaticFiles(directory=str(frontend_resolved / "assets")),
+            name="assets",
+        )
+
+        # SPA fallback: unknown paths → index.html
+        @app.get("/{full_path:path}")
+        async def serve_frontend(full_path: str) -> FileResponse:
+            # Guard: unknown /api paths → 404 JSON, not index.html
+            if full_path == "api" or full_path.startswith("api/"):
+                raise HTTPException(status_code=404, detail="Not found")
+
+            # Path traversal protection
+            file_path = (frontend_resolved / full_path).resolve()
+            if file_path.is_file() and file_path.is_relative_to(frontend_resolved):
+                return FileResponse(str(file_path))
+            return FileResponse(str(frontend_resolved / "index.html"))
 
     return app
 

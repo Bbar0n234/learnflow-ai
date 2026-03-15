@@ -1,12 +1,36 @@
 import asyncio
 from logging.config import fileConfig
 
+import sqlalchemy as sa
 from alembic import context
 from app.config import Settings
 from app.models import Base  # noqa: F401 — ensure all models registered
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
+
+# LangGraph-managed tables — excluded from autogenerate
+LANGGRAPH_TABLES = {
+    "checkpoint_migrations",
+    "checkpoints",
+    "checkpoint_blobs",
+    "checkpoint_writes",
+    "store",
+    "store_migrations",
+    "store_vectors",
+    "vector_migrations",
+}
+
+
+def include_object(
+    object: sa.schema.SchemaItem,
+    name: str | None,
+    type_: str,
+    reflected: bool,
+    compare_to: sa.schema.SchemaItem | None,
+) -> bool:
+    return not (type_ == "table" and name in LANGGRAPH_TABLES)
+
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -33,6 +57,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -40,7 +65,11 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        include_object=include_object,
+    )
 
     with context.begin_transaction():
         context.run_migrations()

@@ -5,11 +5,15 @@ __pycache__
 .env
 .env.local
 node_modules
+frontend/node_modules
+frontend/dist
 doc/
 .claude/
 .mypy_cache
 .ruff_cache
 .pytest_cache
+.firecrawl
+frontend/.firecrawl
+frontend/.claude
 .gitignore
 LICENSE
-README.md

@@ -13,21 +13,38 @@ AI-powered tool for tech speakers and presenters to structure and prepare educat
 
 ## Quick Start
 
+### Docker (full stack)
+
 ```bash
-# Clone the repository
 git clone https://github.com/Bbar0n234/learnflow-ai.git
 cd learnflow-ai
 
-# Install Python dependencies
+# Set up environment
+cp .env.example .env
+# Edit .env — set API keys (OPENAI_API_KEY, etc.)
+
+# Build and start
+make docker-build && make docker-up
+
+# App available at http://localhost:8000
+```
+
+### Local dev (DB in Docker, app locally)
+
+```bash
+# Install dependencies
 uv sync
+cd frontend && npm install && cd ..
 
 # Set up environment
 cp .env.local.example .env.local
 
 # Start PostgreSQL
-make docker-up
+make docker-up-db
 
-# Backend and frontend dev servers will be available in Phase D
+# Run backend and frontend dev servers (in separate terminals)
+make dev      # backend at http://localhost:8000
+make dev-fe   # frontend at http://localhost:5173
 ```
 
 ## Development
@@ -36,9 +53,11 @@ make docker-up
 
 | Command | Description |
 |---------|-------------|
-| `make docker-up` | Start PostgreSQL |
+| `make docker-up` | Start full stack (app + db) |
+| `make docker-up-db` | Start only PostgreSQL (for local dev) |
 | `make docker-down` | Stop all containers |
 | `make docker-build` | Build Docker images |
+| `make docker-logs` | Show app container logs |
 | `make lint` | Run ruff linter |
 | `make format` | Format Python code |
 | `make type-check` | Run mypy type checking |
@@ -46,13 +65,13 @@ make docker-up
 | `make lint-fe` | Run ESLint on frontend |
 | `make format-fe` | Format frontend code with Prettier |
 | `make test` | Run pytest |
-| `make dev` | Run backend dev server (Phase D) |
-| `make dev-fe` | Run frontend dev server (Phase D) |
+| `make dev` | Run backend dev server |
+| `make dev-fe` | Run frontend dev server |
 
 ### Environment Modes
 
-- **Docker** (`.env`) — full stack in containers
-- **Local dev** (`.env.local`) — infrastructure (PostgreSQL) in containers, application runs locally
+- **Docker** (`.env`) — full stack in containers, app at `http://localhost:8000`
+- **Local dev** (`.env.local`) — PostgreSQL in Docker, backend + frontend run locally
 
 ## Documentation
 

@@ -24,7 +24,8 @@ export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
-  created_at: string;
+  created_at: string | null;
+  artifacts: Artifact[];
 }
 
 export interface RecentChat {
@@ -53,21 +54,8 @@ export interface ArtifactDetail {
   title: string;
   type: string;
   content: string;
-  thread_id: string;
-  created_at: string;
-}
-
-// === Create responses (POST — without updated_at, 1:1 with backend schemas) ===
-
-export interface ProjectCreateResponse {
-  id: string;
-  name: string;
-  created_at: string;
-}
-
-export interface ChatCreateResponse {
-  thread_id: string;
-  title: string;
+  thread_id: string | null;
+  message_id: string | null;
   created_at: string;
 }
 

@@ -2,12 +2,19 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncIterator
+from datetime import datetime, timezone
 from typing import Any
 
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
 
 from app.agent.graph import AgentContext
 from app.services.agent_runner import Message, StreamEvent
+
+
+def _parse_created_at(value: str | None) -> datetime | None:
+    if value is None:
+        return None
+    return datetime.fromisoformat(value)
 
 
 class LangGraphAgentRunner:
@@ -27,7 +34,12 @@ class LangGraphAgentRunner:
             project_id=str(project_id),
             user_id=str(user_id),
         )
-        input_msg = {"messages": [{"role": "user", "content": content}]}
+        input_msg = {"messages": [
+            HumanMessage(
+                content=content,
+                additional_kwargs={"created_at": datetime.now(timezone.utc).isoformat()},
+            )
+        ]}
 
         try:
             async for mode, data in self._graph.astream(
@@ -52,7 +64,6 @@ class LangGraphAgentRunner:
                     for event in self._process_updates(data):
                         yield event
 
-            yield StreamEvent(type="done", data={})
         except Exception as e:
             yield StreamEvent(type="error", data={"detail": str(e)})
 
@@ -102,6 +113,21 @@ class LangGraphAgentRunner:
 
         return events
 
+    async def get_last_ai_message_id(
+        self,
+        *,
+        thread_id: uuid.UUID,
+    ) -> str | None:
+        """Get ID of the last AIMessage without tool_calls (final user-facing message)."""
+        config = {"configurable": {"thread_id": str(thread_id)}}
+        state = await self._graph.aget_state(config)
+        if not state.values:
+            return None
+        for m in reversed(state.values.get("messages", [])):
+            if isinstance(m, AIMessage) and not getattr(m, "tool_calls", None):
+                return str(m.id)
+        return None
+
     async def get_history(
         self,
         *,
@@ -117,6 +143,9 @@ class LangGraphAgentRunner:
                 id=str(m.id),
                 role="user" if isinstance(m, HumanMessage) else "assistant",
                 content=m.content if isinstance(m.content, str) else "",
+                created_at=_parse_created_at(
+                    m.additional_kwargs.get("created_at")
+                ),
             )
             for m in messages
             if isinstance(m, (HumanMessage, AIMessage))

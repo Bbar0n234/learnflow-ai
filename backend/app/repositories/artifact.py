@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.artifact import Artifact
@@ -40,6 +40,25 @@ class ArtifactRepository:
             select(Artifact)
             .where(Artifact.project_id == project_id)
             .order_by(Artifact.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def set_message_id(
+        self, artifact_ids: list[uuid.UUID], message_id: str
+    ) -> None:
+        """Post-hoc: link artifacts to the final assistant message."""
+        await self._session.execute(
+            update(Artifact)
+            .where(Artifact.id.in_(artifact_ids))
+            .values(message_id=message_id)
+        )
+        await self._session.flush()
+
+    async def list_by_thread(self, thread_id: uuid.UUID) -> list[Artifact]:
+        result = await self._session.execute(
+            select(Artifact)
+            .where(Artifact.thread_id == thread_id)
+            .order_by(Artifact.created_at)
         )
         return list(result.scalars().all())
 

@@ -21,7 +21,7 @@
 | Итерация | Статус | Закрывает |
 |----------|--------|-----------|
 | feat-001 | ✅ Done | Backend internal wiring (stubs → real) |
-| fix-001 | 📋 Planned | Contract alignment (frontend ↔ backend mismatches) |
+| fix-001 | ✅ Done | Contract alignment (frontend ↔ backend mismatches) |
 | feat-002 | 📋 Planned | Frontend → Backend connection (mocks → real) + MVP auth UI |
 | feat-003 | 📋 Planned | SSE Streaming E2E |
 | feat-004 | 📋 Planned | Docker full stack |
@@ -76,7 +76,7 @@
 
 **Цель:** устранить обнаруженные расхождения между контрактами backend и frontend, подготовить почву для безпроблемной интеграции в feat-002/feat-003.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Blocked by:** integration/feat-001
 **Закрывает:** контрактные несоответствия, обнаруженные при аудите
 **Ветка:** `fix/001-contract-alignment`
@@ -112,18 +112,19 @@
 Frontend определяет `ProjectCreateResponse` и `ChatCreateResponse` (без `updated_at`), но backend возвращает полный `ProjectResponse`/`ChatResponse` (с `updated_at`). Технически не ломает (TS игнорирует лишние поля), но создаёт лишние типы и расхождение с контрактом.
 
 #### Состав работ
-- [ ] Принять решение по каждой из трёх проблем (при планировании итерации)
-- [ ] Реализовать выбранные решения
-- [ ] `make lint && make lint-fe && make type-check` проходят
+- [x] Принять решение по каждой из трёх проблем (при планировании итерации)
+- [x] Реализовать выбранные решения
+- [x] `make lint && make lint-fe && make type-check` проходят
 
 #### Критерии приёмки
-- [ ] Frontend типы соответствуют backend schemas (nullable поля согласованы)
-- [ ] Определено и реализовано решение по ArtifactCard visibility
-- [ ] Нет лишних/дублирующих типов в frontend
-- [ ] Если были backend-изменения — миграция + smoke test
+- [x] Frontend типы соответствуют backend schemas (nullable поля согласованы)
+- [x] Определено и реализовано решение по ArtifactCard visibility
+- [x] Нет лишних/дублирующих типов в frontend
+- [x] Если были backend-изменения — миграция + smoke test
 
 #### Артефакты
-<!-- Заполняется по мере работы -->
+- [plan.md](iterations/integration/fix-001-contract-alignment/plan.md)
+- [summary.md](iterations/integration/fix-001-contract-alignment/summary.md)
 
 ---
 

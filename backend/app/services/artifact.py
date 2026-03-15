@@ -19,3 +19,6 @@ class ArtifactService:
 
     async def list_artifacts(self, project_id: uuid.UUID) -> list[Artifact]:
         return await self._artifact_repo.list_by_project(project_id)
+
+    async def list_by_thread(self, thread_id: uuid.UUID) -> list[Artifact]:
+        return await self._artifact_repo.list_by_thread(thread_id)

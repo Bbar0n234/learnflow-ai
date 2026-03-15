@@ -3,7 +3,7 @@ import { create } from "zustand";
 export interface StreamingArtifact {
   id: string;
   title: string;
-  artifact_type: string;
+  type: string;
 }
 
 interface StreamState {

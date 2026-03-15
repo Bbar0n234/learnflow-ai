@@ -109,7 +109,7 @@ Pydantic request/response модели. Сквозные соглашения:
 ```
 POST /projects
   Request:  { name: str }
-  Response: { id: UUID, name: str, created_at: datetime }
+  Response: { id: UUID, name: str, created_at: datetime, updated_at: datetime }
 
 GET /projects
   Response: { items: [{ id, name, created_at, updated_at }] }
@@ -130,13 +130,13 @@ DELETE /projects/{id}
 ```
 POST /projects/{id}/chats
   Request:  { title?: str }
-  Response: { thread_id: UUID, title: str, created_at: datetime }
+  Response: { thread_id: UUID, title: str, created_at: datetime, updated_at: datetime }
 
 GET /projects/{id}/chats
   Response: { items: [{ thread_id: UUID, title, created_at, updated_at }] }
 
 GET /projects/{id}/chats/{cid}
-  Response: { thread_id: UUID, title, messages: [{ id, role, content, created_at }] }
+  Response: { thread_id: UUID, title, messages: [{ id, role, content, created_at?, artifacts: [{ id, title, type, created_at }] }] }
 
 GET /chats/recent?limit=10
   Response: { items: [{ thread_id: UUID, title, project_id, project_name, updated_at }] }
@@ -175,7 +175,7 @@ GET /projects/{id}/artifacts
   Response: { items: [{ id, title, type, created_at }] }
 
 GET /projects/{id}/artifacts/{aid}
-  Response: { id, title, type, content, thread_id, created_at }
+  Response: { id, title, type, content, thread_id?, message_id?, created_at }
 
 GET /projects/{id}/artifacts/{aid}/download?format=md|pdf
   Response: файл (Content-Disposition: attachment)
@@ -439,7 +439,7 @@ ThreadView
 ├── thread_id (PK, UUID — при вызовах LangGraph конвертируется в str), project_id, title, created_at, updated_at
 
 Artifact
-├── id, project_id, thread_id, title, type (markdown | ...), content, created_at
+├── id, project_id, thread_id, message_id, title, type (markdown | ...), content, created_at
 ```
 
 **ThreadView** — легковесная индексная таблица для UI (листинг чатов, заголовки, даты). OSS LangGraph не предоставляет API для листинга threads, поэтому метаданные чатов хранятся отдельно.

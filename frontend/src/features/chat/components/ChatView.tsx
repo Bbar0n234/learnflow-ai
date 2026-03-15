@@ -32,6 +32,7 @@ export function ChatView() {
       role: "user",
       content,
       created_at: new Date().toISOString(),
+      artifacts: [],
     };
     setLocalMessages((prev) => [...prev, message]);
     send(content);

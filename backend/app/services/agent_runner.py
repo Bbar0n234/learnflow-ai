@@ -41,6 +41,12 @@ class AgentRunner(Protocol):
         thread_id: uuid.UUID,
     ) -> list[Message]: ...
 
+    async def get_last_ai_message_id(
+        self,
+        *,
+        thread_id: uuid.UUID,
+    ) -> str | None: ...
+
     async def cancel(
         self,
         *,

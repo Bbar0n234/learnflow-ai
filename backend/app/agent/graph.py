@@ -111,7 +111,9 @@ def build_graph(
 
         # 4. LLM call
         response = await bound_model.ainvoke([system, *trimmed])
-        response.additional_kwargs["created_at"] = datetime.now(timezone.utc).isoformat()
+        response.additional_kwargs["created_at"] = datetime.now(
+            timezone.utc
+        ).isoformat()
         return {"messages": [*result_prefix, response]}
 
     tool_node = ToolNode(tools)

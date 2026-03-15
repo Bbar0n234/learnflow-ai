@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
@@ -20,6 +21,8 @@ def _parse_created_at(value: str | None) -> datetime | None:
 class LangGraphAgentRunner:
     def __init__(self, graph: Any) -> None:
         self._graph = graph
+        self._cancel_events: dict[uuid.UUID, asyncio.Event] = {}
+        self._pending_cancels: set[uuid.UUID] = set()
 
     async def stream(
         self,
@@ -29,6 +32,12 @@ class LangGraphAgentRunner:
         project_id: uuid.UUID,
         user_id: uuid.UUID,
     ) -> AsyncIterator[StreamEvent]:
+        cancel_event = asyncio.Event()
+        self._cancel_events[thread_id] = cancel_event
+        if thread_id in self._pending_cancels:
+            self._pending_cancels.discard(thread_id)
+            cancel_event.set()
+
         config = {"configurable": {"thread_id": str(thread_id)}}
         context = AgentContext(
             project_id=str(project_id),
@@ -48,6 +57,10 @@ class LangGraphAgentRunner:
                 stream_mode=["messages", "updates"],
                 context=context,
             ):
+                if cancel_event.is_set():
+                    yield StreamEvent(type="error", data={"detail": "Cancelled"})
+                    return
+
                 if mode == "messages":
                     msg_chunk, _metadata = data
                     if (
@@ -66,6 +79,9 @@ class LangGraphAgentRunner:
 
         except Exception as e:
             yield StreamEvent(type="error", data={"detail": str(e)})
+        finally:
+            self._cancel_events.pop(thread_id, None)
+            self._pending_cancels.discard(thread_id)
 
     @staticmethod
     def _process_updates(data: dict[str, Any]) -> list[StreamEvent]:
@@ -153,4 +169,9 @@ class LangGraphAgentRunner:
         ]
 
     async def cancel(self, *, thread_id: uuid.UUID) -> bool:
-        return True  # MVP stub
+        event = self._cancel_events.get(thread_id)
+        if event is None:
+            self._pending_cancels.add(thread_id)
+            return True
+        event.set()
+        return True

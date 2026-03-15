@@ -21,7 +21,8 @@
 | Итерация | Статус | Закрывает |
 |----------|--------|-----------|
 | feat-001 | 📋 Planned | Backend internal wiring (stubs → real) |
-| feat-002 | 📋 Planned | Frontend → Backend connection (mocks → real) |
+| fix-001 | 📋 Planned | Contract alignment (frontend ↔ backend mismatches) |
+| feat-002 | 📋 Planned | Frontend → Backend connection (mocks → real) + MVP auth UI |
 | feat-003 | 📋 Planned | SSE Streaming E2E |
 | feat-004 | 📋 Planned | Docker full stack |
 | feat-005 | 📋 Planned | E2E scenarios + polish |
@@ -45,11 +46,18 @@
 **Закрывает:** интеграция Backend Core ↔ Agent Runtime
 **Ветка:** `feat/001-backend-wiring`
 
+> **Примечание:** с высокой вероятностью уже реализовано в ходе backend-core и agent итераций.
+> `deps.py` использует `LangGraphAgentRunner` (не `StubAgentRunner`) и `LangGraphSphereService`.
+> `main.py` lifespan создаёт реальный граф, checkpointer, store и agent runner.
+> Требуется верификация: smoke test через curl/httpie, проверка всех критериев приёмки.
+> Если всё подтверждается — итерация закрывается без кодовых изменений (только удаление мёртвого кода `StubAgentRunner`).
+
 #### Состав работ
-- [ ] ChatService → реальный AgentRunner (LangGraph stream вместо stub)
-- [ ] SphereService → реальная реализация на LangGraph Store (вместо stub)
-- [ ] Wiring в deps.py: инъекция реальных реализаций, настройка lifecycle (checkpointer/store init в lifespan)
+- [ ] Верификация wiring: убедиться, что deps.py инжектит реальные реализации (не стабы)
 - [ ] Smoke test: POST message через curl/httpie → SSE stream с реальным LLM-ответом
+- [ ] Smoke test: GET/PUT sphere → данные из LangGraph Store
+- [ ] Smoke test: диалог сохраняется (повторный запрос видит историю)
+- [ ] Удаление мёртвого кода (`StubAgentRunner` в `services/agent_runner.py`) если не используется
 
 #### Критерии приёмки
 - [ ] POST /messages возвращает SSE-поток с реальными text_chunk от LLM
@@ -63,23 +71,79 @@
 
 ---
 
-### feat-002: Frontend → Backend Connection
+### fix-001: Contract Alignment
 
-**Цель:** заменить хардкод-моки в API-модулях фронтенда реальными HTTP-вызовами к бэкенду. После итерации — фронтенд работает с живым API (REST-часть).
+**Цель:** устранить обнаруженные расхождения между контрактами backend и frontend, подготовить почву для безпроблемной интеграции в feat-002/feat-003.
 
 **Статус:** 📋 Planned
-**Blocked by:** integration/feat-001, frontend/feat-006
-**Закрывает:** интеграция Frontend ↔ Backend API (REST)
+**Blocked by:** integration/feat-001
+**Закрывает:** контрактные несоответствия, обнаруженные при аудите
+**Ветка:** `fix/001-contract-alignment`
+
+> **Контекст:** проблемы обнаружены при pre-integration аудите. Все три задокументированы как known limitations в post-implementation summaries соответствующих итераций. Конкретные решения принимаются при планировании итерации — здесь зафиксированы проблемы и возможные направления.
+
+#### Проблема 1: Transient ArtifactCard
+
+Артефакт-карточки в чате видны только во время SSE-стрима. После `endStream()` stream store сбрасывается, карточка исчезает. Финальное сообщение (из query invalidation) — `{id, role, content, created_at}` без привязки к артефактам.
+
+**Источник:** `frontend/feat-005-sse-streaming/summary.md` — обсуждены варианты A–D, выбран D (known limitation).
+
+**Возможные направления:**
+- A: Добавить `artifacts[]` в Message response (backend изменение, связка message ↔ artifact)
+- B: Добавить `message_id` в Artifact модель (backend изменение + миграция)
+- C: Не сбрасывать `streamingArtifacts` в `endStream()`, хранить артефакты по chat_id
+- D: Оставить как есть (артефакты доступны в tab Artifacts, в чате — только во время стрима)
+
+#### Проблема 2: Nullable mismatches в типах
+
+**`Message.created_at`**: backend `MessageOut.created_at: datetime | None` (LangGraph checkpointer не хранит timestamps), frontend `Message.created_at: string` (required).
+
+**`ArtifactDetail.thread_id`**: backend `ArtifactDetailResponse.thread_id: uuid.UUID | None` (nullable by design — `SET NULL` on thread delete), frontend `ArtifactDetail.thread_id: string` (required).
+
+**Источники:** `backend-core/feat-002/plan.md`, `frontend/feat-002/plan.md`.
+
+**Возможные направления:**
+- Привести frontend-типы в соответствие с backend (добавить `| null`)
+- Или обеспечить значения на backend-стороне (fallback для created_at и т.д.)
+
+#### Проблема 3: Лишние create-response типы
+
+Frontend определяет `ProjectCreateResponse` и `ChatCreateResponse` (без `updated_at`), но backend возвращает полный `ProjectResponse`/`ChatResponse` (с `updated_at`). Технически не ломает (TS игнорирует лишние поля), но создаёт лишние типы и расхождение с контрактом.
+
+#### Состав работ
+- [ ] Принять решение по каждой из трёх проблем (при планировании итерации)
+- [ ] Реализовать выбранные решения
+- [ ] `make lint && make lint-fe && make type-check` проходят
+
+#### Критерии приёмки
+- [ ] Frontend типы соответствуют backend schemas (nullable поля согласованы)
+- [ ] Определено и реализовано решение по ArtifactCard visibility
+- [ ] Нет лишних/дублирующих типов в frontend
+- [ ] Если были backend-изменения — миграция + smoke test
+
+#### Артефакты
+<!-- Заполняется по мере работы -->
+
+---
+
+### feat-002: Frontend → Backend Connection
+
+**Цель:** заменить хардкод-моки в API-модулях фронтенда реальными HTTP-вызовами к бэкенду. Добавить MVP-авторизацию (ввод username). После итерации — фронтенд работает с живым API (REST-часть).
+
+**Статус:** 📋 Planned
+**Blocked by:** integration/fix-001, frontend/feat-006
+**Закрывает:** интеграция Frontend ↔ Backend API (REST), MVP auth UI
 **Ветка:** `feat/002-frontend-backend`
 
 #### Состав работ
 - [ ] Убрать моки из shared/api/ модулей (projects.ts, chats.ts, sphere.ts, artifacts.ts), включить реальные axios-вызовы
 - [ ] Проверить CORS-конфигурацию: frontend dev server успешно делает запросы к бэкенду без CORS-ошибок
 - [ ] Vite dev proxy или CORS для dev-режима (frontend dev server → backend)
-- [ ] Конфигурация X-User-Name (дефолтный пользователь для MVP)
+- [ ] MVP auth UI: простой ввод username (модалка/prompt при первом визите, сохранение в localStorage, передача в `X-User-Name` header). Backend уже поддерживает: `get_current_user()` в deps.py извлекает header, `get_or_create` user
 - [ ] Верификация REST-потоков: projects CRUD, chats list/create, sphere GET/PUT, artifacts list/view/download
 
 #### Критерии приёмки
+- [ ] Пользователь может ввести имя при первом визите, имя сохраняется между сессиями
 - [ ] Фронтенд создаёт проект → проект появляется в sidebar (данные из реального API)
 - [ ] Список чатов, sphere, artifacts загружаются с бэкенда
 - [ ] CRUD-операции с проектами работают через UI
@@ -97,7 +161,7 @@
 **Цель:** сквозной стриминг от пользовательского ввода до инкрементального рендеринга в UI. Самая критичная точка интеграции — все 6 event types, cancel, error handling.
 
 **Статус:** 📋 Planned
-**Blocked by:** integration/feat-002, frontend/feat-005
+**Blocked by:** integration/feat-002
 **Закрывает:** SSE end-to-end (frontend SSE client ↔ backend SSE endpoint ↔ LangGraph stream)
 **Ветка:** `feat/003-sse-e2e`
 

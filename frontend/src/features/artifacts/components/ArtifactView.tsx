@@ -48,7 +48,7 @@ export function ArtifactView() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => downloadArtifact(id!, aid!, "md")}
+            onClick={() => void downloadArtifact(id!, aid!, "md")}
           >
             <Download className="mr-1.5 h-3.5 w-3.5" />
             MD
@@ -56,7 +56,7 @@ export function ArtifactView() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => downloadArtifact(id!, aid!, "pdf")}
+            onClick={() => void downloadArtifact(id!, aid!, "pdf")}
           >
             <Download className="mr-1.5 h-3.5 w-3.5" />
             PDF

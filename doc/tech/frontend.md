@@ -60,6 +60,7 @@ Feature-based: компоненты группируются по фичам, н
 
 ### Layout
 
+- **AuthGate** — app-level обёртка: проверяет username в localStorage, показывает модалку при первом визите. Вне Router и Providers.
 - **AppLayout** — корневой layout: sidebar + центральная область. Рендерится на всех маршрутах.
 - **Sidebar** — проекты пользователя, recents, кнопки создания (new chat / new project).
 - **ProjectLayout** — обёртка для project-level маршрутов: имя проекта, табы (Chats / Sphere / Artifacts).
@@ -69,7 +70,7 @@ Feature-based: компоненты группируются по фичам, н
 **projects** — CRUD проектов.
 - Список проектов (элементы sidebar)
 - Модалка создания проекта
-- Карточка проекта в sidebar
+- Карточка проекта в sidebar (с контекстным меню rename/delete)
 
 **chat** — ядро приложения.
 - Список сообщений (scroll, auto-scroll при стриминге)
@@ -159,7 +160,7 @@ streamStore
 
 ### HTTP-клиент
 
-Единый axios instance: base URL из `VITE_API_URL`, default header `X-User-Name` (MVP auth), response interceptor для обработки ошибок.
+Единый axios instance: base URL `/api` (через Vite dev proxy → backend), dynamic `X-User-Name` header через request interceptor (из localStorage). Helpers `getUsername()`/`setUsername()` экспортируются для использования в SSE fetch. Response interceptor для обработки ошибок.
 
 ### TypeScript типы
 
@@ -194,7 +195,7 @@ features/artifacts/  → useArtifacts, useArtifact
 
 Компоненты вызывают хуки, не API-функции напрямую.
 
-**downloadArtifact** — прямой download (`window.open` / `<a href>`), не через axios и не через TanStack Query.
+**downloadArtifact** — axios blob download с `X-User-Name` header. Не через TanStack Query (императивный вызов из onClick).
 
 ## SSE-стриминг
 
@@ -254,20 +255,20 @@ frontend/
 │
 ├── src/
 │   ├── main.tsx                   — entry point: React root, providers
-│   ├── App.tsx                    — роутер, маршруты
+│   ├── App.tsx                    — AuthGate + роутер
 │   ├── index.css                  — Tailwind + shadcn theme variables
 │   │
 │   ├── app/                       — application shell
 │   │   ├── layouts/
 │   │   │   ├── AppLayout.tsx      — sidebar + центральная область
 │   │   │   └── ProjectLayout.tsx  — имя проекта, табы (Chats/Sphere/Artifacts)
-│   │   ├── components/            — app-level компоненты (WelcomePage и т.д.)
+│   │   ├── components/            — app-level компоненты (AuthGate, WelcomePage и т.д.)
 │   │   ├── providers/             — QueryClientProvider, прочие провайдеры
 │   │   └── router.tsx             — конфигурация маршрутов
 │   │
 │   ├── features/                  — feature-based модули
 │   │   ├── projects/
-│   │   │   ├── components/        — ProjectCard, CreateProjectModal, ProjectList
+│   │   │   ├── components/        — ProjectCard, ProjectActions, CreateProjectModal, ProjectList
 │   │   │   └── hooks/             — useProjects, useProject, useCreateProject, useUpdateProject, useDeleteProject
 │   │   ├── chat/
 │   │   │   ├── components/        — ChatList, ChatView, MessageList, MessageItem, ChatInput, ToolIndicator, ArtifactCard

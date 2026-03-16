@@ -13,7 +13,7 @@ from app.api.schemas.projects import (
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-@router.post("/", response_model=ProjectResponse)
+@router.post("", response_model=ProjectResponse)
 async def create_project(
     body: ProjectCreate,
     user: CurrentUser,
@@ -23,7 +23,7 @@ async def create_project(
     return ProjectResponse.model_validate(project)
 
 
-@router.get("/", response_model=ProjectListResponse)
+@router.get("", response_model=ProjectListResponse)
 async def list_projects(
     user: CurrentUser,
     service: ProjectServiceDep,

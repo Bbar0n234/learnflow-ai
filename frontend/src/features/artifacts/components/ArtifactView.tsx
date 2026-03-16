@@ -63,7 +63,7 @@ export function ArtifactView() {
           </Button>
         </div>
       </div>
-      <ScrollArea className="flex-1 px-6 py-4">
+      <ScrollArea className="min-h-0 flex-1 px-6 py-4">
         {data?.content ? (
           <MarkdownRenderer>{data.content}</MarkdownRenderer>
         ) : (

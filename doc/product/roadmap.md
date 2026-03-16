@@ -1,12 +1,12 @@
 # Roadmap
 
-## v1 (MVP)
+## v1 (MVP) ✅
 
-- Текстовый контент: аутлайн, структура, черновик
-- Research с качественным поиском и источниками
-- Knowledge Sphere (базовая версия — проект как шар контекста)
-- Markdown-экспорт
-- Базовый набор skills (structure, research)
+- ✅ Текстовый контент: аутлайн, структура, черновик
+- ✅ Research с качественным поиском и источниками (MCP Firecrawl)
+- ✅ Knowledge Sphere (базовая версия — проект как шар контекста)
+- ✅ Markdown-экспорт
+- 🚧 Базовый набор skills (structure ✅, research — через MCP tools, dedicated skill отложен)
 
 ## v1.5
 

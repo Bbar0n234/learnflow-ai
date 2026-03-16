@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Query, Response
 
@@ -55,13 +56,17 @@ async def download_artifact(
     if artifact.project_id != project.id:
         raise HTTPException(status_code=404, detail="Artifact not found")
 
+    def _content_disposition(filename: str) -> str:
+        encoded = quote(filename)
+        return f"attachment; filename*=UTF-8''{encoded}"
+
     if format == "pdf":
         pdf_bytes = convert_md_to_pdf(artifact.content)
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
             headers={
-                "Content-Disposition": f'attachment; filename="{artifact.title}.pdf"',
+                "Content-Disposition": _content_disposition(f"{artifact.title}.pdf"),
             },
         )
 
@@ -69,6 +74,6 @@ async def download_artifact(
         content=artifact.content,
         media_type="text/markdown",
         headers={
-            "Content-Disposition": f'attachment; filename="{artifact.title}.md"',
+            "Content-Disposition": _content_disposition(f"{artifact.title}.md"),
         },
     )

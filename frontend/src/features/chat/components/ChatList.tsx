@@ -44,7 +44,7 @@ export function ChatList() {
             value={newChatText}
             onChange={(e) => setNewChatText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Start a new chat..."
+            placeholder="Chat title..."
             disabled={createChat.isPending}
             className="min-h-10 resize-none"
           />

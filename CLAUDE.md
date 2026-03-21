@@ -1,62 +1,98 @@
 # CLAUDE.md
 
-Instructions for Claude Code when working with this repository.
+## Project Context
 
-## Project Overview
+LearnFlowAI — AI-powered learning platform. Core stack: LangGraph agent, FastAPI backend, React/TypeScript frontend, PostgreSQL.
 
-LearnFlowAI v2 — clean rewrite using AI-Driven Development (AIDD) methodology.
+This project follows AIDD (AI-Driven Development): the developer acts as architect defining contracts and architecture; the LLM agent implements based on prepared documentation context. All docs live in `doc/` — read them before making assumptions.
 
-**Status:** Architecture complete. Implementation phase.
+## Documentation
 
-## Documentation Structure
-
-All documentation is in `doc/`. Navigation and full structure — see [doc/index.md](doc/index.md).
+Start from [doc/index.md](doc/index.md). Key entry points by concern:
 
 ```
 doc/
-├── idea.md              # Что и зачем
-├── vision.md            # Техническое видение, стек, архитектура
-├── index.md             # Навигация по документации
-│
-├── product/             # use-cases, roadmap
-├── tech/                # backend, frontend, conventions
+├── idea.md              # Problem, ICP, JTBD, product boundaries
+├── vision.md            # System architecture, stack, MVP criteria
+├── product/             # Use cases, roadmap, versioned scope
+├── tech/
+│   ├── conventions.md   # Git flow, naming, code quality setup
 │   └── adr/             # Architecture Decision Records
-├── security/            # Модель угроз
-└── tasks/               # Задачи и итерации
+├── security/            # Threat model
+└── tasks/               # Task lists and iterations
 ```
 
-## Development Methodology
+## Key Commands
 
-This project follows **AI-Driven Development (AIDD)**:
+Use Makefile targets — not raw shell commands.
 
-1. Developer = architect/CTO, defines contracts and architecture
-2. LLM agent = executor, implements based on prepared context
-3. Documentation first — all decisions documented before implementation
-4. Context First — quality of output depends on quality of input context
+| Target | Purpose |
+|--------|---------|
+| `make check` | All backend checks: ruff + mypy (CI gate) |
+| `make lint` / `make format` | Ruff linter / formatter |
+| `make type-check` | mypy |
+| `make lint-fe` / `make format-fe` | ESLint / Prettier |
+| `make test` | pytest |
+| `make dev` / `make dev-fe` | Backend / frontend dev server |
+| `make docker-up` / `make docker-up-db` | Full stack / DB only |
+| `make migrate` | Alembic upgrade head |
+| `make migration msg="..."` | Create new Alembic migration |
 
-## Current Phase
+## Makefile Conventions
 
-**Implementation** — architecture and documentation complete, moving to task decomposition and iterative development.
+Makefile is the canonical interface to the project. Prefer `make <target>` over typing raw commands.
 
-## Agent Boundaries
+If a target is missing or inconvenient — improve the Makefile rather than running raw commands repeatedly. Obvious fixes (typos, wrong flags) can be applied directly. Non-obvious changes (new targets, workflow modifications) require architect approval.
 
-Agent does not make architectural decisions independently. Architecture, new components, interfaces, technology choices — only after explicit approval from the architect (user).
+One-off commands that won't be reused are fine to run directly.
 
-When a decision obviously and unambiguously follows from existing documentation — proceed without asking. When there is any doubt — ask first. The cost of an unnecessary question is low; the cost of an unauthorized architectural decision is high.
+## Code Quality Tools
+
+Linters and formatters are the project's quality gate — work with them, not around them.
+
+When a check fails:
+- **Understand the root cause** — determine whether it's a genuine code issue or a tooling false positive.
+- **Genuine issue** — fix in code.
+- **False positive or missing rule** — discuss with the architect to decide whether to adjust the rule configuration.
+- Never add blind suppressions (`# noqa`, `# type: ignore`) without clear justification. Suppressing real issues defeats the purpose of the tooling.
+
+Rule changes (enabling, disabling, configuring) always go through the architect.
 
 ## Tool & Library Freshness
 
-Не полагайся на обучающую выборку для версий и синтаксиса быстро меняющихся инструментов. Приоритет источников:
+Do not rely on training data for fast-moving tools. Verify against these sources (in priority order):
 
-1. **Исходный код** установленных пакетов (Python inspect, docstrings, сигнатуры)
-2. **Скиллы** (langgraph-patterns, uv-package-manager и др.)
-3. **MCP** (docs-langchain — актуальная документация LangGraph)
-4. **firecrawl** → официальная документация, PyPI, GitHub
+1. **Installed packages** — Python inspect, docstrings, signatures
+2. **Skills** — langgraph-patterns, uv-package-manager, etc.
+3. **MCP** — docs-langchain for up-to-date LangGraph docs
+4. **firecrawl** — official documentation, PyPI, GitHub
 
-Проект использует **raw LangGraph** (не LangChain обёртки). При работе с LangGraph-кодом — проверяй API через источники выше, не генерируй по памяти.
+This project uses **raw LangGraph** (not LangChain wrappers). Always verify LangGraph API through the sources above.
 
-## Guidelines
+## Skills
 
-- All architectural decisions must be documented as ADRs
-- Use Russian for documentation content (English for code and technical terms)
-- Follow conventions from [doc/tech/conventions.md](doc/tech/conventions.md)
+Use installed skills when the task matches their domain. Skills carry up-to-date, specialized knowledge beyond training data.
+
+| Skill | When to use |
+|-------|-------------|
+| `aidd-methodology` | Documentation structure, tasklists, workflow, ADRs |
+| `firecrawl` | Web/docs fetching, research, URL reading |
+| `langfuse` | Observability, tracing, Langfuse API and docs |
+| `langgraph-patterns` | LangGraph API, StateGraph, Command, HITL, streaming |
+| `prompt-engineering` | Writing or reviewing system prompts for LLM |
+| `schema-guided-reasoning` | Structured output, Pydantic models, JSON schema |
+| `uv-package-manager` | Dependencies, pyproject.toml, workspace, venv |
+
+When uncertain whether a skill covers your current task — check available skills before proceeding.
+
+## Agent Boundaries
+
+The agent does not make architectural decisions independently. Architecture, new components, interfaces, technology choices — only after explicit approval from the architect.
+
+When a decision obviously follows from existing documentation — proceed. When there is any doubt — ask first. An unnecessary question is cheap; an unauthorized architectural decision is expensive.
+
+## Parallel Development
+
+Multiple agents may work on different features simultaneously in separate worktrees. They have no communication channel with each other.
+
+If you observe unexpected behavior — port already in use, services restarting on their own, files changing outside your edits — **stop and escalate to the architect**. Do not attempt to resolve infrastructure conflicts yourself. The architect coordinates between agents.

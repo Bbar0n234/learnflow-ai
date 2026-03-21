@@ -201,6 +201,7 @@ logs/
 
 .claude/*.json
 .claude/agents/
+.claude/worktrees/
 data/*
 
 # Node.js
@@ -217,3 +218,20 @@ doc/.obsidian-source
 # Personal/local docs
 doc/diagrams/
 doc/lab/
+
+# IDE
+.idea/
+.vscode/
+
+# Sandbox artifacts (home dotfiles leaked by bubblewrap)
+.bash_profile
+.bashrc
+.zshrc
+.zprofile
+.profile
+.gitconfig
+.gitmodules
+.ripgreprc
+
+# Claude Code internals
+.claude/commands/

@@ -10,11 +10,20 @@
 |-------|-----------|
 | `main` | Стабильная версия, всегда рабочая |
 | `develop` | Текущая разработка, интеграционная ветка |
-| `<type>/<NNN>-<short-desc>` | Рабочие ветки от develop |
+| `<scope>/<type>-<NNN>-<slug>` | Рабочие ветки от develop |
 
-Типы рабочих веток — аналогично коммитам: `feat/`, `fix/`, `refactor/`, `chore/`, `docs/`.
+Scope — краткий код области работы. Типы — аналогично коммитам: `feat`, `fix`, `refactor`, `chore`, `docs`.
 
-Ветка привязана к итерации из tasklist: `<type>/<NNN>-<slug>`, где NNN — номер итерации в скоупе. Пример: `feat/001-api-layer`. При конфликте имён между скоупами — суффикс: `feat/001-api-layer-be`.
+| Scope | Код |
+|-------|-----|
+| backend-core | `be` |
+| frontend | `fe` |
+| agent | `ag` |
+| integration | `int` |
+| production | `prod` |
+| infrastructure | `infra` |
+
+Ветка привязана к итерации из tasklist: `<scope>/<type>-<NNN>-<slug>`, где NNN — номер итерации в скоупе. Пример: `prod/feat-001-auth`, `be/fix-002-sse-reconnect`.
 
 Merge в develop — через PR. Merge в main — через PR из develop.
 
@@ -40,15 +49,17 @@ chore: configure ruff and pre-commit
 ### Flow
 
 ```
-feat/001-skills-system ──→ develop ──→ main
-fix/002-sse-disconnect ──→ develop ──→ main
+ag/feat-001-skills-system ──→ develop ──→ main
+be/fix-002-sse-reconnect  ──→ develop ──→ main
 ```
 
 Рабочая ветка → PR в develop → code review → merge. Релиз: develop → PR в main.
 
+Merged ветки удаляются (GitHub auto-delete после merge PR). Локальные tracking-ветки — периодическая очистка.
+
 ## Структура проекта
 
-uv workspace, monorepo. Конкретная структура директорий определяется в Phase C (Infrastructure Setup).
+uv workspace, monorepo.
 
 ## Code Quality
 

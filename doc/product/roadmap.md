@@ -6,7 +6,15 @@
 - ✅ Research с качественным поиском и источниками (MCP Firecrawl)
 - ✅ Knowledge Sphere (базовая версия — проект как шар контекста)
 - ✅ Markdown-экспорт
-- 🚧 Базовый набор skills (structure ✅, research — через MCP tools, dedicated skill отложен)
+- ✅ Базовый набор skills (structure — встроенный, research — через MCP tools)
+
+## v1.1 (Production Readiness)
+
+- Полноценная аутентификация (замена X-User-Name)
+- Structured logging (backend + frontend)
+- Langfuse (observability, structured feedback)
+- CI/CD (GitHub Actions)
+- Автоматизация деплоя
 
 ## v1.5
 

@@ -21,6 +21,7 @@ dependencies = [
     "python-markdown-math>=0.8",
     "pyyaml>=6.0",
     "sqlalchemy[asyncio]>=2.0.48",
+    "structlog>=25.0",
     "uvicorn[standard]>=0.41.0",
 ]
 

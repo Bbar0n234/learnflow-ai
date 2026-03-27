@@ -85,6 +85,14 @@ Use installed skills when the task matches their domain. Skills carry up-to-date
 
 When uncertain whether a skill covers your current task — check available skills before proceeding.
 
+## Logging Conventions
+
+Backend: `structlog.get_logger()`, keyword-args style: `logger.info("event", key=value)`. Never `logging.getLogger(__name__)`.
+
+Frontend: `import { logger } from "@/shared/lib/logger"` instead of `console.*`.
+
+Level semantics, style, anti-patterns — see [conventions.md](doc/tech/conventions.md#logging-conventions).
+
 ## Agent Boundaries
 
 The agent does not make architectural decisions independently. Architecture, new components, interfaces, technology choices — only after explicit approval from the architect.

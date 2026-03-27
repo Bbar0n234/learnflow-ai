@@ -1,4 +1,5 @@
 import axios from "axios";
+import { logger } from "@/shared/lib/logger";
 
 const USERNAME_KEY = "learnflow-username";
 
@@ -25,7 +26,7 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error("[API Error]", error.response?.status, error.response?.data);
+    logger.error("[API Error]", error.response?.status, error.response?.data);
     return Promise.reject(error);
   },
 );

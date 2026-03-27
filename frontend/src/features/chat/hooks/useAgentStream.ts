@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { cancelChat } from "@/shared/api/chats";
 import { getUsername } from "@/shared/api/client";
 import type { SSEEvent } from "@/shared/api/types";
+import { logger } from "@/shared/lib/logger";
 import { useStreamStore } from "@/stores/stream-store";
 
 interface UseAgentStreamOptions {
@@ -131,7 +132,7 @@ export function useAgentStream(
             if (isCancellingRef.current) endStream();
             return;
           }
-          console.error("[SSE stream error]", err);
+          logger.error("[SSE stream error]", err);
           endStream();
           optionsRef.current?.onError?.(
             err instanceof Error ? err.message : "Connection error",
@@ -149,7 +150,7 @@ export function useAgentStream(
         if (!ok) abortRef.current?.abort();
       })
       .catch((err) => {
-        console.error("[cancel error]", err);
+        logger.error("[cancel error]", err);
         abortRef.current?.abort();
       });
   }, [projectId, chatId]);

@@ -21,7 +21,8 @@ docker-logs:  ## Show app container logs
 lint:  ## Run ruff linter
 	uv run ruff check .
 
-format:  ## Format Python code
+format:  ## Format Python code (auto-fix safe lint issues + format)
+	uv run ruff check --fix .
 	uv run ruff format .
 
 type-check:  ## Run mypy type checking

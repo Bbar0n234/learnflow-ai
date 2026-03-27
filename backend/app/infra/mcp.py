@@ -1,7 +1,7 @@
-import logging
 import os
 from typing import Any
 
+import structlog
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.sessions import (
     SSEConnection,
@@ -12,7 +12,7 @@ from langchain_mcp_adapters.sessions import (
 
 from app.agent.config import MCPServerConfig
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 type _Connection = (
     StdioConnection | SSEConnection | StreamableHttpConnection | WebsocketConnection
@@ -27,8 +27,8 @@ def _resolve_headers(cfg: MCPServerConfig) -> dict[str, Any] | None:
     if api_key:
         return {"Authorization": f"Bearer {api_key}"}
     logger.warning(
-        "MCP server env var '%s' not set, skipping auth header",
-        cfg.api_key_env,
+        "mcp server env var not set, skipping auth header",
+        env_var=cfg.api_key_env,
     )
     return None
 

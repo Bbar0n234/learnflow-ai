@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import asyncio
+import time
 import uuid
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from typing import Any
 
+import structlog
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
 
 from app.agent.graph import AgentContext
 from app.services.agent_runner import Message, StreamEvent
+
+logger = structlog.get_logger()
 
 
 def _parse_created_at(value: str | None) -> datetime | None:
@@ -37,6 +41,14 @@ class LangGraphAgentRunner:
         if thread_id in self._pending_cancels:
             self._pending_cancels.discard(thread_id)
             cancel_event.set()
+
+        logger.info(
+            "agent invoked",
+            thread_id=str(thread_id),
+            project_id=str(project_id),
+        )
+        stream_start = time.monotonic()
+        stream_error = False
 
         config = {"configurable": {"thread_id": str(thread_id)}}
         context = AgentContext(
@@ -82,8 +94,21 @@ class LangGraphAgentRunner:
                         yield event
 
         except Exception as e:
+            stream_error = True
+            logger.warning(
+                "agent stream error",
+                thread_id=str(thread_id),
+                error=str(e),
+            )
             yield StreamEvent(type="error", data={"detail": str(e)})
         finally:
+            duration_ms = int((time.monotonic() - stream_start) * 1000)
+            logger.info(
+                "agent completed",
+                thread_id=str(thread_id),
+                duration_ms=duration_ms,
+                status="error" if stream_error else "ok",
+            )
             self._cancel_events.pop(thread_id, None)
             self._pending_cancels.discard(thread_id)
 

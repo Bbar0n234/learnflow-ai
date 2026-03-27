@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+import structlog
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, RemoveMessage, SystemMessage
 from langchain_core.messages.utils import count_tokens_approximately, trim_messages
@@ -17,7 +18,7 @@ from app.agent.config import AgentConfig
 from app.agent.prompt_builder import build_system_message
 from app.agent.tools.ks_helpers import build_namespace, format_index
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 @dataclass
@@ -99,6 +100,12 @@ def build_graph(
         )
         system = SystemMessage(content=content)
 
+        logger.debug(
+            "agent state",
+            message_count=len(messages),
+            total_tokens=total_tokens,
+        )
+
         # 3. Trim messages
         trimmed = trim_messages(
             messages,
@@ -110,7 +117,18 @@ def build_graph(
         )
 
         # 4. LLM call
+        llm_start = time.monotonic()
         response = await bound_model.ainvoke([system, *trimmed])
+        llm_duration_ms = int((time.monotonic() - llm_start) * 1000)
+
+        usage = response.usage_metadata
+        logger.info(
+            "llm call",
+            model=getattr(bound_model, "model_name", "unknown"),
+            duration_ms=llm_duration_ms,
+            input_tokens=usage.get("input_tokens") if usage else None,
+            output_tokens=usage.get("output_tokens") if usage else None,
+        )
         response.additional_kwargs["created_at"] = datetime.now(
             timezone.utc
         ).isoformat()

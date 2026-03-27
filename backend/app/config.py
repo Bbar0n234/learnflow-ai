@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_base_url: str = "https://openrouter.ai/api/v1"
 
+    log_level: str = "info"
+
     cors_origins: list[str] = [
         "http://localhost:3000",
         "http://localhost:5173",

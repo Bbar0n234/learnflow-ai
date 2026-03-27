@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import logging
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+
+import structlog
 
 from app.models.thread_view import ThreadView
 from app.repositories.artifact import ArtifactRepository
@@ -11,7 +12,7 @@ from app.repositories.thread_view import ThreadViewRepository
 from app.services.agent_runner import AgentRunner, Message, StreamEvent
 from app.services.exceptions import EntityNotFoundError
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 @dataclass
@@ -35,7 +36,15 @@ class ChatService:
         self._artifact_repo = artifact_repo
 
     async def create_chat(self, *, project_id: uuid.UUID, title: str) -> ThreadView:
-        return await self._thread_view_repo.create(project_id=project_id, title=title)
+        thread_view = await self._thread_view_repo.create(
+            project_id=project_id, title=title
+        )
+        logger.info(
+            "chat created",
+            thread_id=str(thread_view.thread_id),
+            project_id=str(project_id),
+        )
+        return thread_view
 
     async def list_chats(self, project_id: uuid.UUID) -> list[ThreadView]:
         return await self._thread_view_repo.list_by_project(project_id)
@@ -109,7 +118,11 @@ class ChatService:
         except Exception:
             # Post-hoc linking failure is non-critical:
             # artifacts remain linked to thread_id, just without message_id.
-            logger.warning("Post-hoc artifact linking failed", exc_info=True)
+            logger.warning(
+                "post-hoc artifact linking failed",
+                thread_id=str(thread_id),
+                exc_info=True,
+            )
 
         yield StreamEvent(type="done", data={"message_id": message_id or ""})
 

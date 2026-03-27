@@ -20,7 +20,7 @@ MVP (v1) завершён и развёрнут. Цель v1.1 — довест�
 
 | Итерация | Статус | Закрывает |
 |----------|--------|-----------|
-| feat-001 | 📋 Planned | Logging (backend + frontend + Docker) |
+| feat-001 | ✅ Done | Logging (backend + frontend + Docker) |
 | feat-002 | 📋 Planned | Аутентификация (JWT/session, замена X-User-Name) |
 | feat-003 | 📋 Planned | Langfuse (tracing, cost tracking, user feedback) |
 | chore-001 | 📋 Planned | CI/CD + Deploy (GitHub Actions, auto-deploy on merge to main) |
@@ -39,23 +39,23 @@ MVP (v1) завершён и развёрнут. Цель v1.1 — довест�
 
 **Цель:** управляемое логирование на backend и frontend. При ошибках — видеть что произошло, а не гадать. Фундамент для observability (feat-003).
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Blocked by:** —
 **Закрывает:** v1.1: logging
 **Ветка:** `prod/feat-001-logging`
 
 #### Состав работ
 
-- [ ] Backend: structlog — инициализация, конфигурация, YAML-конфиг с per-library overrides
-- [ ] Backend: LOG_LEVEL в Settings + .env / .env.example
-- [ ] Backend: request ID middleware (correlation)
-- [ ] Backend: замена существующих logging-вызовов на structlog
-- [ ] Frontend: logger-обёртка с уровнями
-- [ ] Frontend: Error Boundary
-- [ ] Frontend: замена console.error → logger.error
-- [ ] Docker: log rotation для app и db
-- [ ] Актуализация документации (backend.md, frontend.md)
-- [ ] Актуализация CLAUDE.md — секция Logging Conventions (семантика уровней, антипаттерны)
+- [x] Backend: structlog — инициализация, конфигурация, YAML-конфиг с per-library overrides
+- [x] Backend: LOG_LEVEL в Settings + .env / .env.example
+- [x] Backend: request ID middleware (correlation)
+- [x] Backend: замена существующих logging-вызовов на structlog
+- [x] Frontend: logger-обёртка с уровнями
+- [x] Frontend: Error Boundary
+- [x] Frontend: замена console.error → logger.error
+- [x] Docker: log rotation для app и db
+- [x] Актуализация документации (backend.md, frontend.md, conventions.md)
+- [x] Актуализация CLAUDE.md — секция Logging Conventions (do/don't + ссылка на conventions.md)
 
 #### Критерии приёмки
 
@@ -71,6 +71,8 @@ MVP (v1) завершён и развёрнут. Цель v1.1 — довест�
 
 - [ADR-009: Logging Strategy](../tech/adr/ADR-009-logging-strategy.md)
 - [Design Brief](iterations/production/feat-001-logging/design-brief.md)
+- [Implementation Plan](iterations/production/feat-001-logging/plan.md)
+- [Summary](iterations/production/feat-001-logging/summary.md)
 
 ---
 

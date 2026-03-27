@@ -456,6 +456,30 @@ ThreadView.thread_id = str(UUID) → LangGraph thread_id (связь с checkpoi
 Artifact.thread_id → ThreadView.thread_id (артефакт создаётся в контексте чата)
 ```
 
+## Logging
+
+Централизованное логирование на базе structlog поверх stdlib через `ProcessorFormatter`.
+
+### Setup
+
+Единая точка входа: `backend/app/infra/logging.py` → `setup_logging()`. Вызывается в `lifespan()` до инициализации сервисов.
+
+Конфигурация:
+- `configs/logging.yaml` — формат вывода (`human-readable` / `json`), per-library overrides для шумных библиотек
+- `LOG_LEVEL` env var — уровень логирования (default: `info`)
+
+### Structlog + stdlib интеграция
+
+Подход "Rendering using structlog-based formatters within logging": structlog loggers (наш код) и stdlib loggers (uvicorn, sqlalchemy, httpx) проходят через единый `ProcessorFormatter` → единый формат вывода.
+
+### Request ID
+
+FastAPI middleware генерирует UUID для каждого HTTP-запроса → `structlog.contextvars`. Все лог-записи в контексте запроса автоматически содержат `request_id`.
+
+### Использование
+
+Стиль и семантика уровней — в [conventions.md](conventions.md#logging-conventions).
+
 ## Error Handling
 
 Основные сценарии покрываются фреймворками: ToolNode возвращает ошибку как ToolMessage (агент видит и решает сам в ReAct loop), FastAPI — стандартные HTTP-ошибки, SSE — терминальный `error` event. Детали (retry policy для LLM, поведение при disconnect, cancel semantics) — определяются при реализации.

@@ -297,3 +297,25 @@ frontend/
 ```
 
 **Принципы:** features/ изолированы друг от друга. shared/ — то, что нужно нескольким фичам. app/ — shell (layouts, providers, router), не бизнес-логика. stores/ отдельно от features, т.к. stream store используется cross-feature. Pages не выделены — при 6 маршрутах роутер рендерит layout + feature-компонент напрямую.
+
+## Logging
+
+### Logger-обёртка
+
+`frontend/src/shared/lib/logger.ts` — обёртка над `console.*` с фильтрацией по уровню.
+
+- **Dev** (`import.meta.env.DEV`): debug, info, warn, error — все видны
+- **Prod**: только warn и error
+
+```typescript
+import { logger } from "@/shared/lib/logger";
+
+logger.info("event description", data);
+logger.error("[context]", error);
+```
+
+Отдельная `VITE_LOG_LEVEL` не нужна — `DEV`/`PROD` из Vite достаточно (compile-time).
+
+### Error Boundary
+
+`frontend/src/app/components/ErrorBoundary.tsx` — React class component, оборачивает корень приложения. При непойманной ошибке рендера показывает fallback UI (сообщение + кнопка "обновить страницу") вместо белого экрана. Логирует ошибку через `logger.error`.

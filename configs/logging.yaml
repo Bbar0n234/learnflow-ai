@@ -1,0 +1,10 @@
+# Output format: human-readable (dev) | json (prod)
+format: human-readable
+
+# Per-library log level overrides (noisy libraries)
+overrides:
+  httpx: warning
+  httpcore: warning
+  sqlalchemy.engine: warning
+  asyncio: warning
+  uvicorn.access: info

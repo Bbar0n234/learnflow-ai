@@ -1,8 +1,9 @@
-import logging
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncIterator
+from typing import Any, AsyncIterator
 
+import structlog
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -23,16 +24,30 @@ from app.config import Settings
 from app.infra.db import create_engine, create_session_factory
 from app.infra.langgraph import create_checkpointer, create_store
 from app.infra.llm import create_llm, create_summarization_llm
+from app.infra.logging import setup_logging
 from app.infra.mcp import create_mcp_client
 from app.services.exceptions import EntityNotFoundError
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = Settings()
+
+    setup_logging(
+        log_level=settings.log_level,
+        config_path=Path(__file__).resolve().parents[2] / "configs" / "logging.yaml",
+    )
+
     agent_config = load_agent_config()
+    logger.debug(
+        "loaded config",
+        log_level=settings.log_level,
+        cors_origins=settings.cors_origins,
+        llm_base_url=settings.llm_base_url,
+    )
+    logger.info("app started")
 
     engine = create_engine(settings)
     # Fail-fast: verify DB is reachable at startup
@@ -72,13 +87,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             if mcp_client is not None:
                 mcp_tools = await mcp_client.get_tools()
                 logger.info(
-                    "Loaded %d MCP tools from %d server(s)",
-                    len(mcp_tools),
-                    len(agent_config.mcp_servers),
+                    "mcp tools loaded",
+                    tool_count=len(mcp_tools),
+                    server_count=len(agent_config.mcp_servers),
                 )
         except Exception:
             logger.warning(
-                "Failed to initialize MCP tools, starting without external tools",
+                "mcp tools init failed, starting without external tools",
                 exc_info=True,
             )
 
@@ -111,6 +126,15 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Request ID middleware
+    @app.middleware("http")
+    async def request_id_middleware(request: Request, call_next: Any) -> Any:
+        structlog.contextvars.clear_contextvars()
+        request_id = str(uuid.uuid4())
+        structlog.contextvars.bind_contextvars(request_id=request_id)
+        response = await call_next(request)
+        return response
 
     # Exception handlers
     @app.exception_handler(EntityNotFoundError)

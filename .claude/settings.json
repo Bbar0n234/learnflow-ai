@@ -6,7 +6,7 @@
   "sandbox": {
     "enabled": true,
     "autoAllowBashIfSandboxed": true,
-    "excludedCommands": ["docker", "docker-compose", "make"],
+    "excludedCommands": ["docker:*", "docker-compose:*", "make:*"],
     "filesystem": {
       "allowWrite": ["~/.cache/uv", "~/.npm", "~/.local", "~/.config"]
     }

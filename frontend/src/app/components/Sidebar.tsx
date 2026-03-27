@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { Link, useMatch, useNavigate } from "react-router";
-import { MessageSquare, PanelLeftClose, Plus } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { LogOut, MessageSquare, PanelLeftClose, Plus, User } from "lucide-react";
+import { getMe, logout } from "@/shared/api/auth";
+import { clearAccessToken } from "@/shared/api/client";
 import { Button } from "@/shared/ui/button";
 import { useUIStore } from "@/stores/ui-store";
 import { useRecentChats } from "@/features/chat/hooks/useRecentChats";
@@ -17,6 +20,17 @@ export function Sidebar() {
 
   const { data: recentChats } = useRecentChats();
   const createChat = useCreateChat();
+  const { data: user } = useQuery({
+    queryKey: ["auth", "me"],
+    queryFn: getMe,
+    staleTime: Infinity,
+  });
+
+  function handleLogout() {
+    logout().catch(() => {});
+    clearAccessToken();
+    window.location.reload();
+  }
 
   return (
     <div className="flex h-full w-64 flex-col">
@@ -96,6 +110,28 @@ export function Sidebar() {
           </div>
         ) : null}
       </div>
+
+      {/* User footer */}
+      {user && (
+        <div className="border-t border-border px-3 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex min-w-0 items-center gap-2">
+              <User className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="truncate text-sm text-sidebar-foreground">
+                {user.name}
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={handleLogout}
+              title="Logout"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       <CreateProjectModal open={createOpen} onOpenChange={setCreateOpen} />
     </div>

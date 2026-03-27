@@ -19,7 +19,7 @@ from app.agent.tools import (
     make_load_skill_tool,
     scan_skills_index,
 )
-from app.api.routes import artifacts, chats, messages, projects, sphere
+from app.api.routes import artifacts, auth, chats, messages, projects, sphere
 from app.config import Settings
 from app.infra.db import create_engine, create_session_factory
 from app.infra.langgraph import create_checkpointer, create_store
@@ -152,6 +152,7 @@ def create_app() -> FastAPI:
 
     # API routes
     api_prefix = "/api"
+    app.include_router(auth.router, prefix=api_prefix)
     app.include_router(projects.router, prefix=api_prefix)
     app.include_router(chats.router, prefix=api_prefix)
     app.include_router(messages.router, prefix=api_prefix)

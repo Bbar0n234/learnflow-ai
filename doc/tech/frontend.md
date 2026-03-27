@@ -60,9 +60,9 @@ Feature-based: компоненты группируются по фичам, н
 
 ### Layout
 
-- **AuthGate** — app-level обёртка: проверяет username в localStorage, показывает модалку при первом визите. Вне Router и Providers.
+- **AuthGate** — app-level обёртка: проверяет access token в localStorage, показывает Login/Register форму если не аутентифицирован. Вне Router и Providers.
 - **AppLayout** — корневой layout: sidebar + центральная область. Рендерится на всех маршрутах.
-- **Sidebar** — проекты пользователя, recents, кнопки создания (new chat / new project).
+- **Sidebar** — проекты пользователя, recents, кнопки создания (new chat / new project), user footer с logout.
 - **ProjectLayout** — обёртка для project-level маршрутов: имя проекта, табы (Chats / Sphere / Artifacts).
 
 ### Features
@@ -160,7 +160,7 @@ streamStore
 
 ### HTTP-клиент
 
-Единый axios instance: base URL `/api` (через Vite dev proxy → backend), dynamic `X-User-Name` header через request interceptor (из localStorage). Helpers `getUsername()`/`setUsername()` экспортируются для использования в SSE fetch. Response interceptor для обработки ошибок.
+Единый axios instance: base URL `/api`, `withCredentials: true` (для refresh token cookie). Request interceptor добавляет `Authorization: Bearer` header из localStorage. Response interceptor: 401 → автоматический refresh token + retry (с queue для параллельных запросов). `ensureFreshToken()` — proactive refresh для SSE fetch (проверяет JWT expiry, обновляет если < 30 сек до истечения).
 
 ### TypeScript типы
 
@@ -195,7 +195,7 @@ features/artifacts/  → useArtifacts, useArtifact
 
 Компоненты вызывают хуки, не API-функции напрямую.
 
-**downloadArtifact** — axios blob download с `X-User-Name` header. Не через TanStack Query (императивный вызов из onClick).
+**downloadArtifact** — axios blob download с Bearer token (через interceptor). Не через TanStack Query (императивный вызов из onClick).
 
 ## SSE-стриминг
 

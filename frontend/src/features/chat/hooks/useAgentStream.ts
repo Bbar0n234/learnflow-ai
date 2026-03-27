@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cancelChat } from "@/shared/api/chats";
-import { getUsername } from "@/shared/api/client";
+import { ensureFreshToken } from "@/shared/api/client";
 import type { SSEEvent } from "@/shared/api/types";
 import { logger } from "@/shared/lib/logger";
 import { useStreamStore } from "@/stores/stream-store";
@@ -43,18 +43,45 @@ export function useAgentStream(
 
       (async () => {
         try {
-          const response = await fetch(
+          const token = await ensureFreshToken();
+          if (!token) {
+            endStream();
+            return;
+          }
+
+          let response = await fetch(
             `/api/projects/${projectId}/chats/${chatId}/messages`,
             {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                "X-User-Name": getUsername(),
+                Authorization: `Bearer ${token}`,
               },
               body: JSON.stringify({ content }),
               signal: controller.signal,
             },
           );
+
+          // Reactive fallback: 401 → refresh → retry once
+          if (response.status === 401) {
+            const freshToken = await ensureFreshToken();
+            if (!freshToken) {
+              endStream();
+              return;
+            }
+            response = await fetch(
+              `/api/projects/${projectId}/chats/${chatId}/messages`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${freshToken}`,
+                },
+                body: JSON.stringify({ content }),
+                signal: controller.signal,
+              },
+            );
+          }
 
           if (!response.ok) {
             endStream();

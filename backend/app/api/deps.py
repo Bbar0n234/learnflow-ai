@@ -4,9 +4,11 @@ import uuid
 from collections.abc import AsyncGenerator
 from typing import Annotated
 
+import jwt
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import Settings
 from app.models.project import Project
 from app.models.user import User
 from app.repositories import (
@@ -20,6 +22,7 @@ from app.services import (
     ChatService,
     ProjectService,
 )
+from app.services.security import decode_access_token
 from app.services.sphere import LangGraphSphereService, SphereService
 
 
@@ -42,11 +45,23 @@ async def get_current_user(
     request: Request,
     session: DBSession,
 ) -> User:
-    user_name = request.headers.get("X-User-Name")
-    if not user_name:
-        raise HTTPException(status_code=401, detail="X-User-Name header required")
-    user_repo = UserRepository(session)
-    return await user_repo.get_or_create(user_name)
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    token = auth_header.removeprefix("Bearer ")
+    settings = Settings()
+    try:
+        user_id = decode_access_token(token, settings.jwt_secret)
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        raise HTTPException(
+            status_code=401, detail="Invalid or expired token"
+        ) from None
+
+    user = await UserRepository(session).get_by_id(user_id)
+    if user is None:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]

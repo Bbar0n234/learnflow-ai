@@ -42,11 +42,9 @@ Infra — DB engine/sessions, LLM client, MCP client, HTTP client
 
 ### Auth
 
-Multi-user с простым разделением по пользователям.
+JWT + Refresh Token. Access token (short-lived, localStorage) для API-запросов, refresh token (long-lived, httpOnly cookie) для обновления. Подробнее: [ADR-011](adr/ADR-011-auth-architecture.md).
 
-**MVP:** header `X-User-Name` — deps.py извлекает имя, передаёт в роутеры через `Depends()`. Без паролей и токенов, достаточно для разграничения данных.
-
-**Production:** подход к авторизации — открытый вопрос, решается отдельно.
+`get_current_user()` в deps.py извлекает JWT из `Authorization: Bearer` header, декодирует user_id. Все защищённые роуты используют `CurrentUser` dependency.
 
 ### Endpoints
 

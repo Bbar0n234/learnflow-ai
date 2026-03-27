@@ -23,6 +23,8 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.48",
     "structlog>=25.0",
     "uvicorn[standard]>=0.41.0",
+    "argon2-cffi>=25.1.0",
+    "pyjwt>=2.11.0",
 ]
 
 [tool.pytest.ini_options]

@@ -3,6 +3,13 @@ from app.api.schemas.artifacts import (
     ArtifactListItem,
     ArtifactListResponse,
 )
+from app.api.schemas.auth import (
+    LoginRequest,
+    MessageResponse,
+    RegisterRequest,
+    TokenResponse,
+    UserResponse,
+)
 from app.api.schemas.chats import (
     ChatCreate,
     ChatDetailResponse,
@@ -22,6 +29,11 @@ from app.api.schemas.projects import (
 from app.api.schemas.sphere import SphereResponse, SphereUpdate
 
 __all__ = [
+    "LoginRequest",
+    "MessageResponse",
+    "RegisterRequest",
+    "TokenResponse",
+    "UserResponse",
     "ArtifactDetailResponse",
     "ArtifactListItem",
     "ArtifactListResponse",

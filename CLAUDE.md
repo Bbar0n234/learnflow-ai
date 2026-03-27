@@ -93,6 +93,12 @@ Frontend: `import { logger } from "@/shared/lib/logger"` instead of `console.*`.
 
 Level semantics, style, anti-patterns — see [conventions.md](doc/tech/conventions.md#logging-conventions).
 
+## Sandbox & Network
+
+Sandbox isolates network per bash command (`--unshare-net`). Commands inside sandbox cannot connect to localhost services (Docker ports, dev servers, databases). This is expected — not a Docker or networking issue.
+
+Use Makefile targets for anything that needs network access to local services — they run outside sandbox via `excludedCommands`. For one-off diagnostics (psql, curl), sandbox escape hatch will trigger automatically.
+
 ## Agent Boundaries
 
 The agent does not make architectural decisions independently. Architecture, new components, interfaces, technology choices — only after explicit approval from the architect.

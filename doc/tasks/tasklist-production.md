@@ -21,7 +21,7 @@ MVP (v1) завершён и развёрнут. Цель v1.1 — довест�
 | Итерация | Статус | Закрывает |
 |----------|--------|-----------|
 | feat-001 | ✅ Done | Logging (backend + frontend + Docker) |
-| feat-002 | 📋 Planned | Аутентификация (JWT/session, замена X-User-Name) |
+| feat-002 | ✅ Done | Аутентификация (JWT/session, замена X-User-Name) |
 | feat-003 | 📋 Planned | Langfuse (tracing, cost tracking, user feedback) |
 | chore-001 | 📋 Planned | CI/CD + Deploy (GitHub Actions, auto-deploy on merge to main) |
 
@@ -80,7 +80,7 @@ MVP (v1) завершён и развёрнут. Цель v1.1 — довест�
 
 **Цель:** полноценная аутентификация, замена MVP-заглушки (X-User-Name header). Безопасный доступ для нескольких пользователей.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Blocked by:** prod/feat-001
 **Закрывает:** v1.1: аутентификация
 **Ветка:** `prod/feat-002-auth`
@@ -91,17 +91,17 @@ MVP (v1) завершён и развёрнут. Цель v1.1 — довест�
 
 #### Состав работ
 
-- [ ] Backend: модель User — добавить `password_hash`, миграция (drop + recreate)
-- [ ] Backend: таблица `refresh_tokens`, репозиторий
-- [ ] Backend: auth service (register, login, refresh, logout)
-- [ ] Backend: auth router (`/api/auth/`)
-- [ ] Backend: JWT encode/decode (PyJWT), переключить `get_current_user()` на JWT
-- [ ] Backend: rate limiting middleware (in-memory)
-- [ ] Backend: config (`JWT_SECRET`, token lifetimes)
-- [ ] Frontend: Login/Register form (замена AuthGate модалки)
-- [ ] Frontend: token management (axios interceptor → Bearer, refresh logic, 401 handling)
-- [ ] Frontend: удаление legacy (`X-User-Name`, `learnflow-username` в localStorage)
-- [ ] E2E: register → login → API-запросы → token refresh → logout
+- [x] Backend: модель User — добавить `password_hash`, миграция (drop + recreate)
+- [x] Backend: таблица `refresh_tokens`, репозиторий
+- [x] Backend: auth service (register, login, refresh, logout)
+- [x] Backend: auth router (`/api/auth/`)
+- [x] Backend: JWT encode/decode (PyJWT), переключить `get_current_user()` на JWT
+- [x] Backend: rate limiting middleware (in-memory)
+- [x] Backend: config (`JWT_SECRET`, token lifetimes)
+- [x] Frontend: Login/Register form (замена AuthGate модалки)
+- [x] Frontend: token management (axios interceptor → Bearer, refresh logic, 401 handling)
+- [x] Frontend: удаление legacy (`X-User-Name`, `learnflow-username` в localStorage)
+- [x] E2E: register → login → API-запросы → token refresh → logout
 
 #### Критерии приёмки
 
@@ -117,6 +117,8 @@ MVP (v1) завершён и развёрнут. Цель v1.1 — довест�
 
 - [ADR-011: Auth Architecture](../tech/adr/ADR-011-auth-architecture.md)
 - [Design Brief](iterations/production/feat-002-auth/design-brief.md)
+- [Implementation Plan](iterations/production/feat-002-auth/plan.md)
+- [Summary](iterations/production/feat-002-auth/summary.md)
 
 ---
 

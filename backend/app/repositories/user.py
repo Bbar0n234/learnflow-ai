@@ -3,7 +3,6 @@ from __future__ import annotations
 import uuid
 
 from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
@@ -16,16 +15,11 @@ class UserRepository:
     async def get_by_id(self, user_id: uuid.UUID) -> User | None:
         return await self._session.get(User, user_id)
 
-    async def get_or_create(self, name: str) -> User:
-        stmt = (
-            pg_insert(User)
-            .values(name=name)
-            .on_conflict_do_nothing(index_elements=["name"])
-        )
-        await self._session.execute(stmt)
-
+    async def get_by_name(self, name: str) -> User | None:
         result = await self._session.execute(select(User).where(User.name == name))
-        user = result.scalar_one()
+        return result.scalar_one_or_none()
 
+    async def create(self, user: User) -> User:
+        self._session.add(user)
         await self._session.flush()
         return user

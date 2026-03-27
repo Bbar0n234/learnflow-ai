@@ -16,6 +16,12 @@ class Settings(BaseSettings):
 
     log_level: str = "info"
 
+    # Auth
+    jwt_secret: str
+    access_token_expire_minutes: int = 30
+    refresh_token_expire_days: int = 30
+    secure_cookies: bool = True
+
     cors_origins: list[str] = [
         "http://localhost:3000",
         "http://localhost:5173",

@@ -14,8 +14,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -200,6 +200,39 @@ logs/*.log
 logs/
 
 .claude/*.json
+!.claude/settings.json
+.claude/agents/
+.claude/worktrees/
 data/*
 
+# Node.js
+node_modules/
+
+# Firecrawl cache
+.firecrawl/
+
 render_prompts.py
+
+# Obsidian source (symlink)
+doc/.obsidian-source
+
+# Personal/local docs
+doc/diagrams/
+doc/lab
+
+# IDE
+.idea/
+.vscode/
+
+# Sandbox artifacts (home dotfiles leaked by bubblewrap)
+.bash_profile
+.bashrc
+.zshrc
+.zprofile
+.profile
+.gitconfig
+.gitmodules
+.ripgreprc
+
+# Claude Code internals
+.claude/commands/

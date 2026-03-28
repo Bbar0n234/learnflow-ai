@@ -1,1 +1,0 @@
-"""API endpoints for the prompt configuration service."""

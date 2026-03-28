@@ -1,58 +1,19 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-.venv/
+.git
+.venv
+__pycache__
+*.pyc
 .env
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.mypy_cache/
-
-# Build
-build/
-dist/
-*.egg-info/
-.eggs/
-
-# Logs (exclude from image, will be mounted)
-logs/
-*.log
-
-# Git
-.git/
+.env.local
+node_modules
+frontend/node_modules
+frontend/dist
+doc/
+.claude/
+.mypy_cache
+.ruff_cache
+.pytest_cache
+.firecrawl
+frontend/.firecrawl
+frontend/.claude
 .gitignore
-
-# Documentation
-docs/
-*.md
 LICENSE
-
-# Docker
-Dockerfile*
-docker-compose.*
-.dockerignore
-
-# Temporary files
-tmp/
-temp/
-*.tmp
-
-# Test files
-test_*.py
-tests/

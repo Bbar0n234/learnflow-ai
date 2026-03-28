@@ -1,111 +1,66 @@
-.PHONY: install sync-bot sync-learnflow sync-artifacts run-bot run-learnflow test-bot test-learnflow test-artifacts test-all lint format clean dev-services ruff-check ruff-fix ruff-format ruff-check-bot ruff-fix-bot ruff-format-bot ruff-check-learnflow ruff-fix-learnflow ruff-format-learnflow ruff-check-artifacts ruff-fix-artifacts ruff-format-artifacts mypy-bot mypy-learnflow mypy-artifacts fix-bot fix-learnflow fix-artifacts local-dev local-reset
+.PHONY: docker-up docker-up-db docker-down docker-build docker-logs lint format type-check check lint-fe check-fe format-fe dev dev-remote dev-fe test migrate migration downgrade
 
-# Installation commands
-install:
-	uv sync --all-groups
+# Load .env (base) then .env.local (overrides) into shell environment
+LOAD_ENV = set -a && [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; set +a
 
-sync-bot:
-	uv sync --package learnflow-bot --all-groups
+docker-up:  ## Start full stack (app + db)
+	docker compose up -d
 
-sync-learnflow:
-	uv sync --package learnflow-core --all-groups
+docker-up-db:  ## Start only PostgreSQL (for local dev)
+	docker compose up -d db
 
-sync-artifacts:
-	uv sync --package artifacts-service --all-groups
+docker-down:  ## Stop all containers
+	docker compose down
 
-# Run commands
-run-bot:
-	uv run --package learnflow-bot python -m bot
+docker-build:  ## Build Docker images
+	docker compose build
 
-run-learnflow:
-	uv run --package learnflow-core python -m learnflow
+docker-logs:  ## Show app container logs
+	docker compose logs -f app
 
-run-artifacts:
-	uv run --package artifacts-service python -m artifacts-service
+lint:  ## Run ruff linter
+	uv run ruff check .
 
-# Test commands
-test-bot:
-	uv run --package learnflow-bot --group test pytest bot/
+format:  ## Format Python code (auto-fix safe lint issues + format)
+	uv run ruff check --fix .
+	uv run ruff format .
 
-test-learnflow:
-	uv run --package learnflow-core --group test pytest learnflow/
+type-check:  ## Run mypy type checking
+	uv run --package learnflow-backend mypy backend/
 
-test-artifacts:
-	uv run --package artifacts-service --group test pytest artifacts-service/
+check:  ## Run all backend checks (CI gate)
+	uv run ruff check .
+	uv run ruff format --check .
+	uv run --package learnflow-backend mypy backend/
 
-test-all: test-bot test-learnflow test-artifacts
+lint-fe:  ## Run ESLint on frontend
+	cd frontend && npx eslint .
 
-# Ruff commands for bot service only
-ruff-check-bot:
-	uv run --package learnflow-bot --group dev ruff check bot/
+check-fe:  ## Run all frontend checks (CI gate)
+	cd frontend && npx tsc -b --noEmit
+	cd frontend && npx eslint .
+	cd frontend && npx prettier --check .
 
-ruff-fix-bot:
-	uv run --package learnflow-bot --group dev ruff check bot/ --fix
+format-fe:  ## Format frontend code with Prettier
+	cd frontend && npx prettier --write .
 
-ruff-format-bot:
-	uv run --package learnflow-bot --group dev ruff format bot/
+dev:  ## Run backend dev server (localhost only)
+	$(LOAD_ENV) && uv run --package learnflow-backend uvicorn app.main:app --reload --app-dir backend
 
-# Ruff commands for learnflow service only
-ruff-check-learnflow:
-	uv run --package learnflow-core --group dev ruff check learnflow/
+dev-remote:  ## Run backend dev server (accessible by IP)
+	$(LOAD_ENV) && uv run --package learnflow-backend uvicorn app.main:app --reload --app-dir backend --host 0.0.0.0
 
-ruff-fix-learnflow:
-	uv run --package learnflow-core --group dev ruff check learnflow/ --fix
+dev-fe:  ## Run frontend dev server
+	cd frontend && npx vite
 
-ruff-format-learnflow:
-	uv run --package learnflow-core --group dev ruff format learnflow/
+test:  ## Run pytest
+	$(LOAD_ENV) && uv run --package learnflow-backend pytest -c backend/pyproject.toml --rootdir backend
 
-# Ruff commands for artifacts-service only
-ruff-check-artifacts:
-	uv run --package artifacts-service --group dev ruff check artifacts-service/
+migrate:  ## Run alembic upgrade head
+	$(LOAD_ENV) && uv run alembic -c backend/alembic.ini upgrade head
 
-ruff-fix-artifacts:
-	uv run --package artifacts-service --group dev ruff check artifacts-service/ --fix
+migration:  ## Create new alembic migration (autogenerate). Usage: make migration msg="description"
+	$(LOAD_ENV) && uv run alembic -c backend/alembic.ini revision --autogenerate -m "$(msg)"
 
-ruff-format-artifacts:
-	uv run --package artifacts-service --group dev ruff format artifacts-service/
-
-# MyPy commands for each service
-mypy-bot:
-	uv run --package learnflow-bot --group dev mypy bot/
-
-mypy-learnflow:
-	uv run --package learnflow-core --group dev mypy learnflow/
-
-mypy-artifacts:
-	uv run --package artifacts-service --group dev mypy artifacts-service/
-
-# Full fix commands (ruff fix + format + mypy) for each service
-fix-bot:
-	uv run --package learnflow-bot --group dev ruff check bot/ --fix
-	uv run --package learnflow-bot --group dev ruff format bot/
-	uv run --package learnflow-bot --group dev mypy bot/
-
-fix-learnflow:
-	uv run --package learnflow-core --group dev ruff check learnflow/ --fix
-	uv run --package learnflow-core --group dev ruff format learnflow/
-	uv run --package learnflow-core --group dev mypy learnflow/
-
-fix-artifacts:
-	uv run --package artifacts-service --group dev ruff check artifacts-service/ --fix
-	uv run --package artifacts-service --group dev ruff format artifacts-service/
-	uv run --package artifacts-service --group dev mypy artifacts-service/
-
-# Local development commands
-local-dev:
-	./scripts/local-dev.sh
-
-local-reset:
-	./scripts/local-reset.sh
-
-# Docker commands
-dev-services:
-	docker compose down -v && docker compose up --build bot graph artifacts-service web-ui postgres prompt-config-service
-
-# Cleanup
-clean:
-	find . -type d -name "__pycache__" -exec rm -rf {} +
-	find . -type f -name "*.pyc" -delete
-	rm -rf .pytest_cache/
-	rm -rf .mypy_cache/
-	rm -rf .ruff_cache/
+downgrade:  ## Run alembic downgrade (one step)
+	$(LOAD_ENV) && uv run alembic -c backend/alembic.ini downgrade -1

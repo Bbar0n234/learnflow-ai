@@ -1,0 +1,14 @@
+{
+  "enabledMcpjsonServers": [
+    "eslint",
+    "docs-langchain"
+  ],
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true,
+    "excludedCommands": ["docker:*", "docker-compose:*", "make:*"],
+    "filesystem": {
+      "allowWrite": ["~/.cache/uv", "~/.npm", "~/.local", "~/.config"]
+    }
+  }
+}

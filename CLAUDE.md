@@ -1,290 +1,113 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Project Context
 
-## Project Overview
+LearnFlowAI — AI-powered learning platform. Core stack: LangGraph agent, FastAPI backend, React/TypeScript frontend, PostgreSQL.
 
-LearnFlow AI is a universal LangGraph-based educational content generation system for any subject area and education level. It processes educational questions and handwritten note images to generate comprehensive study materials with gap analysis questions and answers. The system consists of:
+This project follows AIDD (AI-Driven Development): the developer acts as architect defining contracts and architecture; the LLM agent implements based on prepared documentation context. All docs live in `doc/` — read them before making assumptions.
 
-- **FastAPI service** (`learnflow/`) - REST API for processing educational content
-- **Telegram bot** (`bot/`) - User interface for interacting with the system
-- **Web UI** (`web-ui/`) - React-based web interface with deep linking and routing support
-- **Artifacts Service** (`artifacts-service/`) - Secure file storage with multi-tenancy support
-- **LangGraph workflow** - Multi-node processing pipeline with HITL (Human-in-the-Loop) capabilities
-- **Image recognition module** - OCR and handwritten text recognition for student notes
-- **Prompt Configuration Service** (`prompt-config-service/`) - Dynamic personalized prompt generation service
-- **Security Layer** - API key and JWT authentication for protecting user data
+## Documentation
 
-## Development Commands
+Start from [doc/index.md](doc/index.md). Key entry points by concern:
 
-### Environment Setup
-
-#### Docker Deployment (Recommended)
-```bash
-# Copy and configure environment variables for Docker
-cp env.example .env
-# Edit .env with your API keys (Docker networking)
-
-# Start all services with Docker Compose
-docker compose up -d
-
-# Check service status
-docker compose ps
-
-# View logs
-docker compose logs -f
+```
+doc/
+├── idea.md              # Problem, ICP, JTBD, product boundaries
+├── vision.md            # System architecture, stack, MVP criteria
+├── product/             # Use cases, roadmap, versioned scope
+├── tech/
+│   ├── conventions.md   # Git flow, naming, code quality setup
+│   └── adr/             # Architecture Decision Records
+├── security/            # Threat model
+└── tasks/               # Task lists and iterations
 ```
 
-#### Local Development
-```bash
-# Copy and configure environment variables for local development
-cp .env.local.example .env.local
-# Edit .env.local with your API keys (localhost networking)
+## Key Commands
 
-# Install dependencies using UV workspace
-# Install all packages and groups
-uv sync
+Use Makefile targets — not raw shell commands.
 
-# Install specific packages
-uv sync --package learnflow  # Only learnflow service dependencies
-uv sync --package bot        # Only bot service dependencies
+| Target | Purpose |
+|--------|---------|
+| `make check` | All backend checks: ruff + mypy (CI gate) |
+| `make check-fe` | All frontend checks: ESLint + Prettier --check (CI gate) |
+| `make lint` / `make format` | Ruff linter / formatter |
+| `make type-check` | mypy |
+| `make lint-fe` / `make format-fe` | ESLint / Prettier |
+| `make test` | pytest |
+| `make dev` / `make dev-fe` | Backend / frontend dev server |
+| `make docker-up` / `make docker-up-db` | Full stack / DB only |
+| `make migrate` | Alembic upgrade head |
+| `make migration msg="..."` | Create new Alembic migration |
 
-# Install with specific groups
-uv sync --group dev          # Development tools (ruff, mypy, etc.)
-uv sync --group test         # Testing dependencies (pytest, etc.)
-uv sync --group dev --group test  # Multiple groups
+## Makefile Conventions
 
-# Install specific package with specific group
-uv sync --package learnflow --group dev   # Dev tools for learnflow only
-uv sync --package bot --group test        # Test deps for bot only
+Makefile is the canonical interface to the project. Prefer `make <target>` over typing raw commands.
 
-# Quick startup script (starts both FastAPI service and Telegram bot)
-./run.sh
-```
+If a target is missing or inconvenient — improve the Makefile rather than running raw commands repeatedly. Obvious fixes (typos, wrong flags) can be applied directly. Non-obvious changes (new targets, workflow modifications) require architect approval.
 
-#### Environment Configuration
-- **`.env`** - Used for Docker Compose (container networking)
-- **`.env.local`** - Used for local development (localhost networking)
-- Services automatically read `.env.local` first, then fall back to `.env`
+One-off commands that won't be reused are fine to run directly.
 
-### Running Services
+## Code Quality Tools
 
-#### Quick Local Development (Recommended)
-```bash
-# use Makefile
-make local-dev   # Same as ./scripts/local-dev.sh
-make local-reset # Same as ./scripts/local-reset.sh
-```
+Linters and formatters are the project's quality gate — work with them, not around them.
 
-**What `make local-dev` does:**
-1. Checks/creates `.env.local` configuration
-2. Installs dependencies if needed (`uv sync`)
-3. Starts PostgreSQL in Docker (port 5433)
-4. Creates databases (`learnflow`, `prompts_db`)
-5. Runs migrations for Artifacts Service
-6. Starts all services locally with logging to `logs/`
-7. Shows health check status for each service
-8. Handles Ctrl+C for graceful shutdown
+When a check fails:
+- **Understand the root cause** — determine whether it's a genuine code issue or a tooling false positive.
+- **Genuine issue** — fix in code.
+- **False positive or missing rule** — discuss with the architect to decide whether to adjust the rule configuration.
+- Never add blind suppressions (`# noqa`, `# type: ignore`) without clear justification. Suppressing real issues defeats the purpose of the tooling.
 
-#### Manual Service Start (Alternative)
-```bash
-# FastAPI Service Only
-uv run --package learnflow python -m learnflow.main
-# Service available at http://localhost:8000
-# API docs at http://localhost:8000/docs
+Rule changes (enabling, disabling, configuring) always go through the architect.
 
-# Telegram Bot Only
-uv run --package bot python -m bot.main
-```
+## Tool & Library Freshness
 
-**Available Bot Commands:**
-- `/start` - Welcome message and instructions
-- `/help` - Show available commands and usage
-- `/hitl` - Configure Human-in-the-Loop settings (autonomous vs. guided modes)
-- `/configure` - Configure prompt personalization settings (profiles, placeholders)
-- `/reset_prompts` - Reset prompt settings to defaults
-- `/reset` - Reset current session
-- `/status` - Show current processing status
-- `/export` - Quick export of current session with default settings
-- `/export_menu` - Export with custom parameters selection
-- `/sessions` or `/history` - Show last 5 sessions for export
-- `/export_settings` - Configure default export settings
-- `/web_auth` - Generate authentication code for Web UI access (valid for 5 minutes)
+Do not rely on training data for fast-moving tools. Verify against these sources (in priority order):
 
-#### Web UI Only
-```bash
-cd web-ui
-npm install
-npm run dev
-# Web interface available at http://localhost:5173
-# Features: Deep linking, React Router navigation, accordion state management
-```
+1. **Installed packages** — Python inspect, docstrings, signatures
+2. **Skills** — langgraph-patterns, uv-package-manager, etc.
+3. **MCP** — docs-langchain for up-to-date LangGraph docs
+4. **firecrawl** — official documentation, PyPI, GitHub
 
-**Key Features:**
-- Deep linking support for threads, sessions, and files
-- Browser navigation (back/forward buttons)
-- URL-based accordion state (no localStorage dependency)
-- Route validation with graceful fallbacks
-- Shareable URLs for all content levels
+This project uses **raw LangGraph** (not LangChain wrappers). Always verify LangGraph API through the sources above.
 
-#### Docker Compose (Full Stack with LangFuse)
-```bash
-docker-compose up
-# Includes: FastAPI, Bot, Prompt Config Service, LangFuse, PostgreSQL, Redis, ClickHouse, MinIO
-```
+## Skills
 
-#### Artifacts Service Only
-```bash
-# Apply database migrations first (if using local PostgreSQL)
-DATABASE_URL="postgresql://postgres:postgres@localhost:5433/learnflow" \
-  uv run --package artifacts-service alembic upgrade head
+Use installed skills when the task matches their domain. Skills carry up-to-date, specialized knowledge beyond training data.
 
-# Run the service
-uv run --package artifacts-service python main.py
-# Service available at http://localhost:8001
-# API docs at http://localhost:8001/docs
-# Provides secure document storage with authentication
-```
+| Skill | When to use |
+|-------|-------------|
+| `aidd-methodology` | Documentation structure, tasklists, workflow, ADRs |
+| `firecrawl` | Web/docs fetching, research, URL reading |
+| `langfuse` | Observability, tracing, Langfuse API and docs |
+| `langgraph-patterns` | LangGraph API, StateGraph, Command, HITL, streaming |
+| `prompt-engineering` | Writing or reviewing system prompts for LLM |
+| `schema-guided-reasoning` | Structured output, Pydantic models, JSON schema |
+| `uv-package-manager` | Dependencies, pyproject.toml, workspace, venv |
 
-#### Prompt Configuration Service Only
-```bash
-uv run --package prompt-config-service python -m main
-# Service available at http://localhost:8002
-# API docs at http://localhost:8002/docs
-```
+When uncertain whether a skill covers your current task — check available skills before proceeding.
 
-### Development Tools
-```bash
-# Health check
-curl http://localhost:8000/health
+## Logging Conventions
 
-# HITL Configuration API
-curl http://localhost:8000/api/hitl/{user_id}                    # Get current HITL settings
-curl -X POST http://localhost:8000/api/hitl/{user_id}/bulk      # Enable/disable all nodes
-curl -X PATCH http://localhost:8000/api/hitl/{user_id}/node/edit_material  # Toggle specific node
+Backend: `structlog.get_logger()`, keyword-args style: `logger.info("event", key=value)`. Never `logging.getLogger(__name__)`.
 
-# View logs
-tail -f learnflow.log
-```
+Frontend: `import { logger } from "@/shared/lib/logger"` instead of `console.*`.
 
-## Architecture
+Level semantics, style, anti-patterns — see [conventions.md](doc/tech/conventions.md#logging-conventions).
 
-### Core Components
+## Sandbox & Network
 
-#### LangGraph Workflow Pipeline
-The system uses a multi-node workflow defined in `learnflow/graph.py`:
+Sandbox isolates network per bash command (`--unshare-net`). Commands inside sandbox cannot connect to localhost services (Docker ports, dev servers, databases). This is expected — not a Docker or networking issue.
 
-1. **input_processing** - Analyzes user input and determines processing path
-2. **generating_content** - Generates comprehensive study material from educational questions and tasks
-3. **recognition_handwritten** - Unified notes processing: OCR for images, direct text input (>=50 chars), or skip
-4. **synthesis_material** - Combines generated content with recognized notes
-5. **generating_questions** - Creates knowledge assessment questions with HITL review
-6. **answer_question** - Generates detailed answers for assessment questions
+Use Makefile targets for anything that needs network access to local services — they run outside sandbox via `excludedCommands`. For one-off diagnostics (psql, curl), sandbox escape hatch will trigger automatically.
 
-#### State Management
-- **GeneralState** (`learnflow/state.py`) - Typed state model for workflow data
-- Supports image paths, recognized text, synthesized materials, and HITL feedback
-- Uses Pydantic for validation and LangGraph annotations for accumulation
+## Agent Boundaries
 
-#### Node Architecture
-All processing nodes extend `BaseWorkflowNode` (`learnflow/nodes/base.py`):
-- Structured logging with trace IDs
-- Error handling and state validation
-- LangFuse integration for observability
-- HITL interaction patterns
+The agent does not make architectural decisions independently. Architecture, new components, interfaces, technology choices — only after explicit approval from the architect.
 
-### Key Modules
+When a decision obviously follows from existing documentation — proceed. When there is any doubt — ask first. An unnecessary question is cheap; an unauthorized architectural decision is expensive.
 
-#### Multi-Provider LLM Support (`learnflow/models/model_factory.py`)
-- Support for multiple OpenAI-compatible providers (OpenAI, Fireworks, OpenRouter)
-- Provider configuration via `configs/providers.yaml` with Jinja2 templating
-- Automatic validation of structured output support
-- Per-node provider configuration in `configs/graph.yaml`
+## Parallel Development
 
-#### Image Processing (`learnflow/file_utils.py`)
-- Thread-based temporary storage for uploaded images
-- Image validation (size, format, content type)
-- Cleanup utilities for temporary files
+Multiple agents may work on different features simultaneously in separate worktrees. They have no communication channel with each other.
 
-#### Settings (`learnflow/settings.py`)
-- Pydantic-based configuration management
-- Environment variable loading with validation
-- Service-specific settings (file limits, ports, etc.)
-
-#### HITL Management (`learnflow/services/hitl_manager.py`)
-- Configurable Human-in-the-Loop interaction control
-- Per-user settings for autonomous vs. guided processing modes
-- In-memory storage with thread-ID based configuration
-- REST API endpoints for runtime configuration changes
-
-#### Prompt Configuration Integration (`learnflow/services/prompt_client.py`)
-- HTTP client for Prompt Configuration Service
-- Retry mechanism with exponential backoff (3 attempts)
-- Dynamic personalized prompt generation
-- WorkflowExecutionError on service unavailability (no fallback)
-- Context building from workflow state with proper field mapping
-
-### Configuration Files
-
-#### Providers Configuration (`configs/providers.yaml`)
-Defines available LLM providers with their capabilities:
-- API endpoints and keys (via environment variables)
-- Structured output support flags
-- Default models per provider
-
-#### Prompts (`configs/prompts.yaml`)
-Contains all system prompts for different workflow nodes:
-- `generating_content_system_prompt` - Comprehensive material generation
-- `recognition_system_prompt` - Handwritten notes processing
-- `synthesize_system_prompt` - Content synthesis logic
-- `gen_question_system_prompt` - Assessment question generation
-- `gen_answer_system_prompt` - Answer generation
-
-#### Environment Variables (`.env`)
-Required API keys and configuration:
-- `OPENAI_API_KEY` - Primary LLM provider
-- **Alternative LLM Providers (Optional)**:
-  - `OPENROUTER_API_KEY` - OpenRouter aggregator for multiple models
-  - `FIREWORKS_API_KEY` - Fireworks AI for fast inference
-- `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` - Observability
-- `TELEGRAM_TOKEN` - Bot integration
-- `PROMPT_SERVICE_URL` - URL for Prompt Configuration Service (default: http://localhost:8002)
-- `PROMPT_SERVICE_TIMEOUT` - Service timeout in seconds (default: 5)
-- `PROMPT_SERVICE_RETRY_COUNT` - Number of retry attempts (default: 3)
-- Database and service configuration
-
-## Development Guidelines
-
-### Working with LangGraph Nodes
-- Extend `BaseWorkflowNode` for consistent behavior
-- Implement proper state validation in `validate_input_state()`
-- Handle HITL interactions through `Command` objects
-
-### API Development
-- FastAPI endpoints are in `learnflow/main.py`
-- Use Pydantic models for request/response validation
-- Implement proper error handling with meaningful HTTP status codes
-- Thread-based processing for concurrent requests
-
-### Testing Images
-Sample images for recognition testing are in `images/`:
-- `raw/` - Original handwritten notes
-- `clipped/` - Processed/cropped versions
-
-### Deployment
-- Production deployment uses Docker Compose with full LangFuse stack
-- Health checks available at `/health` endpoint
-- Logs are structured with timestamp and trace ID correlation
-
-## Troubleshooting
-
-### Common Issues
-- **Port conflicts**: Check if 8000 (FastAPI) or 3000 (LangFuse) are occupied
-- **API key errors**: Verify all required keys are set in `.env`
-- **UV dependencies**: Run `uv sync --upgrade` to update dependencies or `uv sync` to reinstall if conflicts occur
-- **Docker volumes**: Use `docker-compose down -v` to reset persistent data
-
-### Debugging
-- Enable DEBUG logging via `LOG_LEVEL=DEBUG` in `.env`
-- LangFuse tracing provides detailed workflow execution logs
-- FastAPI has automatic interactive docs at `/docs` endpoint
+If you observe unexpected behavior — port already in use, services restarting on their own, files changing outside your edits — **stop and escalate to the architect**. Do not attempt to resolve infrastructure conflicts yourself. The architect coordinates between agents.

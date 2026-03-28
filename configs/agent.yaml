@@ -1,0 +1,20 @@
+llm:
+  model: "z-ai/glm-5"
+
+context:
+  max_tokens: 100000
+  compaction_threshold_ratio: 0.75
+  recent_messages_to_keep: 10
+
+prompt:
+  system_file: "prompts/system.txt"
+
+summarization:
+  model: "z-ai/glm-4.7-flash"
+  max_summary_tokens: 500
+
+mcp_servers:
+  firecrawl:
+    transport: http
+    url: https://mcp.firecrawl.dev/v2/mcp
+    api_key_env: FIRECRAWL_API_KEY

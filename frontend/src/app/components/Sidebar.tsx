@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { Link, useMatch, useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { LogOut, MessageSquare, PanelLeftClose, Plus, User } from "lucide-react";
+import {
+  LogOut,
+  MessageSquare,
+  PanelLeftClose,
+  Plus,
+  User,
+} from "lucide-react";
 import { getMe, logout } from "@/shared/api/auth";
 import { clearAccessToken } from "@/shared/api/client";
 import { Button } from "@/shared/ui/button";

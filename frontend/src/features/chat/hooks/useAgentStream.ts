@@ -6,8 +6,13 @@ import type { SSEEvent } from "@/shared/api/types";
 import { logger } from "@/shared/lib/logger";
 import { useStreamStore } from "@/stores/stream-store";
 
+interface DoneInfo {
+  messageId: string | null;
+  traceId: string | null;
+}
+
 interface UseAgentStreamOptions {
-  onDone?: () => void;
+  onDone?: (info: DoneInfo) => void;
   onError?: (detail: string) => void;
 }
 
@@ -128,8 +133,10 @@ export function useAgentStream(
                     queryKey: ["projects", projectId, "artifacts"],
                   });
                   break;
-                case "done":
+                case "done": {
                   terminated = true;
+                  const traceId = event.trace_id ?? null;
+                  const messageId = event.message_id ?? null;
                   endStream();
                   queryClient.invalidateQueries({
                     queryKey: ["projects", projectId, "chats", chatId],
@@ -137,8 +144,9 @@ export function useAgentStream(
                   queryClient.invalidateQueries({
                     queryKey: ["chats", "recent"],
                   });
-                  optionsRef.current?.onDone?.();
+                  optionsRef.current?.onDone?.({ messageId, traceId });
                   break;
+                }
                 case "error":
                   terminated = true;
                   endStream();

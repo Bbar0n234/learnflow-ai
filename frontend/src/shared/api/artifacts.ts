@@ -11,9 +11,8 @@ export async function getArtifact(
   projectId: string,
   artifactId: string,
 ): Promise<ArtifactDetail> {
-  return (
-    await apiClient.get(`/projects/${projectId}/artifacts/${artifactId}`)
-  ).data;
+  return (await apiClient.get(`/projects/${projectId}/artifacts/${artifactId}`))
+    .data;
 }
 
 export async function downloadArtifact(

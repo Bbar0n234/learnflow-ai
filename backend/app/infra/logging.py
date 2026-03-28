@@ -11,12 +11,13 @@ import structlog
 import yaml
 
 
-def setup_logging(log_level: str, config_path: Path) -> None:
+def setup_logging(log_level: str, config_path: Path, log_file: str = "") -> None:
     """Initialize structlog + stdlib logging.
 
     Args:
         log_level: Root log level (e.g. "info", "debug").
         config_path: Path to configs/logging.yaml.
+        log_file: Optional file path for log output. Empty = stdout only.
     """
     cfg = _load_config(config_path)
 
@@ -62,20 +63,33 @@ def setup_logging(log_level: str, config_path: Path) -> None:
                     ],
                 },
             },
-            "handlers": {
-                "default": {
-                    "class": "logging.StreamHandler",
-                    "stream": "ext://sys.stdout",
-                    "formatter": "structlog",
-                },
-            },
+            "handlers": _build_handlers(log_file),
             "root": {
                 "level": log_level.upper(),
-                "handlers": ["default"],
+                "handlers": list(_build_handlers(log_file).keys()),
             },
             "loggers": overrides,
         }
     )
+
+
+def _build_handlers(log_file: str) -> dict[str, Any]:
+    """Build logging handlers dict. Always stdout; optionally a file."""
+    handlers: dict[str, Any] = {
+        "default": {
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout",
+            "formatter": "structlog",
+        },
+    }
+    if log_file:
+        handlers["file"] = {
+            "class": "logging.FileHandler",
+            "filename": log_file,
+            "mode": "w",
+            "formatter": "structlog",
+        }
+    return handlers
 
 
 def _load_config(path: Path) -> dict[str, Any]:

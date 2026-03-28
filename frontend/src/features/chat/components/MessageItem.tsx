@@ -2,13 +2,15 @@ import type { Message } from "@/shared/api/types";
 import { MarkdownRenderer } from "@/shared/components/MarkdownRenderer";
 import { cn } from "@/shared/lib/utils";
 import { ArtifactCard } from "./ArtifactCard";
+import { FeedbackButtons } from "./FeedbackButtons";
 
 interface MessageItemProps {
   message: Message;
   projectId: string;
+  traceId?: string;
 }
 
-export function MessageItem({ message, projectId }: MessageItemProps) {
+export function MessageItem({ message, projectId, traceId }: MessageItemProps) {
   const isUser = message.role === "user";
 
   return (
@@ -34,6 +36,7 @@ export function MessageItem({ message, projectId }: MessageItemProps) {
               projectId={projectId}
             />
           ))}
+        {!isUser && traceId && <FeedbackButtons traceId={traceId} />}
       </div>
     </div>
   );

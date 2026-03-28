@@ -65,9 +65,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         "detail" in err.response.data
       ) {
         setError(
-          String(
-            (err.response as { data: { detail: string } }).data.detail,
-          ),
+          String((err.response as { data: { detail: string } }).data.detail),
         );
       } else {
         setError("Something went wrong");
@@ -81,11 +79,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (authenticated) return <>{children}</>;
 
   return (
-    <Dialog
-      open
-      onOpenChange={() => {}}
-      disablePointerDismissal
-    >
+    <Dialog open onOpenChange={() => {}} disablePointerDismissal>
       <DialogContent showCloseButton={false}>
         <form onSubmit={handleSubmit}>
           <DialogHeader>
@@ -120,9 +114,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
                 onChange={(e) => setConfirmPassword(e.target.value)}
               />
             )}
-            {error && (
-              <p className="text-sm text-destructive">{error}</p>
-            )}
+            {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
 
           <DialogFooter className="flex flex-col gap-2 sm:flex-col">

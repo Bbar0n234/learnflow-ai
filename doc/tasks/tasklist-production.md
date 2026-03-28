@@ -22,7 +22,7 @@ MVP (v1) завершён и развёрнут. Цель v1.1 — довест�
 |----------|--------|-----------|
 | feat-001 | ✅ Done | Logging (backend + frontend + Docker) |
 | feat-002 | ✅ Done | Аутентификация (JWT/session, замена X-User-Name) |
-| feat-003 | 📋 Planned | Langfuse (tracing, cost tracking, user feedback) |
+| feat-003 | ✅ Done | Langfuse (tracing, cost tracking, user feedback) |
 | chore-001 | 📋 Planned | CI/CD + Deploy (GitHub Actions, auto-deploy on merge to main) |
 
 ## Быстро меняющиеся инструменты
@@ -126,7 +126,7 @@ MVP (v1) завершён и развёрнут. Цель v1.1 — довест�
 
 **Цель:** observability агента (трейсы, стоимость, латенси) + structured feedback (thumbs up/down на ответы). Основной инструмент сбора обратной связи от использования.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Blocked by:** prod/feat-001
 **Закрывает:** v1.1: Langfuse
 **Ветка:** `prod/feat-003-langfuse`
@@ -135,15 +135,15 @@ MVP (v1) завершён и развёрнут. Цель v1.1 — довест�
 
 #### Состав работ
 
-- [ ] Backend: langfuse SDK v4 — зависимость, инициализация клиента, Score Config auto-init
-- [ ] Backend: инструментация agent runner (root span + CallbackHandler + streaming output)
-- [ ] Backend: propagate_attributes (user_id, session_id, trace_name, environment, release)
-- [ ] Backend: trace_id в SSE event `done`
-- [ ] Backend: feedback endpoint (`POST /api/feedback`) — create/update/delete score
-- [ ] Backend: env variables (LANGFUSE_*) + .env.example + docker-compose
-- [ ] Frontend: feedback UI (thumbs up/down с toggle model)
-- [ ] Frontend: trace_id в state сообщения, optimistic UI, silent failure
-- [ ] Верификация: token/cost tracking, корректность отображения в Langfuse UI
+- [x] Backend: langfuse SDK v4 — зависимость, инициализация клиента, Score Config auto-init
+- [x] Backend: инструментация agent runner (root span + CallbackHandler + streaming output)
+- [x] Backend: propagate_attributes (user_id, session_id, trace_name, environment, release)
+- [x] Backend: trace_id в SSE event `done`
+- [x] Backend: feedback endpoint (`POST /api/feedback`) — create/update/delete score
+- [x] Backend: env variables (LANGFUSE_*) + .env.example + docker-compose
+- [x] Frontend: feedback UI (thumbs up/down с toggle model)
+- [x] Frontend: trace_id в state сообщения, optimistic UI, silent failure
+- [x] Верификация: token/cost tracking, корректность отображения в Langfuse UI
 
 #### Критерии приёмки
 
@@ -160,6 +160,8 @@ MVP (v1) завершён и развёрнут. Цель v1.1 — довест�
 - [ADR-010: Langfuse Observability Strategy](../tech/adr/ADR-010-langfuse-observability.md)
 - [Design Brief](iterations/production/feat-003-langfuse/design-brief.md)
 - [Reference: Feedback System](iterations/production/feat-003-langfuse/reference-feedback-system.md)
+- [Implementation Plan](iterations/production/feat-003-langfuse/plan.md)
+- [Summary](iterations/production/feat-003-langfuse/summary.md)
 
 ---
 

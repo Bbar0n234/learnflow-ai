@@ -19,9 +19,10 @@ from app.agent.tools import (
     make_load_skill_tool,
     scan_skills_index,
 )
-from app.api.routes import artifacts, auth, chats, messages, projects, sphere
+from app.api.routes import artifacts, auth, chats, feedback, messages, projects, sphere
 from app.config import Settings
 from app.infra.db import create_engine, create_session_factory
+from app.infra.langfuse import init_langfuse, shutdown_langfuse
 from app.infra.langgraph import create_checkpointer, create_store
 from app.infra.llm import create_llm, create_summarization_llm
 from app.infra.logging import setup_logging
@@ -38,7 +39,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     setup_logging(
         log_level=settings.log_level,
         config_path=Path(__file__).resolve().parents[2] / "configs" / "logging.yaml",
+        log_file=settings.log_file,
     )
+
+    try:
+        init_langfuse(
+            public_key=settings.langfuse_public_key,
+            secret_key=settings.langfuse_secret_key,
+            host=settings.langfuse_base_url,
+        )
+    except Exception:
+        logger.warning(
+            "langfuse init failed, proceeding without tracing", exc_info=True
+        )
 
     agent_config = load_agent_config()
     logger.debug(
@@ -111,6 +124,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         yield
 
+    shutdown_langfuse()
     await engine.dispose()
 
 
@@ -158,6 +172,7 @@ def create_app() -> FastAPI:
     app.include_router(messages.router, prefix=api_prefix)
     app.include_router(artifacts.router, prefix=api_prefix)
     app.include_router(sphere.router, prefix=api_prefix)
+    app.include_router(feedback.router, prefix=api_prefix)
 
     # Serve frontend static files (only when dist exists — Docker mode)
     frontend_dir = Path(__file__).resolve().parents[2] / "frontend" / "dist"

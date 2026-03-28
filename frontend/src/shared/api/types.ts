@@ -99,5 +99,5 @@ export type SSEEvent =
       title: string;
       artifact_type: string;
     }
-  | { type: "done"; message_id?: string }
+  | { type: "done"; message_id?: string; trace_id?: string }
   | { type: "error"; detail: string };

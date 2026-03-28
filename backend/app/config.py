@@ -15,12 +15,18 @@ class Settings(BaseSettings):
     llm_base_url: str = "https://openrouter.ai/api/v1"
 
     log_level: str = "info"
+    log_file: str = ""
 
     # Auth
     jwt_secret: str
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 30
     secure_cookies: bool = True
+
+    # Langfuse Observability
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
+    langfuse_base_url: str = "https://cloud.langfuse.com"
 
     cors_origins: list[str] = [
         "http://localhost:3000",

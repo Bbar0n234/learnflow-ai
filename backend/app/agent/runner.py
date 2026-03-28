@@ -4,6 +4,7 @@ import asyncio
 import time
 import uuid
 from collections.abc import AsyncIterator
+from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
 from typing import Any
 
@@ -14,6 +15,74 @@ from app.agent.graph import AgentContext
 from app.services.agent_runner import Message, StreamEvent
 
 logger = structlog.get_logger()
+
+
+class _NoOpSpan:
+    """No-op span when Langfuse is unavailable."""
+
+    trace_id = None
+    id = None
+
+    def update(self, **kwargs: Any) -> None:
+        pass
+
+
+@contextmanager
+def _langfuse_observation(
+    content: str,
+    user_id: uuid.UUID,
+    thread_id: uuid.UUID,
+    project_id: uuid.UUID,
+) -> Any:
+    """Fail-safe Langfuse instrumentation. Yields (span, handler).
+
+    ExitStack keeps CM references alive so OTel context stays active during
+    the async generator stream. OTel detach errors on cleanup are expected
+    (token created in a different async context) and suppressed.
+    """
+    # Lazy imports: avoid import errors when langfuse is not installed/configured.
+    from langfuse import get_client, propagate_attributes
+    from langfuse.langchain import CallbackHandler
+
+    from app.infra.langfuse import langfuse_enabled
+
+    span: Any = _NoOpSpan()
+    handler = None
+    stack = ExitStack()
+
+    if not langfuse_enabled:
+        yield span, handler
+        return
+
+    try:
+        langfuse = get_client()
+        actual_span = stack.enter_context(
+            langfuse.start_as_current_observation(
+                as_type="span", name="agent-run", input=content
+            )
+        )
+        stack.enter_context(
+            propagate_attributes(
+                user_id=str(user_id),
+                session_id=str(thread_id),
+                trace_name="agent-run",
+                metadata={"project_id": str(project_id)},
+            )
+        )
+        span = actual_span
+        handler = CallbackHandler()
+    except Exception:
+        logger.warning(
+            "langfuse setup failed, proceeding without tracing", exc_info=True
+        )
+
+    try:
+        yield span, handler
+    finally:
+        try:
+            stack.close()
+        except Exception:
+            logger.warning("langfuse cleanup failed", exc_info=True)
 
 
 def _parse_created_at(value: str | None) -> datetime | None:
@@ -49,68 +118,82 @@ class LangGraphAgentRunner:
         )
         stream_start = time.monotonic()
         stream_error = False
+        full_response = ""
 
-        config = {"configurable": {"thread_id": str(thread_id)}}
-        context = AgentContext(
-            project_id=str(project_id),
-            user_id=str(user_id),
-        )
-        input_msg = {
-            "messages": [
-                HumanMessage(
-                    content=content,
-                    additional_kwargs={
-                        "created_at": datetime.now(timezone.utc).isoformat()
-                    },
+        with _langfuse_observation(content, user_id, thread_id, project_id) as (
+            span,
+            lf_handler,
+        ):
+            config: dict[str, Any] = {"configurable": {"thread_id": str(thread_id)}}
+            if lf_handler:
+                config["callbacks"] = [lf_handler]
+
+            context = AgentContext(
+                project_id=str(project_id),
+                user_id=str(user_id),
+            )
+            input_msg = {
+                "messages": [
+                    HumanMessage(
+                        content=content,
+                        additional_kwargs={
+                            "created_at": datetime.now(timezone.utc).isoformat()
+                        },
+                    )
+                ]
+            }
+
+            try:
+                async for mode, data in self._graph.astream(
+                    input_msg,
+                    config,
+                    stream_mode=["messages", "updates"],
+                    context=context,
+                ):
+                    if cancel_event.is_set():
+                        yield StreamEvent(type="error", data={"detail": "Cancelled"})
+                        return
+
+                    if mode == "messages":
+                        msg_chunk, _metadata = data
+                        if (
+                            isinstance(msg_chunk, AIMessageChunk)
+                            and isinstance(msg_chunk.content, str)
+                            and msg_chunk.content
+                        ):
+                            full_response += msg_chunk.content
+                            yield StreamEvent(
+                                type="text_chunk",
+                                data={"content": msg_chunk.content},
+                            )
+
+                    elif mode == "updates":
+                        for event in self._process_updates(data):
+                            yield event
+
+            except Exception as e:
+                stream_error = True
+                logger.warning(
+                    "agent stream error",
+                    thread_id=str(thread_id),
+                    error=str(e),
                 )
-            ]
-        }
+                yield StreamEvent(type="error", data={"detail": str(e)})
+            finally:
+                duration_ms = int((time.monotonic() - stream_start) * 1000)
+                logger.info(
+                    "agent completed",
+                    thread_id=str(thread_id),
+                    duration_ms=duration_ms,
+                    status="error" if stream_error else "ok",
+                )
+                self._cancel_events.pop(thread_id, None)
+                self._pending_cancels.discard(thread_id)
 
-        try:
-            async for mode, data in self._graph.astream(
-                input_msg,
-                config,
-                stream_mode=["messages", "updates"],
-                context=context,
-            ):
-                if cancel_event.is_set():
-                    yield StreamEvent(type="error", data={"detail": "Cancelled"})
-                    return
+            span.update(output=full_response)
 
-                if mode == "messages":
-                    msg_chunk, _metadata = data
-                    if (
-                        isinstance(msg_chunk, AIMessageChunk)
-                        and isinstance(msg_chunk.content, str)
-                        and msg_chunk.content
-                    ):
-                        yield StreamEvent(
-                            type="text_chunk",
-                            data={"content": msg_chunk.content},
-                        )
-
-                elif mode == "updates":
-                    for event in self._process_updates(data):
-                        yield event
-
-        except Exception as e:
-            stream_error = True
-            logger.warning(
-                "agent stream error",
-                thread_id=str(thread_id),
-                error=str(e),
-            )
-            yield StreamEvent(type="error", data={"detail": str(e)})
-        finally:
-            duration_ms = int((time.monotonic() - stream_start) * 1000)
-            logger.info(
-                "agent completed",
-                thread_id=str(thread_id),
-                duration_ms=duration_ms,
-                status="error" if stream_error else "ok",
-            )
-            self._cancel_events.pop(thread_id, None)
-            self._pending_cancels.discard(thread_id)
+        if span.trace_id:
+            yield StreamEvent(type="trace_id", data={"trace_id": span.trace_id})
 
     @staticmethod
     def _process_updates(data: dict[str, Any]) -> list[StreamEvent]:

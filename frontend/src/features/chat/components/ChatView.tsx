@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useParams } from "react-router";
 import { useChat } from "../hooks/useChat";
 import { useAgentStream } from "../hooks/useAgentStream";
@@ -12,9 +12,23 @@ export function ChatView() {
   const { data, isLoading, isError } = useChat(id, cid);
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [streamError, setStreamError] = useState<string | null>(null);
+  const [traceIds, setTraceIds] = useState<Record<string, string>>({});
+
+  const handleDone = useCallback(
+    (info: { messageId: string | null; traceId: string | null }) => {
+      if (info.messageId && info.traceId) {
+        setTraceIds((prev) => ({
+          ...prev,
+          [info.messageId!]: info.traceId!,
+        }));
+      }
+      setLocalMessages([]);
+    },
+    [],
+  );
 
   const { send, cancel } = useAgentStream(id!, cid!, {
-    onDone: () => setLocalMessages([]),
+    onDone: handleDone,
     onError: (detail) => setStreamError(detail),
   });
 
@@ -66,6 +80,7 @@ export function ChatView() {
         streamingArtifacts={streamingArtifacts}
         projectId={id!}
         streamError={streamError}
+        traceIds={traceIds}
       />
       <ChatInput
         onSend={handleSend}

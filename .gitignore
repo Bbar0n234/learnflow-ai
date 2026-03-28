@@ -218,7 +218,7 @@ doc/.obsidian-source
 
 # Personal/local docs
 doc/diagrams/
-doc/lab/
+doc/lab
 
 # IDE
 .idea/

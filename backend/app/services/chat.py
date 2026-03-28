@@ -85,6 +85,7 @@ class ChatService:
 
         artifact_ids: list[str] = []
         had_error = False
+        trace_id = ""
 
         async for event in self._agent_runner.stream(
             thread_id=thread_id,
@@ -92,6 +93,9 @@ class ChatService:
             project_id=project_id,
             user_id=user_id,
         ):
+            if event.type == "trace_id":
+                trace_id = event.data.get("trace_id", "")
+                continue
             if event.type == "artifact_created":
                 artifact_ids.append(event.data["id"])
             if event.type == "error":
@@ -103,28 +107,28 @@ class ChatService:
         if had_error:
             return
 
-        # Post-hoc: link artifacts to final message
+        # Post-hoc: resolve message_id + link artifacts
         message_id: str | None = None
         try:
-            if artifact_ids:
-                message_id = await self._agent_runner.get_last_ai_message_id(
-                    thread_id=thread_id
+            message_id = await self._agent_runner.get_last_ai_message_id(
+                thread_id=thread_id
+            )
+            if message_id and artifact_ids:
+                await self._artifact_repo.set_message_id(
+                    [uuid.UUID(aid) for aid in artifact_ids],
+                    message_id,
                 )
-                if message_id:
-                    await self._artifact_repo.set_message_id(
-                        [uuid.UUID(aid) for aid in artifact_ids],
-                        message_id,
-                    )
         except Exception:
-            # Post-hoc linking failure is non-critical:
-            # artifacts remain linked to thread_id, just without message_id.
             logger.warning(
-                "post-hoc artifact linking failed",
+                "post-hoc message resolution failed",
                 thread_id=str(thread_id),
                 exc_info=True,
             )
 
-        yield StreamEvent(type="done", data={"message_id": message_id or ""})
+        yield StreamEvent(
+            type="done",
+            data={"message_id": message_id or "", "trace_id": trace_id},
+        )
 
     async def cancel(self, *, thread_id: uuid.UUID) -> bool:
         return await self._agent_runner.cancel(thread_id=thread_id)

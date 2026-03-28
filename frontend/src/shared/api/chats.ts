@@ -7,9 +7,7 @@ import type {
   RecentChat,
 } from "./types";
 
-export async function getChats(
-  projectId: string,
-): Promise<ListResponse<Chat>> {
+export async function getChats(projectId: string): Promise<ListResponse<Chat>> {
   return (await apiClient.get(`/projects/${projectId}/chats`)).data;
 }
 
@@ -35,7 +33,6 @@ export async function cancelChat(
   projectId: string,
   chatId: string,
 ): Promise<{ ok: boolean }> {
-  return (
-    await apiClient.post(`/projects/${projectId}/chats/${chatId}/cancel`)
-  ).data;
+  return (await apiClient.post(`/projects/${projectId}/chats/${chatId}/cancel`))
+    .data;
 }

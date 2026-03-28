@@ -15,9 +15,7 @@ export function ArtifactCard({ artifact, projectId }: ArtifactCardProps) {
       <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
       <div className="min-w-0">
         <p className="truncate text-sm font-medium">{artifact.title}</p>
-        <p className="text-xs text-muted-foreground">
-          {artifact.type}
-        </p>
+        <p className="text-xs text-muted-foreground">{artifact.type}</p>
       </div>
     </Link>
   );

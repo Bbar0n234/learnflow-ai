@@ -52,7 +52,9 @@ export function ProjectActions({
   }
 
   function handleDelete() {
-    const isCurrentProject = location.pathname.includes(`/projects/${projectId}`);
+    const isCurrentProject = location.pathname.includes(
+      `/projects/${projectId}`,
+    );
     deleteProject.mutate(projectId, {
       onSuccess: () => {
         setDeleteOpen(false);
@@ -149,10 +151,7 @@ export function ProjectActions({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteOpen(false)}
-            >
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>
               Cancel
             </Button>
             <Button

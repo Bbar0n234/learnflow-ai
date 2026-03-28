@@ -1,4 +1,4 @@
-.PHONY: docker-up docker-up-db docker-down docker-build docker-logs lint format type-check check lint-fe format-fe dev dev-remote dev-fe test migrate migration downgrade
+.PHONY: docker-up docker-up-db docker-down docker-build docker-logs lint format type-check check lint-fe check-fe format-fe dev dev-remote dev-fe test migrate migration downgrade
 
 # Load .env (base) then .env.local (overrides) into shell environment
 LOAD_ENV = set -a && [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; set +a
@@ -35,6 +35,10 @@ check:  ## Run all backend checks (CI gate)
 
 lint-fe:  ## Run ESLint on frontend
 	cd frontend && npx eslint .
+
+check-fe:  ## Run all frontend checks (CI gate)
+	cd frontend && npx eslint .
+	cd frontend && npx prettier --check .
 
 format-fe:  ## Format frontend code with Prettier
 	cd frontend && npx prettier --write .

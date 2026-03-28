@@ -22,7 +22,7 @@
 
 Триггер: `on: pull_request` → develop и main. Запускает те же проверки, что pre-commit hooks, плюс build verification:
 - `make check` (ruff format --check + ruff check + mypy)
-- `make lint-fe` (ESLint + Prettier)
+- `make check-fe` (ESLint + Prettier)
 - Frontend build (Vite)
 - Docker build (проверка что образ собирается)
 - `make test` (когда появятся тесты)

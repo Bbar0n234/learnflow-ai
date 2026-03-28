@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend dependencies
+        run: uv sync
+
+      - name: Install frontend dependencies
+        run: cd frontend && npm ci
+
+      - name: Restore mypy cache
+        uses: actions/cache@v4
+        with:
+          path: .mypy_cache
+          key: mypy-${{ hashFiles('**/*.py') }}
+          restore-keys: mypy-
+
+      - name: Backend checks
+        run: make check
+
+      - name: Frontend checks
+        run: make check-fe
+
+      - name: Frontend build
+        run: cd frontend && npm run build
+
+      - name: Docker build verification
+        run: |
+          cp .env.example .env
+          docker compose build
+
+      - name: Tests
+        run: make test
+        continue-on-error: true

@@ -37,6 +37,7 @@ lint-fe:  ## Run ESLint on frontend
 	cd frontend && npx eslint .
 
 check-fe:  ## Run all frontend checks (CI gate)
+	cd frontend && npx tsc --noEmit
 	cd frontend && npx eslint .
 	cd frontend && npx prettier --check .
 

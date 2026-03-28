@@ -23,7 +23,7 @@ MVP (v1) завершён и развёрнут. Цель v1.1 — довест�
 | feat-001 | ✅ Done | Logging (backend + frontend + Docker) |
 | feat-002 | ✅ Done | Аутентификация (JWT/session, замена X-User-Name) |
 | feat-003 | ✅ Done | Langfuse (tracing, cost tracking, user feedback) |
-| chore-001 | 📋 Planned | CI/CD + Deploy (GitHub Actions, auto-deploy on merge to main) |
+| chore-001 | 🚧 In Progress | CI/CD + Deploy (GitHub Actions, auto-deploy on merge to main) |
 
 ## Быстро меняющиеся инструменты
 
@@ -169,7 +169,7 @@ MVP (v1) завершён и развёрнут. Цель v1.1 — довест�
 
 **Цель:** автоматические проверки на PR (CI) + автоматический деплой при merge в main (CD). Замена ручного деплоя и локальных pre-commit hooks как единственного quality gate.
 
-**Статус:** 📋 Planned
+**Статус:** 🚧 In Progress
 **Blocked by:** —
 **Закрывает:** v1.1: CI/CD, автоматизация деплоя
 **Ветка:** `prod/chore-001-ci-cd`
@@ -180,7 +180,7 @@ MVP (v1) завершён и развёрнут. Цель v1.1 — довест�
 
 #### Состав работ
 
-- [ ] CI workflow (`ci.yml`): setup Python/uv + Node/npm, make check, make lint-fe, frontend build, Docker build verification, make test
+- [ ] CI workflow (`ci.yml`): setup Python/uv + Node/npm, make check, make check-fe, frontend build, Docker build verification, make test
 - [ ] CD workflow (`deploy.yml`): SSH Action → git pull, docker compose build, up -d, health check
 - [ ] GitHub Secrets: SSH_PRIVATE_KEY, SSH_HOST, SSH_USER
 - [ ] Deploy keypair на сервере
@@ -192,9 +192,10 @@ MVP (v1) завершён и развёрнут. Цель v1.1 — довест�
 - Merge в main → CD автоматически деплоит на сервер, приложение работает
 - Провал CI блокирует merge (branch protection)
 - Провал CD виден как ошибка в GitHub Actions
-- `make check` + `make lint-fe` проходят локально и в CI идентично
+- `make check` + `make check-fe` проходят локально и в CI идентично
 
 #### Артефакты
 
 - [ADR-012: CI/CD & Deploy Strategy](../tech/adr/ADR-012-ci-cd-deploy.md)
 - [Design Brief](iterations/production/chore-001-ci-cd/design-brief.md)
+- [Implementation Plan](iterations/production/chore-001-ci-cd/plan.md)

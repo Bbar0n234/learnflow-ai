@@ -22,7 +22,7 @@ Runner: `ubuntu-latest`.
 4. Install backend deps (`uv sync`)
 5. Install frontend deps (`cd frontend && npm ci`)
 6. Backend checks (`make check` — ruff format --check, ruff check, mypy)
-7. Frontend checks (`make lint-fe` — ESLint, Prettier)
+7. Frontend checks (`make check-fe` — ESLint, Prettier)
 8. Frontend build (`cd frontend && npm run build`)
 9. Docker build verification (`docker compose build`)
 10. Tests (`make test` — пока пустые, но step готов)

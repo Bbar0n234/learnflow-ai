@@ -29,6 +29,7 @@ Use Makefile targets — not raw shell commands.
 | Target | Purpose |
 |--------|---------|
 | `make check` | All backend checks: ruff + mypy (CI gate) |
+| `make check-fe` | All frontend checks: ESLint + Prettier --check (CI gate) |
 | `make lint` / `make format` | Ruff linter / formatter |
 | `make type-check` | mypy |
 | `make lint-fe` / `make format-fe` | ESLint / Prettier |

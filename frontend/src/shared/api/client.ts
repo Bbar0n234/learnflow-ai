@@ -103,7 +103,12 @@ export async function ensureFreshToken(): Promise<string | null> {
   if (!token) return null;
 
   try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
+    const parts = token.split(".");
+    if (parts.length !== 3) {
+      clearAccessToken();
+      return null;
+    }
+    const payload = JSON.parse(atob(parts[1]!));
     const expiresIn = payload.exp - Date.now() / 1000;
 
     if (expiresIn > 30) return token;

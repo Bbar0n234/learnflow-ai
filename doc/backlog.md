@@ -22,6 +22,8 @@
 ## Agent
 
 - **P1** Reasoning tokens → Langfuse additional kwargs (прозрачность рассуждений, работа над поведением модели)
+- **P1** Смена модели без перезапуска сервиса (runtime model switching) *(cross: Backend, Frontend)*
+- **P2** Кастомные инструкции — на уровне пользователя, проекта и чата (помимо Knowledge Sphere) *(cross: Backend, Frontend)*
 - **P2** MCP Firecrawl: фильтрация инструментов (13+ → нужны 2-3, search + scrape). Конфигурируемо
 
 ## Отложено

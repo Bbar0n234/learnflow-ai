@@ -76,6 +76,6 @@ Feedback buttons (like/dislike) сохраняют состояние при п�
 | Graceful Degradation | Redis down → app works, restore → feedback works | PASS |
 | Edge Cases | localStorage clear → feedback сохранён (Redis), multiple msgs, toggle | PASS |
 
-## Нерешённое
+## Баг #2: Артефакт-карточки
 
-- **Баг #2 (P1):** Артефакт-карточки пропадают из истории чата — на паузе, требует верификации и отдельной проработки. PR в develop будет после закрытия этого бага в рамках той же итерации fix-001.
+Не воспроизводится на момент завершения итерации (2026-03-30). Вероятно, исправлен побочно ранее. Закрыт без отдельного фикса.

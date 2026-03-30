@@ -27,6 +27,7 @@ dependencies = [
     "pyjwt>=2.11.0",
     "langfuse>=4.0.1",
     "langchain>=1.2.13",
+    "redis[hiredis]>=7.4.0",
 ]
 
 [tool.pytest.ini_options]

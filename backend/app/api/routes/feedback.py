@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import httpx
 import structlog
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from app.api.deps import CurrentUser
 from app.api.schemas.feedback import FeedbackRequest, FeedbackResponse
 from app.config import Settings
+from app.repositories.trace_store import TraceStore
 
 logger = structlog.get_logger()
 
@@ -20,7 +21,9 @@ def _score_id(trace_id: str) -> str:
 
 
 @router.post("/feedback", response_model=FeedbackResponse)
-async def submit_feedback(body: FeedbackRequest, user: CurrentUser) -> FeedbackResponse:
+async def submit_feedback(
+    body: FeedbackRequest, user: CurrentUser, request: Request
+) -> FeedbackResponse:
     from langfuse import (
         get_client,  # lazy: avoid import error when langfuse not configured
     )
@@ -64,6 +67,15 @@ async def submit_feedback(body: FeedbackRequest, user: CurrentUser) -> FeedbackR
         raise HTTPException(
             status_code=503, detail="Observability service unavailable"
         ) from e
+
+    # Persist feedback score in Redis (survives localStorage clearing)
+    redis_client = getattr(request.app.state, "redis", None)
+    if redis_client:
+        try:
+            store = TraceStore(redis_client)
+            await store.save_feedback(body.trace_id, body.score)
+        except Exception:
+            logger.warning("feedback redis save failed", exc_info=True)
 
     return FeedbackResponse(status="success")
 

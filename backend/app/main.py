@@ -31,6 +31,7 @@ from app.infra.langgraph import create_checkpointer, create_store
 from app.infra.llm import create_llm, create_summarization_llm
 from app.infra.logging import setup_logging
 from app.infra.mcp import create_mcp_client
+from app.infra.redis import create_redis
 from app.services.exceptions import EntityNotFoundError
 
 logger = structlog.get_logger()
@@ -78,6 +79,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await conn.execute(text("SELECT 1"))
     app.state.engine = engine
     app.state.session_factory = create_session_factory(engine)
+
+    # Redis (trace storage for feedback persistence)
+    app.state.redis = await create_redis(settings)
 
     # LangGraph persistence
     lg_db_url = settings.langgraph_database_url
@@ -140,6 +144,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
 
     shutdown_langfuse()
+    if app.state.redis:
+        await app.state.redis.aclose()
     await engine.dispose()
 
 

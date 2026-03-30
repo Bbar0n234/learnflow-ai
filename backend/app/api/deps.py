@@ -15,6 +15,7 @@ from app.repositories import (
     ArtifactRepository,
     ProjectRepository,
     ThreadViewRepository,
+    TraceStore,
     UserRepository,
 )
 from app.services import (
@@ -76,10 +77,13 @@ def get_artifact_service(session: DBSession) -> ArtifactService:
 
 
 def get_chat_service(session: DBSession, request: Request) -> ChatService:
+    redis = getattr(request.app.state, "redis", None)
+    trace_store = TraceStore(redis) if redis else None
     return ChatService(
         thread_view_repo=ThreadViewRepository(session),
         agent_runner=request.app.state.agent_runner,
         artifact_repo=ArtifactRepository(session),
+        trace_store=trace_store,
     )
 
 

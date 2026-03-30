@@ -46,10 +46,18 @@ models:
       input_cache_read: 0.0000005
 
 mcp_servers:
-  firecrawl:
+  # firecrawl:
+  #   transport: http
+  #   url: https://mcp.firecrawl.dev/v2/mcp
+  #   api_key_env: FIRECRAWL_API_KEY
+  #   allowed_tools:
+  #     - firecrawl_scrape
+  #     - firecrawl_search
+
+  tavily:
     transport: http
-    url: https://mcp.firecrawl.dev/v2/mcp
-    api_key_env: FIRECRAWL_API_KEY
+    url: https://mcp.tavily.com/mcp/
+    api_key_env: TAVILY_API_KEY
     allowed_tools:
-      - firecrawl_scrape
-      - firecrawl_search
+      - tavily_search
+      - tavily_extract

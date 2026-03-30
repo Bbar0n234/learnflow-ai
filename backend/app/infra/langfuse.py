@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import contextlib
 import logging
+from typing import TYPE_CHECKING
 
 import structlog
 from langfuse import Langfuse, get_client
+
+if TYPE_CHECKING:
+    from app.agent.config import ModelDefinitionConfig
 
 logger = structlog.get_logger()
 
@@ -52,6 +56,44 @@ def _ensure_score_config(langfuse: Langfuse) -> None:
             description="User feedback (1=like, 0=dislike)",
         )
         logger.info("langfuse score config created", name="user-feedback")
+
+
+def ensure_model_definitions(models: list[ModelDefinitionConfig]) -> None:
+    """Idempotently create Langfuse model definitions for cost tracking.
+
+    Uses try/create per model: Langfuse returns 400 if model_name already
+    exists, which we treat as a no-op. This avoids paginating the full
+    built-in model catalog (160+ entries) just to check existence.
+    """
+    if not langfuse_enabled or not models:
+        return
+
+    from langfuse.api import PricingTierInput
+    from langfuse.api.commons.errors.error import Error as LangfuseError
+
+    langfuse = get_client()
+
+    for model in models:
+        tier = PricingTierInput(
+            name="Standard",
+            is_default=True,
+            priority=0,
+            conditions=[],
+            prices=model.prices,
+        )
+        try:
+            langfuse.api.models.create(
+                model_name=model.name,
+                match_pattern=model.match_pattern,
+                unit=model.unit,
+                pricing_tiers=[tier],
+            )
+            logger.info("langfuse model definition created", model_name=model.name)
+        except LangfuseError as exc:
+            if exc.status_code == 400 and "already exists" in str(exc.body):
+                logger.debug("langfuse model already exists", model_name=model.name)
+            else:
+                raise
 
 
 def shutdown_langfuse() -> None:

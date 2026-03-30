@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 import yaml
 from pydantic import BaseModel
@@ -6,6 +7,7 @@ from pydantic import BaseModel
 
 class LLMConfig(BaseModel):
     model: str
+    extra_body: dict[str, Any] = {}
 
 
 class ContextConfig(BaseModel):
@@ -30,6 +32,14 @@ class MCPServerConfig(BaseModel):
     api_key_env: str | None = None
     command: str | None = None
     args: list[str] | None = None
+    allowed_tools: list[str] = []
+
+
+class ModelDefinitionConfig(BaseModel):
+    name: str
+    match_pattern: str
+    unit: str = "TOKENS"
+    prices: dict[str, float] = {}
 
 
 class AgentConfig(BaseModel):
@@ -38,6 +48,7 @@ class AgentConfig(BaseModel):
     prompt: PromptConfig
     summarization: SummarizationConfig | None = None
     mcp_servers: dict[str, MCPServerConfig] = {}
+    models: list[ModelDefinitionConfig] = []
 
 
 def load_agent_config(path: Path | None = None) -> AgentConfig:

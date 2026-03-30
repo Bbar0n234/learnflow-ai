@@ -23,7 +23,7 @@ MVP (v1) завершён и развёрнут. Цель v1.1 — довест�
 | feat-001 | ✅ Done | Logging (backend + frontend + Docker) |
 | feat-002 | ✅ Done | Аутентификация (JWT/session, замена X-User-Name) |
 | feat-003 | ✅ Done | Langfuse (tracing, cost tracking, user feedback) |
-| chore-001 | 🚧 In Progress | CI/CD + Deploy (GitHub Actions, auto-deploy on merge to main) |
+| chore-001 | ✅ Done | CI/CD + Deploy (GitHub Actions, auto-deploy on merge to main) |
 
 ## Быстро меняющиеся инструменты
 
@@ -169,7 +169,7 @@ MVP (v1) завершён и развёрнут. Цель v1.1 — довест�
 
 **Цель:** автоматические проверки на PR (CI) + автоматический деплой при merge в main (CD). Замена ручного деплоя и локальных pre-commit hooks как единственного quality gate.
 
-**Статус:** 🚧 In Progress
+**Статус:** ✅ Done
 **Blocked by:** —
 **Закрывает:** v1.1: CI/CD, автоматизация деплоя
 **Ветка:** `prod/chore-001-ci-cd`
@@ -180,11 +180,12 @@ MVP (v1) завершён и развёрнут. Цель v1.1 — довест�
 
 #### Состав работ
 
-- [ ] CI workflow (`ci.yml`): setup Python/uv + Node/npm, make check, make check-fe, frontend build, Docker build verification, make test
-- [ ] CD workflow (`deploy.yml`): SSH Action → git pull, docker compose build, up -d, health check
-- [ ] GitHub Secrets: SSH_PRIVATE_KEY, SSH_HOST, SSH_USER
-- [ ] Deploy keypair на сервере
-- [ ] Branch protection rules для develop и main
+- [x] CI workflow (`ci.yml`): setup Python/uv + Node/npm, make check, make check-fe, frontend build, Docker build verification, make test
+- [x] CD workflow (`deploy.yml`): SSH Action → git pull, docker compose build, up -d, health check
+- [x] GitHub Secrets: SSH_PRIVATE_KEY, SSH_HOST, SSH_USER
+- [x] Deploy keypair на сервере
+- [x] Branch protection rules для develop и main
+- [x] Nginx: убрана basic auth (заменена JWT auth из feat-002)
 
 #### Критерии приёмки
 
@@ -199,3 +200,4 @@ MVP (v1) завершён и развёрнут. Цель v1.1 — довест�
 - [ADR-012: CI/CD & Deploy Strategy](../tech/adr/ADR-012-ci-cd-deploy.md)
 - [Design Brief](iterations/production/chore-001-ci-cd/design-brief.md)
 - [Implementation Plan](iterations/production/chore-001-ci-cd/plan.md)
+- [Summary](iterations/production/chore-001-ci-cd/summary.md)

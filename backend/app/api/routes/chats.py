@@ -59,6 +59,12 @@ async def get_chat(
             ArtifactListItem.model_validate(a)
         )
 
+    def _feedback_for(msg_id: str) -> bool | None:
+        tid = chat_detail.trace_ids.get(msg_id)
+        if tid is None:
+            return None
+        return chat_detail.feedback_scores.get(tid)
+
     return ChatDetailResponse(
         thread_id=chat_detail.thread_view.thread_id,
         title=chat_detail.thread_view.title,
@@ -69,6 +75,8 @@ async def get_chat(
                 content=m.content,
                 created_at=m.created_at,
                 artifacts=artifacts_by_msg.get(m.id, []),
+                trace_id=chat_detail.trace_ids.get(m.id),
+                feedback_score=_feedback_for(m.id),
             )
             for m in chat_detail.messages
         ],

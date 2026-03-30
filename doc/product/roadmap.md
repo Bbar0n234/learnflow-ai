@@ -8,13 +8,12 @@
 - ✅ Markdown-экспорт
 - ✅ Базовый набор skills (structure — встроенный, research — через MCP tools)
 
-## v1.1 (Production Readiness)
+## v1.1 (Production Readiness) ✅
 
-- Полноценная аутентификация (замена X-User-Name)
-- Structured logging (backend + frontend)
-- Langfuse (observability, structured feedback)
-- CI/CD (GitHub Actions)
-- Автоматизация деплоя
+- ✅ Полноценная аутентификация (JWT + refresh tokens, замена X-User-Name)
+- ✅ Structured logging (backend structlog + frontend logger + Docker log rotation)
+- ✅ Langfuse (tracing, cost tracking, user feedback)
+- ✅ CI/CD (GitHub Actions) + автоматизация деплоя
 
 ## v1.5
 

@@ -121,7 +121,7 @@ docker-compose для локальной разработки. Два режим
 
 ## Makefile
 
-Dev-команды: docker-up (full stack), docker-up-db (only PostgreSQL), docker-down, docker-build, docker-logs, lint, format, type-check, check, lint-fe, format-fe, test, dev, dev-fe.
+Dev-команды: docker-up (full stack), docker-up-db (only PostgreSQL), docker-up-redis (only Redis), docker-down, docker-build, docker-logs, lint, format, type-check, check, lint-fe, format-fe, test, dev, dev-fe.
 
 Backend-команды (dev, migrate, test) используют `LOAD_ENV` — загрузку `.env` (база) затем `.env.local` (overrides) в shell env. Docker-команды — без `LOAD_ENV` (docker-compose читает `.env` самостоятельно).
 

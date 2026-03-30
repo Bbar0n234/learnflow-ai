@@ -43,6 +43,8 @@ class MessageOut(BaseModel):
     content: str
     created_at: datetime | None = None
     artifacts: list[ArtifactListItem] = []
+    trace_id: str | None = None
+    feedback_score: bool | None = None
 
 
 class ChatDetailResponse(BaseModel):

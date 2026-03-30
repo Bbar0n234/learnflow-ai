@@ -6,10 +6,14 @@ import { cn } from "@/shared/lib/utils";
 
 interface FeedbackButtonsProps {
   traceId: string;
+  initialScore?: boolean | null;
 }
 
-export function FeedbackButtons({ traceId }: FeedbackButtonsProps) {
-  const [feedback, setFeedback] = useState<boolean | null>(null);
+export function FeedbackButtons({
+  traceId,
+  initialScore = null,
+}: FeedbackButtonsProps) {
+  const [feedback, setFeedback] = useState<boolean | null>(initialScore);
 
   function handleClick(value: boolean) {
     const next = feedback === value ? null : value;
@@ -25,7 +29,7 @@ export function FeedbackButtons({ traceId }: FeedbackButtonsProps) {
         type="button"
         onClick={() => handleClick(true)}
         className={cn(
-          "rounded p-1 transition-colors hover:bg-muted-foreground/10",
+          "cursor-pointer rounded p-1 transition-colors hover:bg-muted-foreground/10",
           feedback === true ? "text-primary" : "text-muted-foreground/50",
         )}
         aria-label="Like"
@@ -36,7 +40,7 @@ export function FeedbackButtons({ traceId }: FeedbackButtonsProps) {
         type="button"
         onClick={() => handleClick(false)}
         className={cn(
-          "rounded p-1 transition-colors hover:bg-muted-foreground/10",
+          "cursor-pointer rounded p-1 transition-colors hover:bg-muted-foreground/10",
           feedback === false ? "text-destructive" : "text-muted-foreground/50",
         )}
         aria-label="Dislike"

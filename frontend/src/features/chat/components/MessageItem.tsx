@@ -7,10 +7,9 @@ import { FeedbackButtons } from "./FeedbackButtons";
 interface MessageItemProps {
   message: Message;
   projectId: string;
-  traceId?: string;
 }
 
-export function MessageItem({ message, projectId, traceId }: MessageItemProps) {
+export function MessageItem({ message, projectId }: MessageItemProps) {
   const isUser = message.role === "user";
 
   return (
@@ -36,7 +35,12 @@ export function MessageItem({ message, projectId, traceId }: MessageItemProps) {
               projectId={projectId}
             />
           ))}
-        {!isUser && traceId && <FeedbackButtons traceId={traceId} />}
+        {!isUser && message.trace_id && (
+          <FeedbackButtons
+            traceId={message.trace_id}
+            initialScore={message.feedback_score}
+          />
+        )}
       </div>
     </div>
   );

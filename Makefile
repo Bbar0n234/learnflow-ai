@@ -1,4 +1,4 @@
-.PHONY: docker-up docker-up-db docker-down docker-build docker-logs lint format type-check check lint-fe check-fe format-fe dev dev-remote dev-fe test migrate migration downgrade
+.PHONY: docker-up docker-up-db docker-up-redis docker-down docker-build docker-logs lint format type-check check lint-fe check-fe format-fe dev dev-remote dev-fe test migrate migration downgrade
 
 # Load .env (base) then .env.local (overrides) into shell environment
 LOAD_ENV = set -a && [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; set +a
@@ -8,6 +8,9 @@ docker-up:  ## Start full stack (app + db)
 
 docker-up-db:  ## Start only PostgreSQL (for local dev)
 	docker compose up -d db
+
+docker-up-redis:  ## Start only Redis (for local dev)
+	docker compose up -d redis
 
 docker-down:  ## Stop all containers
 	docker compose down

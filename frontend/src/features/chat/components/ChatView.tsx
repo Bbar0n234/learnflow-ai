@@ -9,32 +9,24 @@ import type { Message } from "@/shared/api/types";
 
 export function ChatView() {
   const { id, cid } = useParams();
-  const { data, isLoading, isError } = useChat(id, cid);
+  const isStreaming = useStreamStore(
+    (s) => s.streamingChatId === cid && s.isStreaming,
+  );
+  const { data, isLoading, isError } = useChat(id, cid, {
+    refetchOnWindowFocus: !isStreaming,
+  });
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [streamError, setStreamError] = useState<string | null>(null);
-  const [traceIds, setTraceIds] = useState<Record<string, string>>({});
 
-  const handleDone = useCallback(
-    (info: { messageId: string | null; traceId: string | null }) => {
-      if (info.messageId && info.traceId) {
-        setTraceIds((prev) => ({
-          ...prev,
-          [info.messageId!]: info.traceId!,
-        }));
-      }
-      setLocalMessages([]);
-    },
-    [],
-  );
+  const handleDone = useCallback(() => {
+    setLocalMessages([]);
+  }, []);
 
   const { send, cancel } = useAgentStream(id!, cid!, {
     onDone: handleDone,
     onError: (detail) => setStreamError(detail),
   });
 
-  const isStreaming = useStreamStore(
-    (s) => s.streamingChatId === cid && s.isStreaming,
-  );
   const streamingText = useStreamStore((s) => s.streamingText);
   const activeTool = useStreamStore((s) => s.activeTool);
   const streamingArtifacts = useStreamStore((s) => s.streamingArtifacts);
@@ -80,7 +72,6 @@ export function ChatView() {
         streamingArtifacts={streamingArtifacts}
         projectId={id!}
         streamError={streamError}
-        traceIds={traceIds}
       />
       <ChatInput
         onSend={handleSend}

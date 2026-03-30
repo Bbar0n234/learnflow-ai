@@ -26,6 +26,8 @@ export interface Message {
   content: string;
   created_at: string | null;
   artifacts: Artifact[];
+  trace_id?: string | null;
+  feedback_score?: boolean | null;
 }
 
 export interface RecentChat {

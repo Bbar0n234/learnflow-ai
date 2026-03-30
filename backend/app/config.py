@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     langfuse_secret_key: str = ""
     langfuse_base_url: str = "https://cloud.langfuse.com"
 
+    # Redis (trace storage for feedback persistence)
+    redis_url: str = "redis://localhost:6379/0"
+
     cors_origins: list[str] = [
         "http://localhost:3000",
         "http://localhost:5173",

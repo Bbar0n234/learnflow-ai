@@ -19,7 +19,7 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 
 | Итерация | Статус | Scope | Закрывает |
 |----------|--------|-------|-----------|
-| fix-001 | 📋 Planned | frontend | Frontend bug fixes (4 элемента backlog) |
+| fix-001 | 🚧 In Progress | cross-cutting | Frontend bug fixes (4 элемента backlog) |
 | feat-001 | 📋 Planned | cross-cutting | Chat UX: auto title + thinking indicator |
 | feat-002 | 📋 Planned | agent/backend | Agent observability & tooling |
 | feat-003 | 📋 Planned | cross-cutting | Runtime model switching |
@@ -45,16 +45,22 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 
 **Цель:** исправить накопившиеся UX-баги фронтенда.
 
-**Статус:** 📋 Planned
-**Scope:** frontend
+**Статус:** 🚧 In Progress
+**Scope:** cross-cutting (Frontend + Backend + Infra) — расширен из-за feedback persistence
 **Параллельно с:** feat-002
 
 #### Из backlog
 
-- **P1** Feedback иконки (like/dislike) пропадают при перезагрузке страницы
-- **P1** Артефакт-карточки пропадают из истории чата (есть в tab Artifacts, нет в сообщениях)
-- **P2** Дублирование сообщения пользователя при переключении вкладки во время стриминга
-- **P2** Hover states: курсор не меняется на кнопках, непонятно что кликабельно
+- [x] **P1** Feedback иконки (like/dislike) пропадают при перезагрузке страницы — Redis + backend + frontend
+- [ ] **P1** Артефакт-карточки пропадают из истории чата (есть в tab Artifacts, нет в сообщениях) — требует верификации
+- [x] **P2** Дублирование сообщения пользователя при переключении вкладки во время стриминга
+- [x] **P2** Hover states: курсор не меняется на кнопках, непонятно что кликабельно
+
+#### Документация
+
+- [design-brief.md](iterations/frontend/fix-001-frontend-bugs/design-brief.md) — Feedback persistence: архитектура решения
+- [plan.md](iterations/frontend/fix-001-frontend-bugs/plan.md) — Implementation plan
+- [summary.md](iterations/frontend/fix-001-frontend-bugs/summary.md) — Post-implementation summary, отклонения
 
 ---
 

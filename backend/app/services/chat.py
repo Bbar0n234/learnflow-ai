@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import structlog
 
 from app.models.thread_view import ThreadView
 from app.repositories.artifact import ArtifactRepository
 from app.repositories.thread_view import ThreadViewRepository
+from app.repositories.trace_store import TraceStore
 from app.services.agent_runner import AgentRunner, Message, StreamEvent
 from app.services.exceptions import EntityNotFoundError
 
@@ -21,6 +22,8 @@ class ChatDetail:
 
     thread_view: ThreadView
     messages: list[Message]
+    trace_ids: dict[str, str] = field(default_factory=dict)
+    feedback_scores: dict[str, bool] = field(default_factory=dict)
 
 
 class ChatService:
@@ -30,10 +33,12 @@ class ChatService:
         thread_view_repo: ThreadViewRepository,
         agent_runner: AgentRunner,
         artifact_repo: ArtifactRepository,
+        trace_store: TraceStore | None = None,
     ) -> None:
         self._thread_view_repo = thread_view_repo
         self._agent_runner = agent_runner
         self._artifact_repo = artifact_repo
+        self._trace_store = trace_store
 
     async def create_chat(self, *, project_id: uuid.UUID, title: str) -> ThreadView:
         thread_view = await self._thread_view_repo.create(
@@ -54,7 +59,36 @@ class ChatService:
         if thread_view is None:
             raise EntityNotFoundError("Chat", thread_id)
         messages = await self._agent_runner.get_history(thread_id=thread_id)
-        return ChatDetail(thread_view=thread_view, messages=messages)
+
+        trace_ids: dict[str, str] = {}
+        feedback_scores: dict[str, bool] = {}
+        if self._trace_store:
+            try:
+                trace_ids = await self._trace_store.get_by_thread(thread_id)
+            except Exception:
+                logger.warning(
+                    "trace_ids read from redis failed",
+                    thread_id=str(thread_id),
+                    exc_info=True,
+                )
+            if trace_ids:
+                try:
+                    feedback_scores = await self._trace_store.get_feedback_batch(
+                        list(trace_ids.values())
+                    )
+                except Exception:
+                    logger.warning(
+                        "feedback scores read from redis failed",
+                        thread_id=str(thread_id),
+                        exc_info=True,
+                    )
+
+        return ChatDetail(
+            thread_view=thread_view,
+            messages=messages,
+            trace_ids=trace_ids,
+            feedback_scores=feedback_scores,
+        )
 
     async def list_recent(
         self, user_id: uuid.UUID, *, limit: int = 10
@@ -124,6 +158,16 @@ class ChatService:
                 thread_id=str(thread_id),
                 exc_info=True,
             )
+
+        if self._trace_store and trace_id and message_id:
+            try:
+                await self._trace_store.save(thread_id, message_id, trace_id)
+            except Exception:
+                logger.warning(
+                    "trace_id save to redis failed",
+                    thread_id=str(thread_id),
+                    exc_info=True,
+                )
 
         yield StreamEvent(
             type="done",

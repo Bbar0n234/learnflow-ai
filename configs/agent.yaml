@@ -1,5 +1,9 @@
 llm:
   model: "z-ai/glm-5"
+  extra_body:
+    include_reasoning: true
+    reasoning:
+      effort: low
 
 context:
   max_tokens: 100000
@@ -13,8 +17,39 @@ summarization:
   model: "z-ai/glm-4.7-flash"
   max_summary_tokens: 500
 
+models:
+  - name: "z-ai/glm-5"
+    match_pattern: "(?i)^z-ai/glm-5"
+    unit: TOKENS
+    prices:
+      input: 0.000001
+      output: 0.0000032
+      output_reasoning: 0.0000032
+      input_cache_read: 0.00000025
+
+  - name: "z-ai/glm-4.7-flash"
+    match_pattern: "(?i)^z-ai/glm-4\\.7-flash"
+    unit: TOKENS
+    prices:
+      input: 0.000000125
+      output: 0.0000005
+      output_reasoning: 0.0000005
+      input_cache_read: 0.00000003125
+
+  - name: "google/gemini-3.1-pro-preview"
+    match_pattern: "(?i)^google/gemini-3\\.1-pro-preview"
+    unit: TOKENS
+    prices:
+      input: 0.000002
+      output: 0.000012
+      output_reasoning: 0.000012
+      input_cache_read: 0.0000005
+
 mcp_servers:
   firecrawl:
     transport: http
     url: https://mcp.firecrawl.dev/v2/mcp
     api_key_env: FIRECRAWL_API_KEY
+    allowed_tools:
+      - firecrawl_scrape
+      - firecrawl_search

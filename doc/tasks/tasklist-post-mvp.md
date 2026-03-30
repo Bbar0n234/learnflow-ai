@@ -21,7 +21,7 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 |----------|--------|-------|-----------|
 | fix-001 | 📋 Planned | frontend | Frontend bug fixes (4 элемента backlog) |
 | feat-001 | 📋 Planned | cross-cutting | Chat UX: auto title + thinking indicator |
-| feat-002 | 📋 Planned | agent/backend | Agent observability & tooling |
+| feat-002 | ✅ Done | agent/backend | Agent observability & tooling |
 | feat-003 | 📋 Planned | cross-cutting | Runtime model switching |
 | feat-004 | 📋 Planned | cross-cutting | Custom instructions |
 
@@ -77,7 +77,7 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 
 **Цель:** улучшение observability агента (reasoning tokens, pricing) и конфигурации инструментов.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Scope:** agent/backend
 **Параллельно с:** fix-001
 
@@ -86,6 +86,12 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 - **P1** Reasoning tokens → Langfuse additional kwargs (прозрачность рассуждений)
 - **P2** OpenRouter модели: программная инициализация pricing в Langfuse
 - **P2** MCP Firecrawl: фильтрация инструментов (13+ → нужны 2-3)
+
+#### Документация
+
+- [design-brief.md](iterations/post-mvp/feat-002-agent-obs/design-brief.md)
+- [plan.md](iterations/post-mvp/feat-002-agent-obs/plan.md)
+- [summary.md](iterations/post-mvp/feat-002-agent-obs/summary.md)
 
 ---
 

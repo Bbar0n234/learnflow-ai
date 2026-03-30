@@ -22,7 +22,11 @@ from app.agent.tools import (
 from app.api.routes import artifacts, auth, chats, feedback, messages, projects, sphere
 from app.config import Settings
 from app.infra.db import create_engine, create_session_factory
-from app.infra.langfuse import init_langfuse, shutdown_langfuse
+from app.infra.langfuse import (
+    ensure_model_definitions,
+    init_langfuse,
+    shutdown_langfuse,
+)
 from app.infra.langgraph import create_checkpointer, create_store
 from app.infra.llm import create_llm, create_summarization_llm
 from app.infra.logging import setup_logging
@@ -54,6 +58,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
 
     agent_config = load_agent_config()
+
+    try:
+        ensure_model_definitions(agent_config.models)
+    except Exception:
+        logger.warning("langfuse model definitions init failed", exc_info=True)
+
     logger.debug(
         "loaded config",
         log_level=settings.log_level,
@@ -98,7 +108,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         try:
             mcp_client = create_mcp_client(agent_config.mcp_servers)
             if mcp_client is not None:
-                mcp_tools = await mcp_client.get_tools()
+                for server_name, server_config in agent_config.mcp_servers.items():
+                    tools = await mcp_client.get_tools(server_name=server_name)
+                    if server_config.allowed_tools:
+                        allowed = set(server_config.allowed_tools)
+                        tools = [t for t in tools if t.name in allowed]
+                    mcp_tools.extend(tools)
                 logger.info(
                     "mcp tools loaded",
                     tool_count=len(mcp_tools),

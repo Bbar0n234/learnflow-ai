@@ -19,25 +19,24 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 
 | Итерация | Статус | Scope | Закрывает |
 |----------|--------|-------|-----------|
-| fix-001 | 🚧 In Progress | cross-cutting | Frontend bug fixes (4 элемента backlog) |
-| feat-001 | 📋 Planned | cross-cutting | Chat UX: auto title + thinking indicator |
+| fix-001 | ✅ Done | cross-cutting | Frontend bug fixes (4 элемента backlog) |
+| feat-001 | 📋 Planned | cross-cutting | Chat UX: auto title + thinking indicator + delete chats |
 | feat-002 | ✅ Done | agent/backend | Agent observability & tooling |
-| feat-003 | 📋 Planned | cross-cutting | Runtime model switching |
+| feat-003 | 📋 Planned | cross-cutting | Runtime agent configuration: model switching + prompt versioning |
 | feat-004 | 📋 Planned | cross-cutting | Custom instructions |
+| feat-005 | 📋 Planned | agent/backend | Prompt injection protection |
 
 ## Параллелизация
 
 ```
-              ┌── fix-001 (Frontend Bugs) ──┐
-              │                              ├── feat-001 (Chat UX)── feat-003 (Model Switch)
-Триаж ────────┤                              │                                │
-              │                              │                                ↓
-              └── feat-002 (Agent Obs.) ─────┘                       feat-004 (Custom Instr.)
+feat-005 (Security) ──────────────────────────────────
+feat-003 (Agent Config) ── feat-004 (Custom Instr.) ──
+feat-001 (Chat UX) ── когда будет время ──────────────
 ```
 
-- **Волна 1:** fix-001 || feat-002 (frontend vs agent/backend — нулевой конфликт)
-- **Волна 2:** feat-001 (после fix-001, т.к. пересекается по chat-компонентам)
-- **Волна 3-4:** feat-003 → feat-004 (cross-cutting, последовательно)
+- **feat-005 || feat-003** — разный scope (security vs config), параллелизуемы
+- **feat-004** — после feat-003 (расширяет config, пересекается по UI)
+- **feat-001** — отложена, не блокирует реальное использование
 
 ## Итерации
 
@@ -64,18 +63,18 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 
 ---
 
-### feat-001: Chat UX — Auto Title + Thinking Indicator
+### feat-001: Chat UX — Auto Title + Thinking Indicator + Delete Chats
 
-**Цель:** переработка UX чата: поле ввода для первого сообщения (не title), автогенерация title моделью, индикатор рассуждения.
+**Цель:** переработка UX чата: поле ввода для первого сообщения (не title), автогенерация title моделью, индикатор рассуждения, удаление чатов.
 
 **Статус:** 📋 Planned
 **Scope:** cross-cutting (Frontend + Backend)
-**Blocked by:** fix-001
 
 #### Из backlog
 
 - **P1** Chat input: поле ввода должно быть для первого сообщения, не для title. Title auto-generated моделью *(cross: Backend)*
 - **P2** Индикатор "модель рассуждает" до начала стриминга текста *(cross: Backend)*
+- **P2** Удаление чатов — нет кнопки, только проекты можно удалять *(cross: Frontend, Backend)*
 
 ---
 
@@ -101,17 +100,17 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 
 ---
 
-### feat-003: Runtime Model Switching
+### feat-003: Runtime Agent Configuration
 
-**Цель:** смена модели без перезапуска сервиса.
+**Цель:** runtime-конфигурация агента: смена модели без перезапуска сервиса + управление промптами и их версионирование.
 
 **Статус:** 📋 Planned
 **Scope:** cross-cutting (Agent + Backend + Frontend)
-**Blocked by:** feat-001
 
 #### Из backlog
 
 - **P1** Смена модели без перезапуска сервиса (runtime model switching) *(cross: Backend, Frontend)*
+- **P2** Версионирование промптов — управление версиями system prompt, откат к предыдущим *(cross: Agent, Backend)*
 
 ---
 
@@ -121,8 +120,22 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 
 **Статус:** 📋 Planned
 **Scope:** cross-cutting (Agent + Backend + Frontend)
-**Blocked by:** feat-003
+**After:** feat-003
 
 #### Из backlog
 
 - **P2** Кастомные инструкции — на уровне пользователя, проекта и чата (помимо Knowledge Sphere) *(cross: Backend, Frontend)*
+
+---
+
+### feat-005: Prompt Injection Protection
+
+**Цель:** базовая MVP-защита от prompt injection (direct + indirect).
+
+**Статус:** 📋 Planned
+**Scope:** agent/backend
+**Параллельно с:** feat-003
+
+#### Из backlog
+
+- **P1** Prompt injection protection — MVP-защита от direct/indirect PI. Threat model и blue-team strategy проработаны (`doc/security/`), реализации нет *(cross: Backend)*

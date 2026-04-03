@@ -143,6 +143,14 @@ Backend-команды (dev, migrate, test) используют `LOAD_ENV` — 
 
 **Документация:** kebab-case для составных имён (`doc-transfer-plan.md`), lowercase для простых (`backend.md`).
 
+## Documentation Formatting
+
+В Markdown-документах:
+- **Диаграммы** — Mermaid (не ASCII-art)
+- **Таблицы** — Markdown tables
+
+ASCII-art допустим в интерактивном диалоге (чат), где Mermaid не рендерится.
+
 ## Logging Conventions
 
 ### Семантика уровней

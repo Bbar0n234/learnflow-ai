@@ -4,18 +4,22 @@
 
 ## Layered Architecture
 
-### Слои # TODO: Ну по-хорошему бы это визуализировать не через ASCII диаграммы, конечно, а через Mermaid.
+### Слои
 
-```
-API Layer — FastAPI routes, schemas, SSE transport
-    │
-Service Layer — оркестрация, бизнес-правила
-    │               │
-    │          Agent Layer — LangGraph граф, tools, skills, context, memory
-    │               │
-Repository Layer ←──┘
-    │
-Infra — DB engine/sessions, LLM client, MCP client, HTTP client
+```mermaid
+graph TD
+    API["API Layer — FastAPI routes, schemas, SSE transport"]
+    SVC["Service Layer — оркестрация, бизнес-правила"]
+    AGT["Agent Layer — LangGraph граф, tools, skills, context, memory"]
+    REPO["Repository Layer"]
+    INFRA["Infra — DB engine/sessions, LLM client, MCP client, HTTP client"]
+
+    API --> SVC
+    SVC --> AGT
+    SVC --> REPO
+    AGT --> REPO
+    REPO --> INFRA
+    AGT --> INFRA
 ```
 
 - **API Layer** — HTTP/SSE-интерфейс, Pydantic-валидация, маршрутизация. Не содержит бизнес-логики.
@@ -42,9 +46,7 @@ Infra — DB engine/sessions, LLM client, MCP client, HTTP client
 
 ### Auth
 
-JWT + Refresh Token. Access token (short-lived, localStorage) для API-запросов, refresh token (long-lived, httpOnly cookie) для обновления. Подробнее: [ADR-011](adr/ADR-011-auth-architecture.md).
-
-`get_current_user()` в deps.py извлекает JWT из `Authorization: Bearer` header, декодирует user_id. Все защищённые роуты используют `CurrentUser` dependency.
+JWT + Refresh Token. Access token (short-lived, localStorage) для API-запросов, refresh token (long-lived, httpOnly cookie) для обновления. Подробнее: [auth.md](auth.md), обоснование — [ADR-011](adr/ADR-011-auth-architecture.md).
 
 ### Endpoints
 
@@ -185,40 +187,7 @@ GET /projects/{id}/artifacts/{aid}/download?format=md|pdf
 
 ### SSE Streaming Protocol
 
-Формат: type-in-data (индустриальный стандарт LLM-стриминга — OpenAI, Anthropic). Один поток `data:`, тип события внутри JSON.
-
-#### Event types
-
-| Type | Когда | Payload |
-|------|-------|---------|
-| `text_chunk` | Каждый токен/чанк от LLM | `{ content: str }` |
-| `tool_start` | Агент вызывает tool | `{ tool: str, call_id: str }` |
-| `tool_end` | Tool завершился | `{ tool: str, call_id: str }` |
-| `artifact_created` | Агент создал артефакт | `{ id: UUID, title: str, artifact_type: str }` |
-| `done` | Генерация завершена | `{ message_id?: str }` |
-| `error` | Ошибка в процессе | `{ detail: str }` |
-
-Tool-события отдают имя tool и `call_id` (для корреляции start/end при параллельных вызовах) — параметры и сырые результаты не отдаются.
-
-#### Lifecycle
-
-```
-POST /projects/{id}/chats/{cid}/messages → 200, Content-Type: text/event-stream
-
-  data: {"type": "text_chunk", "content": "Давайте"}
-  data: {"type": "text_chunk", "content": " разберём"}
-  data: {"type": "tool_start", "tool": "web_search", "call_id": "..."}
-  data: {"type": "tool_end", "tool": "web_search", "call_id": "..."}
-  data: {"type": "text_chunk", "content": "По результатам..."}
-  data: {"type": "artifact_created", "id": "...", "title": "...", "artifact_type": "markdown"}
-  data: {"type": "done"}
-
-  [connection closed]
-```
-
-`done` и `error` — терминальные события, после них соединение закрывается. При cancel (`POST /cancel`) — сервер отправляет `error` и закрывает стрим.
-
-Маппинг LangGraph stream events → наши event types — внутреннее дело Agent Layer (AgentRunner).
+Формат: type-in-data (индустриальный стандарт LLM-стриминга — OpenAI, Anthropic). Event types, lifecycle, cancellation, frontend consumption — [streaming.md](streaming.md).
 
 ## Module Structure
 
@@ -262,155 +231,9 @@ app/
 
 ## Agent Runtime
 
-### General Agent
+LangGraph-граф с ReAct-паттерном, context engineering, tools, skills, MCP-интеграция. Детальное описание — [agent-runtime.md](agent-runtime.md). Связанные концепты: [knowledge-sphere.md](knowledge-sphere.md), [observability.md](observability.md).
 
-General Agent с ReAct loop — подробнее в [ADR-001](adr/ADR-001-general-agent.md).
-
-```
-General Agent = Based Prompt + ReAct Loop + Context Engineering + Memory + Tool Use
-```
-
-- **Based Prompt** — правила поведения агента (см. ниже)
-- **ReAct Loop** — Reason → Action → Observe → Adjust, цикл до достижения цели
-- **Context Engineering** — управление тем, что попадает в контекст и когда
-- **Memory** — short-term (диалог) + long-term (Knowledge Sphere)
-- **Tool Use** — вызов инструментов через единый интерфейс
-
-Реализация на LangGraph. Checkpointer и Store — PostgreSQL с первого дня.
-
-### Based Prompt
-
-Текст промпта хранится в отдельном файле (не в коде). System message собирается из частей: based prompt + KS index + skills index.
-
-Покрывает:
-- **Роль и миссия** — AI assistant для tech-спикеров, JTBD
-- **Взаимодействие** — expert-to-expert, match user's language, direct
-- **Knowledge Sphere** — автономное обновление, когда подгружать секции
-- **Artifacts** — save deliverables, не промежуточные черновики
-- **Error handling** — retry/adapt, communicate problems
-- **Границы** — focus on material preparation, honesty about uncertainty
-
-Tool descriptions не дублируются в промпте — живут в docstrings инструментов.
-
-### Memory
-
-#### Short-term
-
-История сообщений в пределах чата. LangGraph Checkpointer.
-
-Compaction при приближении к лимиту контекста: суммаризация старых сообщений отдельной (дешёвой) моделью с сохранением ключевых решений и текущего фокуса. Graceful degradation: при сбое summarization — fallback на trim-only. Подробнее — [ADR-004](adr/ADR-004-progressive-disclosure.md).
-
-#### Long-term (Knowledge Sphere)
-
-Связанная картина проекта, а не набор атомарных фактов. Подробнее — [ADR-003](adr/ADR-003-knowledge-sphere.md).
-
-**Управление (MVP):** Main Agent сам решает, когда обновить шар, и вызывает tool `update_sphere`. Полный контекст диалога → качественное решение. Отдельный Classifier / KS Agent — при реальных проблемах (перегрузка контекста, cost). Подробнее: [ADR-005](adr/ADR-005-ks-update-mechanism.md).
-
-**Два режима:**
-1. Автономный — работает тихо, не грузит пользователя
-2. Проактивный — пользователь видит шар, может править
-
-**Хранение:** LangGraph Store + PostgreSQL. MVP-формат — структурированный Markdown. Миграция на Knowledge Graph с embeddings — при реальных failure modes (шар > 50k токенов).
-
-### Skills
-
-Skills в формате Claude Code — подгружаемые модули знаний, расширяющие поведение агента. Общепринятый стандарт, набирающий обороты в индустрии (Claude Code, Cursor и др.). Подробнее — [ADR-002](adr/ADR-002-skills-system.md).
-
-**MVP:** файловая система + API-обёртка для подгрузки.
-
-**Структура skill'а:** описание + паттерны (триггеры) + знания (prompts, docs).
-
-**Планируемые skills:** structure, research.
-
-**Lifecycle:** задача пользователя → агент подгружает skill (just-in-time) → использует → skill выгружается.
-
-### Tools
-
-#### Internal (работа с системой)
-
-##### Knowledge Sphere (CRUD)
-
-Index шара **не является tool** — формируется автоматически из Store и инжектится в system message при каждом вызове agent node (auto-derived, см. [ADR-004](adr/ADR-004-progressive-disclosure.md)).
-
-```
-get_section(section_id: str) → str
-```
-Получить Full секцию шара. Just-in-time подгрузка по решению агента.
-
-```
-create_section(section_id: str, description: str, content: str) → str
-```
-Создать новую секцию Knowledge Sphere.
-
-```
-update_section(section_id: str, content: str, target?: str, description?: str) → str
-```
-Обновить секцию. Два режима:
-- **Patch** (target задан): fuzzy find & replace целевого фрагмента внутри секции. LLM цитирует неточно → fuzzy matching (Levenshtein distance, threshold 0.85). Scope по секции → нет cross-section замен.
-- **Overwrite** (без target): полная перезапись content.
-
-Опционально обновляет description.
-
-```
-delete_section(section_id: str) → str
-```
-Удалить секцию Knowledge Sphere.
-
-##### Other
-
-```
-load_skill(skill_name: str) → SkillContent
-```
-Подгрузить skill в контекст. Just-in-time.
-
-#### External (MCP)
-
-Подключаются через MCP Client — готовые MCP-серверы, конкретный провайдер конфигурируется. Обоснование и альтернативы: [ADR-007](adr/ADR-007-mcp-external-tools.md).
-
-Типичные tools (зависят от подключённого MCP-сервера): web search, URL scraping/reading, crawling. Default MVP: Firecrawl MCP (search + scrape + crawl в одном сервере).
-
-MCP tools загружаются через `langchain-mcp-adapters`, конвертируются в стандартные `BaseTool` и живут в одном `ToolNode` вместе с internal tools.
-
-#### Artifacts
-
-```
-create_artifact(title: str, content: str, type: str) → ArtifactRef
-```
-Сохранить результат работы агента как артефакт проекта. Возвращает artifact_id. Фронтенд рендерит карточку файла вместо инлайн-текста.
-
-### Agent Graph
-
-Custom StateGraph — обоснование в [ADR-006](adr/ADR-006-custom-stategraph.md). Детали по LangGraph-паттернам: [langgraph-reference.md](langgraph-reference.md).
-
-```
-START → agent ──→ tools_condition? ──tool_calls──→ tools (ToolNode) ─┐
-                       │                                              │
-                      нет                                             │
-                       ▼                                              │
-                      END                              agent ←────────┘
-```
-
-**Узлы:**
-- **agent** — собирает context (Based Prompt + KS Index + trimmed messages) локально, вызывает LLM с bind_tools. Результат → messages. Context не записывается в state — подготовка эфемерна.
-- **tools** — prebuilt `ToolNode` из `langgraph.prebuilt`. Поддерживает InjectedStore для KS-tools.
-
-**State:** `MessagesState` — один ключ `messages`. Полная история, управляется reducer `add_messages`.
-
-**Routing:** prebuilt `tools_condition` — conditional edge: есть tool_calls → tools, иначе → END.
-
-**Config:** `thread_id`, `project_id`, `user_id` через `config["configurable"]`. Доступен в agent-ноде и tools.
-
-### Context Engineering
-
-Управление контекстом агента. Подробнее — [ADR-004](adr/ADR-004-progressive-disclosure.md).
-
-| Что | Стратегия |
-|-----|-----------|
-| Knowledge Sphere Index | Pre-loaded (auto-derived из Store, инжектится в system message) |
-| Full sections шара | Just-in-time (через get_section tool) |
-| История диалога | В контексте + compaction при приближении к лимиту |
-| Skills Index | Pre-loaded (scan из SKILL.md frontmatter, инжектится в system message) |
-| Full skill content | Just-in-time (через load_skill tool) |
+Ключевые ADR: [ADR-001](adr/ADR-001-general-agent.md) (General Agent), [ADR-002](adr/ADR-002-skills-system.md) (Skills), [ADR-003](adr/ADR-003-knowledge-sphere.md) (KS), [ADR-004](adr/ADR-004-progressive-disclosure.md) (Progressive Disclosure), [ADR-005](adr/ADR-005-ks-update-mechanism.md) (KS Updates), [ADR-006](adr/ADR-006-custom-stategraph.md) (Custom StateGraph), [ADR-007](adr/ADR-007-mcp-external-tools.md) (MCP).
 
 ## Persistence
 
@@ -456,7 +279,7 @@ Artifact.thread_id → ThreadView.thread_id (артефакт создаётся
 
 ## Logging
 
-Централизованное логирование на базе structlog поверх stdlib через `ProcessorFormatter`.
+Централизованное логирование на базе structlog поверх stdlib через `ProcessorFormatter`. Обоснование — [ADR-009](adr/ADR-009-logging-strategy.md). Стиль и семантика уровней — [conventions.md](conventions.md#logging-conventions). Трейсинг и observability — [observability.md](observability.md).
 
 ### Setup
 
@@ -473,10 +296,6 @@ Artifact.thread_id → ThreadView.thread_id (артефакт создаётся
 ### Request ID
 
 FastAPI middleware генерирует UUID для каждого HTTP-запроса → `structlog.contextvars`. Все лог-записи в контексте запроса автоматически содержат `request_id`.
-
-### Использование
-
-Стиль и семантика уровней — в [conventions.md](conventions.md#logging-conventions).
 
 ## Error Handling
 

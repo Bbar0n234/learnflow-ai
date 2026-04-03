@@ -16,8 +16,15 @@ doc/
 ├── vision.md            # System architecture, stack, MVP criteria
 ├── product/             # Use cases, roadmap, versioned scope
 ├── tech/
-│   ├── conventions.md   # Git flow, naming, code quality setup
-│   └── adr/             # Architecture Decision Records
+│   ├── backend.md           # Layers, API, persistence, configuration
+│   ├── frontend.md          # Screens, components, state, API integration
+│   ├── auth.md              # JWT + refresh tokens, rate limiting, interceptor
+│   ├── streaming.md         # SSE protocol, events, cancellation
+│   ├── agent-runtime.md     # LangGraph graph, tools, skills, context, MCP
+│   ├── knowledge-sphere.md  # Project memory, storage, fuzzy patch, REST API
+│   ├── observability.md     # Langfuse tracing, cost tracking, feedback loop
+│   ├── conventions.md       # Git flow, naming, code quality setup
+│   └── adr/                 # Architecture Decision Records
 ├── security/            # Threat model
 └── tasks/               # Task lists and iterations
 ```

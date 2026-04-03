@@ -1,0 +1,178 @@
+# SSE Streaming
+
+Кросс-сервисный концепт: backend генерирует поток событий из LangGraph-графа, frontend потребляет через native fetch + ReadableStream. Транспорт — Server-Sent Events (SSE) поверх POST-запроса (не EventSource — нужен request body и Bearer header).
+
+## Protocol Overview
+
+Потоко-ориентированная модель: одно сообщение пользователя → один SSE-поток → terminal event (`done` | `error`). Wire format:
+
+```
+data: {"type": "text_chunk", "content": "Hello"}\n\n
+data: {"type": "tool_start", "tool": "web_search", "call_id": "abc-123"}\n\n
+data: {"type": "done", "message_id": "msg-uuid", "trace_id": "trace-uuid"}\n\n
+```
+
+Каждое событие — JSON-объект с обязательным полем `type` и type-specific payload. Разделитель — двойной перевод строки (`\n\n`).
+
+## Event Types
+
+| Type | Payload | Семантика |
+|------|---------|-----------|
+| `text_chunk` | `{content}` | Токен от LLM (прогрессивный вывод текста) |
+| `tool_start` | `{tool, call_id}` | Агент инициировал вызов инструмента |
+| `tool_end` | `{tool, call_id}` | Инструмент завершил выполнение |
+| `artifact_created` | `{id, title, artifact_type}` | Агент создал артефакт (сохранён в БД) |
+| `trace_id` | `{trace_id}` | Langfuse trace ID (internal, не доходит до frontend) |
+| `done` | `{message_id, trace_id}` | Генерация завершена успешно |
+| `error` | `{detail}` | Ошибка или отмена генерации |
+
+`done` и `error` — взаимоисключающие **terminal events**. После любого из них поток закрывается. Если соединение обрывается без terminal event — frontend трактует это как connection lost.
+
+`trace_id` — internal event: ChatService перехватывает его (не пробрасывает клиенту), сохраняет в Redis, а затем включает trace_id в payload `done` event. Frontend получает trace_id только через `done`.
+
+## Stream Lifecycle
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant API as API Layer
+    participant SVC as ChatService
+    participant AGT as AgentRunner
+
+    C->>C: ensureFreshToken() (см. auth.md)
+    C->>API: POST /messages (content, Bearer token)
+    API->>API: validate chat ownership (fail-fast)
+    API->>SVC: send_message()
+    SVC->>AGT: stream()
+
+    loop LangGraph astream
+        AGT-->>C: text_chunk / tool_start / tool_end / artifact_created
+    end
+
+    Note over SVC: Post-hoc: link artifacts to message, save trace_id to Redis
+    SVC-->>C: done (message_id, trace_id)
+
+    Note over C: invalidate queries, reset stream store
+```
+
+При ошибке на любом этапе — поток завершается событием `error` вместо `done`.
+
+## Cancellation
+
+Двухуровневый механизм: graceful (основной) + hard (fallback).
+
+### Graceful Cancel
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant API as API Layer
+    participant AGT as AgentRunner
+
+    C->>API: POST /cancel
+    API->>AGT: cancel(thread_id)
+    AGT->>AGT: cancel_event.set()
+
+    Note over AGT: Следующая итерация agent loop
+    AGT->>AGT: cancel_event.is_set() → true
+    AGT-->>C: error ("Cancelled")
+```
+
+- Backend: `asyncio.Event` per thread_id. `cancel()` устанавливает event, agent loop проверяет `is_set()` между итерациями графа.
+- **Pending cancels:** если cancel приходит до старта стрима — сохраняется в `_pending_cancels`, применяется при следующем запуске.
+
+### Hard Cancel
+
+`AbortController.abort()` — разрывает fetch-соединение на стороне клиента. Используется при unmount компонента или если graceful cancel не сработал (сервер не ответил).
+
+### Cancel vs Error на Frontend
+
+Флаг `isCancellingRef` отличает user cancel от реальной ошибки. При cancel — error event приходит, но error toast не показывается.
+
+## Backend: Event Generation
+
+### AgentRunner
+
+`LangGraphAgentRunner.stream()` — основной генератор событий:
+
+1. Создаёт `asyncio.Event()` для cancellation, регистрирует thread_id
+2. Вызывает `graph.astream(stream_mode=["messages", "updates"])`
+3. **Messages stream:** фильтрует `AIMessageChunk` с string content → `text_chunk`
+4. **Updates stream:** извлекает tool_calls и artifact metadata → `tool_start`, `tool_end`, `artifact_created`
+5. Между итерациями проверяет `cancel_event.is_set()`
+6. При исключении — yields `error` event, логирует
+
+### ChatService
+
+`ChatService.send_message()` — relay + post-hoc обработка:
+
+1. Валидирует thread ownership, обновляет `updated_at`
+2. Проксирует события от AgentRunner клиенту
+3. **Post-hoc:** связывает артефакты с сообщением (`ArtifactRepository.set_message_id`)
+4. Сохраняет trace_id в Redis (для feedback loop, подробнее — [observability](observability.md))
+5. Emits terminal `done` event с message_id и trace_id
+
+### API Layer
+
+`_event_generator()` — маппинг `StreamEvent` → SSE wire format (`data: {json}\n\n`). Response headers:
+
+| Header | Значение | Назначение |
+|--------|----------|------------|
+| Content-Type | text/event-stream | SSE MIME type |
+| Cache-Control | no-cache | Запрет кэширования промежуточными прокси |
+| X-Accel-Buffering | no | Отключение буферизации в Nginx |
+
+Pre-validation: ownership чата проверяется до создания потока (fail-fast с HTTP 404, а не error event).
+
+## Frontend: Stream Consumption
+
+### useAgentStream Hook
+
+Интерфейс: `{send(content), cancel()}`.
+
+**send():**
+1. `startStream(chatId)` — инициализация Zustand store
+2. `ensureFreshToken()` — проактивный refresh токена (подробнее — [auth](auth.md))
+3. `fetch()` с `AbortController` — POST с Bearer header
+4. `response.body.getReader()` → чанковый парсинг с буфером неполных строк
+5. Dispatch по `event.type` → обновление store / invalidation queries / callbacks
+6. Reactive fallback: при 401 — повторный `ensureFreshToken()` + retry
+
+**cancel():**
+1. Устанавливает `isCancellingRef = true`
+2. Вызывает `POST /cancel` через axios
+3. При неудаче — `abortController.abort()` (hard fallback)
+
+**Cleanup:** на unmount — abort signal + `endStream()`.
+
+### Zustand Stream Store
+
+Эфемерное состояние, существует только во время стрима:
+
+| Поле | Тип | Назначение |
+|------|-----|------------|
+| `isStreaming` | boolean | Флаг активного стрима |
+| `streamingText` | string | Накопленный текст (text_chunk) |
+| `activeTool` | string \| null | Текущий выполняемый инструмент |
+| `streamingArtifacts` | array | Артефакты, созданные в текущем стриме |
+| `streamingChatId` | string \| null | ID чата текущего стрима |
+
+Lifecycle: `startStream()` → accumulate (`appendText`, `setTool`, `addArtifact`) → `endStream()` (полный сброс).
+
+Stream store — **не source of truth**. После `done` данные рефетчатся с сервера через TanStack Query. Store нужен только для real-time отображения во время генерации.
+
+### TanStack Query Invalidation
+
+SSE-события триггерят invalidation cached queries:
+
+| Событие | Invalidated queries | Зачем |
+|---------|-------------------|-------|
+| `artifact_created` | `["projects", projectId, "artifacts"]` | Новый артефакт в списке |
+| `done` | `["projects", projectId, "chats", chatId]`, `["chats", "recent"]` | Полное сообщение с сервера, обновление списка чатов |
+
+## API Endpoints
+
+| Method | Path | Назначение | Auth |
+|--------|------|-----------|------|
+| POST | `/api/projects/{id}/chats/{cid}/messages` | Отправить сообщение, получить SSE-поток | Bearer |
+| POST | `/api/projects/{id}/chats/{cid}/cancel` | Отменить генерацию | Bearer |

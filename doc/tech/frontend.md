@@ -60,7 +60,7 @@ Feature-based: компоненты группируются по фичам, н
 
 ### Layout
 
-- **AuthGate** — app-level обёртка: проверяет access token в localStorage, показывает Login/Register форму если не аутентифицирован. Вне Router и Providers.
+- **AuthGate** — app-level auth gate: блокирующая модалка login/register если не аутентифицирован. Подробнее — [auth.md](auth.md).
 - **AppLayout** — корневой layout: sidebar + центральная область. Рендерится на всех маршрутах.
 - **Sidebar** — проекты пользователя, recents, кнопки создания (new chat / new project), user footer с logout.
 - **ProjectLayout** — обёртка для project-level маршрутов: имя проекта, табы (Chats / Sphere / Artifacts).
@@ -80,9 +80,7 @@ Feature-based: компоненты группируются по фичам, н
 - Карточка артефакта (инлайн в чате, по событию `artifact_created`)
 - Кнопка cancel
 
-**sphere** — Knowledge Sphere.
-- Viewer (Markdown render через Streamdown)
-- Editor (textarea / Markdown editor, PUT при сохранении)
+**sphere** — Knowledge Sphere. Viewer (Markdown) + Editor (textarea). Подробнее — [knowledge-sphere.md](knowledge-sphere.md).
 
 **artifacts** — артефакты проекта.
 - Список артефактов (название, тип, дата)
@@ -160,7 +158,7 @@ streamStore
 
 ### HTTP-клиент
 
-Единый axios instance: base URL `/api`, `withCredentials: true` (для refresh token cookie). Request interceptor добавляет `Authorization: Bearer` header из localStorage. Response interceptor: 401 → автоматический refresh token + retry (с queue для параллельных запросов). `ensureFreshToken()` — proactive refresh для SSE fetch (проверяет JWT expiry, обновляет если < 30 сек до истечения).
+Единый axios instance: base URL `/api`, `withCredentials: true` (для refresh token cookie). Request interceptor добавляет `Authorization: Bearer` header. Response interceptor: 401 → автоматический refresh + retry. Подробнее о token management, interceptor logic и `ensureFreshToken()` — [auth.md](auth.md).
 
 ### TypeScript типы
 
@@ -199,30 +197,9 @@ features/artifacts/  → useArtifacts, useArtifact
 
 ## SSE-стриминг
 
-Кастомный хук `useAgentStream` поверх native `fetch`. Формат событий — в [backend.md](backend.md) (SSE Streaming Protocol).
+Кастомный хук `useAgentStream` поверх native `fetch`. Полная спецификация протокола, event types, lifecycle, cancellation — [streaming.md](streaming.md).
 
-### Lifecycle
-
-```
-1. Пользователь нажал Send
-2. fetch POST /projects/:id/chats/:cid/messages
-3. Сервер: 200 OK, Content-Type: text/event-stream
-4. Клиент читает ReadableStream, парсит SSE-события:
-
-   text_chunk       → streamStore.appendText(chunk)
-   tool_start       → streamStore.setTool(name)
-   tool_end         → streamStore.setTool(null)
-   artifact_created → invalidate ["projects", id, "artifacts"]
-   done             → streamStore.endStream(), invalidate chat query + recents
-   error            → показать ошибку, закрыть стрим
-
-5. Cancel: POST /cancel (axios) → сервер шлёт error event → стрим закрыт
-```
-
-### Связь с state
-
-- **Zustand stream store** — обновляется на каждое событие (appendText, setTool, endStream)
-- **TanStack Query** — инвалидация после `done` и `artifact_created` (таблица в секции State Management)
+Связь с frontend state: Zustand stream store обновляется на каждое событие, TanStack Query инвалидируется после `done` и `artifact_created` (таблица в секции State Management выше).
 
 ## Стек и инструменты
 
@@ -299,6 +276,8 @@ frontend/
 **Принципы:** features/ изолированы друг от друга. shared/ — то, что нужно нескольким фичам. app/ — shell (layouts, providers, router), не бизнес-логика. stores/ отдельно от features, т.к. stream store используется cross-feature. Pages не выделены — при 6 маршрутах роутер рендерит layout + feature-компонент напрямую.
 
 ## Logging
+
+Backend observability (Langfuse, tracing, feedback loop) — [observability.md](observability.md).
 
 ### Logger-обёртка
 

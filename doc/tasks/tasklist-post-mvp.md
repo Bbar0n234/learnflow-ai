@@ -22,20 +22,18 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 | fix-001 | ✅ Done | cross-cutting | Frontend bug fixes (4 элемента backlog) |
 | feat-001 | 📋 Planned | cross-cutting | Chat UX: auto title + thinking indicator + delete chats |
 | feat-002 | ✅ Done | agent/backend | Agent observability & tooling |
-| feat-003 | 📋 Planned | cross-cutting | Runtime agent configuration: model switching + prompt versioning |
-| feat-004 | 📋 Planned | cross-cutting | Custom instructions |
-| feat-005 | 📋 Planned | agent/backend | Prompt injection protection |
+| feat-003 | 📋 Planned | cross-cutting | Runtime agent configuration: model switching + prompt versioning + custom instructions |
+| feat-004 | 📋 Planned | agent/backend | Prompt injection protection |
 
 ## Параллелизация
 
 ```
-feat-005 (Security) ──────────────────────────────────
-feat-003 (Agent Config) ── feat-004 (Custom Instr.) ──
-feat-001 (Chat UX) ── когда будет время ──────────────
+feat-003 (Agent Config) ── feat-004 (Security) ──
+feat-001 (Chat UX) ── когда будет время ─────────
 ```
 
-- **feat-005 || feat-003** — разный scope (security vs config), параллелизуемы
-- **feat-004** — после feat-003 (расширяет config, пересекается по UI)
+- **feat-003** — первый приоритет (реальное использование системы на этой неделе)
+- **feat-004** — после feat-003 (security проектируется по финальной поверхности атаки)
 - **feat-001** — отложена, не блокирует реальное использование
 
 ## Итерации
@@ -102,7 +100,7 @@ feat-001 (Chat UX) ── когда будет время ───────
 
 ### feat-003: Runtime Agent Configuration
 
-**Цель:** runtime-конфигурация агента: смена модели без перезапуска сервиса + управление промптами и их версионирование.
+**Цель:** runtime-конфигурация агента: смена модели без перезапуска сервиса, управление промптами и их версионирование, кастомные инструкции.
 
 **Статус:** 📋 Planned
 **Scope:** cross-cutting (Agent + Backend + Frontend)
@@ -111,30 +109,17 @@ feat-001 (Chat UX) ── когда будет время ───────
 
 - **P1** Смена модели без перезапуска сервиса (runtime model switching) *(cross: Backend, Frontend)*
 - **P2** Версионирование промптов — управление версиями system prompt, откат к предыдущим *(cross: Agent, Backend)*
-
----
-
-### feat-004: Custom Instructions
-
-**Цель:** кастомные инструкции на уровне пользователя, проекта и чата.
-
-**Статус:** 📋 Planned
-**Scope:** cross-cutting (Agent + Backend + Frontend)
-**After:** feat-003
-
-#### Из backlog
-
 - **P2** Кастомные инструкции — на уровне пользователя, проекта и чата (помимо Knowledge Sphere) *(cross: Backend, Frontend)*
 
 ---
 
-### feat-005: Prompt Injection Protection
+### feat-004: Prompt Injection Protection
 
 **Цель:** базовая MVP-защита от prompt injection (direct + indirect).
 
 **Статус:** 📋 Planned
 **Scope:** agent/backend
-**Параллельно с:** feat-003
+**After:** feat-003
 
 #### Из backlog
 

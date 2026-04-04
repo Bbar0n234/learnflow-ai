@@ -50,3 +50,4 @@ Knowledge Graph с векторным поиском как стартовая �
 - MVP: Main Agent управляет шаром через tool, без дополнительных компонентов
 - Эволюция к отдельному KS Agent — при реальных проблемах (см. [ADR-005](ADR-005-ks-update-mechanism.md))
 - Формат миграции заложен: Markdown → Knowledge Graph без переписывания агента
+- Store как storage backend расширен на все слои памяти — см. [ADR-015](ADR-015-unified-memory-backend.md)

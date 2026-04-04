@@ -10,12 +10,18 @@
 
 - **P1** Voice input — голосовой ввод сообщений агенту (STT) *(cross: Backend)*
 - **P2** Design system — проработка дизайн-системы, визуальная идентичность, референсы
-- **P3** Generative UI — агент адаптирует UI под задачу пользователя (диаграммы, чеклисты, графики). Требует исследования *(cross: Agent)*
+- **P3** Generative UI — агент решает, какой UI-компонент отрисовать. Гибрид: pre-built React-компоненты + конфигурируемые свойства (размер, цвет, расположение) через schema. Ориентир протокола — Google A2UI. Ресерч завершён (`doc/research/generative-ui-research-report.md`) *(cross: Agent, Backend)*
+- **P3** Rich Material Export — экспорт интерактивных UI-материалов с сохранением визуального качества (не markdown-дамп). Форматы: static HTML bundle, PDF, или оба. Зависит от Generative UI *(cross: Backend)*
 
 ## Agent
 
+- **P2** LangGraph Store deep-dive — изучить Store вдоль и поперёк: все возможности, лимиты, best practices, продвинутые паттерны (semantic search, IndexConfig, cross-namespace стратегии). Цель — максимально использовать Store как unified memory backend
 - **P3** Proactive KS maintenance — отдельный canvas для обсуждения актуализации Knowledge Sphere с агентом (параллельно с основной работой) *(cross: Frontend)*
 - **P3** Message compaction: trim_messages выполняется безусловно, должен — только при превышении порога и неудачной суммаризации
+
+## Product / Distribution
+
+- **P3** Public Material Sharing — публичные ссылки на материалы (Notion-style share-to-web). Преподаватель публикует → получает URL → студенты видят материал без регистрации. Потенциальный pivot от "инструмент подготовки" к "подготовка + дистрибуция". Зависит от Generative UI + Rich Export *(cross: Frontend, Backend, Infra)*
 
 ## Cross-cutting
 

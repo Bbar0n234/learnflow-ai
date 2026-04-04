@@ -22,17 +22,17 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 | fix-001 | ✅ Done | cross-cutting | Frontend bug fixes (4 элемента backlog) |
 | feat-001 | 📋 Planned | cross-cutting | Chat UX: auto title + thinking indicator + delete chats |
 | feat-002 | ✅ Done | agent/backend | Agent observability & tooling |
-| feat-003 | 📋 Planned | cross-cutting | Runtime agent configuration: model switching + prompt versioning + custom instructions |
+| feat-003 | 📋 Planned | cross-cutting | Runtime agent configuration (3 tracks: Langfuse+Model, Memory, User MCP) |
 | feat-004 | 📋 Planned | agent/backend | Prompt injection protection |
 
 ## Параллелизация
 
 ```
-feat-003 (Agent Config) ── feat-004 (Security) ──
-feat-001 (Chat UX) ── когда будет время ─────────
+feat-003 (Agent Config: 3 tracks) ── feat-004 (Security) ──
+feat-001 (Chat UX) ── когда будет время ────────────────────
 ```
 
-- **feat-003** — первый приоритет (реальное использование системы на этой неделе)
+- **feat-003** — первый приоритет. Три трека проектируются параллельно (Track A: Langfuse+Model, Track B: Memory, Track C: User MCP), реализуются вместе
 - **feat-004** — после feat-003 (security проектируется по финальной поверхности атаки)
 - **feat-001** — отложена, не блокирует реальное использование
 
@@ -100,9 +100,9 @@ feat-001 (Chat UX) ── когда будет время ───────
 
 ### feat-003: Runtime Agent Configuration
 
-**Цель:** runtime-конфигурация агента: смена модели без перезапуска сервиса, управление промптами и их версионирование, кастомные инструкции.
+**Цель:** runtime-конфигурация агента: смена модели без перезапуска, управление промптами через Langfuse, memory architecture (custom instructions, user memory), per-user MCP серверы.
 
-**Статус:** 📋 Planned
+**Статус:** 📋 Planned (проектирование завершено)
 **Scope:** cross-cutting (Agent + Backend + Frontend)
 
 #### Из backlog
@@ -110,6 +110,20 @@ feat-001 (Chat UX) ── когда будет время ───────
 - **P1** Смена модели без перезапуска сервиса (runtime model switching) *(cross: Backend, Frontend)*
 - **P2** Версионирование промптов — управление версиями system prompt, откат к предыдущим *(cross: Agent, Backend)*
 - **P2** Кастомные инструкции — на уровне пользователя, проекта и чата (помимо Knowledge Sphere) *(cross: Backend, Frontend)*
+
+#### Tracks (проектируются независимо, реализуются вместе)
+
+- **Track A** — Langfuse Prompt Management + Model Switching (prompt versioning, env separation, model cascade: global → per-user → per-project → per-chat)
+- **Track B** — Memory Architecture (custom instructions, user memory, agent notes — расширение системы памяти за пределы KS)
+- **Track C** — User MCP Servers (per-user внешние инструменты, dynamic tools)
+
+#### Документация
+
+- [design-brief.md](iterations/post-mvp/feat-003-agent-config/design-brief.md) — Design brief: контекст, решения, open questions по всем трекам
+- [ADR-013](../tech/adr/ADR-013-model-settings-storage.md) — Per-Scope Settings Storage: typed tables vs polymorphic vs JSONB
+- [ADR-014](../tech/adr/ADR-014-dynamic-model-resolution.md) — Graph Factory: per-request graph build (model + tools)
+- [ADR-015](../tech/adr/ADR-015-unified-memory-backend.md) — LangGraph Store как unified memory backend (Track B)
+- [ADR-016](../tech/adr/ADR-016-per-scope-mcp-servers.md) — Per-Scope MCP Servers: storage, encryption, additive merge (Track C)
 
 ---
 

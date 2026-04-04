@@ -19,6 +19,7 @@ doc/
 │   ├── observability.md # Observability: Langfuse, трейсинг, feedback
 │   ├── conventions.md   # Git, code quality, naming, logging
 │   └── adr/             # Architecture Decision Records
+├── research/        # Исследования: технологические ресёрчи, анализ подходов
 ├── security/        # Модель угроз, защита и атака
 └── tasks/           # Задачи и итерации
 ```
@@ -49,5 +50,6 @@ doc/
 ## Другие разделы
 
 - [product/](product/) — сценарии использования, scope по версиям
+- [research/](research/) — технологические ресёрчи, deep-dives, анализ подходов (информируют будущие фичи)
 - [security/](security/) — threat model, red/blue team (дисциплина "Защита от нейронных сетей")
 - [tasks/](tasks/) — задачи и итерации

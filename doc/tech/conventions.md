@@ -149,7 +149,7 @@ Backend-команды (dev, migrate, test) используют `LOAD_ENV` — 
 - **Диаграммы** — Mermaid (не ASCII-art)
 - **Таблицы** — Markdown tables
 
-ASCII-art допустим в интерактивном диалоге (чат), где Mermaid не рендерится.
+ASCII-art допустим в интерактивном диалоге (чат), где Mermaid не рендерится. При фиксации результатов из чата в документы — конвертировать ASCII-диаграммы в Mermaid.
 
 ## Logging Conventions
 

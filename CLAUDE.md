@@ -8,6 +8,10 @@ This project follows AIDD (AI-Driven Development): the developer acts as archite
 
 ## Documentation
 
+When exploring the codebase for a task, start from architectural documents in `doc/tech/`, not source code. Documents describe interfaces, contracts, and flows at the right abstraction level for design decisions. Code is an implementation detail — use it to verify specifics not covered by documentation.
+
+When discussing architecture, visualize components, layers, and data flows so the architect can give quality feedback with the full picture in front of them. Don't wait to be asked. In chat — ASCII diagrams; when writing to documents — Mermaid.
+
 Start from [doc/index.md](doc/index.md). Key entry points by concern:
 
 ```
@@ -25,6 +29,7 @@ doc/
 │   ├── observability.md     # Langfuse tracing, cost tracking, feedback loop
 │   ├── conventions.md       # Git flow, naming, code quality setup
 │   └── adr/                 # Architecture Decision Records
+├── research/            # Technology research, deep-dives, approach analysis
 ├── security/            # Threat model
 └── tasks/               # Task lists and iterations
 ```

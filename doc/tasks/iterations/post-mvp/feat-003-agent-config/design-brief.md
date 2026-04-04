@@ -30,10 +30,12 @@ Track B (Memory)          Track C (User MCP)
 
 ## Decisions (общие)
 
-1. **Langfuse = runtime source of truth** для system prompt и global model config. File = seed + backup.
+1. **Langfuse = runtime source of truth** для всех промптов системы (system, summarization, будущие sub-agent) и global model config. File = seed + backup.
 2. **Каскад model overrides:** global (Langfuse) → per-user → per-project → per-chat. Первый не-null побеждает.
 3. **Custom instructions / user memory** — отдельный уровень абстракции от Knowledge Sphere. KS = проектные знания, memory = cross-project user context.
 4. **User MCP** — строится поверх фундамента Track A (dynamic resource resolution в agent_node).
+5. **Каскады model и tools — разные принципы по разным причинам.** Model override: specific wins (thread → project → user → global) — персонализация, пользователь выбирает модель под свою задачу. Tool merge: global wins (global tools не могут быть переопределены user tools) — безопасность, user-provided MCP сервер не должен подменять системные инструменты (Knowledge Sphere CRUD, Artifacts, Skills). Направление каскада определяется доменной семантикой: model = preference, tools = capability with security boundary.
+6. **User model override — только основная модель агента.** Каскад (thread → project → user → langfuse → file) применяется к модели, используемой для диалога с пользователем. Summarization model — system-managed (конфигурируется архитектором через Langfuse prompt.config или agent.yaml), user override отсутствует.
 
 ## Current Architecture (отправная точка)
 
@@ -61,22 +63,24 @@ ADR: [ADR-013 Model Settings Storage](../../../tech/adr/ADR-013-model-settings-s
 
 ### Scope
 
-- Langfuse Prompt Management как runtime source для system prompt и model config
+- Langfuse Prompt Management как runtime source для всех промптов (system, summarization)
+- PromptProvider — централизованный компонент (infra layer) для fetch + file fallback
 - Environment separation (dev/prod) через labels
-- Bidirectional sync: file ↔ Langfuse
+- Bidirectional sync: file ↔ Langfuse (все промпты)
 - Runtime model switching с per-user/per-project/per-chat overrides
+- Summarization model config из Langfuse prompt.config (с agent.yaml fallback)
 - Storage для user preferences (model overrides)
 - Рефакторинг agent_node: декомпозиция god function → оркестратор + extracted functions
-- Поправка семантики trim_messages: fallback вместо безусловного вызова
 - UI: выбор модели (проектируется при реализации)
 
 ### Decisions
 
 #### Source of Truth
 
-- **Langfuse = runtime source.** Агент при каждом вызове фетчит prompt + config из Langfuse (с клиентским кэшем).
-- **File** (`configs/prompts/system.txt`, секция `llm` в `agent.yaml`) = initial seed + backup snapshot.
-- При первом деплое (Langfuse пуст) — seed из файла.
+- **Langfuse = runtime source** для всех промптов системы (system, summarization, будущие sub-agent). Агент фетчит prompt + config из Langfuse через `PromptProvider` (с клиентским кэшем SDK).
+- **File** (`configs/prompts/{name}.txt`, соответствующие секции `agent.yaml`) = initial seed + backup snapshot.
+- При первом деплое (Langfuse пуст) — seed из файлов.
+- **PromptProvider** (`backend/app/infra/prompt_provider.py`) — единая точка доступа ко всем промптам. Infra-level компонент, аналогичный `infra/llm.py` и `infra/mcp.py`. Один экземпляр создаётся в lifespan, инжектится в `GraphFactory`.
 
 #### Langfuse Prompt Naming & Labels
 
@@ -94,12 +98,14 @@ Environment separation: env-переменная `LANGFUSE_PROMPT_LABEL` (`produ
 
 - **Механизм:** чисто клиентский кэш в SDK, TTL-based. Нет инвалидации при изменении промпта в UI.
 - **Поведение:** TTL истёк → stale prompt отдаётся мгновенно (не блокирует) → фоновый revalidation.
-- **TTL:** конфигурируемый через `agent.yaml`, default 60s. Максимальная задержка подхвата изменений = TTL.
+- **TTL:** конфигурируемый через `Settings.langfuse_prompt_cache_ttl` (env var), default 60s. Максимальная задержка подхвата изменений = TTL.
 - **Bypass:** `cache_ttl_seconds=0` (программно). Admin endpoint для force-refresh не нужен на MVP.
 
-#### Langfuse Prompt Config — model configuration
+#### Langfuse Prompt Config — per-prompt model configuration
 
-`prompt.config` хранит default model config (global default каскада). Версионируется вместе с промптом.
+Каждый промпт в Langfuse имеет независимый `prompt.config` (JSON dict), версионируемый вместе с текстом промпта.
+
+**Промпт "system"** — config хранит global default основной модели (последний уровень каскада перед file fallback):
 
 ```json
 {
@@ -107,6 +113,17 @@ Environment separation: env-переменная `LANGFUSE_PROMPT_LABEL` (`produ
   "extra_body": {"include_reasoning": true, "reasoning": {"effort": "low"}}
 }
 ```
+
+**Промпт "summarization"** — config хранит модель и параметры для summarization (system-managed, не user-configurable):
+
+```json
+{
+  "model": "z-ai/glm-4.7-flash",
+  "max_tokens": 500
+}
+```
+
+Каждый промпт имеет независимое версионирование, labels и config. Изменение config "summarization" не затрагивает "system" и наоборот.
 
 #### Model Override Cascade
 
@@ -131,6 +148,16 @@ thread_settings.model_name   (если не NULL / запись существу
 - Checkpointer/store — shared по ссылке. Checkpoints keyed by `thread_id`, не зависят от graph instance.
 - LangGraph Platform использует этот паттерн (graph factory per-request).
 - `agent_node` упрощается: чистый оркестратор без dynamic model/tool logic.
+
+#### Read Operations — прямой доступ к checkpointer (без графа)
+
+`get_history()` и `get_last_ai_message_id()` читают state из checkpointer. С per-request graph нет смысла компилировать граф для чтения — `checkpointer.aget_tuple(config)` возвращает десериализованные `channel_values` напрямую.
+
+- `graph.aget_state()` внутри вызывает `checkpointer.aget_tuple()`, затем добавляет graph-specific обработку (pending writes, next tasks, subgraphs) — ничего из этого не нужно для чтения истории.
+- `AgentRunner` получает `checkpointer` напрямую для read-операций, `GraphFactory` — для stream.
+- **base_graph не нужен** — GraphFactory только создаёт per-request графы, не хранит baseline.
+
+**Caveat:** `aget_tuple()` не применяет pending writes. Для текущей архитектуры это не проблема — read-операции вызываются после завершения stream (все writes committed). Если в будущем добавится HITL с `interrupt()` — потребуется пересмотреть (возможно graph-based reads для конкретных операций).
 
 #### Available Models — whitelist
 
@@ -159,23 +186,34 @@ Graph Factory build:      нет degradation (синхронная операц�
 
 ### Prompt Sync Lifecycle
 
-Два направления синхронизации:
+Синхронизация распространяется на **все промпты** системы (system, summarization).
 
 **Langfuse → File (`make sync-prompts`):**
 ```
-Langfuse API: get prompt "system" label=<specified>
-  → prompt.prompt  → configs/prompts/system.txt
-  → prompt.config  → обновить llm секцию в agent.yaml
+For each prompt in [system, summarization]:
+  Langfuse API: get prompt "{name}" label=<specified>
+    → prompt.prompt  → configs/prompts/{name}.txt
+    → prompt.config  → обновить соответствующую секцию в agent.yaml
+                        ("system" → llm, "summarization" → summarization)
   → commit вручную
 ```
 
 **File → Langfuse (deploy step):**
 ```
-Read system.txt + agent.yaml llm section
+For each .txt file in configs/prompts/:
+  name = filename stem
+  config = load corresponding agent.yaml section
   → hash(prompt_text + config_json)
   → compare with current Langfuse production version hash
   → different? → create_prompt(new version, label="production")
   → same? → no-op
+```
+
+**Startup seed:**
+```
+For each prompt in [system, summarization]:
+  Langfuse has prompt with label "production"? → skip
+  Langfuse empty for this name? → create from configs/prompts/{name}.txt + agent.yaml config
 ```
 
 **Use cases:**
@@ -183,9 +221,9 @@ Read system.txt + agent.yaml llm section
 | Сценарий | Flow |
 |----------|------|
 | Итерация через Langfuse UI | Edit in UI (label=development) → test locally → `make sync-prompts` → commit → deploy → file→Langfuse (production) |
-| Итерация через файл | Edit `system.txt` → commit → deploy → file→Langfuse (production) |
+| Итерация через файл | Edit `.txt` → commit → deploy → file→Langfuse (production) |
 | Hotfix в prod | Edit in Langfuse UI → move "production" label → immediate effect → later `make sync-prompts` (label=production) → commit |
-| Первый деплой | Langfuse пуст → startup seed из файла → label "production" |
+| Первый деплой | Langfuse пуст → startup seed из файлов → label "production" |
 
 ### Storage: Per-Scope Settings Tables (ADR-013)
 
@@ -267,32 +305,48 @@ flowchart TD
     E -.- I["trim ← безусловно"]
 ```
 
-**Целевая архитектура (Graph Factory, ADR-014):**
+**Целевая архитектура (Graph Factory + PromptProvider, ADR-014):**
 
 ```mermaid
 flowchart TD
-    A[Route handler] --> B[ChatService.send_message]
-    B --> R["ModelConfigResolver.resolve()"]
-    B --> T["MCPToolResolver.resolve()"]
-    R --> GF["GraphFactory.build(\nmodel_config, user_mcp_tools)"]
-    T --> GF
-    GF --> BG["build_graph(model, all_tools, ...)"]
-    BG --> CG["compile_graph(~1-5ms)"]
-    CG --> S["graph.astream(input, config, context)"]
+    A[Route handler] --> B["ChatService.send_message\n(AgentRunner Protocol — без изменений)"]
+    B --> AR["LangGraphAgentRunner.stream()"]
+
+    subgraph agent_layer["Agent Layer (инкапсулировано в AgentRunner)"]
+        AR --> R["ModelConfigResolver.resolve()"]
+        AR --> T["MCPToolResolver.resolve()"]
+        R --> GF["GraphFactory.build(\nmodel_config, user_mcp_tools)"]
+        T --> GF
+        GF --> MM["create main model\n(from cascade)"]
+        GF --> SM["create summarization model\n(from PromptProvider config)"]
+        GF --> BG["build_graph(model, sum_model,\nall_tools, prompt_provider, ...)"]
+        BG --> CG["compile_graph(~1-5ms)"]
+        CG --> S["graph.astream(input, config, context)"]
+    end
+
     S --> E["agent_node() — ~25 строк, оркестратор"]
 
-    E --> E1["_reduce_context()"]
-    E --> E3["_fetch_base_prompt()"]
-    E --> E4["_build_system_message()"]
+    E --> E1["_reduce_context()\nprompt_provider.get_prompt('summarization')"]
+    E --> E4["_build_system_message()\nprompt_provider.get_prompt('system')"]
     E --> E5["_invoke_llm()"]
 
     E5 --> F["bound_model.ainvoke()\nmodel+tools запечены при build"]
-    E3 -.- L["Langfuse → file fallback"]
+
+    AR2["AgentRunner.get_history()"] --> CP["checkpointer.aget_tuple()\n(прямой доступ, без графа)"]
 
     style R fill:#e1f5fe
     style T fill:#e1f5fe
     style GF fill:#e1f5fe
+    style E1 fill:#e1f5fe
+    style E4 fill:#e1f5fe
+    style CP fill:#e1f5fe
 ```
+
+Ключевые отличия от текущей архитектуры:
+- **ChatService** не знает о resolvers, GraphFactory, model config — вызывает только `AgentRunner` Protocol (без изменений).
+- **Resolve + build** инкапсулированы внутри `LangGraphAgentRunner.stream()`.
+- **Read-операции** (`get_history`, `get_last_ai_message_id`) обращаются к `checkpointer.aget_tuple()` напрямую — граф не нужен.
+- **PromptProvider** (`infra`) прокидывается через `GraphFactory → build_graph() → closure` в `agent_node`.
 
 #### ModelConfigResolver — новый компонент
 
@@ -314,7 +368,7 @@ class ModelConfigResolver:
         # thread_settings → project_settings → user_settings → Langfuse prompt.config → agent.yaml
 ```
 
-Inject в ChatService через FastAPI DI (`deps.py`). Не является сервисом (нет бизнес-логики) — resolver/strategy pattern. Результат передаётся в `GraphFactory.build()`, а не в `AgentContext`.
+Inject в `LangGraphAgentRunner` через lifespan (не в ChatService — ChatService не знает о resolvers). Не является сервисом (нет бизнес-логики) — resolver/strategy pattern. Результат передаётся в `GraphFactory.build()`, а не в `AgentContext`.
 
 #### Agent Node Refactoring
 
@@ -327,9 +381,8 @@ Extracted functions:
 
 | Функция | Ответственность |
 |---------|----------------|
-| `_reduce_context()` | Единая функция уменьшения контекста: summarization → trim (fallback). Одна ответственность — обеспечить, чтобы контекст влез в окно модели. Если tokens ≤ max → no-op. Если tokens > max → пробует summarization, при неудаче — trim. |
-| `_fetch_base_prompt()` | Langfuse `get_prompt("system")` с TTL кэшем → file fallback. |
-| `_build_system_message()` | KS index из store + custom instructions + user memory index + skills index + Jinja template → SystemMessage. |
+| `_reduce_context()` | Единая функция compaction. If tokens > threshold: summarize (if summarization_model available), else trim. If summarize fails: fallback to trim. Гарантирует messages ≤ max_tokens. Prompt для summarization из `prompt_provider.get_prompt("summarization")`. |
+| `_build_system_message()` | KS index из store + custom instructions + user memory index + skills index + base prompt из `prompt_provider.get_prompt("system")` + Jinja template → SystemMessage. |
 | `_invoke_llm()` | `ainvoke()` + timing + usage metadata logging. |
 
 ```python
@@ -338,25 +391,23 @@ async def agent_node(state: MessagesState, runtime: Runtime[AgentContext]) -> di
     messages = state["messages"]
 
     messages, context_ops = await _reduce_context(
-        messages, summarization_model, context_config)
+        messages, summarization_model, context_config, prompt_provider)
 
-    base_prompt = _fetch_base_prompt(prompt_provider)
-    system = await _build_system_message(base_prompt, runtime, skills_index)
+    system = await _build_system_message(prompt_provider, runtime, skills_index)
 
-    trimmed = _trim(messages, context_config)
-    response = await _invoke_llm(bound_model, [system, *trimmed])
+    response = await _invoke_llm(bound_model, [system, *messages])
 
     return {"messages": [*context_ops, response]}
 ```
 
-### Configuration: agent.yaml Changes
+**Примечание:** `prompt_provider.get_prompt()` — sync вызов Langfuse SDK. На cache hit (~99%): dict lookup, ~0μs. На cache miss (раз в TTL): HTTP call ~50-100ms. Для MVP приемлемо; при необходимости — `asyncio.to_thread()` wrap.
+
+### Configuration Changes
+
+#### agent.yaml
 
 ```yaml
-# Новые секции (добавляются к существующим)
-
-langfuse:
-  prompt_cache_ttl_seconds: 60    # конфигурируемый TTL для Langfuse SDK
-  prompt_label: "production"      # или "development"
+# Новая секция (добавляется к существующим)
 
 available_models:                  # белый список для UI + валидации
   - name: "z-ai/glm-5"
@@ -365,7 +416,34 @@ available_models:                  # белый список для UI + вал�
     display_name: "GLM-4.7 Flash"
   - name: "anthropic/claude-sonnet-4"
     display_name: "Claude Sonnet 4"
+
+# Секция prompt: УДАЛЕНА — промпты теперь из PromptProvider, не из файла напрямую.
+# Секция langfuse: НЕ добавляется — operational config в Settings/.env.
+# Секции llm и summarization остаются как fallback для Langfuse prompt.config.
 ```
+
+#### Settings (config.py) — новые env vars
+
+```python
+# Langfuse Prompt Management (operational, env-specific)
+langfuse_prompt_label: str = "production"
+langfuse_prompt_cache_ttl: int = 60
+
+# MCP Encryption (Track C)
+mcp_encryption_key: str = ""
+```
+
+```
+# .env (production)
+LANGFUSE_PROMPT_LABEL=production
+
+# .env.local (local dev override)
+LANGFUSE_PROMPT_LABEL=development
+```
+
+#### Новый файл: configs/prompts/summarization.txt
+
+Seed/fallback для summarization prompt. Содержимое — текущий hardcoded текст из `graph.py::_summarize()`.
 
 ### File Changes Summary
 
@@ -373,25 +451,29 @@ available_models:                  # белый список для UI + вал�
 
 | Файл | Назначение |
 |------|------------|
+| `backend/app/infra/prompt_provider.py` | PromptProvider: Langfuse fetch + file fallback для всех промптов |
 | `backend/app/models/settings.py` | SQLAlchemy: SettingsMixin + 3 typed модели |
 | `backend/app/repositories/settings.py` | Один generic repo для всех 3 таблиц |
 | `backend/app/services/model_config_resolver.py` | Cascade resolve |
+| `backend/app/agent/graph_factory.py` | GraphFactory: per-request build+compile, summarization model from PromptProvider |
 | `backend/app/api/routes/models.py` | `GET /api/models` |
 | `backend/app/api/schemas/models.py` | Response schemas |
 | `backend/alembic/versions/xxx_add_settings.py` | Migration: 3 таблицы |
+| `configs/prompts/summarization.txt` | Seed/fallback для summarization prompt |
 
 **Изменённые файлы:**
 
 | Файл | Изменение |
 |------|-----------|
-| `backend/app/agent/config.py` | + LangfuseConfig, AvailableModel, ResolvedModelConfig |
-| `backend/app/agent/graph.py` | Refactor agent_node → оркестратор + extracted functions; dynamic model; Langfuse prompt |
-| `backend/app/agent/runner.py` | `stream()` + `model_config` param; pass через `AgentContext` |
-| `backend/app/services/agent_runner.py` | Protocol: `stream()` + `model_config` |
-| `backend/app/services/chat.py` | + `ModelConfigResolver` dep; call `resolve()` в `send_message()` |
-| `backend/app/api/deps.py` | + `get_model_config_resolver()`, `ModelConfigResolverDep` |
-| `backend/app/main.py` | + Langfuse client init; new config sections |
-| `configs/agent.yaml` | + `langfuse`, `available_models` секции |
+| `backend/app/agent/config.py` | + AvailableModel, ResolvedModelConfig; -PromptConfig (промпты из PromptProvider) |
+| `backend/app/agent/graph.py` | Refactor agent_node → оркестратор + extracted functions; +prompt_provider param в `build_graph()` |
+| `backend/app/agent/runner.py` | +checkpointer, +graph_factory, +model_resolver, +tool_resolver deps; read ops через checkpointer напрямую; stream через graph_factory.build() |
+| `backend/app/services/agent_runner.py` | Protocol: **без изменений** (stream сигнатура та же) |
+| `backend/app/services/chat.py` | **Без изменений** (ChatService не знает о resolvers) |
+| `backend/app/api/deps.py` | Без изменений для Track A (resolvers не в API layer) |
+| `backend/app/main.py` | +PromptProvider init; +GraphFactory init; +resolvers init; -create_llm, -create_summarization_llm, -build_graph, -compile_graph; AgentRunner получает checkpointer+factory+resolvers |
+| `backend/app/config.py` | +`langfuse_prompt_label`, +`langfuse_prompt_cache_ttl` |
+| `configs/agent.yaml` | +`available_models`; -`prompt` секция |
 
 ---
 
@@ -604,7 +686,8 @@ async def agent_node(state, runtime):
 
     # KS (без изменений)
     ks_items = await store.asearch(build_namespace(runtime.context.project_id), limit=100)
-    ks_index = format_index(list(ks_items), title="Knowledge Sphere")
+    ks_index = format_index(list(ks_items), title="Knowledge Sphere",
+                            key_fn=lambda i: i.key.removeprefix("section:"))
 
     # NEW: Custom Instructions
     instr_item = await store.aget(("user", user_id, "instructions"), "default")
@@ -625,23 +708,31 @@ async def agent_node(state, runtime):
 #### store_helpers.py — generic helper (рефакторинг)
 
 ```python
-def format_index(items: list, title: str) -> str:
+from collections.abc import Callable
+from typing import Any
+
+def format_index(
+    items: list,
+    title: str,
+    key_fn: Callable[[Any], str] = lambda item: item.key,
+) -> str:
     """Generic index formatter for any Store namespace.
     
-    Used by KS (title="Knowledge Sphere") and User Memory (title="User Memory").
+    Used by KS and User Memory. key_fn extracts display key from item.
     """
     if not items:
         return f"{title}: empty"
     sorted_items = sorted(items, key=lambda i: i.created_at)
-    lines = []
-    for item in sorted_items:
-        key = item.key.removeprefix("section:")  # no-op if no prefix
-        description = item.value.get("description", "")
-        lines.append(f"- {key}: {description}")
+    lines = [f"- {key_fn(item)}: {item.value.get('description', '')}" for item in sorted_items]
     return f"{title}:\n" + "\n".join(lines)
+
+# Вызов для KS:
+# format_index(items, "Knowledge Sphere", key_fn=lambda i: i.key.removeprefix("section:"))
+# Вызов для User Memory:
+# format_index(items, "User Memory")  # default key_fn
 ```
 
-`ks_helpers.py` сохраняет KS-специфику (fuzzy patch, `section_key()`, `build_namespace()`), но `format_index()` переезжает в `store_helpers.py`.
+`ks_helpers.py` сохраняет KS-специфику (fuzzy patch, `section_key()`, `build_namespace()`), но `format_index()` переезжает в `store_helpers.py`. KS-специфичный `removeprefix("section:")` передаётся через `key_fn`, не хардкодится в generic helper.
 
 #### Agent Tools — user_memory.py
 
@@ -859,25 +950,20 @@ DNS resolve → IP deny list (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.
 
 ```mermaid
 flowchart TD
-    CS["ChatService.send_message()"]
-    MCR["ModelConfigResolver.resolve(u, p, t)"]
-    MTR["MCPToolResolver.resolve(u, p, t)"]
-    GF["GraphFactory.build(model_config, user_tools)"]
-    BG["build_graph(model, all_tools, agent_config, ...)"]
-    CG["compile_graph(builder, checkpointer, store)"]
-    STREAM["graph.astream(input, config, context)"]
+    CS["ChatService.send_message()"] --> AR["AgentRunner.stream()\n(Protocol — без изменений)"]
 
-    CS --> MCR
-    CS --> MTR
-    CS --> GF
-    MCR -->|ResolvedModelConfig| GF
-    MTR -->|"list[BaseTool]"| GF
-    GF --> BG
-    BG --> CG
-    CG -->|"~1-5ms"| STREAM
+    subgraph agent_layer["Agent Layer (инкапсулировано)"]
+        AR --> MCR["ModelConfigResolver.resolve(u, p, t)"]
+        AR --> MTR["MCPToolResolver.resolve(u, p, t)"]
+        MCR -->|ResolvedModelConfig| GF["GraphFactory.build(model_config, user_tools)"]
+        MTR -->|"list[BaseTool]"| GF
+        GF --> BG["build_graph(model, all_tools, prompt_provider, ...)"]
+        BG --> CG["compile_graph(builder, checkpointer, store)"]
+        CG -->|"~1-5ms"| STREAM["graph.astream(input, config, context)"]
+    end
 
     subgraph graph["Per-request Graph"]
-        AN["agent_node\ncompaction → system msg → trim → LLM"]
+        AN["agent_node\ncompaction → system msg → LLM"]
         TN["ToolNode(all_tools)\nstandard execution"]
         AN -->|tool_calls| TN
         TN --> AN
@@ -901,10 +987,9 @@ flowchart LR
     end
 
     subgraph changed["Изменяемые файлы"]
-        RUNNER["agent/\nrunner.py\n(GraphFactory, not graph)"]
-        CHAT["services/\nchat.py\n(+MCPToolResolver dep)"]
-        DEPS["api/deps.py\n(+encryption, +resolver)"]
-        MAIN["main.py\n(+EncryptionService,\n+base_graph, +router)"]
+        RUNNER["agent/\nrunner.py\n(+checkpointer,\n+GraphFactory,\n+MCPToolResolver)"]
+        DEPS["api/deps.py\n(+encryption)"]
+        MAIN["main.py\n(+EncryptionService,\n+GraphFactory, +router)"]
         CONFIG["config.py\n(+mcp_encryption_key)"]
     end
 
@@ -913,8 +998,7 @@ flowchart LR
     MCP_ROUTES --> URL_VAL
     MCP_RESOLVER --> MCP_REPO
     MCP_RESOLVER --> ENCRYPT
-    CHAT --> MCP_RESOLVER
-    CHAT --> RUNNER
+    RUNNER --> MCP_RESOLVER
     RUNNER --> GRAPH_FACTORY
     DEPS --> MCP_RESOLVER
     DEPS --> ENCRYPT
@@ -1009,13 +1093,14 @@ class GraphFactory:
 
     def __init__(
         self,
+        *,
         settings: Settings,
         agent_config: AgentConfig,
         global_tools: list,
         skills_index: str,
-        summarization_model: BaseChatModel | None,
         checkpointer: Any,
         store: Any,
+        prompt_provider: PromptProvider,
     ): ...
 
     def build(
@@ -1023,14 +1108,24 @@ class GraphFactory:
         model_config: ResolvedModelConfig,
         extra_tools: list[BaseTool],
     ) -> CompiledStateGraph:
+        # Main model from user cascade
         model = create_llm_from_config(self._settings, model_config)
+
+        # Summarization model from PromptProvider config → agent.yaml fallback
+        sum_config = self._prompt_provider.get_config("summarization")
+        if sum_config and "model" in sum_config:
+            sum_model = create_summarization_llm_from_prompt_config(self._settings, sum_config)
+        else:
+            sum_model = create_summarization_llm(self._settings, self._agent_config.summarization)
+
         all_tools = self._global_tools + list(extra_tools)
         builder = build_graph(
             model=model,
             tools=all_tools,
             agent_config=self._agent_config,
             skills_index=self._skills_index,
-            summarization_model=self._summarization_model,
+            summarization_model=sum_model,
+            prompt_provider=self._prompt_provider,
         )
         return compile_graph(builder, checkpointer=self._checkpointer, store=self._store)
 ```
@@ -1042,22 +1137,32 @@ class LangGraphAgentRunner:
     def __init__(
         self,
         *,
-        base_graph: CompiledStateGraph,    # для get_history / aget_state
-        graph_factory: GraphFactory,        # для stream (per-request graph)
+        checkpointer: BaseCheckpointSaver,    # прямой доступ для read-операций
+        graph_factory: GraphFactory,           # per-request graph для stream
+        model_resolver: ModelConfigResolver,   # Track A: model cascade
+        tool_resolver: MCPToolResolver,        # Track C: MCP tool merge
     ): ...
 
     async def stream(
         self, *,
         thread_id, content, project_id, user_id,
-        model_config: ResolvedModelConfig,     # Track A
-        user_mcp_tools: list[BaseTool],        # Track C
     ) -> AsyncIterator[StreamEvent]:
-        graph = self._graph_factory.build(model_config, user_mcp_tools)
+        # Resolve — agent layer concern, инкапсулировано от ChatService
+        model_config = await self._model_resolver.resolve(user_id, project_id, thread_id)
+        user_tools = await self._tool_resolver.resolve(user_id, project_id, thread_id)
+        graph = self._graph_factory.build(model_config, user_tools)
         context = AgentContext(project_id=str(project_id), user_id=str(user_id))
         # ... stream logic (same as current, but using per-request graph)
+
+    async def get_history(self, *, thread_id) -> list[Message]:
+        config = {"configurable": {"thread_id": str(thread_id)}}
+        checkpoint_tuple = await self._checkpointer.aget_tuple(config)
+        # ... extract messages from checkpoint_tuple.checkpoint["channel_values"]
 ```
 
-`base_graph` — граф с global tools, создаётся при старте. Для `get_history()` / `get_last_ai_message_id()` — чтение state из checkpointer, user-specific tools не нужны.
+**AgentRunner Protocol (`services/agent_runner.py`) — без изменений.** Сигнатура `stream()` та же: `thread_id, content, project_id, user_id`. ChatService не знает о resolvers.
+
+Read-операции (`get_history`, `get_last_ai_message_id`) используют `checkpointer.aget_tuple()` напрямую — граф не нужен (см. Track A: Read Operations).
 
 ### Security
 
@@ -1097,6 +1202,8 @@ DELETE /api/projects/{pid}/chats/{tid}/mcp-servers/{id}    → 204
 POST   /api/projects/{pid}/chats/{tid}/mcp-servers/{id}/test → TestConnectionResponse
 ```
 
+**Авторизация:** Thread-level MCP endpoints требуют двухступенчатой авторизации: (1) user ownership проекта через `UserProject` dependency, (2) проверка `thread_view.project_id == project_id`. Паттерн аналогичен `messages.py::_validate_thread_ownership()`. Project-level endpoints используют только `UserProject` dependency.
+
 **Schemas:**
 
 ```python
@@ -1111,7 +1218,11 @@ class MCPServerUpdate(BaseModel):
     name: str | None = None
     transport: Literal["http", "sse"] | None = None
     url: HttpUrl | None = None
-    api_key: str | None = None            # None = don't change
+    api_key: str | None = None
+    # api_key семантика (через model_dump(exclude_unset=True)):
+    #   поле не передано в JSON → не менять
+    #   "" (пустая строка) → удалить ключ
+    #   "sk-..." (непустая строка) → обновить ключ
     allowed_tools: list[str] | None = None
     is_active: bool | None = None
 
@@ -1205,12 +1316,12 @@ All user MCP servers fail:   → agent works with global tools only
 
 | Файл | Изменение |
 |------|-----------|
-| `backend/app/agent/runner.py` | GraphFactory pattern: `stream()` при��имает `model_config` + `user_mcp_tools`, строит per-request graph |
-| `backend/app/services/chat.py` | + `MCPToolResolver` dep; вызов `resolve()` в `send_message()` |
-| `backend/app/services/agent_runner.py` | Protocol: `stream()` + `model_config`, `user_mcp_tools` params |
-| `backend/app/api/deps.py` | + `get_encryption_service()`, `get_mcp_tool_resolver()`, `get_mcp_server_repo()` |
-| `backend/app/main.py` | + EncryptionService init, + base_graph + GraphFactory, + MCP router |
-| `backend/app/config.py` | + `mcp_encryption_key` setting |
+| `backend/app/agent/runner.py` | +checkpointer, +graph_factory, +tool_resolver deps (совместно с Track A) |
+| `backend/app/services/chat.py` | **Без изменений** (resolve инкапсулирован в AgentRunner) |
+| `backend/app/services/agent_runner.py` | **Protocol без изменений** (сигнатура stream та же) |
+| `backend/app/api/deps.py` | + `get_encryption_service()`, `get_mcp_server_repo()` |
+| `backend/app/main.py` | + EncryptionService init, + MCPToolResolver init, + MCP router |
+| `backend/app/config.py` | + `mcp_encryption_key` setting (совместно с Track A) |
 | `frontend/src/features/settings/components/SettingsPage.tsx` | + MCPServersSection |
 | `frontend/src/shared/api/types.ts` | + MCP server types |
 
@@ -1223,6 +1334,7 @@ All user MCP servers fail:   → agent works with global tools only
 - Per-tool permissions в UI (только allowed_tools filter)
 - Tool usage analytics
 - MCP server health monitoring
+- Encryption key rotation / re-encryption migration
 
 ---
 

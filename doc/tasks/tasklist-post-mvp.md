@@ -117,6 +117,36 @@ feat-001 (Chat UX) ── когда будет время ───────
 - **Track B** — Memory Architecture (custom instructions, user memory, agent notes — расширение системы памяти за пределы KS)
 - **Track C** — User MCP Servers (per-user внешние инструменты, dynamic tools)
 
+#### Definition of Done
+
+**Track A — Langfuse Prompt Management + Model Switching:**
+- [ ] `PromptProvider` фетчит промпты (`system`, `summarization`) из Langfuse; при недоступности Langfuse — file fallback + warning в логах
+- [ ] Startup seed: на пустом Langfuse промпты создаются из файлов с label `production`
+- [ ] Model override каскад: thread → project → user → Langfuse prompt.config → agent.yaml. NULL на любом уровне = наследование от уровня выше
+- [ ] `GET /api/models` возвращает whitelist из `agent.yaml`; PUT model на уровне user/project/thread сохраняется в соответствующую settings-таблицу
+- [ ] Смена модели через UI → следующее сообщение обрабатывается выбранной моделью (проверяемо через Langfuse trace: model name в generation)
+- [ ] GraphFactory: per-request build+compile; read-операции (`get_history`) через `checkpointer.aget_tuple()` напрямую, без графа
+- [ ] agent_node: оркестратор + extracted functions (`_reduce_context`, `_build_system_message`, `_invoke_llm`)
+
+**Track B — Memory Architecture:**
+- [ ] `PUT /api/users/me/instructions` сохраняет текст → он появляется в system message в блоке `<custom_instructions>` (проверяемо через Langfuse trace: input system message)
+- [ ] `GET /api/users/me/memories` возвращает записи, созданные агентом
+- [ ] Агент автономно использует `save_user_memory` / `delete_user_memory` в контексте диалога (tool calls видны в Langfuse trace)
+- [ ] Settings page (`/settings`): textarea для instructions + read-only список memories, навигация через иконку в sidebar
+- [ ] `store_helpers.format_index()` — generic helper, используется и для KS, и для User Memory
+
+**Track C — User MCP Servers:**
+- [ ] CRUD для user/project/thread MCP серверов через REST API; `POST .../test` проверяет соединение и возвращает список tools
+- [ ] Additive merge: tools со всех уровней (thread ∪ project ∪ user ∪ global) доступны агенту; при конфликте имён global tools приоритетнее
+- [ ] SSRF: `POST /api/users/me/mcp-servers` с URL на private IP (127.0.0.1, 10.x.x.x) → 400
+- [ ] stdio transport → 400; API key зашифрован (Fernet), API возвращает только `has_api_key: bool`
+- [ ] Graceful degradation: сбой user MCP сервера → агент работает с global tools, warning в логах
+
+**Cross-cutting:**
+- [ ] `make check` + `make check-fe` проходят
+- [ ] Миграции применяются на чистой БД (`docker-compose down -v → docker-up-db → migrate`)
+- [ ] E2E: задать custom instructions → сменить модель → отправить сообщение → агент следует инструкциям, использует выбранную модель, tool calls и model видны в Langfuse
+
 #### Документация
 
 - [design-brief.md](iterations/post-mvp/feat-003-agent-config/design-brief.md) — Design brief: контекст, решения, open questions по всем трекам

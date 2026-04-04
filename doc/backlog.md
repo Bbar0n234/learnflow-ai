@@ -19,6 +19,10 @@
 - **P3** Proactive KS maintenance — отдельный canvas для обсуждения актуализации Knowledge Sphere с агентом (параллельно с основной работой) *(cross: Frontend)*
 - **P3** Message compaction: trim_messages выполняется безусловно, должен — только при превышении порога и неудачной суммаризации
 
+## Backend
+
+- **P2** REST API cleanup — привести API к REST best practices (аудит от 2026-04-04): отсутствует pagination на коллекциях (projects, chats, artifacts), POST create endpoints возвращают 200 вместо 201, DELETE feedback через POST с score=None вместо DELETE endpoint, нет стандартного envelope для list responses ({items, total, limit, offset}). Полный список: 8 пунктов, от notable до minor *(cross: Frontend)*
+
 ## Product / Distribution
 
 - **P3** Public Material Sharing — публичные ссылки на материалы (Notion-style share-to-web). Преподаватель публикует → получает URL → студенты видят материал без регистрации. Потенциальный pivot от "инструмент подготовки" к "подготовка + дистрибуция". Зависит от Generative UI + Rich Export *(cross: Frontend, Backend, Infra)*

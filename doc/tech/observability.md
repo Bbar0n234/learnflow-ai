@@ -2,6 +2,8 @@
 
 Наблюдаемость AI-агента: трейсинг LLM-вызовов, cost tracking, user feedback loop. Построена на Langfuse (cloud). Обоснование выбора — [ADR-010](adr/ADR-010-langfuse-observability.md). Logging conventions — [conventions.md](conventions.md#logging-conventions).
 
+Langfuse выполняет **dual role** в системе: observability (этот документ) и prompt management — runtime source of truth для системных промптов. Подробнее — [prompt-management.md](prompt-management.md).
+
 ## Architecture Overview
 
 ```mermaid

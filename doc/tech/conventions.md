@@ -151,6 +151,19 @@ Backend-команды (dev, migrate, test) используют `LOAD_ENV` — 
 
 ASCII-art допустим в интерактивном диалоге (чат), где Mermaid не рендерится. При фиксации результатов из чата в документы — конвертировать ASCII-диаграммы в Mermaid.
 
+## Prompt Naming
+
+Системные промпты в Langfuse именуются по формату `{name}--{label}`:
+
+```
+system--development
+system--production
+summarization--development
+summarization--production
+```
+
+Двойной дефис (`--`) разделяет имя промпта и label окружения. Обеспечивает полную изоляцию dev/prod: каждое окружение имеет собственную историю версий. Подробнее — [prompt-management.md](prompt-management.md).
+
 ## Logging Conventions
 
 ### Семантика уровней

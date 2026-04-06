@@ -8,13 +8,19 @@
 graph TD
     SVC["ChatService"]
     RUNNER["AgentRunner (protocol)"]
+    FACTORY["GraphFactory"]
+    RESOLVER["ModelConfigResolver"]
+    PROMPT["PromptProvider"]
     GRAPH["LangGraph StateGraph"]
     TOOLS["Tools"]
     STORE["LangGraph Store (PostgreSQL)"]
     CP["Checkpointer (PostgreSQL)"]
 
     SVC --> RUNNER
-    RUNNER --> GRAPH
+    RUNNER --> FACTORY
+    RUNNER --> RESOLVER
+    FACTORY --> GRAPH
+    FACTORY --> PROMPT
     GRAPH --> TOOLS
     GRAPH --> STORE
     GRAPH --> CP
@@ -24,12 +30,27 @@ graph TD
 
 | Метод | Назначение |
 |-------|------------|
-| `stream(thread_id, content, project_id, user_id)` | Генерация ответа, поток `StreamEvent` |
+| `stream(thread_id, content, project_id, user_id, session?, model_config?)` | Генерация ответа, поток `StreamEvent` |
 | `get_history(thread_id)` | История сообщений (HumanMessage + AIMessage без tool_calls) |
 | `get_last_ai_message_id(thread_id)` | ID последнего ответа агента (для привязки артефактов) |
 | `cancel(thread_id)` | Отмена генерации через `asyncio.Event` |
 
 Реализация: `LangGraphAgentRunner`. ChatService оркестрирует (thread mapping, artifact linking, trace saving), AgentRunner — генерация.
+
+### Per-Request Flow
+
+```
+ChatService
+  → ModelConfigResolver.resolve(user_id, project_id, thread_id)
+  → GraphFactory.build(model_config, mcp_tools)
+  → graph.astream(input, config, context)
+```
+
+**GraphFactory** строит и компилирует новый `StateGraph` для каждого запроса с resolved model config и набором tools. Overhead ~1-5ms на компиляцию 2-node графа. Checkpointer и Store — shared, не пересоздаются.
+
+**ModelConfigResolver** — каскадное разрешение модели: thread → project → user → Langfuse prompt config → agent.yaml. Первый non-null уровень побеждает. Whitelist доступных моделей — из `configs/agent.yaml`.
+
+**PromptProvider** — фетчинг системных промптов из Langfuse с file fallback. Подробнее — [prompt-management.md](prompt-management.md).
 
 ## Agent Graph
 
@@ -50,9 +71,9 @@ graph LR
 
 **Context schema:** `AgentContext(project_id, user_id)` — передаётся через `context=` параметр `astream()`, доступен в nodes и tools через `runtime.context`.
 
-**Compile:**
-- `checkpointer=AsyncPostgresSaver` — персистентная история сообщений (PostgreSQL)
-- `store=AsyncPostgresStore` — key-value хранилище для Knowledge Sphere
+**Compile:** GraphFactory на каждый запрос:
+- `checkpointer=AsyncPostgresSaver` — shared, персистентная история (PostgreSQL)
+- `store=AsyncPostgresStore` — shared, key-value для Knowledge Sphere и User Memory
 
 **Invocation:**
 ```
@@ -63,28 +84,36 @@ graph.astream(input_msg, config, stream_mode=["messages", "updates"], context=co
 
 ## System Message
 
-Jinja2 template, собирается из трёх частей на каждый вызов agent node:
+Собирается из пяти частей на каждый вызов agent node:
 
 ```
 ┌─────────────────────────────────┐
-│ Based Prompt                    │  ← configs/prompts/system.txt
+│ Base Prompt                     │  ← PromptProvider (→ prompt-management.md)
 │ (стиль, guidelines, boundaries) │
 ├─────────────────────────────────┤
-│ <knowledge_sphere>              │
-│   KS Index                      │  ← LangGraph Store (pre-loaded)
-│ </knowledge_sphere>             │
+│ <custom_instructions>           │  ← LangGraph Store, per-user
+│   Пользовательские инструкции   │     (→ user-memory.md)
 ├─────────────────────────────────┤
-│ <available_skills>              │
-│   Skills Index                  │  ← skills/ directory (scanned at startup)
-│ </available_skills>             │
+│ <user_memory>                   │  ← LangGraph Store, per-user
+│   Факты о пользователе          │     (→ user-memory.md)
+├─────────────────────────────────┤
+│ <knowledge_sphere>              │  ← LangGraph Store, per-project
+│   KS Index                      │     (→ knowledge-sphere.md)
+├─────────────────────────────────┤
+│ <available_skills>              │  ← skills/ directory (scanned at startup)
+│   Skills Index                  │
 └─────────────────────────────────┘
 ```
 
-- **Based prompt** — статический текст: стиль взаимодействия (expert-to-expert), guidelines по Knowledge Sphere, артефактам, skills, error handling
-- **KS Index** — список секций Knowledge Sphere с описаниями, загружается из Store каждый вызов (может измениться между вызовами)
-- **Skills Index** — список skill name + description, формируется при старте из YAML frontmatter `skills/*/SKILL.md`
+| Часть | Source | Scope | Обновление |
+|-------|--------|-------|------------|
+| Base prompt | PromptProvider (Langfuse → file fallback) | Global | При изменении в Langfuse (SDK cache TTL) |
+| Custom instructions | LangGraph Store | Per-user | При сохранении через REST API |
+| User memory | LangGraph Store | Per-user | Автономно агентом (tools) |
+| KS Index | LangGraph Store | Per-project | При изменении секций (agent tools / REST API) |
+| Skills Index | Filesystem scan | Global | При старте приложения |
 
-Пересборка на каждый вызов гарантирует актуальность KS Index (агент мог создать/удалить секции в предыдущей итерации).
+Пересборка на каждый вызов гарантирует актуальность динамических частей (KS Index, memories могли измениться между вызовами).
 
 ## Context Engineering
 
@@ -93,6 +122,8 @@ Jinja2 template, собирается из трёх частей на кажды
 ```mermaid
 graph TD
     subgraph "Всегда в system message"
+        CI["Custom Instructions"]
+        UM["User Memory"]
         KSI["KS Index (~500-1500 tokens)"]
         SI["Skills Index"]
     end
@@ -108,6 +139,7 @@ graph TD
 
 | Уровень | Что | Когда | Размер |
 |---------|-----|-------|--------|
+| Pre-loaded | Custom Instructions, User Memory | Каждый вызов agent node | Variable (user-dependent) |
 | Pre-loaded | KS Index, Skills Index | Каждый вызов agent node | ~500-1500 tokens |
 | JIT | Полная секция KS | `get_section(section_id)` | Variable |
 | JIT | Полный SKILL.md | `load_skill(skill_name)` | Variable |
@@ -149,11 +181,11 @@ flowchart TD
 
 ## Tools
 
-Три категории, объединяются при компиляции графа:
+Четыре категории, объединяются при компиляции графа:
 
 ### Internal Tools
 
-**Knowledge Sphere** — CRUD для пользовательской базы знаний (подробнее — [knowledge-sphere.md](knowledge-sphere.md)):
+**Knowledge Sphere** — CRUD для проектной базы знаний (подробнее — [knowledge-sphere.md](knowledge-sphere.md)):
 
 | Tool | Назначение |
 |------|------------|
@@ -170,6 +202,15 @@ flowchart TD
 
 `response_format="content_and_artifact"` — tool возвращает и текстовый ответ, и metadata артефакта (`id`, `title`, `type`). Metadata передаётся через SSE как `artifact_created` event.
 
+**User Memory** — автономное управление фактами о пользователе (подробнее — [user-memory.md](user-memory.md)):
+
+| Tool | Назначение |
+|------|------------|
+| `save_user_memory` | Сохранить/обновить факт о пользователе |
+| `delete_user_memory` | Удалить запись из памяти |
+
+Агент решает самостоятельно, когда сохранять информацию. Память кросс-проектная — доступна во всех чатах пользователя.
+
 **Skills:**
 
 | Tool | Назначение |
@@ -178,7 +219,13 @@ flowchart TD
 
 ### External Tools (MCP)
 
-Динамически загружаются из configured MCP-серверов, конвертируются в `BaseTool` через `langchain_mcp_adapters`. Объединяются с internal tools: `all_tools = ks_tools + [load_skill, create_artifact] + mcp_tools`.
+Загружаются из MCP-серверов через **MCPToolResolver**. Итоговый набор tools для графа:
+
+```
+all_tools = internal_tools + mcp_tools(resolved)
+```
+
+Подробнее об MCP-архитектуре — секция [MCP Integration](#mcp-integration).
 
 ## Skills System
 
@@ -195,26 +242,45 @@ Skill — модуль специализированных знаний, заг
 
 ## MCP Integration
 
-Расширение агента внешними инструментами через Model Context Protocol.
+Расширение агента внешними инструментами через Model Context Protocol. Двухуровневая архитектура: global + per-user.
 
-**Конфигурация:** `configs/agent.yaml`, секция `mcp_servers`. Per-server настройки:
+### Global MCP Servers
+
+Конфигурируются в `configs/agent.yaml`, секция `mcp_servers`. Доступны всем пользователям.
 
 | Поле | Назначение |
 |------|------------|
-| `transport` | Тип соединения: `stdio`, `sse`, `http` |
+| `transport` | Тип соединения: `stdio`, `sse`, `streamable_http` |
 | `url` | URL для sse/http транспортов |
 | `api_key_env` | Имя env-переменной с API ключом |
 | `command` / `args` | Команда запуска для stdio |
 | `allowed_tools` | Whitelist инструментов (фильтрация после получения) |
+| `enabled` | Включён/выключен без удаления конфигурации |
 
-**Транспорты:**
-- `stdio` — subprocess, локальные серверы
-- `sse` — Server-Sent Events
-- `http` → `streamable_http` — HTTP-based
+Client: `MultiServerMCPClient` из `langchain_mcp_adapters`. Создаётся при старте, shared across invocations.
 
-**Client:** `MultiServerMCPClient` из `langchain_mcp_adapters`. Создаётся при старте приложения, shared across invocations.
+### Per-User MCP Servers
 
-**Allowed tool filtering:** после получения tools от сервера отфильтровываются только разрешённые. Позволяет ограничить scope без изменения конфигурации MCP-сервера.
+Пользователи добавляют собственные MCP-серверы через REST API на трёх уровнях: user → project → thread. Хранятся в БД с шифрованием API-ключей (Fernet).
+
+Ограничения безопасности:
+- Только HTTP-транспорты (`streamable_http`, `sse`) — `stdio` запрещён (RCE-вектор)
+- SSRF-защита: DNS resolve + deny list приватных IP-диапазонов
+- API-ключи зашифрованы, API возвращает только `has_api_key: bool` + `api_key_hint`
+
+CRUD и каскадная видимость — [backend.md](backend.md).
+
+### MCPToolResolver
+
+Центральный компонент разрешения MCP tools для каждого запроса.
+
+**Additive merge:** thread ∪ project ∪ user ∪ global — tools от всех уровней объединяются.
+
+**Dedup:** при конфликте имён инструментов global побеждает (security boundary — пользовательский MCP не может подменить системный tool).
+
+**Cache:** TTL-кэш с targeted invalidation по scope tuple `(user_id, project_id, thread_id)`. CRUD-операции над MCP-серверами инвалидируют соответствующий scope.
+
+**Graceful degradation:** недоступный MCP-сервер → skip + warning в логах, остальные tools работают.
 
 ## Observability
 
@@ -225,34 +291,48 @@ Skill — модуль специализированных знаний, заг
 - `trace_id` передаётся через SSE для привязки user feedback
 - Model definitions с pricing — cost tracking per invocation
 
-**Graceful degradation:** при недоступности Langfuse или отсутствии ключей — `_NoOpSpan` (no-op методы), приложение работает без трейсинга.
+Langfuse выполняет dual role: tracing (observability) + prompt management (runtime source of truth для системных промптов). Подробнее — [prompt-management.md](prompt-management.md).
+
+**Graceful degradation:** при недоступности Langfuse — `_NoOpSpan` (no-op tracing), промпты переключаются на file fallback. Приложение работает без трейсинга.
 
 ## Graceful Degradation
 
 | Компонент | При отказе | Поведение |
 |-----------|-----------|-----------|
 | LLM | Исключение в stream | `error` event клиенту, state сохранён в checkpointer |
-| MCP-серверы | Ошибка при инициализации | Приложение стартует без внешних tools |
+| PromptProvider (Langfuse) | Langfuse недоступен | File fallback → `configs/prompts/` |
+| Global MCP-серверы | Ошибка при инициализации | Приложение стартует без внешних tools |
+| Per-user MCP-сервер | Сервер не отвечает | Skip + warning, остальные tools работают |
+| Model override | Модель не в whitelist | Validation error → 422 до запуска графа |
 | Summarization model | Ошибка суммаризации | Fallback на trim-only |
-| Langfuse | Недоступен / не сконфигурирован | No-op span, приложение работает без трейсинга |
+| Langfuse | Недоступен / не сконфигурирован | No-op span + file fallback для промптов |
 
 Каждый компонент деградирует изолированно, не роняя систему.
 
 ## Configuration
 
-Два файла конфигурации агента:
+Четыре источника конфигурации агента:
+
+| Источник | Что настраивает | Приоритет |
+|----------|----------------|-----------|
+| `configs/agent.yaml` | LLM defaults, context params, summarization, global MCP, models whitelist | Base defaults |
+| `configs/prompts/*.txt` | Seed-файлы промптов | Seed → Langfuse |
+| Langfuse | Runtime промпты, model config в prompt metadata | Runtime override |
+| DB (settings tables) | Per-scope model overrides, per-user MCP servers | Per-request override |
 
 **`configs/agent.yaml`** — параметры runtime:
 
 | Секция | Что настраивает |
 |--------|----------------|
-| `llm` | Модель, extra_body (reasoning effort и т.д.) |
+| `llm` | Модель по умолчанию, extra_body (reasoning effort и т.д.) |
 | `context` | max_tokens, compaction_threshold_ratio, recent_messages_to_keep |
-| `prompt` | Путь к файлу system prompt |
+| `prompt` | Путь к файлу system prompt (seed) |
 | `summarization` | Модель суммаризации, max_summary_tokens |
-| `mcp_servers` | MCP-серверы: transport, URL, API keys, allowed_tools |
-| `models` | Model definitions для Langfuse (pricing, match patterns) |
+| `mcp_servers` | Global MCP-серверы: transport, URL, API keys, allowed_tools |
+| `models` | Model definitions: pricing, match patterns (Langfuse cost tracking) |
 
-**`configs/prompts/system.txt`** — текст based prompt (загружается при старте, инжектируется в system message).
+**Prompt files** — seed-файлы в `configs/prompts/`. Source of truth для промптов — Langfuse; файлы используются для seeding и как fallback. Подробнее — [prompt-management.md](prompt-management.md).
 
-Application-level настройки (LLM credentials, Langfuse keys, Redis) — в `backend/app/config.py` через Pydantic Settings.
+Application-level настройки — `backend/app/config.py` через Pydantic Settings. Ключевые env vars для feat-003:
+- `MCP_ENCRYPTION_KEY` — Fernet-ключ для шифрования API-ключей per-user MCP
+- `LANGFUSE_PROMPT_LABEL` — label для фетча промптов (default: `development`)

@@ -1,3 +1,5 @@
+import hashlib
+import json
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -11,15 +13,28 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from app.agent.config import load_agent_config
-from app.agent.graph import build_graph, compile_graph
+from app.agent.graph_factory import GraphFactory
 from app.agent.runner import LangGraphAgentRunner
 from app.agent.tools import (
     ks_tools,
     make_create_artifact_tool,
     make_load_skill_tool,
     scan_skills_index,
+    user_memory_tools,
 )
-from app.api.routes import artifacts, auth, chats, feedback, messages, projects, sphere
+from app.api.routes import (
+    artifacts,
+    auth,
+    chats,
+    feedback,
+    mcp_servers,
+    messages,
+    models,
+    projects,
+    sphere,
+    user_memory,
+)
+from app.api.routes import settings as settings_routes
 from app.config import Settings
 from app.infra.db import create_engine, create_session_factory
 from app.infra.langfuse import (
@@ -28,13 +43,89 @@ from app.infra.langfuse import (
     shutdown_langfuse,
 )
 from app.infra.langgraph import create_checkpointer, create_store
-from app.infra.llm import create_llm, create_summarization_llm
 from app.infra.logging import setup_logging
 from app.infra.mcp import create_mcp_client
+from app.infra.prompt_provider import PromptProvider
 from app.infra.redis import create_redis
+from app.services.encryption import EncryptionService
 from app.services.exceptions import EntityNotFoundError
+from app.services.mcp_tool_resolver import MCPToolResolver
+from app.services.model_config_resolver import ModelConfigResolver
 
 logger = structlog.get_logger()
+
+
+def _content_hash(text: str, config: dict[str, Any]) -> str:
+    return hashlib.sha256(
+        (text + json.dumps(config, sort_keys=True)).encode()
+    ).hexdigest()
+
+
+def _load_prompt_config(agent_config: Any, name: str) -> dict[str, Any]:
+    if name == "system":
+        return {
+            "model": agent_config.llm.model,
+            "extra_body": agent_config.llm.extra_body,
+        }
+    if name == "summarization" and agent_config.summarization:
+        return {
+            "model": agent_config.summarization.model,
+            "max_tokens": agent_config.summarization.max_summary_tokens,
+        }
+    return {}
+
+
+def _seed_prompts(
+    langfuse: Any,
+    prompts_dir: Path,
+    agent_config: Any,
+    label: str,
+) -> None:
+    """Seed prompts to Langfuse on startup (idempotent, duplicate-safe).
+
+    Prompt names are qualified with label: "system--development", "system--production".
+    This gives full isolation between environments — each has its own version history.
+    Dedup compares file content against all versions of the qualified prompt.
+    """
+    for prompt_name in ["system", "summarization"]:
+        file_path = prompts_dir / f"{prompt_name}.txt"
+        if not file_path.exists():
+            continue
+
+        qualified = f"{prompt_name}--{label}"
+        file_text = file_path.read_text(encoding="utf-8")
+        file_config = _load_prompt_config(agent_config, prompt_name)
+        file_hash = _content_hash(file_text, file_config)
+
+        try:
+            meta = langfuse.api.prompts.list(name=qualified)
+            if not meta.data:
+                langfuse.create_prompt(
+                    name=qualified,
+                    prompt=file_text,
+                    config=file_config,
+                )
+                logger.info("prompt seeded", name=qualified)
+                continue
+
+            all_versions = meta.data[0].versions
+            is_duplicate = any(
+                _content_hash(
+                    langfuse.get_prompt(qualified, version=v).prompt,
+                    langfuse.get_prompt(qualified, version=v).config,
+                )
+                == file_hash
+                for v in all_versions
+            )
+            if not is_duplicate:
+                langfuse.create_prompt(
+                    name=qualified,
+                    prompt=file_text,
+                    config=file_config,
+                )
+                logger.info("prompt synced", name=qualified)
+        except Exception:
+            logger.warning("prompt seed/sync failed", name=prompt_name, exc_info=True)
 
 
 @asynccontextmanager
@@ -74,14 +165,40 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("app started")
 
     engine = create_engine(settings)
-    # Fail-fast: verify DB is reachable at startup
     async with engine.connect() as conn:
         await conn.execute(text("SELECT 1"))
     app.state.engine = engine
     app.state.session_factory = create_session_factory(engine)
 
-    # Redis (trace storage for feedback persistence)
     app.state.redis = await create_redis(settings)
+
+    # PromptProvider
+    prompts_dir = Path(__file__).resolve().parents[2] / "configs" / "prompts"
+    langfuse_client = None
+    from app.infra.langfuse import langfuse_enabled
+
+    if langfuse_enabled:
+        from langfuse import get_client
+
+        langfuse_client = get_client()
+
+    prompt_provider = PromptProvider(
+        langfuse=langfuse_client,
+        label=settings.langfuse_prompt_label,
+        cache_ttl=settings.langfuse_prompt_cache_ttl,
+        prompts_dir=prompts_dir,
+    )
+    app.state.prompt_provider = prompt_provider
+
+    # Seed prompts to Langfuse
+    if langfuse_client:
+        _seed_prompts(
+            langfuse_client, prompts_dir, agent_config, settings.langfuse_prompt_label
+        )
+
+    # Encryption service
+    encryption_service = EncryptionService(settings.mcp_encryption_key)
+    app.state.encryption_service = encryption_service
 
     # LangGraph persistence
     lg_db_url = settings.langgraph_database_url
@@ -93,15 +210,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await checkpointer.setup()
 
         app.state.store = store
+        app.state.checkpointer = checkpointer
 
-        # Agent graph
-        llm = create_llm(settings, agent_config)
-        summarization_llm = None
-        if agent_config.summarization is not None:
-            summarization_llm = create_summarization_llm(
-                settings, agent_config.summarization
-            )
-
+        # Tools
         skills_dir = Path(__file__).resolve().parents[2] / "skills"
         load_skill = make_load_skill_tool(skills_dir)
         skills_idx = scan_skills_index(skills_dir)
@@ -113,15 +224,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             mcp_client = create_mcp_client(agent_config.mcp_servers)
             if mcp_client is not None:
                 for server_name, server_config in agent_config.mcp_servers.items():
+                    if not server_config.enabled:
+                        continue
                     tools = await mcp_client.get_tools(server_name=server_name)
                     if server_config.allowed_tools:
                         allowed = set(server_config.allowed_tools)
                         tools = [t for t in tools if t.name in allowed]
                     mcp_tools.extend(tools)
+                enabled = sum(1 for s in agent_config.mcp_servers.values() if s.enabled)
                 logger.info(
                     "mcp tools loaded",
                     tool_count=len(mcp_tools),
-                    server_count=len(agent_config.mcp_servers),
+                    servers_active=enabled,
+                    servers_total=len(agent_config.mcp_servers),
                 )
         except Exception:
             logger.warning(
@@ -129,17 +244,43 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 exc_info=True,
             )
 
-        all_tools = ks_tools + [load_skill, create_artifact] + mcp_tools
-
-        builder = build_graph(
-            model=llm,
-            tools=all_tools,
-            agent_config=agent_config,
-            skills_index=skills_idx,
-            summarization_model=summarization_llm,
+        global_tools = (
+            ks_tools + user_memory_tools + [load_skill, create_artifact] + mcp_tools
         )
-        graph = compile_graph(builder, checkpointer=checkpointer, store=store)
-        app.state.agent_runner = LangGraphAgentRunner(graph)
+
+        # GraphFactory + ModelConfigResolver
+        graph_factory = GraphFactory(
+            settings=settings,
+            agent_config=agent_config,
+            global_tools=global_tools,
+            skills_index=skills_idx,
+            checkpointer=checkpointer,
+            store=store,
+            prompt_provider=prompt_provider,
+        )
+
+        model_resolver = ModelConfigResolver(
+            prompt_provider=prompt_provider,
+            agent_config=agent_config,
+        )
+
+        # MCPToolResolver for user MCP servers
+        global_tool_names = {t.name for t in global_tools}
+        tool_resolver = MCPToolResolver(
+            session_factory=app.state.session_factory,
+            encryption_service=encryption_service,
+            global_tool_names=global_tool_names,
+        )
+
+        app.state.tool_resolver = tool_resolver
+
+        app.state.agent_runner = LangGraphAgentRunner(
+            graph_factory=graph_factory,
+            model_resolver=model_resolver,
+            checkpointer=checkpointer,
+            tool_resolver=tool_resolver,
+        )
+        app.state.agent_config = agent_config
 
         yield
 
@@ -178,7 +319,7 @@ def create_app() -> FastAPI:
     ) -> JSONResponse:
         return JSONResponse(status_code=404, content={"detail": str(exc)})
 
-    # Health check (no /api prefix — used by Docker health check)
+    # Health check
     @app.get("/health")
     async def health(request: Request) -> dict[str, str]:
         async with request.app.state.engine.connect() as conn:
@@ -194,27 +335,26 @@ def create_app() -> FastAPI:
     app.include_router(artifacts.router, prefix=api_prefix)
     app.include_router(sphere.router, prefix=api_prefix)
     app.include_router(feedback.router, prefix=api_prefix)
+    app.include_router(models.router, prefix=api_prefix)
+    app.include_router(settings_routes.router, prefix=api_prefix)
+    app.include_router(user_memory.router, prefix=api_prefix)
+    app.include_router(mcp_servers.router, prefix=api_prefix)
 
     # Serve frontend static files (only when dist exists — Docker mode)
     frontend_dir = Path(__file__).resolve().parents[2] / "frontend" / "dist"
     if frontend_dir.exists():
         frontend_resolved = frontend_dir.resolve()
 
-        # JS, CSS, images from Vite build
         app.mount(
             "/assets",
             StaticFiles(directory=str(frontend_resolved / "assets")),
             name="assets",
         )
 
-        # SPA fallback: unknown paths → index.html
         @app.get("/{full_path:path}")
         async def serve_frontend(full_path: str) -> FileResponse:
-            # Guard: unknown /api paths → 404 JSON, not index.html
             if full_path == "api" or full_path.startswith("api/"):
                 raise HTTPException(status_code=404, detail="Not found")
-
-            # Path traversal protection
             file_path = (frontend_resolved / full_path).resolve()
             if file_path.is_file() and file_path.is_relative_to(frontend_resolved):
                 return FileResponse(str(file_path))

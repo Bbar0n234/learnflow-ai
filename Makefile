@@ -1,4 +1,4 @@
-.PHONY: docker-up docker-up-db docker-up-redis docker-down docker-build docker-logs lint format type-check check lint-fe check-fe format-fe dev dev-remote dev-fe test migrate migration downgrade
+.PHONY: docker-up docker-up-db docker-up-redis docker-down docker-build docker-logs lint format type-check check lint-fe check-fe format-fe dev dev-remote dev-fe test migrate migration downgrade sync-prompts
 
 # Load .env (base) then .env.local (overrides) into shell environment
 LOAD_ENV = set -a && [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; set +a
@@ -67,3 +67,6 @@ migration:  ## Create new alembic migration (autogenerate). Usage: make migratio
 
 downgrade:  ## Run alembic downgrade (one step)
 	$(LOAD_ENV) && uv run alembic -c backend/alembic.ini downgrade -1
+
+sync-prompts:  ## Sync prompts from Langfuse to local files
+	$(LOAD_ENV) && uv run python backend/scripts/sync_prompts.py --label production

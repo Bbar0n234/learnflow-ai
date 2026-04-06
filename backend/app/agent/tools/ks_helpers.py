@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from fuzzysearch import find_near_matches
 
+from app.agent.tools.store_helpers import format_index as _generic_format_index
+
 SPHERE_NAMESPACE_PREFIX = ("project",)
 
 
@@ -52,15 +54,8 @@ def fuzzy_find_and_replace(
 
 def format_index(items: list) -> str:
     """Format store items as Knowledge Sphere index for system message."""
-    if not items:
-        return "Knowledge Sphere: empty"
-
-    sorted_items = sorted(items, key=lambda i: i.created_at)
-    lines = []
-    for item in sorted_items:
-        # key format: "section:{section_id}"
-        section_id = item.key.removeprefix("section:")
-        description = item.value.get("description", "")
-        lines.append(f"- {section_id}: {description}")
-
-    return "Knowledge Sphere:\n" + "\n".join(lines)
+    return _generic_format_index(
+        items,
+        title="Knowledge Sphere",
+        key_fn=lambda i: i.key.removeprefix("section:"),
+    )

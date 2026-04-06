@@ -89,6 +89,90 @@ export interface ListResponse<T> {
   items: T[];
 }
 
+// === Settings (Track A) ===
+
+export interface AvailableModel {
+  name: string;
+  display_name: string;
+}
+
+export interface Settings {
+  model_name: string | null;
+  extra_body: object | null;
+  resolved_model: string;
+  resolved_source: string;
+}
+
+export interface SettingsUpdate {
+  model_name: string | null;
+  extra_body?: object | null;
+}
+
+// === User Memory (Track B) ===
+
+export interface Instructions {
+  content: string;
+}
+
+export interface MemoryItem {
+  key: string;
+  description: string;
+  content: string;
+  created_at: string;
+}
+
+// === MCP Servers (Track C) ===
+
+export interface MCPServer {
+  id: string;
+  name: string;
+  transport: string;
+  url: string;
+  has_api_key: boolean;
+  api_key_hint: string | null;
+  allowed_tools: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InheritedMCPServer {
+  id: string;
+  name: string;
+  transport: string;
+  url: string;
+  has_api_key: boolean;
+  api_key_hint: string | null;
+  is_active: boolean;
+  is_disabled: boolean;
+}
+
+export interface MCPServerListResponse {
+  items: MCPServer[];
+  inherited: InheritedMCPServer[];
+}
+
+export interface MCPServerCreate {
+  name: string;
+  transport: "http" | "sse";
+  url: string;
+  api_key?: string;
+}
+
+export interface MCPServerUpdate {
+  name?: string;
+  transport?: "http" | "sse";
+  url?: string;
+  api_key?: string;
+  is_active?: boolean;
+}
+
+export interface TestConnectionResult {
+  success: boolean;
+  tools: string[];
+  error?: string;
+}
+
 // === SSE Events ===
 
 export type SSEEvent =

@@ -6,6 +6,7 @@ import {
   MessageSquare,
   PanelLeftClose,
   Plus,
+  Settings,
   User,
 } from "lucide-react";
 import { getMe, logout } from "@/shared/api/auth";
@@ -127,6 +128,14 @@ export function Sidebar() {
                 {user.name}
               </span>
             </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => navigate("/settings")}
+              title="Settings"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
             <Button
               variant="ghost"
               size="icon-sm"

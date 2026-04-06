@@ -33,11 +33,13 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 | Маршрут | Центральная область |
 |---------|---------------------|
 | `/` | Welcome (без input — создание чата только из проекта) |
-| `/projects/:id` | Проект: табы **Chats** / **Sphere** / **Artifacts**, input для нового чата |
-| `/projects/:id/chats/:cid` | Чат: сообщения + SSE-стриминг + input |
+| `/settings` | Пользовательские настройки: модель, инструкции, память, MCP серверы |
+| `/projects/:id` | Проект: табы **Chats** / **Sphere** / **Artifacts** / **Settings** |
+| `/projects/:id/chats/:cid` | Чат: ChatHeader (← project, model selector, tools dialog) + сообщения + SSE-стриминг + input |
 | `/projects/:id/sphere` | Knowledge Sphere: просмотр и редактирование (Markdown) |
 | `/projects/:id/artifacts` | Список артефактов проекта |
 | `/projects/:id/artifacts/:aid` | Просмотр артефакта + скачивание (md/pdf) |
+| `/projects/:id/settings` | Настройки проекта: model override, MCP серверы |
 
 ### Экраны
 

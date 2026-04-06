@@ -1,0 +1,1 @@
+Summarize the following conversation concisely. Preserve: key decisions, unresolved questions, current focus, important facts and context. Discard: redundant tool outputs, intermediate reasoning, greetings.

@@ -27,6 +27,10 @@
 
 - **P3** Public Material Sharing — публичные ссылки на материалы (Notion-style share-to-web). Преподаватель публикует → получает URL → студенты видят материал без регистрации. Потенциальный pivot от "инструмент подготовки" к "подготовка + дистрибуция". Зависит от Generative UI + Rich Export *(cross: Frontend, Backend, Infra)*
 
+## Infra
+
+- **P2** Self-hosted web search MCP — найти масштабируемый безлимитный (self-hosted) аналог Tavily/Firecrawl для веб-поиска агентом. Кандидаты: SearxNG + MCP-адаптер, open-webSearch. Текущий Firecrawl free tier ограничен по кредитам *(cross: Agent, Backend)*
+
 ## Cross-cutting
 
 - **P1** Text feedback — текстовые комментарии к трейсам (расширение like/dislike), видимые в Langfuse *(Frontend + Backend + Langfuse)*

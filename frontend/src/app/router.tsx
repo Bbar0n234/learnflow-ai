@@ -7,18 +7,22 @@ import { ChatView } from "@/features/chat/components/ChatView";
 import { SphereView } from "@/features/sphere/components/SphereView";
 import { ArtifactList } from "@/features/artifacts/components/ArtifactList";
 import { ArtifactView } from "@/features/artifacts/components/ArtifactView";
+import { SettingsPage } from "@/features/settings/components/SettingsPage";
+import { ProjectSettingsPage } from "@/features/settings/components/ProjectSettingsPage";
 
 export function AppRoutes() {
   return (
     <Routes>
       <Route element={<AppLayout />}>
         <Route index element={<WelcomePage />} />
+        <Route path="settings" element={<SettingsPage />} />
         <Route path="projects/:id" element={<ProjectLayout />}>
           <Route index element={<ChatList />} />
           <Route path="chats/:cid" element={<ChatView />} />
           <Route path="sphere" element={<SphereView />} />
           <Route path="artifacts" element={<ArtifactList />} />
           <Route path="artifacts/:aid" element={<ArtifactView />} />
+          <Route path="settings" element={<ProjectSettingsPage />} />
         </Route>
       </Route>
     </Routes>

@@ -8,13 +8,19 @@
 graph TD
     SVC["ChatService"]
     RUNNER["AgentRunner (protocol)"]
+    FACTORY["GraphFactory"]
+    RESOLVER["ModelConfigResolver"]
+    PROMPT["PromptProvider"]
     GRAPH["LangGraph StateGraph"]
     TOOLS["Tools"]
     STORE["LangGraph Store (PostgreSQL)"]
     CP["Checkpointer (PostgreSQL)"]
 
     SVC --> RUNNER
-    RUNNER --> GRAPH
+    RUNNER --> FACTORY
+    RUNNER --> RESOLVER
+    FACTORY --> GRAPH
+    FACTORY --> PROMPT
     GRAPH --> TOOLS
     GRAPH --> STORE
     GRAPH --> CP
@@ -24,12 +30,30 @@ graph TD
 
 | Метод | Назначение |
 |-------|------------|
-| `stream(thread_id, content, project_id, user_id)` | Генерация ответа, поток `StreamEvent` |
+| `stream(thread_id, content, project_id, user_id, session?, model_config?)` | Генерация ответа, поток `StreamEvent` |
 | `get_history(thread_id)` | История сообщений (HumanMessage + AIMessage без tool_calls) |
 | `get_last_ai_message_id(thread_id)` | ID последнего ответа агента (для привязки артефактов) |
 | `cancel(thread_id)` | Отмена генерации через `asyncio.Event` |
 
 Реализация: `LangGraphAgentRunner`. ChatService оркестрирует (thread mapping, artifact linking, trace saving), AgentRunner — генерация.
+
+### Runtime Configuration (feat-003)
+
+**GraphFactory** — per-request build+compile граф с resolved model config. Вместо одного pre-built графа на старте, GraphFactory строит новый граф для каждого запроса с нужной моделью и набором tools.
+
+**ModelConfigResolver** — каскадное разрешение модели: thread → project → user → Langfuse prompt.config → agent.yaml.
+
+**PromptProvider** — фетчинг промптов из Langfuse с file fallback. При старте — seed промптов в Langfuse из файлов (idempotent, duplicate-safe).
+
+### System Message Structure
+
+```
+base_prompt (from PromptProvider)
+<custom_instructions> (per-user, from LangGraph Store)
+<user_memory> (per-user memories, from LangGraph Store)
+<knowledge_sphere> (per-project sections)
+<available_skills> (from skills directory scan)
+```
 
 ## Agent Graph
 

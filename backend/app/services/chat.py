@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 
 import structlog
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.thread_view import ThreadView
 from app.repositories.artifact import ArtifactRepository
@@ -34,11 +35,13 @@ class ChatService:
         agent_runner: AgentRunner,
         artifact_repo: ArtifactRepository,
         trace_store: TraceStore | None = None,
+        session: AsyncSession | None = None,
     ) -> None:
         self._thread_view_repo = thread_view_repo
         self._agent_runner = agent_runner
         self._artifact_repo = artifact_repo
         self._trace_store = trace_store
+        self._session = session
 
     async def create_chat(self, *, project_id: uuid.UUID, title: str) -> ThreadView:
         thread_view = await self._thread_view_repo.create(
@@ -126,6 +129,7 @@ class ChatService:
             content=content,
             project_id=project_id,
             user_id=user_id,
+            session=self._session,
         ):
             if event.type == "trace_id":
                 trace_id = event.data.get("trace_id", "")

@@ -99,6 +99,47 @@ JWT + Refresh Token. Access token (short-lived, localStorage) для API-зап�
 
 PDF — конвертация из Markdown на бэкенде (pandoc / weasyprint).
 
+#### Models & Settings (feat-003)
+
+| Метод | Путь | Назначение |
+|-------|------|-----------|
+| GET | `/models` | Список доступных моделей (whitelist из agent.yaml) |
+| GET | `/users/me/settings` | Настройки пользователя (model override) |
+| PUT | `/users/me/settings` | Обновить настройки пользователя |
+| GET | `/projects/{id}/settings` | Настройки проекта |
+| PUT | `/projects/{id}/settings` | Обновить настройки проекта |
+| GET | `/projects/{id}/chats/{cid}/settings` | Настройки чата |
+| PUT | `/projects/{id}/chats/{cid}/settings` | Обновить настройки чата |
+
+Каскад разрешения модели: thread → project → user → Langfuse → agent.yaml. `model_name: null` = inherit.
+
+#### User Memory (feat-003)
+
+| Метод | Путь | Назначение |
+|-------|------|-----------|
+| GET | `/users/me/instructions` | Пользовательские инструкции |
+| PUT | `/users/me/instructions` | Обновить инструкции (max 5000 chars) |
+| GET | `/users/me/memories` | Список записей памяти агента |
+| DELETE | `/users/me/memories/{key}` | Удалить запись памяти |
+
+Инструкции включаются в system message каждого чата. Записи памяти создаются агентом через `save_user_memory` / `delete_user_memory` tools, удаляются пользователем через UI.
+
+#### MCP Servers (feat-003)
+
+| Метод | Путь | Назначение |
+|-------|------|-----------|
+| GET | `/users/me/mcp-servers` | Список MCP серверов пользователя |
+| POST | `/users/me/mcp-servers` | Добавить MCP сервер |
+| PUT | `/users/me/mcp-servers/{sid}` | Обновить |
+| DELETE | `/users/me/mcp-servers/{sid}` | Удалить |
+| POST | `/users/me/mcp-servers/{sid}/test` | Тест подключения |
+
+Аналогичные эндпоинты для project (`/projects/{id}/mcp-servers/...`) и thread (`/projects/{id}/chats/{cid}/mcp-servers/...`).
+
+Cascade visibility: project/thread list endpoints поддерживают `?include_inherited=true` — возвращает inherited серверы из вышестоящих scope с `is_disabled` флагом. Toggle inherited серверов: `PUT .../mcp-servers/inherited/{sid}/toggle` с `{ disabled: bool }`.
+
+Ограничения: max 5 серверов per scope, transport = http|sse (stdio запрещён), SSRF-защита (private IPs → 400), API key шифруется Fernet, `api_key_hint` хранит маску (первые/последние 4 символа) для отображения.
+
 ### Schemas
 
 Pydantic request/response модели. Сквозные соглашения:
@@ -263,6 +304,16 @@ ThreadView
 
 Artifact
 ├── id, project_id, thread_id, message_id, title, type (markdown | ...), content, created_at
+
+UserSettings / ProjectSettings / ThreadSettings (feat-003)
+├── user_id|project_id|thread_id (PK, FK CASCADE), model_name, extra_body (JSONB), created_at, updated_at
+
+UserMCPServer / ProjectMCPServer / ThreadMCPServer (feat-003)
+├── id (UUID PK), user_id|project_id|thread_id (FK CASCADE), name, transport, url, api_key_encrypted, api_key_hint, allowed_tools (JSONB), is_active, created_at, updated_at
+├── UNIQUE(scope_id, name)
+
+MCPServerDisable (feat-003)
+├── scope_type + scope_id + server_id (composite PK) — disables inherited server at child scope
 ```
 
 **ThreadView** — легковесная индексная таблица для UI (листинг чатов, заголовки, даты). OSS LangGraph не предоставляет API для листинга threads, поэтому метаданные чатов хранятся отдельно.

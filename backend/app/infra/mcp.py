@@ -67,8 +67,13 @@ def _build_connection(cfg: MCPServerConfig) -> _Connection:
 def build_mcp_connections(
     servers: dict[str, MCPServerConfig],
 ) -> dict[str, _Connection]:
-    """Convert MCPServerConfig dict → MultiServerMCPClient connections dict."""
-    return {name: _build_connection(cfg) for name, cfg in servers.items()}
+    """Convert MCPServerConfig dict → MultiServerMCPClient connections dict.
+
+    Skips servers with enabled=false.
+    """
+    return {
+        name: _build_connection(cfg) for name, cfg in servers.items() if cfg.enabled
+    }
 
 
 def create_mcp_client(

@@ -10,9 +10,14 @@ from typing import Any
 
 import structlog
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agent.config import ResolvedModelConfig
 from app.agent.graph import AgentContext
+from app.agent.graph_factory import GraphFactory
+from app.repositories.settings import SettingsRepository
 from app.services.agent_runner import Message, StreamEvent
+from app.services.model_config_resolver import ModelConfigResolver
 
 logger = structlog.get_logger()
 
@@ -40,7 +45,6 @@ def _langfuse_observation(
     the async generator stream. OTel detach errors on cleanup are expected
     (token created in a different async context) and suppressed.
     """
-    # Lazy imports: avoid import errors when langfuse is not installed/configured.
     from langfuse import get_client, propagate_attributes
     from langfuse.langchain import CallbackHandler
 
@@ -92,8 +96,17 @@ def _parse_created_at(value: str | None) -> datetime | None:
 
 
 class LangGraphAgentRunner:
-    def __init__(self, graph: Any) -> None:
-        self._graph = graph
+    def __init__(
+        self,
+        graph_factory: GraphFactory,
+        model_resolver: ModelConfigResolver,
+        checkpointer: Any,
+        tool_resolver: Any | None = None,
+    ) -> None:
+        self._graph_factory = graph_factory
+        self._model_resolver = model_resolver
+        self._checkpointer = checkpointer
+        self._tool_resolver = tool_resolver
         self._cancel_events: dict[uuid.UUID, asyncio.Event] = {}
         self._pending_cancels: set[uuid.UUID] = set()
 
@@ -104,6 +117,8 @@ class LangGraphAgentRunner:
         content: str,
         project_id: uuid.UUID,
         user_id: uuid.UUID,
+        session: AsyncSession | None = None,
+        model_config: ResolvedModelConfig | None = None,
     ) -> AsyncIterator[StreamEvent]:
         cancel_event = asyncio.Event()
         self._cancel_events[thread_id] = cancel_event
@@ -111,10 +126,41 @@ class LangGraphAgentRunner:
             self._pending_cancels.discard(thread_id)
             cancel_event.set()
 
+        # Resolve model if not provided
+        if model_config is None and session is not None:
+            settings_repo = SettingsRepository(session)
+            model_config = await self._model_resolver.resolve(
+                settings_repo, user_id, project_id, thread_id
+            )
+
+        # Fallback to config default if no session available
+        if model_config is None:
+            model_config = self._model_resolver._from_llm_config(
+                self._model_resolver._llm_config
+            )
+
+        # Resolve user MCP tools
+        extra_tools: list[Any] = []
+        if self._tool_resolver is not None:
+            try:
+                extra_tools = await self._tool_resolver.resolve(
+                    user_id, project_id, thread_id
+                )
+            except Exception:
+                logger.warning(
+                    "user mcp tools resolution failed, using global tools only",
+                    exc_info=True,
+                )
+
+        # Build graph per-request
+        graph = self._graph_factory.build(model_config, extra_tools=extra_tools)
+
         logger.info(
             "agent invoked",
             thread_id=str(thread_id),
             project_id=str(project_id),
+            model=model_config.model,
+            model_source=model_config.source,
         )
         stream_start = time.monotonic()
         stream_error = False
@@ -144,7 +190,7 @@ class LangGraphAgentRunner:
             }
 
             try:
-                async for mode, data in self._graph.astream(
+                async for mode, data in graph.astream(  # type: ignore[call-overload]
                     input_msg,
                     config,
                     stream_mode=["messages", "updates"],
@@ -200,7 +246,6 @@ class LangGraphAgentRunner:
         """Extract tool_start / tool_end / artifact_created events from updates."""
         events: list[StreamEvent] = []
 
-        # Agent node finished — check for tool_calls
         if "agent" in data:
             for msg in data["agent"].get("messages", []):
                 if isinstance(msg, AIMessage) and msg.tool_calls:
@@ -215,7 +260,6 @@ class LangGraphAgentRunner:
                             )
                         )
 
-        # Tools node finished — emit tool_end (+ artifact_created)
         if "tools" in data:
             for msg in data["tools"].get("messages", []):
                 if isinstance(msg, ToolMessage):
@@ -228,7 +272,6 @@ class LangGraphAgentRunner:
                             },
                         )
                     )
-                    # artifact_created for create_artifact tool
                     if msg.name == "create_artifact" and msg.artifact is not None:
                         artifact = dict(msg.artifact)
                         artifact["artifact_type"] = artifact.pop("type", "")
@@ -248,10 +291,11 @@ class LangGraphAgentRunner:
     ) -> str | None:
         """Get ID of the last AIMessage without tool_calls (final user-facing message)."""
         config = {"configurable": {"thread_id": str(thread_id)}}
-        state = await self._graph.aget_state(config)
-        if not state.values:
+        checkpoint = await self._checkpointer.aget_tuple(config)
+        if checkpoint is None:
             return None
-        for m in reversed(state.values.get("messages", [])):
+        messages = checkpoint.checkpoint.get("channel_values", {}).get("messages", [])
+        for m in reversed(messages):
             if isinstance(m, AIMessage) and not getattr(m, "tool_calls", None):
                 return str(m.id)
         return None
@@ -262,10 +306,10 @@ class LangGraphAgentRunner:
         thread_id: uuid.UUID,
     ) -> list[Message]:
         config = {"configurable": {"thread_id": str(thread_id)}}
-        state = await self._graph.aget_state(config)
-        if not state.values:
+        checkpoint = await self._checkpointer.aget_tuple(config)
+        if checkpoint is None:
             return []
-        messages = state.values.get("messages", [])
+        messages = checkpoint.checkpoint.get("channel_values", {}).get("messages", [])
         return [
             Message(
                 id=str(m.id),

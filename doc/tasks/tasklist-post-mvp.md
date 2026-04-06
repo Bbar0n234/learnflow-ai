@@ -22,7 +22,7 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 | fix-001 | ✅ Done | cross-cutting | Frontend bug fixes (4 элемента backlog) |
 | feat-001 | 📋 Planned | cross-cutting | Chat UX: auto title + thinking indicator + delete chats |
 | feat-002 | ✅ Done | agent/backend | Agent observability & tooling |
-| feat-003 | 📋 Planned | cross-cutting | Runtime agent configuration (3 tracks: Langfuse+Model, Memory, User MCP) |
+| feat-003 | ✅ Done | cross-cutting | Runtime agent configuration (3 tracks: Langfuse+Model, Memory, User MCP) |
 | feat-004 | 📋 Planned | agent/backend | Prompt injection protection |
 
 ## Параллелизация
@@ -102,7 +102,7 @@ feat-001 (Chat UX) ── когда будет время ───────
 
 **Цель:** runtime-конфигурация агента: смена модели без перезапуска, управление промптами через Langfuse, memory architecture (custom instructions, user memory), per-user MCP серверы.
 
-**Статус:** 📋 Planned (проектирование завершено)
+**Статус:** ✅ Done
 **Scope:** cross-cutting (Agent + Backend + Frontend)
 
 #### Из backlog
@@ -150,6 +150,9 @@ feat-001 (Chat UX) ── когда будет время ───────
 #### Документация
 
 - [design-brief.md](iterations/post-mvp/feat-003-agent-config/design-brief.md) — Design brief: контекст, решения, open questions по всем трекам
+- [plan.md](iterations/post-mvp/feat-003-agent-config/plan.md) — Implementation plan: 7 phases, API verification, logging conventions
+- [test-cases.md](iterations/post-mvp/feat-003-agent-config/test-cases.md) — 101 test case (95 pass, 6 deferred), 14 findings
+- [summary.md](iterations/post-mvp/feat-003-agent-config/summary.md) — Post-implementation summary: отклонения, дополнения, верификация
 - [ADR-013](../tech/adr/ADR-013-model-settings-storage.md) — Per-Scope Settings Storage: typed tables vs polymorphic vs JSONB
 - [ADR-014](../tech/adr/ADR-014-dynamic-model-resolution.md) — Graph Factory: per-request graph build (model + tools)
 - [ADR-015](../tech/adr/ADR-015-unified-memory-backend.md) — LangGraph Store как unified memory backend (Track B)

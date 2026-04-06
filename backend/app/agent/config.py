@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -16,17 +17,13 @@ class ContextConfig(BaseModel):
     recent_messages_to_keep: int = 10
 
 
-class PromptConfig(BaseModel):
-    system_file: str
-    system_text: str = ""  # populated at load time
-
-
 class SummarizationConfig(BaseModel):
     model: str
     max_summary_tokens: int = 500
 
 
 class MCPServerConfig(BaseModel):
+    enabled: bool = True
     transport: str  # "http", "sse", "stdio"
     url: str | None = None
     api_key_env: str | None = None
@@ -42,13 +39,25 @@ class ModelDefinitionConfig(BaseModel):
     prices: dict[str, float] = {}
 
 
+class AvailableModel(BaseModel):
+    name: str
+    display_name: str
+
+
 class AgentConfig(BaseModel):
     llm: LLMConfig
     context: ContextConfig
-    prompt: PromptConfig
     summarization: SummarizationConfig | None = None
     mcp_servers: dict[str, MCPServerConfig] = {}
     models: list[ModelDefinitionConfig] = []
+    available_models: list[AvailableModel] = []
+
+
+@dataclass
+class ResolvedModelConfig:
+    model: str
+    extra_body: dict[str, Any] | None
+    source: str  # "thread"|"project"|"user"|"langfuse"|"config"
 
 
 def load_agent_config(path: Path | None = None) -> AgentConfig:
@@ -57,11 +66,4 @@ def load_agent_config(path: Path | None = None) -> AgentConfig:
         path = Path(__file__).resolve().parents[3] / "configs" / "agent.yaml"
     with open(path) as f:
         data = yaml.safe_load(f)
-    config = AgentConfig(**data)
-
-    # Load prompt text from file
-    configs_dir = path.parent
-    prompt_path = configs_dir / config.prompt.system_file
-    config.prompt.system_text = prompt_path.read_text(encoding="utf-8")
-
-    return config
+    return AgentConfig(**data)

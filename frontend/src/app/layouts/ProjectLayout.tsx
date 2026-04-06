@@ -1,11 +1,20 @@
-import { Outlet, NavLink, useParams } from "react-router";
+import { Outlet, NavLink, useParams, useMatch } from "react-router";
 import { useProject } from "@/features/projects/hooks/useProject";
 
 export function ProjectLayout() {
   const { id } = useParams();
   const { data: project, isLoading } = useProject(id!);
+  const isChatView = useMatch("/projects/:id/chats/:cid");
 
   const projectName = isLoading ? "Loading..." : (project?.name ?? id);
+
+  if (isChatView) {
+    return (
+      <div className="flex h-full flex-col">
+        <Outlet />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -36,6 +45,14 @@ export function ProjectLayout() {
             }
           >
             Artifacts
+          </NavLink>
+          <NavLink
+            to={`/projects/${id}/settings`}
+            className={({ isActive }) =>
+              `rounded-md px-3 py-1.5 text-sm ${isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`
+            }
+          >
+            Settings
           </NavLink>
         </nav>
       </header>

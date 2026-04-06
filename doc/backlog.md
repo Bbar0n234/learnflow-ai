@@ -1,31 +1,38 @@
 # Backlog
 
-Входящий поток задач из опытной эксплуатации и Langfuse. Элементы приоритизируются и тянутся в tasklist при триаже.
+Входящий поток задач из опытной эксплуатации и Langfuse. Элементы приоритизируются и тянутся в tasklist при триаже. После переноса в tasklist элемент удаляется из backlog — tasklist становится его новым домом (секция "Из backlog" в записи итерации).
 
 Приоритеты: **P0** (блокер) / **P1** (важно) / **P2** (желательно) / **P3** (когда-нибудь)
 
 Группировка по scope для параллельной работы. Cross-cutting элементы помечаются *(cross: scope)*.
 
-## Frontend
+## Frontend / UX
 
-- **P1** Feedback иконки (like/dislike) пропадают при перезагрузке страницы — нельзя повторно поставить оценку
-- **P1** Chat input: поле ввода должно быть для первого сообщения, не для title. Title auto-generated моделью *(cross: Backend)*
-- **P1** Артефакт-карточки пропадают из истории чата (есть в tab Artifacts, нет в сообщениях)
-- **P2** Дублирование сообщения пользователя при переключении вкладки во время стриминга (уходит после завершения генерации)
-- **P2** Hover states: курсор не меняется на кнопках, непонятно что кликабельно
-- **P2** Индикатор "модель рассуждает" до начала стриминга текста *(cross: Backend)*
-
-## Backend / API
-
-- **P2** OpenRouter модели: программная инициализация pricing в Langfuse (по аналогии с score config, infrastructure as code)
+- **P1** Voice input — голосовой ввод сообщений агенту (STT) *(cross: Backend)*
+- **P2** Design system — проработка дизайн-системы, визуальная идентичность, референсы
+- **P3** Generative UI — агент решает, какой UI-компонент отрисовать. Гибрид: pre-built React-компоненты + конфигурируемые свойства (размер, цвет, расположение) через schema. Ориентир протокола — Google A2UI. Ресерч завершён (`doc/research/generative-ui-research-report.md`) *(cross: Agent, Backend)*
+- **P3** Rich Material Export — экспорт интерактивных UI-материалов с сохранением визуального качества (не markdown-дамп). Форматы: static HTML bundle, PDF, или оба. Зависит от Generative UI *(cross: Backend)*
 
 ## Agent
 
-- **P1** Reasoning tokens → Langfuse additional kwargs (прозрачность рассуждений, работа над поведением модели)
-- **P1** Смена модели без перезапуска сервиса (runtime model switching) *(cross: Backend, Frontend)*
-- **P2** Кастомные инструкции — на уровне пользователя, проекта и чата (помимо Knowledge Sphere) *(cross: Backend, Frontend)*
-- **P2** MCP Firecrawl: фильтрация инструментов (13+ → нужны 2-3, search + scrape). Конфигурируемо
+- **P2** LangGraph Store deep-dive — изучить Store вдоль и поперёк: все возможности, лимиты, best practices, продвинутые паттерны (semantic search, IndexConfig, cross-namespace стратегии). Цель — максимально использовать Store как unified memory backend
+- **P3** Proactive KS maintenance — отдельный canvas для обсуждения актуализации Knowledge Sphere с агентом (параллельно с основной работой) *(cross: Frontend)*
+- **P3** Message compaction: trim_messages выполняется безусловно, должен — только при превышении порога и неудачной суммаризации
 
-## Отложено
+## Backend
 
-- UI стилистика, ребрендинг, дизайн-система — отдельная фаза после стабилизации
+- **P2** REST API cleanup — привести API к REST best practices (аудит от 2026-04-04): отсутствует pagination на коллекциях (projects, chats, artifacts), POST create endpoints возвращают 200 вместо 201, DELETE feedback через POST с score=None вместо DELETE endpoint, нет стандартного envelope для list responses ({items, total, limit, offset}). Полный список: 8 пунктов, от notable до minor *(cross: Frontend)*
+
+## Product / Distribution
+
+- **P3** Public Material Sharing — публичные ссылки на материалы (Notion-style share-to-web). Преподаватель публикует → получает URL → студенты видят материал без регистрации. Потенциальный pivot от "инструмент подготовки" к "подготовка + дистрибуция". Зависит от Generative UI + Rich Export *(cross: Frontend, Backend, Infra)*
+
+## Infra
+
+- **P2** Self-hosted web search MCP — найти масштабируемый безлимитный (self-hosted) аналог Tavily/Firecrawl для веб-поиска агентом. Кандидаты: SearxNG + MCP-адаптер, open-webSearch. Текущий Firecrawl free tier ограничен по кредитам *(cross: Agent, Backend)*
+
+## Cross-cutting
+
+- **P1** Text feedback — текстовые комментарии к трейсам (расширение like/dislike), видимые в Langfuse *(Frontend + Backend + Langfuse)*
+- **P2** File attachments — загрузка файлов агенту: документы, презентации, картинки. Продуманная и надёжная работа с файлами *(Frontend + Backend + Agent)*
+- **P2** Per-user MCP management — UI для добавления/отключения MCP-серверов per user *(Frontend + Backend)*

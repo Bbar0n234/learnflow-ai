@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     langfuse_secret_key: str = ""
     langfuse_base_url: str = "https://cloud.langfuse.com"
 
+    # Langfuse prompt management
+    langfuse_prompt_label: str = "development"
+    langfuse_prompt_cache_ttl: int = 60
+
+    # MCP encryption
+    mcp_encryption_key: str = ""
+
     # Redis (trace storage for feedback persistence)
     redis_url: str = "redis://localhost:6379/0"
 

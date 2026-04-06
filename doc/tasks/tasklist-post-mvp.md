@@ -19,25 +19,22 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 
 | Итерация | Статус | Scope | Закрывает |
 |----------|--------|-------|-----------|
-| fix-001 | 🚧 In Progress | cross-cutting | Frontend bug fixes (4 элемента backlog) |
-| feat-001 | 📋 Planned | cross-cutting | Chat UX: auto title + thinking indicator |
+| fix-001 | ✅ Done | cross-cutting | Frontend bug fixes (4 элемента backlog) |
+| feat-001 | 📋 Planned | cross-cutting | Chat UX: auto title + thinking indicator + delete chats |
 | feat-002 | ✅ Done | agent/backend | Agent observability & tooling |
-| feat-003 | 📋 Planned | cross-cutting | Runtime model switching |
-| feat-004 | 📋 Planned | cross-cutting | Custom instructions |
+| feat-003 | ✅ Done | cross-cutting | Runtime agent configuration (3 tracks: Langfuse+Model, Memory, User MCP) |
+| feat-004 | 📋 Planned | agent/backend | Prompt injection protection |
 
 ## Параллелизация
 
 ```
-              ┌── fix-001 (Frontend Bugs) ──┐
-              │                              ├── feat-001 (Chat UX)── feat-003 (Model Switch)
-Триаж ────────┤                              │                                │
-              │                              │                                ↓
-              └── feat-002 (Agent Obs.) ─────┘                       feat-004 (Custom Instr.)
+feat-003 (Agent Config: 3 tracks) ── feat-004 (Security) ──
+feat-001 (Chat UX) ── когда будет время ────────────────────
 ```
 
-- **Волна 1:** fix-001 || feat-002 (frontend vs agent/backend — нулевой конфликт)
-- **Волна 2:** feat-001 (после fix-001, т.к. пересекается по chat-компонентам)
-- **Волна 3-4:** feat-003 → feat-004 (cross-cutting, последовательно)
+- **feat-003** — первый приоритет. Три трека проектируются параллельно (Track A: Langfuse+Model, Track B: Memory, Track C: User MCP), реализуются вместе
+- **feat-004** — после feat-003 (security проектируется по финальной поверхности атаки)
+- **feat-001** — отложена, не блокирует реальное использование
 
 ## Итерации
 
@@ -64,18 +61,18 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 
 ---
 
-### feat-001: Chat UX — Auto Title + Thinking Indicator
+### feat-001: Chat UX — Auto Title + Thinking Indicator + Delete Chats
 
-**Цель:** переработка UX чата: поле ввода для первого сообщения (не title), автогенерация title моделью, индикатор рассуждения.
+**Цель:** переработка UX чата: поле ввода для первого сообщения (не title), автогенерация title моделью, индикатор рассуждения, удаление чатов.
 
 **Статус:** 📋 Planned
 **Scope:** cross-cutting (Frontend + Backend)
-**Blocked by:** fix-001
 
 #### Из backlog
 
 - **P1** Chat input: поле ввода должно быть для первого сообщения, не для title. Title auto-generated моделью *(cross: Backend)*
 - **P2** Индикатор "модель рассуждает" до начала стриминга текста *(cross: Backend)*
+- **P2** Удаление чатов — нет кнопки, только проекты можно удалять *(cross: Frontend, Backend)*
 
 ---
 
@@ -101,28 +98,76 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 
 ---
 
-### feat-003: Runtime Model Switching
+### feat-003: Runtime Agent Configuration
 
-**Цель:** смена модели без перезапуска сервиса.
+**Цель:** runtime-конфигурация агента: смена модели без перезапуска, управление промптами через Langfuse, memory architecture (custom instructions, user memory), per-user MCP серверы.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Scope:** cross-cutting (Agent + Backend + Frontend)
-**Blocked by:** feat-001
 
 #### Из backlog
 
 - **P1** Смена модели без перезапуска сервиса (runtime model switching) *(cross: Backend, Frontend)*
+- **P2** Версионирование промптов — управление версиями system prompt, откат к предыдущим *(cross: Agent, Backend)*
+- **P2** Кастомные инструкции — на уровне пользователя, проекта и чата (помимо Knowledge Sphere) *(cross: Backend, Frontend)*
+
+#### Tracks (проектируются независимо, реализуются вместе)
+
+- **Track A** — Langfuse Prompt Management + Model Switching (prompt versioning, env separation, model cascade: global → per-user → per-project → per-chat)
+- **Track B** — Memory Architecture (custom instructions, user memory, agent notes — расширение системы памяти за пределы KS)
+- **Track C** — User MCP Servers (per-user внешние инструменты, dynamic tools)
+
+#### Definition of Done
+
+**Track A — Langfuse Prompt Management + Model Switching:**
+- [ ] `PromptProvider` фетчит промпты (`system`, `summarization`) из Langfuse; при недоступности Langfuse — file fallback + warning в логах
+- [ ] Startup seed: на пустом Langfuse промпты создаются из файлов с label `production`
+- [ ] Model override каскад: thread → project → user → Langfuse prompt.config → agent.yaml. NULL на любом уровне = наследование от уровня выше
+- [ ] `GET /api/models` возвращает whitelist из `agent.yaml`; PUT model на уровне user/project/thread сохраняется в соответствующую settings-таблицу
+- [ ] Смена модели через UI → следующее сообщение обрабатывается выбранной моделью (проверяемо через Langfuse trace: model name в generation)
+- [ ] GraphFactory: per-request build+compile; read-операции (`get_history`) через `checkpointer.aget_tuple()` напрямую, без графа
+- [ ] agent_node: оркестратор + extracted functions (`_reduce_context`, `_build_system_message`, `_invoke_llm`)
+
+**Track B — Memory Architecture:**
+- [ ] `PUT /api/users/me/instructions` сохраняет текст → он появляется в system message в блоке `<custom_instructions>` (проверяемо через Langfuse trace: input system message)
+- [ ] `GET /api/users/me/memories` возвращает записи, созданные агентом
+- [ ] Агент автономно использует `save_user_memory` / `delete_user_memory` в контексте диалога (tool calls видны в Langfuse trace)
+- [ ] Settings page (`/settings`): textarea для instructions + read-only список memories, навигация через иконку в sidebar
+- [ ] `store_helpers.format_index()` — generic helper, используется и для KS, и для User Memory
+
+**Track C — User MCP Servers:**
+- [ ] CRUD для user/project/thread MCP серверов через REST API; `POST .../test` проверяет соединение и возвращает список tools
+- [ ] Additive merge: tools со всех уровней (thread ∪ project ∪ user ∪ global) доступны агенту; при конфликте имён global tools приоритетнее
+- [ ] SSRF: `POST /api/users/me/mcp-servers` с URL на private IP (127.0.0.1, 10.x.x.x) → 400
+- [ ] stdio transport → 400; API key зашифрован (Fernet), API возвращает только `has_api_key: bool`
+- [ ] Graceful degradation: сбой user MCP сервера → агент работает с global tools, warning в логах
+
+**Cross-cutting:**
+- [ ] `make check` + `make check-fe` проходят
+- [ ] Миграции применяются на чистой БД (`docker-compose down -v → docker-up-db → migrate`)
+- [ ] E2E: задать custom instructions → сменить модель → отправить сообщение → агент следует инструкциям, использует выбранную модель, tool calls и model видны в Langfuse
+
+#### Документация
+
+- [design-brief.md](iterations/post-mvp/feat-003-agent-config/design-brief.md) — Design brief: контекст, решения, open questions по всем трекам
+- [plan.md](iterations/post-mvp/feat-003-agent-config/plan.md) — Implementation plan: 7 phases, API verification, logging conventions
+- [test-cases.md](iterations/post-mvp/feat-003-agent-config/test-cases.md) — 101 test case (95 pass, 6 deferred), 14 findings
+- [summary.md](iterations/post-mvp/feat-003-agent-config/summary.md) — Post-implementation summary: отклонения, дополнения, верификация
+- [ADR-013](../tech/adr/ADR-013-model-settings-storage.md) — Per-Scope Settings Storage: typed tables vs polymorphic vs JSONB
+- [ADR-014](../tech/adr/ADR-014-dynamic-model-resolution.md) — Graph Factory: per-request graph build (model + tools)
+- [ADR-015](../tech/adr/ADR-015-unified-memory-backend.md) — LangGraph Store как unified memory backend (Track B)
+- [ADR-016](../tech/adr/ADR-016-per-scope-mcp-servers.md) — Per-Scope MCP Servers: storage, encryption, additive merge (Track C)
 
 ---
 
-### feat-004: Custom Instructions
+### feat-004: Prompt Injection Protection
 
-**Цель:** кастомные инструкции на уровне пользователя, проекта и чата.
+**Цель:** базовая MVP-защита от prompt injection (direct + indirect).
 
 **Статус:** 📋 Planned
-**Scope:** cross-cutting (Agent + Backend + Frontend)
-**Blocked by:** feat-003
+**Scope:** agent/backend
+**After:** feat-003
 
 #### Из backlog
 
-- **P2** Кастомные инструкции — на уровне пользователя, проекта и чата (помимо Knowledge Sphere) *(cross: Backend, Frontend)*
+- **P1** Prompt injection protection — MVP-защита от direct/indirect PI. Threat model и blue-team strategy проработаны (`doc/security/`), реализации нет *(cross: Backend)*

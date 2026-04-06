@@ -21,11 +21,16 @@ def setup_logging(log_level: str, config_path: Path, log_file: str = "") -> None
     """
     cfg = _load_config(config_path)
 
-    renderer: structlog.types.Processor
-    if cfg.get("format") == "json":
-        renderer = structlog.processors.JSONRenderer()
+    use_json = cfg.get("format") == "json"
+
+    if use_json:
+        console_renderer: structlog.types.Processor = (
+            structlog.processors.JSONRenderer()
+        )
+        file_renderer: structlog.types.Processor = structlog.processors.JSONRenderer()
     else:
-        renderer = structlog.dev.ConsoleRenderer()
+        console_renderer = structlog.dev.ConsoleRenderer()
+        file_renderer = structlog.dev.ConsoleRenderer(colors=False)
 
     shared_processors: list[structlog.types.Processor] = [
         structlog.contextvars.merge_contextvars,
@@ -49,20 +54,31 @@ def setup_logging(log_level: str, config_path: Path, log_file: str = "") -> None
     for lib_name, level_str in cfg.get("overrides", {}).items():
         overrides[lib_name] = {"level": level_str.upper()}
 
+    formatters: dict[str, Any] = {
+        "console": {
+            "()": structlog.stdlib.ProcessorFormatter,
+            "foreign_pre_chain": shared_processors,
+            "processors": [
+                structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+                console_renderer,
+            ],
+        },
+    }
+    if log_file:
+        formatters["file"] = {
+            "()": structlog.stdlib.ProcessorFormatter,
+            "foreign_pre_chain": shared_processors,
+            "processors": [
+                structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+                file_renderer,
+            ],
+        }
+
     logging.config.dictConfig(
         {
             "version": 1,
             "disable_existing_loggers": False,
-            "formatters": {
-                "structlog": {
-                    "()": structlog.stdlib.ProcessorFormatter,
-                    "foreign_pre_chain": shared_processors,
-                    "processors": [
-                        structlog.stdlib.ProcessorFormatter.remove_processors_meta,
-                        renderer,
-                    ],
-                },
-            },
+            "formatters": formatters,
             "handlers": _build_handlers(log_file),
             "root": {
                 "level": log_level.upper(),
@@ -79,15 +95,15 @@ def _build_handlers(log_file: str) -> dict[str, Any]:
         "default": {
             "class": "logging.StreamHandler",
             "stream": "ext://sys.stdout",
-            "formatter": "structlog",
+            "formatter": "console",
         },
     }
     if log_file:
         handlers["file"] = {
             "class": "logging.FileHandler",
             "filename": log_file,
-            "mode": "w",
-            "formatter": "structlog",
+            "mode": "a",
+            "formatter": "file",
         }
     return handlers
 

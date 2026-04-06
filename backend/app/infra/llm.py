@@ -6,7 +6,7 @@ from langchain_core.messages import AIMessage, AIMessageChunk
 from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from langchain_openai import ChatOpenAI
 
-from app.agent.config import AgentConfig, SummarizationConfig
+from app.agent.config import AgentConfig, ResolvedModelConfig, SummarizationConfig
 from app.config import Settings
 
 
@@ -86,4 +86,35 @@ def create_summarization_llm(
         api_key=settings.llm_api_key,
         base_url=settings.llm_base_url,
         max_tokens=config.max_summary_tokens,
+    )
+
+
+def create_llm_from_config(
+    settings: Settings, model_config: ResolvedModelConfig
+) -> BaseChatModel:
+    """Create LLM from a resolved model configuration (per-request)."""
+    extra_body = model_config.extra_body or {}
+    use_reasoning = extra_body.get("include_reasoning", False)
+    llm_class = ReasoningChatOpenAI if use_reasoning else ChatOpenAI
+
+    kwargs: dict[str, Any] = {
+        "model": model_config.model,
+        "api_key": settings.llm_api_key,
+        "base_url": settings.llm_base_url,
+    }
+    if extra_body:
+        kwargs["extra_body"] = extra_body
+
+    return llm_class(**kwargs)
+
+
+def create_summarization_llm_from_prompt_config(
+    settings: Settings, config: dict[str, Any]
+) -> BaseChatModel:
+    """Create summarization LLM from Langfuse prompt config dict."""
+    return ChatOpenAI(  # type: ignore[call-arg]
+        model=config.get("model", ""),
+        api_key=settings.llm_api_key,
+        base_url=settings.llm_base_url,
+        max_tokens=config.get("max_tokens", 500),
     )

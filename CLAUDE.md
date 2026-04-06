@@ -6,7 +6,17 @@ LearnFlowAI — AI-powered learning platform. Core stack: LangGraph agent, FastA
 
 This project follows AIDD (AI-Driven Development): the developer acts as architect defining contracts and architecture; the LLM agent implements based on prepared documentation context. All docs live in `doc/` — read them before making assumptions.
 
+## Project Structure
+
+uv workspace monorepo — each package has its own `pyproject.toml` and dependencies. Root `pyproject.toml` is the workspace root, not a runnable package.
+
+Python commands must run from the package directory (where the relevant `pyproject.toml` lives), not from the project root. Makefile targets handle this automatically.
+
 ## Documentation
+
+When exploring the codebase for a task, start from architectural documents in `doc/tech/`, not source code. Documents describe interfaces, contracts, and flows at the right abstraction level for design decisions. Code is an implementation detail — use it to verify specifics not covered by documentation.
+
+When discussing architecture, visualize components, layers, and data flows so the architect can give quality feedback with the full picture in front of them. Don't wait to be asked. In chat — ASCII diagrams; when writing to documents — Mermaid.
 
 Start from [doc/index.md](doc/index.md). Key entry points by concern:
 
@@ -16,8 +26,16 @@ doc/
 ├── vision.md            # System architecture, stack, MVP criteria
 ├── product/             # Use cases, roadmap, versioned scope
 ├── tech/
-│   ├── conventions.md   # Git flow, naming, code quality setup
-│   └── adr/             # Architecture Decision Records
+│   ├── backend.md           # Layers, API, persistence, configuration
+│   ├── frontend.md          # Screens, components, state, API integration
+│   ├── auth.md              # JWT + refresh tokens, rate limiting, interceptor
+│   ├── streaming.md         # SSE protocol, events, cancellation
+│   ├── agent-runtime.md     # LangGraph graph, tools, skills, context, MCP
+│   ├── knowledge-sphere.md  # Project memory, storage, fuzzy patch, REST API
+│   ├── observability.md     # Langfuse tracing, cost tracking, feedback loop
+│   ├── conventions.md       # Git flow, naming, code quality setup
+│   └── adr/                 # Architecture Decision Records
+├── research/            # Technology research, deep-dives, approach analysis
 ├── security/            # Threat model
 └── tasks/               # Task lists and iterations
 ```

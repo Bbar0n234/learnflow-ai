@@ -6,6 +6,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.agent.config import ResolvedModelConfig
+
 
 @dataclass(frozen=True)
 class StreamEvent:
@@ -33,6 +37,8 @@ class AgentRunner(Protocol):
         content: str,
         project_id: uuid.UUID,
         user_id: uuid.UUID,
+        session: AsyncSession | None = None,
+        model_config: ResolvedModelConfig | None = None,
     ) -> AsyncIterator[StreamEvent]: ...
 
     async def get_history(

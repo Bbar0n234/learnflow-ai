@@ -3,6 +3,7 @@ import { useParams } from "react-router";
 import { useChat } from "../hooks/useChat";
 import { useAgentStream } from "../hooks/useAgentStream";
 import { useStreamStore } from "@/stores/stream-store";
+import { ChatHeader } from "./ChatHeader";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
 import type { Message } from "@/shared/api/types";
@@ -64,6 +65,7 @@ export function ChatView() {
 
   return (
     <div className="flex h-full flex-col">
+      <ChatHeader />
       <MessageList
         messages={allMessages}
         isStreaming={isStreaming}

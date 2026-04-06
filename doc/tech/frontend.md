@@ -33,11 +33,13 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 | Маршрут | Центральная область |
 |---------|---------------------|
 | `/` | Welcome (без input — создание чата только из проекта) |
-| `/projects/:id` | Проект: табы **Chats** / **Sphere** / **Artifacts**, input для нового чата |
-| `/projects/:id/chats/:cid` | Чат: сообщения + SSE-стриминг + input |
+| `/settings` | Пользовательские настройки: модель, инструкции, память, MCP серверы |
+| `/projects/:id` | Проект: табы **Chats** / **Sphere** / **Artifacts** / **Settings** |
+| `/projects/:id/chats/:cid` | Чат: ChatHeader (← project, model selector, tools dialog) + сообщения + SSE-стриминг + input |
 | `/projects/:id/sphere` | Knowledge Sphere: просмотр и редактирование (Markdown) |
 | `/projects/:id/artifacts` | Список артефактов проекта |
 | `/projects/:id/artifacts/:aid` | Просмотр артефакта + скачивание (md/pdf) |
+| `/projects/:id/settings` | Настройки проекта: model override, MCP серверы |
 
 ### Экраны
 
@@ -47,8 +49,9 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 - **Chats** (default) — список чатов проекта (название, превью, дата)
 - **Sphere** — Knowledge Sphere
 - **Artifacts** — артефакты проекта
+- **Settings** — настройки проекта (model override, MCP серверы)
 
-Табы Sphere и Artifacts — те же экраны, что и по прямым маршрутам, но встроены в контекст проекта через табы.
+Табы Sphere, Artifacts, Settings — те же экраны, что и по прямым маршрутам, но встроены в контекст проекта через табы.
 
 **Чат (`/projects/:id/chats/:cid`):** полноценный chat view на всю центральную область. Sidebar остаётся для навигации назад.
 
@@ -60,10 +63,10 @@ Feature-based: компоненты группируются по фичам, н
 
 ### Layout
 
-- **AuthGate** — app-level обёртка: проверяет access token в localStorage, показывает Login/Register форму если не аутентифицирован. Вне Router и Providers.
+- **AuthGate** — app-level auth gate: блокирующая модалка login/register если не аутентифицирован. Подробнее — [auth.md](auth.md).
 - **AppLayout** — корневой layout: sidebar + центральная область. Рендерится на всех маршрутах.
 - **Sidebar** — проекты пользователя, recents, кнопки создания (new chat / new project), user footer с logout.
-- **ProjectLayout** — обёртка для project-level маршрутов: имя проекта, табы (Chats / Sphere / Artifacts).
+- **ProjectLayout** — обёртка для project-level маршрутов: имя проекта, табы (Chats / Sphere / Artifacts / Settings).
 
 ### Features
 
@@ -73,16 +76,22 @@ Feature-based: компоненты группируются по фичам, н
 - Карточка проекта в sidebar (с контекстным меню rename/delete)
 
 **chat** — ядро приложения.
+- ChatHeader — название чата, ссылка на проект, model selector (dropdown per-thread), tools dialog
 - Список сообщений (scroll, auto-scroll при стриминге)
 - Сообщение — user и assistant рендерятся по-разному (assistant → Markdown через Streamdown)
 - Input с отправкой (Enter / кнопка)
 - Индикаторы: стриминг текста, tool use (`tool_start`/`tool_end`)
 - Карточка артефакта (инлайн в чате, по событию `artifact_created`)
 - Кнопка cancel
+- Tools dialog — просмотр и управление MCP серверами per-thread (inherited + собственные, toggle)
 
-**sphere** — Knowledge Sphere.
-- Viewer (Markdown render через Streamdown)
-- Editor (textarea / Markdown editor, PUT при сохранении)
+**settings** — пользовательские настройки и per-scope конфигурация.
+- SettingsPage (`/settings`) — user-level: ModelSelector, CustomInstructionsSection, AgentMemorySection, MCPServersSection
+- ProjectSettingsTab — project-level: ModelSelector, MCPServersSection
+- Компоненты переиспользуются на разных уровнях с параметром scope (user / project / thread)
+- Подробнее о custom instructions и agent memory — [user-memory.md](user-memory.md)
+
+**sphere** — Knowledge Sphere. Viewer (Markdown) + Editor (textarea). Подробнее — [knowledge-sphere.md](knowledge-sphere.md).
 
 **artifacts** — артефакты проекта.
 - Список артефактов (название, тип, дата)
@@ -113,6 +122,15 @@ Feature-based: компоненты группируются по фичам, н
 | `["projects", id, "artifacts"]` | `GET /projects/:id/artifacts` |
 | `["projects", id, "artifacts", aid]` | `GET /projects/:id/artifacts/:aid` |
 | `["chats", "recent"]` | `GET /chats/recent` |
+| `["models"]` | `GET /models` |
+| `["user", "settings"]` | `GET /users/me/settings` |
+| `["user", "instructions"]` | `GET /users/me/instructions` |
+| `["user", "memories"]` | `GET /users/me/memories` |
+| `["user", "mcp-servers"]` | `GET /users/me/mcp-servers` |
+| `["projects", id, "settings"]` | `GET /projects/:id/settings` |
+| `["projects", id, "mcp-servers"]` | `GET /projects/:id/mcp-servers` |
+| `["projects", id, "chats", cid, "settings"]` | `GET /projects/:id/chats/:cid/settings` |
+| `["projects", id, "chats", cid, "mcp-servers"]` | `GET /projects/:id/chats/:cid/mcp-servers` |
 
 **Mutations → инвалидация:**
 
@@ -123,6 +141,10 @@ Feature-based: компоненты группируются по фичам, н
 | Обновить sphere | `["projects", id, "sphere"]` |
 | Стрим завершён (`done`) | `["projects", id, "chats", cid]`, `["chats", "recent"]` |
 | Событие `artifact_created` | `["projects", id, "artifacts"]` |
+| Обновить settings (any scope) | Соответствующий `[..., "settings"]` key |
+| Обновить instructions | `["user", "instructions"]` |
+| Удалить memory | `["user", "memories"]` |
+| CRUD MCP server (any scope) | Соответствующий `[..., "mcp-servers"]` key |
 
 ### Zustand — клиентский state
 
@@ -160,7 +182,7 @@ streamStore
 
 ### HTTP-клиент
 
-Единый axios instance: base URL `/api`, `withCredentials: true` (для refresh token cookie). Request interceptor добавляет `Authorization: Bearer` header из localStorage. Response interceptor: 401 → автоматический refresh token + retry (с queue для параллельных запросов). `ensureFreshToken()` — proactive refresh для SSE fetch (проверяет JWT expiry, обновляет если < 30 сек до истечения).
+Единый axios instance: base URL `/api`, `withCredentials: true` (для refresh token cookie). Request interceptor добавляет `Authorization: Bearer` header. Response interceptor: 401 → автоматический refresh + retry. Подробнее о token management, interceptor logic и `ensureFreshToken()` — [auth.md](auth.md).
 
 ### TypeScript типы
 
@@ -172,12 +194,16 @@ streamStore
 
 ```
 shared/api/
-├── client.ts       — axios instance
-├── types.ts        — TS-типы
-├── projects.ts     — getProjects, getProject, createProject, updateProject, deleteProject
-├── chats.ts        — getChats, getChat, createChat, getRecentChats
-├── sphere.ts       — getSphere, updateSphere
-└── artifacts.ts    — getArtifacts, getArtifact, downloadArtifact
+├── client.ts        — axios instance
+├── types.ts         — TS-типы
+├── projects.ts      — getProjects, getProject, createProject, updateProject, deleteProject
+├── chats.ts         — getChats, getChat, createChat, getRecentChats
+├── sphere.ts        — getSphere, updateSphere
+├── artifacts.ts     — getArtifacts, getArtifact, downloadArtifact
+├── models.ts        — getModels
+├── settings.ts      — get/updateUserSettings, get/updateProjectSettings, get/updateThreadSettings
+├── user-memory.ts   — getInstructions, updateInstructions, getMemories, deleteMemory
+└── mcp-servers.ts   — CRUD per scope (user, project, thread), testConnection
 ```
 
 Без `messages.ts` — отправка сообщений через SSE (см. ниже).
@@ -191,6 +217,8 @@ features/projects/   → useProjects, useProject, useCreateProject, useUpdatePro
 features/chat/       → useChats, useChat, useCreateChat, useRecentChats
 features/sphere/     → useSphere, useUpdateSphere
 features/artifacts/  → useArtifacts, useArtifact
+features/settings/   → useModels, useSettings, useUpdateSettings, useInstructions, useUpdateInstructions,
+                       useMemories, useDeleteMemory, useMCPServers, useMCPServerCRUD, useTestConnection
 ```
 
 Компоненты вызывают хуки, не API-функции напрямую.
@@ -199,30 +227,9 @@ features/artifacts/  → useArtifacts, useArtifact
 
 ## SSE-стриминг
 
-Кастомный хук `useAgentStream` поверх native `fetch`. Формат событий — в [backend.md](backend.md) (SSE Streaming Protocol).
+Кастомный хук `useAgentStream` поверх native `fetch`. Полная спецификация протокола, event types, lifecycle, cancellation — [streaming.md](streaming.md).
 
-### Lifecycle
-
-```
-1. Пользователь нажал Send
-2. fetch POST /projects/:id/chats/:cid/messages
-3. Сервер: 200 OK, Content-Type: text/event-stream
-4. Клиент читает ReadableStream, парсит SSE-события:
-
-   text_chunk       → streamStore.appendText(chunk)
-   tool_start       → streamStore.setTool(name)
-   tool_end         → streamStore.setTool(null)
-   artifact_created → invalidate ["projects", id, "artifacts"]
-   done             → streamStore.endStream(), invalidate chat query + recents
-   error            → показать ошибку, закрыть стрим
-
-5. Cancel: POST /cancel (axios) → сервер шлёт error event → стрим закрыт
-```
-
-### Связь с state
-
-- **Zustand stream store** — обновляется на каждое событие (appendText, setTool, endStream)
-- **TanStack Query** — инвалидация после `done` и `artifact_created` (таблица в секции State Management)
+Связь с frontend state: Zustand stream store обновляется на каждое событие, TanStack Query инвалидируется после `done` и `artifact_created` (таблица в секции State Management выше).
 
 ## Стек и инструменты
 
@@ -271,8 +278,13 @@ frontend/
 │   │   │   ├── components/        — ProjectCard, ProjectActions, CreateProjectModal, ProjectList
 │   │   │   └── hooks/             — useProjects, useProject, useCreateProject, useUpdateProject, useDeleteProject
 │   │   ├── chat/
-│   │   │   ├── components/        — ChatList, ChatView, MessageList, MessageItem, ChatInput, ToolIndicator, ArtifactCard
+│   │   │   ├── components/        — ChatList, ChatView, ChatHeader, ModelSelector, ToolsDialog,
+│   │   │   │                        MessageList, MessageItem, ChatInput, ToolIndicator, ArtifactCard
 │   │   │   └── hooks/             — useChats, useChat, useCreateChat, useRecentChats, useAgentStream
+│   │   ├── settings/
+│   │   │   ├── components/        — SettingsPage, ModelSelector, CustomInstructionsSection,
+│   │   │   │                        AgentMemorySection, MCPServersSection, ProjectSettingsTab
+│   │   │   └── hooks/             — useModels, useSettings, useInstructions, useMemories, useMCPServers
 │   │   ├── sphere/
 │   │   │   ├── components/        — SphereView, SphereViewer, SphereEditor
 │   │   │   └── hooks/             — useSphere, useUpdateSphere
@@ -287,7 +299,11 @@ frontend/
 │   │   │   ├── projects.ts
 │   │   │   ├── chats.ts
 │   │   │   ├── sphere.ts
-│   │   │   └── artifacts.ts
+│   │   │   ├── artifacts.ts
+│   │   │   ├── models.ts
+│   │   │   ├── settings.ts
+│   │   │   ├── user-memory.ts
+│   │   │   └── mcp-servers.ts
 │   │   ├── ui/                    — shadcn/ui компоненты
 │   │   └── components/            — MarkdownRenderer и другие shared-компоненты
 │   │
@@ -299,6 +315,8 @@ frontend/
 **Принципы:** features/ изолированы друг от друга. shared/ — то, что нужно нескольким фичам. app/ — shell (layouts, providers, router), не бизнес-логика. stores/ отдельно от features, т.к. stream store используется cross-feature. Pages не выделены — при 6 маршрутах роутер рендерит layout + feature-компонент напрямую.
 
 ## Logging
+
+Backend observability (Langfuse, tracing, feedback loop) — [observability.md](observability.md).
 
 ### Logger-обёртка
 

@@ -26,6 +26,8 @@ Knowledge Sphere — cross-session project memory для AI-агента. Каж
 
 Каждый Item дополнительно содержит `created_at` и `updated_at` timestamps (управляются Store).
 
+**Связь с User Memory:** Store используется как unified backend для KS и User Memory (custom instructions, agent memory). Изоляция — через namespaces: KS живёт в `("project", ...)`, User Memory — в `("user", ...)`. Generic helper `format_index()` переиспользуется обоими подсистемами. Подробнее — [user-memory.md](user-memory.md), обоснование — [ADR-015](adr/ADR-015-langgraph-store-unified-memory.md).
+
 ## Section Format
 
 - **section_id** — descriptive kebab-case slug: `talk-audience`, `research-serverless`, `outline-v2`

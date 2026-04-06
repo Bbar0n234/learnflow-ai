@@ -10,9 +10,9 @@
 graph TD
     API["API Layer — FastAPI routes, schemas, SSE transport"]
     SVC["Service Layer — оркестрация, бизнес-правила"]
-    AGT["Agent Layer — LangGraph граф, tools, skills, context, memory"]
+    AGT["Agent Layer — LangGraph граф, GraphFactory, tools, skills, context, memory"]
     REPO["Repository Layer"]
-    INFRA["Infra — DB engine/sessions, LLM client, MCP client, HTTP client"]
+    INFRA["Infra — DB engine/sessions, LLM client, MCP client, PromptProvider, EncryptionService"]
 
     API --> SVC
     SVC --> AGT
@@ -23,8 +23,8 @@ graph TD
 ```
 
 - **API Layer** — HTTP/SSE-интерфейс, Pydantic-валидация, маршрутизация. Не содержит бизнес-логики.
-- **Service Layer** — CRUD-сервисы (ProjectService, ArtifactService) + thin ChatService для chat-операций. ChatService оркестрирует взаимодействие с AgentRunner (маппинг chat_id → thread_id, обновление thread_views, формирование config).
-- **Agent Layer** — LangGraph-граф, tools, skills, context engineering, memory. LangGraph-связанность сдержана внутри этого слоя: наружу выходят только доменные типы, не LangGraph-специфичные.
+- **Service Layer** — CRUD-сервисы (ProjectService, ArtifactService, UserMemoryService, MCPServerService) + thin ChatService для chat-операций. ChatService оркестрирует взаимодействие с AgentRunner (маппинг chat_id → thread_id, model resolution, обновление thread_views, формирование config). ModelConfigResolver — каскадное разрешение модели per-request.
+- **Agent Layer** — LangGraph-граф, GraphFactory (per-request build+compile), tools, skills, context engineering, memory. LangGraph-связанность сдержана внутри этого слоя: наружу выходят только доменные типы, не LangGraph-специфичные.
 - **Repository Layer** — SQLAlchemy, доступ к app-managed таблицам.
 - **Infra** — не слой с правилами вызовов, а утилитарный пакет с сконфигурированными клиентами внешних сервисов.
 
@@ -99,7 +99,7 @@ JWT + Refresh Token. Access token (short-lived, localStorage) для API-зап�
 
 PDF — конвертация из Markdown на бэкенде (pandoc / weasyprint).
 
-#### Models & Settings (feat-003)
+#### Models & Settings
 
 | Метод | Путь | Назначение |
 |-------|------|-----------|
@@ -113,7 +113,7 @@ PDF — конвертация из Markdown на бэкенде (pandoc / weasy
 
 Каскад разрешения модели: thread → project → user → Langfuse → agent.yaml. `model_name: null` = inherit.
 
-#### User Memory (feat-003)
+#### User Memory
 
 | Метод | Путь | Назначение |
 |-------|------|-----------|
@@ -124,7 +124,7 @@ PDF — конвертация из Markdown на бэкенде (pandoc / weasy
 
 Инструкции включаются в system message каждого чата. Записи памяти создаются агентом через `save_user_memory` / `delete_user_memory` tools, удаляются пользователем через UI.
 
-#### MCP Servers (feat-003)
+#### MCP Servers
 
 | Метод | Путь | Назначение |
 |-------|------|-----------|
@@ -258,9 +258,9 @@ app/
 
 **api/** — HTTP/SSE-интерфейс. Роутеры сгруппированы по ресурсам, каждый вызывает соответствующий сервис. Schemas — Pydantic-контракт с фронтендом. deps.py — FastAPI dependencies для инъекции зависимостей в роутеры.
 
-**services/** — Оркестрация и бизнес-правила. CRUD-сервисы (Project, Artifact) + thin ChatService для chat-операций (маппинг chat_id → thread_id, делегирование в AgentRunner, управление ThreadView). Зависимости (repositories, AgentRunner) — через конструктор, wiring в deps.py.
+**services/** — Оркестрация и бизнес-правила. CRUD-сервисы (Project, Artifact, UserMemory, MCPServer) + thin ChatService для chat-операций (маппинг chat_id → thread_id, model resolution, делегирование в AgentRunner, управление ThreadView). ModelConfigResolver — каскадное разрешение модели. Зависимости (repositories, AgentRunner) — через конструктор, wiring в deps.py.
 
-**agent/** — LangGraph-граф, tools, context engineering, промпт. Публичный интерфейс — AgentRunner (stream, get_history, cancel). LangGraph-типы не выходят за пределы этого пакета. tools/ — суб-пакет с внутренней группировкой.
+**agent/** — LangGraph-граф, GraphFactory (per-request build+compile), tools, context engineering, промпт. Публичный интерфейс — AgentRunner (stream, get_history, cancel). LangGraph-типы не выходят за пределы этого пакета. tools/ — суб-пакет с внутренней группировкой (KS, artifacts, user memory, skills).
 
 **skills/** — директория в корне репозитория (`skills/`, рядом с `backend/`, `configs/`). Каждый skill — поддиректория с `SKILL.md` (Claude Code compatible формат). Вынесены из backend, чтобы пользователь мог добавлять skills без необходимости лезть в код приложения.
 
@@ -268,13 +268,13 @@ app/
 
 **models/** — SQLAlchemy ORM-модели для app-managed таблиц (User, Project, ThreadView, Artifact).
 
-**infra/** — Сконфигурированные клиенты: DB engine/session factory, LLM client, MCP client (`MultiServerMCPClient`), HTTP client. Импортируется из Repository Layer и Agent Layer.
+**infra/** — Сконфигурированные клиенты и сервисы: DB engine/session factory, LLM client, MCP client (`MultiServerMCPClient`), MCPToolResolver, PromptProvider (Langfuse SDK wrapper), EncryptionService (Fernet), HTTP client. Импортируется из Repository Layer и Agent Layer.
 
 ## Agent Runtime
 
-LangGraph-граф с ReAct-паттерном, context engineering, tools, skills, MCP-интеграция. Детальное описание — [agent-runtime.md](agent-runtime.md). Связанные концепты: [knowledge-sphere.md](knowledge-sphere.md), [observability.md](observability.md).
+LangGraph-граф с ReAct-паттерном, context engineering, tools, skills, MCP-интеграция. Детальное описание — [agent-runtime.md](agent-runtime.md). Связанные концепты: [knowledge-sphere.md](knowledge-sphere.md), [user-memory.md](user-memory.md), [prompt-management.md](prompt-management.md), [observability.md](observability.md).
 
-Ключевые ADR: [ADR-001](adr/ADR-001-general-agent.md) (General Agent), [ADR-002](adr/ADR-002-skills-system.md) (Skills), [ADR-003](adr/ADR-003-knowledge-sphere.md) (KS), [ADR-004](adr/ADR-004-progressive-disclosure.md) (Progressive Disclosure), [ADR-005](adr/ADR-005-ks-update-mechanism.md) (KS Updates), [ADR-006](adr/ADR-006-custom-stategraph.md) (Custom StateGraph), [ADR-007](adr/ADR-007-mcp-external-tools.md) (MCP).
+Ключевые ADR: [ADR-001](adr/ADR-001-general-agent.md) (General Agent), [ADR-002](adr/ADR-002-skills-system.md) (Skills), [ADR-003](adr/ADR-003-knowledge-sphere.md) (KS), [ADR-004](adr/ADR-004-progressive-disclosure.md) (Progressive Disclosure), [ADR-005](adr/ADR-005-ks-update-mechanism.md) (KS Updates), [ADR-006](adr/ADR-006-custom-stategraph.md) (Custom StateGraph), [ADR-007](adr/ADR-007-mcp-external-tools.md) (MCP), [ADR-013](adr/ADR-013-per-scope-settings-storage.md) (Settings Storage), [ADR-014](adr/ADR-014-dynamic-model-resolution.md) (Graph Factory), [ADR-015](adr/ADR-015-langgraph-store-unified-memory.md) (Store Memory), [ADR-016](adr/ADR-016-per-scope-mcp-servers.md) (MCP Servers).
 
 ## Persistence
 
@@ -286,7 +286,7 @@ LangGraph-граф с ReAct-паттерном, context engineering, tools, skil
 
 **Checkpointer** — полный state агента, включая историю сообщений. Сообщения не дублируются в отдельную app-таблицу: checkpointer хранит полную историю, доступную через `get_state()`. Таблицы: `checkpoints`, `checkpoint_blobs`, `checkpoint_writes`, `checkpoint_migrations`.
 
-**Store** — Knowledge Sphere (cross-thread память). Таблицы: `store`, `store_vectors` (будущее: embeddings).
+**Store** — Knowledge Sphere (per-project) и User Memory (per-user: custom instructions, agent memory). Таблицы: `store`, `store_vectors` (будущее: embeddings). Namespace-based изоляция — [user-memory.md](user-memory.md#storage).
 
 ### App-managed
 
@@ -305,14 +305,14 @@ ThreadView
 Artifact
 ├── id, project_id, thread_id, message_id, title, type (markdown | ...), content, created_at
 
-UserSettings / ProjectSettings / ThreadSettings (feat-003)
+UserSettings / ProjectSettings / ThreadSettings
 ├── user_id|project_id|thread_id (PK, FK CASCADE), model_name, extra_body (JSONB), created_at, updated_at
 
-UserMCPServer / ProjectMCPServer / ThreadMCPServer (feat-003)
+UserMCPServer / ProjectMCPServer / ThreadMCPServer
 ├── id (UUID PK), user_id|project_id|thread_id (FK CASCADE), name, transport, url, api_key_encrypted, api_key_hint, allowed_tools (JSONB), is_active, created_at, updated_at
 ├── UNIQUE(scope_id, name)
 
-MCPServerDisable (feat-003)
+MCPServerDisable
 ├── scope_type + scope_id + server_id (composite PK) — disables inherited server at child scope
 ```
 
@@ -354,6 +354,11 @@ FastAPI middleware генерирует UUID для каждого HTTP-запр
 
 ## Configuration
 
-`pydantic-settings` с загрузкой из env vars. Набор параметров выводится из стека: DB URL, LLM API key/model, MCP-серверы (transport, URL, API keys), CORS origins. Механика env-файлов — в [conventions.md](conventions.md#docker).
+`pydantic-settings` с загрузкой из env vars. Набор параметров выводится из стека: DB URL, LLM API key/model, CORS origins, Langfuse credentials. Механика env-файлов — в [conventions.md](conventions.md#docker).
 
-Agent-специфичная конфигурация (модель, контекст, промпт, summarization, MCP) — отдельный YAML-файл, не env vars.
+Ключевые env vars:
+- `MCP_ENCRYPTION_KEY` — Fernet-ключ для шифрования API-ключей per-user MCP серверов
+- `LANGFUSE_PROMPT_LABEL` — label для фетча промптов (default: `development`)
+- `LANGFUSE_PROMPT_CACHE_TTL` — TTL кэша промптов в секундах (default: `60`)
+
+Agent-специфичная конфигурация (модель, контекст, промпт, summarization, MCP) — отдельный YAML-файл, не env vars. Prompt management — [prompt-management.md](prompt-management.md).

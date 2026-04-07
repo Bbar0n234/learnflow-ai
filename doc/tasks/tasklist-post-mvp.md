@@ -162,7 +162,7 @@ feat-001 (Chat UX) ── когда будет время ───────
 
 ### feat-004: Prompt Injection Protection
 
-**Цель:** базовая MVP-защита от prompt injection (direct + indirect).
+**Цель:** MVP-защита от prompt injection: input guard, system prompt hardening, canary token output check, Langfuse observability.
 
 **Статус:** 📋 Planned
 **Scope:** agent/backend
@@ -171,3 +171,19 @@ feat-001 (Chat UX) ── когда будет время ───────
 #### Из backlog
 
 - **P1** Prompt injection protection — MVP-защита от direct/indirect PI. Threat model и blue-team strategy проработаны (`doc/security/`), реализации нет *(cross: Backend)*
+
+#### MVP Scope
+
+- [ ] **Input Guard:** детектор невидимых Unicode-символов (deterministic, текущее сообщение) + LLM-классификатор инъекций (full history). Verdict: CLEAN / SUSPICIOUS / INJECTION
+- [ ] **System Prompt Hardening:** instruction hierarchy, trust boundary marking, sandwich defense, role anchoring + positive framing, canary token (per-session)
+- [ ] **Canary Token Output Check:** substring match в streaming loop, abort + Langfuse tag при обнаружении
+- [ ] **Langfuse Observability:** security verdict, guard spans, block events. Конкретный механизм (scores/tags/metadata/guardrail) — после экспериментов
+- [ ] `make check` проходит
+
+#### Сознательно deferred (backlog → Security 2.0)
+
+KS Write Guard, LLM Output Classifier, SUSPICIOUS → ограничения, Tool Result Guard, Semantic Similarity, Async Guard, Multi-turn escalation — оставлены как attack vectors для Red Team и/или требуют отдельной проработки. Детали — в backlog (секция Security).
+
+#### Документация
+
+- [design-brief.md](iterations/post-mvp/feat-004-security/design-brief.md) — Контекст, решения, architecture overview, component details

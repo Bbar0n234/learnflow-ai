@@ -172,12 +172,33 @@ feat-001 (Chat UX) ── когда будет время ───────
 
 - **P1** Prompt injection protection — MVP-защита от direct/indirect PI. Threat model и blue-team strategy проработаны (`doc/security/`), реализации нет *(cross: Backend)*
 
-#### MVP Scope
+#### Definition of Done
 
-- [ ] **Input Guard:** детектор невидимых Unicode-символов (deterministic, текущее сообщение) + LLM-классификатор инъекций (full history). Verdict: CLEAN / SUSPICIOUS / INJECTION
-- [ ] **System Prompt Hardening:** instruction hierarchy, trust boundary marking, sandwich defense, role anchoring + positive framing, canary token (per-session)
-- [ ] **Canary Token Output Check:** substring match в streaming loop, abort + Langfuse tag при обнаружении
-- [ ] **Langfuse Observability:** security verdict, guard spans, block events. Конкретный механизм (scores/tags/metadata/guardrail) — после экспериментов
+**SecurityGuard:**
+- [ ] `SecurityGuard.check()` — invisible Unicode chars → INJECTION; LLM classifier → CLEAN / SUSPICIOUS / INJECTION; canary в input → INJECTION
+- [ ] Retry: невалидный ответ classifier → retry до `max_retries`, все исчерпаны → CLEAN (graceful degradation)
+- [ ] Guard LLM недоступен → CLEAN + warning в логах
+- [ ] INJECTION → `security_block` SSE event, запрос блокируется до запуска графа
+- [ ] SUSPICIOUS → запрос проходит, усиленный лог
+
+**System Prompt Hardening:**
+- [ ] Hardened template: instruction hierarchy, trust boundaries на `<custom_instructions>`, sandwich defense, canary token
+- [ ] `system.txt` не изменён — hardening только Jinja-обёртка
+
+**Canary Token:**
+- [ ] Генерация: HMAC(CANARY_SECRET, thread_id), per-session
+- [ ] Canary в output (full_response) → abort stream + `security_block(reason="canary_leak")`
+
+**Langfuse Observability:**
+- [ ] Score `security_verdict` (categorical) на trace
+- [ ] Guardrail observation (`as_type="guardrail"`, name `input-guard`)
+- [ ] Metadata (`blocked`, `detection_layer`, `block_reason`) при инцидентах
+- [ ] Degradation → WARNING level, `degraded: true`
+
+**Cross-cutting:**
+- [ ] Classifier prompt в Langfuse (seed при старте)
+- [ ] `agent.yaml`: секция `security` (guard_model, max_retries)
+- [ ] `CANARY_SECRET` в `.env.example`
 - [ ] `make check` проходит
 
 #### Сознательно deferred (backlog → Security 2.0)
@@ -186,4 +207,6 @@ KS Write Guard, LLM Output Classifier, SUSPICIOUS → ограничения, To
 
 #### Документация
 
-- [design-brief.md](iterations/post-mvp/feat-004-security/design-brief.md) — Контекст, решения, architecture overview, component details
+- [design-brief.md](iterations/post-mvp/feat-004-security/design-brief.md) — Architecture, компоненты, интерфейсы, промпты, 20 decisions
+- [langfuse-observability-decisions.md](iterations/post-mvp/feat-004-security/langfuse-observability-decisions.md) — Решения по Langfuse: score + guardrail + metadata
+- [test-cases.md](iterations/post-mvp/feat-004-security/test-cases.md) — Тестовые кейсы и процесс верификации

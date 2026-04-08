@@ -34,6 +34,7 @@ _SUMMARIZATION_PROMPT = (
 class AgentContext:
     project_id: str
     user_id: str
+    canary_token: str = ""
 
 
 async def _reduce_context(
@@ -90,6 +91,7 @@ def _build_system_content(
     skills_index: str,
     custom_instructions: str = "",
     user_memory_index: str = "",
+    canary_token: str = "",
 ) -> str:
     """Build system message content from prompt provider + context."""
     if prompt_provider:
@@ -106,6 +108,7 @@ def _build_system_content(
         skills_index=skills_index,
         custom_instructions=custom_instructions,
         user_memory_index=user_memory_index,
+        canary_token=canary_token,
     )
 
 
@@ -194,6 +197,7 @@ def build_graph(
             skills_index=skills_index,
             custom_instructions=custom_instructions,
             user_memory_index=user_memory_index,
+            canary_token=runtime.context.canary_token,
         )
         system = SystemMessage(content=content)
 

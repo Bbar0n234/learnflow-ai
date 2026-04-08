@@ -7,6 +7,7 @@ from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from langchain_openai import ChatOpenAI
 
 from app.agent.config import AgentConfig, ResolvedModelConfig, SummarizationConfig
+from app.agent.security.types import SecurityConfig
 from app.config import Settings
 
 
@@ -118,3 +119,18 @@ def create_summarization_llm_from_prompt_config(
         base_url=settings.llm_base_url,
         max_tokens=config.get("max_tokens", 500),
     )
+
+
+def create_guard_llm(
+    settings: Settings, security_config: SecurityConfig
+) -> BaseChatModel:
+    """Create LLM for the security guard classifier (plain ChatOpenAI, no reasoning)."""
+    kwargs: dict[str, Any] = {
+        "model": security_config.guard_model,
+        "api_key": settings.llm_api_key,
+        "base_url": settings.llm_base_url,
+        "temperature": security_config.temperature,
+    }
+    if security_config.guard_extra_body:
+        kwargs["extra_body"] = security_config.guard_extra_body
+    return ChatOpenAI(**kwargs)

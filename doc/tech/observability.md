@@ -101,6 +101,18 @@ sequenceDiagram
 
 **Удаление feedback:** при score = null — DELETE score в Langfuse API + DEL key в Redis.
 
+## Security Observability
+
+Мониторинг security incidents через Langfuse. Архитектура защиты — [security.md](security.md).
+
+**Score:** `security_verdict` (CATEGORICAL: `CLEAN` / `SUSPICIOUS` / `INJECTION`) на уровне trace. Создаётся при старте через `ensure_security_score_config()`.
+
+**Guardrail observation:** type `guardrail`, name `input-guard` — иконка щита в timeline. Вложенные observations: event `unicode-detector`, generation `llm-classifier`. Observation levels: DEFAULT (CLEAN), WARNING (SUSPICIOUS, degradation), ERROR (INJECTION, canary leak).
+
+**Metadata на trace** (только при инцидентах): `blocked` (bool), `detection_layer` (str), `block_reason` (str). **На guardrail observation:** `guard_model`, `verdict_raw`, `unicode_chars_found`.
+
+Guard LLM generation регистрируется как отдельная generation внутри guardrail — cost tracking guard-модели изолирован от main LLM.
+
 ## Model Definitions & Cost Tracking
 
 Конфигурация: `configs/agent.yaml`, секция `models`. Per-model:

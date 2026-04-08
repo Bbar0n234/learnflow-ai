@@ -1,5 +1,6 @@
 target-version = "py312"
 line-length = 88
+extend-exclude = ["doc/"]
 
 [lint]
 select = ["E", "W", "F", "B", "I", "SIM"]

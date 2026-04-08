@@ -136,7 +136,7 @@ class ChatService:
                 continue
             if event.type == "artifact_created":
                 artifact_ids.append(event.data["id"])
-            if event.type == "error":
+            if event.type in ("error", "security_block"):
                 had_error = True
             yield event
 

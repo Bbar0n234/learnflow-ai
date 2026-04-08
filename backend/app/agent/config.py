@@ -5,6 +5,8 @@ from typing import Any
 import yaml
 from pydantic import BaseModel
 
+from app.agent.security.types import SecurityConfig
+
 
 class LLMConfig(BaseModel):
     model: str
@@ -48,6 +50,7 @@ class AgentConfig(BaseModel):
     llm: LLMConfig
     context: ContextConfig
     summarization: SummarizationConfig | None = None
+    security: SecurityConfig | None = None
     mcp_servers: dict[str, MCPServerConfig] = {}
     models: list[ModelDefinitionConfig] = []
     available_models: list[AvailableModel] = []

@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     langfuse_prompt_label: str = "development"
     langfuse_prompt_cache_ttl: int = 60
 
+    # Security (prompt injection protection)
+    canary_secret: str = ""
+
     # MCP encryption
     mcp_encryption_key: str = ""
 

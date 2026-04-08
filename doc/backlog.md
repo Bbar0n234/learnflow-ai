@@ -31,6 +31,17 @@
 
 - **P2** Self-hosted web search MCP — найти масштабируемый безлимитный (self-hosted) аналог Tavily/Firecrawl для веб-поиска агентом. Кандидаты: SearxNG + MCP-адаптер, open-webSearch. Текущий Firecrawl free tier ограничен по кредитам *(cross: Agent, Backend)*
 
+## Security
+
+- **P1** KS Write Guard — guard при записи в Knowledge Sphere (защита от memory poisoning). Тот же LLM classifier с контекстным промптом. При наличии фундамента feat-004 — минимальный effort *(Agent)*
+- **P1** LLM Output Classifier — семантическая проверка ответа агента на утечку system prompt и internal data. Тот же BaseGuard, другой промпт *(Agent)*
+- **P1** SUSPICIOUS → конкретные ограничения — определить и реализовать действия при SUSPICIOUS verdict (ограничение tools, алерт админу и т.д.) *(Agent, Backend)*
+- **P2** SecurityObserver extraction — вынос Langfuse observability кода (~90 строк) из runner.py в отдельный SecurityObserver. Runner содержит business logic (вызов guard, verdict → action), observer инкапсулирует guardrail observations, score_trace, metadata. SRP: runner не должен знать о Langfuse internals *(Agent)*
+- **P2** Tool Result Guard — проверка результатов MCP/tools на indirect prompt injection. Покрывает и безопасность user-added MCP серверов *(Agent)*
+- **P2** Semantic Similarity output check — embedding-based проверка ответа на близость к system prompt *(Agent)*
+- **P2** Async Guard — параллельная проверка guard с main LLM для снижения latency. Tool execution ждёт вердикта *(Agent)*
+- **P2** Multi-turn escalation detection — обнаружение постепенных атак через серию сообщений *(Agent)*
+
 ## Cross-cutting
 
 - **P1** Text feedback — текстовые комментарии к трейсам (расширение like/dislike), видимые в Langfuse *(Frontend + Backend + Langfuse)*

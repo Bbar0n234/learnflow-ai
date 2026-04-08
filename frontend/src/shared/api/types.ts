@@ -186,4 +186,5 @@ export type SSEEvent =
       artifact_type: string;
     }
   | { type: "done"; message_id?: string; trace_id?: string }
-  | { type: "error"; detail: string };
+  | { type: "error"; detail: string }
+  | { type: "security_block"; reason: string };

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import structlog
+from jinja2 import Template
 
 if TYPE_CHECKING:
     from langfuse import Langfuse
@@ -34,7 +35,7 @@ class PromptProvider:
     def _qualified(self, name: str) -> str:
         return f"{name}--{self._label}"
 
-    def get_prompt(self, name: str) -> str:
+    def get_prompt(self, name: str, **variables: str) -> str:
         if self._langfuse:
             try:
                 prompt = self._langfuse.get_prompt(
@@ -44,14 +45,17 @@ class PromptProvider:
                     fallback=self._load_file(name),
                 )
                 self._prompt_cache[name] = prompt
-                return prompt.compile()
+                return prompt.compile(**variables)
             except Exception:
                 logger.warning(
                     "prompt fetch failed, using file fallback",
                     name=name,
                     exc_info=True,
                 )
-        return self._load_file(name)
+        text = self._load_file(name)
+        if variables:
+            return Template(text).render(**variables)
+        return text
 
     def get_config(self, name: str) -> dict[str, Any] | None:
         cached = self._prompt_cache.get(name)

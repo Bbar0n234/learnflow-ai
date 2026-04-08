@@ -4,7 +4,7 @@
 
 ## Protocol Overview
 
-Потоко-ориентированная модель: одно сообщение пользователя → один SSE-поток → terminal event (`done` | `error`). Wire format:
+Потоко-ориентированная модель: одно сообщение пользователя → один SSE-поток → terminal event (`done` | `error` | `security_block`). Wire format:
 
 ```
 data: {"type": "text_chunk", "content": "Hello"}\n\n
@@ -25,8 +25,11 @@ data: {"type": "done", "message_id": "msg-uuid", "trace_id": "trace-uuid"}\n\n
 | `trace_id` | `{trace_id}` | Langfuse trace ID (internal, не доходит до frontend) |
 | `done` | `{message_id, trace_id}` | Генерация завершена успешно |
 | `error` | `{detail}` | Ошибка или отмена генерации |
+| `security_block` | `{reason}` | Блокировка security guard или canary leak |
 
-`done` и `error` — взаимоисключающие **terminal events**. После любого из них поток закрывается. Если соединение обрывается без terminal event — frontend трактует это как connection lost.
+`done`, `error` и `security_block` — взаимоисключающие **terminal events**. После любого из них поток закрывается. Если соединение обрывается без terminal event — frontend трактует это как connection lost.
+
+`security_block` — отдельный от `error` event: security incidents отображаются специфичным UI (generic сообщение пользователю), не generic error. Reason values: `invisible_chars`, `llm_classifier`, `canary_in_input`, `canary_leak`. Подробнее — [security.md](security.md).
 
 `trace_id` — internal event: ChatService перехватывает его (не пробрасывает клиенту), сохраняет в Redis, а затем включает trace_id в payload `done` event. Frontend получает trace_id только через `done`.
 
@@ -45,8 +48,13 @@ sequenceDiagram
     API->>SVC: send_message()
     SVC->>AGT: stream()
 
-    loop LangGraph astream
-        AGT-->>C: text_chunk / tool_start / tool_end / artifact_created
+    Note over AGT: SecurityGuard.check() (→ security.md)
+    alt INJECTION
+        AGT-->>C: security_block
+    else CLEAN / SUSPICIOUS
+        loop LangGraph astream
+            AGT-->>C: text_chunk / tool_start / tool_end / artifact_created
+        end
     end
 
     Note over SVC: Post-hoc: link artifacts to message, save trace_id to Redis
@@ -55,7 +63,7 @@ sequenceDiagram
     Note over C: invalidate queries, reset stream store
 ```
 
-При ошибке на любом этапе — поток завершается событием `error` вместо `done`.
+При ошибке на любом этапе — поток завершается событием `error` вместо `done`. При security incident (INJECTION verdict или canary leak) — `security_block`.
 
 ## Cancellation
 

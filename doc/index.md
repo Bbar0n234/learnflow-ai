@@ -19,6 +19,7 @@ doc/
 │   ├── user-memory.md   # User Memory: instructions, agent memory, персонализация
 │   ├── prompt-management.md # Prompt Management: Langfuse, dev/prod, seed/sync
 │   ├── observability.md # Observability: Langfuse, трейсинг, feedback
+│   ├── security.md      # Security: input guard, hardening, canary token
 │   ├── conventions.md   # Git, code quality, naming, logging
 │   └── adr/             # Architecture Decision Records
 ├── research/        # Исследования: технологические ресёрчи, анализ подходов
@@ -46,6 +47,7 @@ doc/
 - [tech/user-memory.md](tech/user-memory.md) — custom instructions, agent memory, кросс-проектная персонализация
 - [tech/prompt-management.md](tech/prompt-management.md) — Langfuse prompts, dev/prod separation, seed/sync, fallback
 - [tech/observability.md](tech/observability.md) — Langfuse трейсинг, cost tracking, user feedback loop
+- [tech/security.md](tech/security.md) — Prompt injection protection: input guard, hardening, canary token
 
 **Соглашения и решения:**
 - [tech/conventions.md](tech/conventions.md) — git flow, code quality, naming, logging, Docker
@@ -55,5 +57,5 @@ doc/
 
 - [product/](product/) — сценарии использования, scope по версиям
 - [research/](research/) — технологические ресёрчи, deep-dives, анализ подходов (информируют будущие фичи)
-- [security/](security/) — threat model, red/blue team (дисциплина "Защита от нейронных сетей")
+- [security/](security/) — threat model, red/blue team research (архитектура реализации — [tech/security.md](tech/security.md))
 - [tasks/](tasks/) — задачи и итерации

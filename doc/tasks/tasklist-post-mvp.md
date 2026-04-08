@@ -23,7 +23,7 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 | feat-001 | 📋 Planned | cross-cutting | Chat UX: auto title + thinking indicator + delete chats |
 | feat-002 | ✅ Done | agent/backend | Agent observability & tooling |
 | feat-003 | ✅ Done | cross-cutting | Runtime agent configuration (3 tracks: Langfuse+Model, Memory, User MCP) |
-| feat-004 | 📋 Planned | agent/backend | Prompt injection protection |
+| feat-004 | ✅ Done | agent/backend | Prompt injection protection |
 
 ## Параллелизация
 
@@ -162,12 +162,55 @@ feat-001 (Chat UX) ── когда будет время ───────
 
 ### feat-004: Prompt Injection Protection
 
-**Цель:** базовая MVP-защита от prompt injection (direct + indirect).
+**Цель:** MVP-защита от prompt injection: input guard, system prompt hardening, canary token output check, Langfuse observability.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Scope:** agent/backend
 **After:** feat-003
 
 #### Из backlog
 
 - **P1** Prompt injection protection — MVP-защита от direct/indirect PI. Threat model и blue-team strategy проработаны (`doc/security/`), реализации нет *(cross: Backend)*
+
+#### Definition of Done
+
+**SecurityGuard:**
+- [x] `SecurityGuard.check()` — invisible Unicode chars → INJECTION; LLM classifier → CLEAN / SUSPICIOUS / INJECTION; canary в input → INJECTION
+- [x] Retry: невалидный ответ classifier → retry до `max_retries`, все исчерпаны → CLEAN (graceful degradation)
+- [x] Guard LLM недоступен → CLEAN + warning в логах
+- [x] INJECTION → `security_block` SSE event, запрос блокируется до запуска графа
+- [x] SUSPICIOUS → запрос проходит, усиленный лог
+
+**System Prompt Hardening:**
+- [x] Hardened template: instruction hierarchy, trust boundaries на `<custom_instructions>`, sandwich defense, canary token
+- [x] `system.txt` не изменён — hardening только Jinja-обёртка
+
+**Canary Token:**
+- [x] Генерация: HMAC(CANARY_SECRET, thread_id), per-session
+- [x] Canary в output (full_response) → abort stream + `security_block(reason="canary_leak")`
+
+**Langfuse Observability:**
+- [x] Score `security_verdict` (categorical) на trace
+- [x] Guardrail observation (`as_type="guardrail"`, name `input-guard`)
+- [x] Metadata (`blocked`, `detection_layer`, `block_reason`) при инцидентах
+- [x] Degradation → WARNING level, `degraded: true`
+
+**Cross-cutting:**
+- [x] Classifier prompt в Langfuse (seed при старте)
+- [x] `agent.yaml`: секция `security` (guard_model, max_retries)
+- [x] `CANARY_SECRET` в `.env.example`
+- [x] `make check` проходит
+
+#### Сознательно deferred (backlog → Security 2.0)
+
+KS Write Guard, LLM Output Classifier, SUSPICIOUS → ограничения, Tool Result Guard, Semantic Similarity, Async Guard, Multi-turn escalation — оставлены как attack vectors для Red Team и/или требуют отдельной проработки. Детали — в backlog (секция Security).
+
+#### Документация
+
+- [design-brief.md](iterations/post-mvp/feat-004-security/design-brief.md) — Architecture, компоненты, интерфейсы, промпты, 20 decisions
+- [langfuse-observability-decisions.md](iterations/post-mvp/feat-004-security/langfuse-observability-decisions.md) — Решения по Langfuse: score + guardrail + metadata
+- [plan.md](iterations/post-mvp/feat-004-security/plan.md) — Implementation plan: 11 phases, API verification
+- [test-cases.md](iterations/post-mvp/feat-004-security/test-cases.md) — 71 test case (59 pass, 12 deferred), 5 findings
+- [summary.md](iterations/post-mvp/feat-004-security/summary.md) — Post-implementation summary: отклонения, решения, tech debt
+- [security.md](../tech/security.md) — Архитектурный документ: три слоя защиты, SecurityGuard, canary, hardening, observability
+- [ADR-017](../tech/adr/ADR-017-prompt-injection-defense.md) — Prompt Injection Defense: sync guard, full history, fail-open, hardening wrapper

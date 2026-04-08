@@ -58,6 +58,31 @@ def _ensure_score_config(langfuse: Langfuse) -> None:
         logger.info("langfuse score config created", name="user-feedback")
 
 
+def ensure_security_score_config() -> None:
+    """Idempotently create security_verdict score config (CATEGORICAL)."""
+    if not langfuse_enabled:
+        return
+
+    langfuse = get_client()
+    configs = langfuse.api.score_configs.get(limit=100)
+    exists = any(
+        c.name == "security_verdict" and c.data_type == "CATEGORICAL"
+        for c in configs.data
+    )
+    if not exists:
+        langfuse.api.score_configs.create(
+            name="security_verdict",
+            data_type="CATEGORICAL",
+            description="Security guard verdict (CLEAN, SUSPICIOUS, INJECTION)",
+            categories=[
+                {"label": "CLEAN", "value": 0},
+                {"label": "SUSPICIOUS", "value": 1},
+                {"label": "INJECTION", "value": 2},
+            ],
+        )
+        logger.info("langfuse score config created", name="security_verdict")
+
+
 def ensure_model_definitions(models: list[ModelDefinitionConfig]) -> None:
     """Idempotently create Langfuse model definitions for cost tracking.
 

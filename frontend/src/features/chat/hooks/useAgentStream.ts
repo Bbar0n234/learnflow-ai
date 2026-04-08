@@ -147,6 +147,13 @@ export function useAgentStream(
                   optionsRef.current?.onDone?.({ messageId, traceId });
                   break;
                 }
+                case "security_block":
+                  terminated = true;
+                  endStream();
+                  optionsRef.current?.onError?.(
+                    "Сообщение заблокировано системой безопасности.",
+                  );
+                  break;
                 case "error":
                   terminated = true;
                   endStream();

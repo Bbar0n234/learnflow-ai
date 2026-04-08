@@ -36,6 +36,11 @@ from dataclasses import dataclass
 
 from langfuse import get_client, propagate_attributes
 
+from dataclasses import dataclass, field
+
+from langfuse import get_client, propagate_attributes
+
+
 BLOCKED_USER_MESSAGE = "Запрос заблокирован из соображений безопасности."
 CANARY_BLOCKED_USER_MESSAGE = (
     "Ответ заблокирован: обнаружена потенциальная утечка системной информации."
@@ -145,6 +150,7 @@ def _run_main_llm(root_span, message: str) -> str:
         name="agent-node",
     ) as agent_span:
         gen = agent_span.start_as_current_observation(
+        with agent_span.start_as_current_observation(
             as_type="generation",
             name="main-llm",
             model="openrouter/anthropic/claude-sonnet-4",
@@ -161,6 +167,13 @@ def _run_main_llm(root_span, message: str) -> str:
             usage_details={"input": 500, "output": 150},
         )
         gen.end()
+        ) as gen:
+            _simulate_delay(800)
+            response = f"This is a simulated response to: {message[:50]}..."
+            gen.update(
+                output=response,
+                usage_details={"input": 500, "output": 150},
+            )
     return response
 
 
@@ -207,6 +220,7 @@ def _run_input_guard(
         unicode_safe = _run_unicode_detector(
             guard_obs,
             message,
+            guard_obs, message,
             has_invisible=unicode_detected,
             chars_found=unicode_chars,
         )
@@ -233,6 +247,7 @@ def _run_input_guard(
             guard_obs,
             message,
             history,
+            guard_obs, message, history,
             verdict=llm_verdict,
             raw_response=llm_raw_response,
             should_fail=llm_should_fail,
@@ -297,6 +312,12 @@ def run_scenario(
             input=message,
         ) as root_span,
         propagate_attributes(
+    with langfuse.start_as_current_observation(
+        as_type="span",
+        name="agent-run",
+        input=message,
+    ) as root_span:
+        with propagate_attributes(
             user_id=user_id,
             session_id=thread_id,
             trace_name="agent-run",
@@ -349,6 +370,26 @@ def run_scenario(
                 block_reason = "canary_leak"
                 root_span.update(
                     output=CANARY_BLOCKED_USER_MESSAGE,
+        ):
+            # --- Input Guard ---
+            guard_result = _run_input_guard(
+                root_span, message, history,
+                unicode_detected=unicode_detected,
+                unicode_chars=unicode_chars,
+                llm_verdict=llm_verdict,
+                llm_raw_response=llm_raw_response,
+                llm_should_fail=llm_should_fail,
+            )
+
+            blocked_by_guard = guard_result.verdict == "INJECTION"
+            final_verdict = guard_result.verdict
+            detection_layer = guard_result.detection_layer
+            block_reason = guard_result.block_reason
+
+            if blocked_by_guard:
+                # Blocked by input guard
+                root_span.update(
+                    output=BLOCKED_USER_MESSAGE,
                     metadata={
                         "blocked": True,
                         "detection_layer": detection_layer,
@@ -366,6 +407,38 @@ def run_scenario(
             data_type="CATEGORICAL",
             comment=block_reason,
         )
+                # Guard passed — run main LLM
+                response = _run_main_llm(root_span, message)
+
+                # Output check: canary token
+                canary_leaked = _check_canary_in_output(
+                    root_span, response, canary_token,
+                    force_leak=force_canary_leak,
+                )
+
+                if canary_leaked:
+                    final_verdict = "INJECTION"
+                    detection_layer = "output_check"
+                    block_reason = "canary_leak"
+                    root_span.update(
+                        output=CANARY_BLOCKED_USER_MESSAGE,
+                        metadata={
+                            "blocked": True,
+                            "detection_layer": detection_layer,
+                            "block_reason": block_reason,
+                        },
+                        level="ERROR",
+                    )
+                else:
+                    root_span.update(output=response)
+
+            # --- Score: security_verdict (CATEGORICAL on trace) ---
+            root_span.score_trace(
+                name="security_verdict",
+                value=final_verdict,
+                data_type="CATEGORICAL",
+                comment=block_reason,
+            )
 
     print(
         f"  [{scenario_name}] done — "

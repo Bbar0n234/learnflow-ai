@@ -32,11 +32,14 @@ doc/
 │   ├── streaming.md         # SSE protocol, events, cancellation
 │   ├── agent-runtime.md     # LangGraph graph, tools, skills, context, MCP
 │   ├── knowledge-sphere.md  # Project memory, storage, fuzzy patch, REST API
+│   ├── user-memory.md       # Custom instructions, agent memory, personalization
+│   ├── prompt-management.md # Langfuse prompts, dev/prod, seed/sync
 │   ├── observability.md     # Langfuse tracing, cost tracking, feedback loop
+│   ├── security.md          # Prompt injection protection, input guard, canary
 │   ├── conventions.md       # Git flow, naming, code quality setup
 │   └── adr/                 # Architecture Decision Records
 ├── research/            # Technology research, deep-dives, approach analysis
-├── security/            # Threat model
+├── security/            # Threat model, red/blue team research
 └── tasks/               # Task lists and iterations
 ```
 

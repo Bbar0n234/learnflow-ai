@@ -69,7 +69,7 @@ graph LR
 - **tools** — `ToolNode` (prebuilt), выполнение tool calls
 - **tools_condition** (prebuilt) — routing: AIMessage с tool_calls → tools, иначе → END
 
-**Context schema:** `AgentContext(project_id, user_id)` — передаётся через `context=` параметр `astream()`, доступен в nodes и tools через `runtime.context`.
+**Context schema:** `AgentContext(project_id, user_id, canary_token)` — передаётся через `context=` параметр `astream()`, доступен в nodes и tools через `runtime.context`. `canary_token` вычисляется per-request для system prompt hardening (→ [security.md](security.md)).
 
 **Compile:** GraphFactory на каждый запрос:
 - `checkpointer=AsyncPostgresSaver` — shared, персистентная история (PostgreSQL)
@@ -84,10 +84,14 @@ graph.astream(input_msg, config, stream_mode=["messages", "updates"], context=co
 
 ## System Message
 
-Собирается из пяти частей на каждый вызов agent node:
+Собирается из семи частей на каждый вызов agent node. Base prompt обёрнут в hardened Jinja-template с security-секциями (→ [security.md](security.md)):
 
 ```
 ┌─────────────────────────────────┐
+│ <system_instructions>           │  ← Security hardening
+│   Instruction hierarchy,        │     (→ security.md)
+│   confidentiality, canary token │
+├─────────────────────────────────┤
 │ Base Prompt                     │  ← PromptProvider (→ prompt-management.md)
 │ (стиль, guidelines, boundaries) │
 ├─────────────────────────────────┤
@@ -100,6 +104,8 @@ graph.astream(input_msg, config, stream_mode=["messages", "updates"], context=co
 │ <knowledge_sphere>              │  ← LangGraph Store, per-project
 │   KS Index                      │     (→ knowledge-sphere.md)
 ├─────────────────────────────────┤
+│ <instruction_reminder>          │  ← Security hardening (sandwich defense)
+├─────────────────────────────────┤
 │ <available_skills>              │  ← skills/ directory (scanned at startup)
 │   Skills Index                  │
 └─────────────────────────────────┘
@@ -107,10 +113,12 @@ graph.astream(input_msg, config, stream_mode=["messages", "updates"], context=co
 
 | Часть | Source | Scope | Обновление |
 |-------|--------|-------|------------|
+| System instructions | Hardened template (security.md) | Global | Canary token per-request |
 | Base prompt | PromptProvider (Langfuse → file fallback) | Global | При изменении в Langfuse (SDK cache TTL) |
 | Custom instructions | LangGraph Store | Per-user | При сохранении через REST API |
 | User memory | LangGraph Store | Per-user | Автономно агентом (tools) |
 | KS Index | LangGraph Store | Per-project | При изменении секций (agent tools / REST API) |
+| Instruction reminder | Hardened template (security.md) | Global | Статический |
 | Skills Index | Filesystem scan | Global | При старте приложения |
 
 Пересборка на каждый вызов гарантирует актуальность динамических частей (KS Index, memories могли измениться между вызовами).
@@ -282,6 +290,10 @@ CRUD и каскадная видимость — [backend.md](backend.md).
 
 **Graceful degradation:** недоступный MCP-сервер → skip + warning в логах, остальные tools работают.
 
+## Security
+
+Pre-graph input guard, system prompt hardening, canary token output check. SecurityGuard — зависимость runner'а, проверяет user input до запуска графа. При verdict INJECTION — `security_block` SSE event, запрос не доходит до графа. Подробнее — [security.md](security.md), обоснование — [ADR-017](adr/ADR-017-prompt-injection-defense.md).
+
 ## Observability
 
 Опциональная интеграция с Langfuse (подробнее — [observability.md](observability.md)).
@@ -299,6 +311,7 @@ Langfuse выполняет dual role: tracing (observability) + prompt manageme
 
 | Компонент | При отказе | Поведение |
 |-----------|-----------|-----------|
+| SecurityGuard (LLM) | Guard LLM недоступен | CLEAN verdict, warning в логах, запрос проходит |
 | LLM | Исключение в stream | `error` event клиенту, state сохранён в checkpointer |
 | PromptProvider (Langfuse) | Langfuse недоступен | File fallback → `configs/prompts/` |
 | Global MCP-серверы | Ошибка при инициализации | Приложение стартует без внешних tools |
@@ -328,11 +341,13 @@ Langfuse выполняет dual role: tracing (observability) + prompt manageme
 | `context` | max_tokens, compaction_threshold_ratio, recent_messages_to_keep |
 | `prompt` | Путь к файлу system prompt (seed) |
 | `summarization` | Модель суммаризации, max_summary_tokens |
+| `security` | Guard model, max retries, temperature (→ [security.md](security.md)) |
 | `mcp_servers` | Global MCP-серверы: transport, URL, API keys, allowed_tools |
 | `models` | Model definitions: pricing, match patterns (Langfuse cost tracking) |
 
 **Prompt files** — seed-файлы в `configs/prompts/`. Source of truth для промптов — Langfuse; файлы используются для seeding и как fallback. Подробнее — [prompt-management.md](prompt-management.md).
 
-Application-level настройки — `backend/app/config.py` через Pydantic Settings. Ключевые env vars для feat-003:
+Application-level настройки — `backend/app/config.py` через Pydantic Settings. Ключевые env vars:
 - `MCP_ENCRYPTION_KEY` — Fernet-ключ для шифрования API-ключей per-user MCP
 - `LANGFUSE_PROMPT_LABEL` — label для фетча промптов (default: `development`)
+- `CANARY_SECRET` — HMAC secret для canary token (пустой = canary disabled + warning)

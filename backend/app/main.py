@@ -15,6 +15,7 @@ from sqlalchemy import text
 from app.agent.config import load_agent_config
 from app.agent.graph_factory import GraphFactory
 from app.agent.runner import LangGraphAgentRunner
+from app.agent.security.guard import SecurityGuard
 from app.agent.tools import (
     ks_tools,
     make_create_artifact_tool,
@@ -39,10 +40,12 @@ from app.config import Settings
 from app.infra.db import create_engine, create_session_factory
 from app.infra.langfuse import (
     ensure_model_definitions,
+    ensure_security_score_config,
     init_langfuse,
     shutdown_langfuse,
 )
 from app.infra.langgraph import create_checkpointer, create_store
+from app.infra.llm import create_guard_llm
 from app.infra.logging import setup_logging
 from app.infra.mcp import create_mcp_client
 from app.infra.prompt_provider import PromptProvider
@@ -72,6 +75,8 @@ def _load_prompt_config(agent_config: Any, name: str) -> dict[str, Any]:
             "model": agent_config.summarization.model,
             "max_tokens": agent_config.summarization.max_summary_tokens,
         }
+    if name == "guard-classifier" and agent_config.security:
+        return {"model": agent_config.security.guard_model}
     return {}
 
 
@@ -87,7 +92,7 @@ def _seed_prompts(
     This gives full isolation between environments — each has its own version history.
     Dedup compares file content against all versions of the qualified prompt.
     """
-    for prompt_name in ["system", "summarization"]:
+    for prompt_name in ["system", "summarization", "guard-classifier"]:
         file_path = prompts_dir / f"{prompt_name}.txt"
         if not file_path.exists():
             continue
@@ -155,6 +160,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         ensure_model_definitions(agent_config.models)
     except Exception:
         logger.warning("langfuse model definitions init failed", exc_info=True)
+
+    try:
+        ensure_security_score_config()
+    except Exception:
+        logger.warning("langfuse security score config init failed", exc_info=True)
 
     logger.debug(
         "loaded config",
@@ -274,11 +284,30 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         app.state.tool_resolver = tool_resolver
 
+        # Security guard (optional — only if security config present)
+        security_guard = None
+        if agent_config.security:
+            guard_llm = create_guard_llm(settings, agent_config.security)
+            security_guard = SecurityGuard(
+                guard_llm=guard_llm,
+                prompt_provider=prompt_provider,
+                config=agent_config.security,
+            )
+            logger.info(
+                "security guard initialized",
+                guard_model=agent_config.security.guard_model,
+            )
+
+        if not settings.canary_secret:
+            logger.warning("CANARY_SECRET not configured, canary protection disabled")
+
         app.state.agent_runner = LangGraphAgentRunner(
             graph_factory=graph_factory,
             model_resolver=model_resolver,
             checkpointer=checkpointer,
             tool_resolver=tool_resolver,
+            security_guard=security_guard,
+            canary_secret=settings.canary_secret,
         )
         app.state.agent_config = agent_config
 

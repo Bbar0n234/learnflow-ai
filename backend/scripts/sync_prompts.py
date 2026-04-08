@@ -17,7 +17,7 @@ CONFIGS_DIR = Path(__file__).resolve().parents[2] / "configs"
 PROMPTS_DIR = CONFIGS_DIR / "prompts"
 AGENT_YAML = CONFIGS_DIR / "agent.yaml"
 
-PROMPT_NAMES = ["system", "summarization"]
+PROMPT_NAMES = ["system", "summarization", "guard-classifier"]
 
 
 def sync_to_files(label: str) -> None:
@@ -61,6 +61,8 @@ def _update_agent_yaml(prompt_name: str, config: dict) -> None:
         data.setdefault("summarization", {})["model"] = config["model"]
         if "max_tokens" in config:
             data["summarization"]["max_summary_tokens"] = config["max_tokens"]
+    elif prompt_name == "guard-classifier" and "model" in config:
+        data.setdefault("security", {})["guard_model"] = config["model"]
 
     with open(AGENT_YAML, "w") as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False)

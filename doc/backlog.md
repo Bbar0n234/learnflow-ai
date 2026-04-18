@@ -16,6 +16,8 @@
 ## Agent
 
 - **P2** LangGraph Store deep-dive — изучить Store вдоль и поперёк: все возможности, лимиты, best practices, продвинутые паттерны (semantic search, IndexConfig, cross-namespace стратегии). Цель — максимально использовать Store как unified memory backend
+- **P2** Reasoning ChatOpenAI everywhere — convention + migration. Все модели проекта (security guard, summarizer, main agent, future sub-agents) используют `ReasoningChatOpenAI`, не plain `ChatOpenAI`. Reasoning виден в Langfuse — критично для guard verdict debug, summarizer behavior analysis, main agent improvement loop. Pattern уже реализован в коде; нужно: (a) добить остальные модели (summarizer, guard) на `ReasoningChatOpenAI`; (b) зафиксировать convention в `doc/tech/conventions.md` (формулировка примерно: "все модели в проекте используют `ReasoningChatOpenAI` by default; exception только для явно non-reasoning моделей"). Связано с существующим P2 "Guard LLM reasoning" в Security — закрывается частично *(Agent)*
+- **P2** Model whitelist expansion — расширить whitelist моделей в `agent.yaml` минимум до 5 основных (текущий: GLM-5, Gemini 1.5 Pro). Добавить минимум GLM-5.1, остальной список основных моделей — на этапе реализации. Включить pricing initialization в Langfuse через lifespan для всех новых моделей (включая текущую guard model — её стоимость сейчас не видна в Langfuse). Связано с существующим P2 "Guard LLM observability" в Security *(Agent)*
 - **P3** Proactive KS maintenance — отдельный canvas для обсуждения актуализации Knowledge Sphere с агентом (параллельно с основной работой) *(cross: Frontend)*
 - **P3** Message compaction: trim_messages выполняется безусловно, должен — только при превышении порога и неудачной суммаризации
 
@@ -35,7 +37,6 @@
 
 - **P1** KS Write Guard — guard при записи в Knowledge Sphere (защита от memory poisoning). Тот же LLM classifier с контекстным промптом. При наличии фундамента feat-004 — минимальный effort *(Agent)*
 - **P1** LLM Output Classifier — семантическая проверка ответа агента на утечку system prompt и internal data. Тот же BaseGuard, другой промпт *(Agent)*
-- **P1** SUSPICIOUS → конкретные ограничения — определить и реализовать действия при SUSPICIOUS verdict (ограничение tools, алерт админу и т.д.) *(Agent, Backend)*
 - **P2** Guard LLM observability — SecurityGuard generation не передаёт `usage` в Langfuse → costs = 0; отсутствует `output_reasoning` price для `gemini-3.1-flash-lite-preview` в `agent.yaml`. Фикс: извлечь `response.response_metadata["token_usage"]` после `ainvoke()` → `obs.update(usage=...)`; добавить `output_reasoning` в конфиг *(Agent)*
 - **P2** Guard LLM reasoning — `create_guard_llm` использует plain `ChatOpenAI`, не `ReasoningChatOpenAI` → reasoning tokens выбрасываются. Для интерпретации вердиктов и улучшения классификаторов нужны рассуждения. Фикс: поддержка `include_reasoning` в `SecurityConfig.guard_extra_body`, условный выбор `ReasoningChatOpenAI` *(Agent)*
 - **P2** SecurityObserver extraction — вынос Langfuse observability кода (~90 строк) из runner.py в отдельный SecurityObserver. Runner содержит business logic (вызов guard, verdict → action), observer инкапсулирует guardrail observations, score_trace, metadata. SRP: runner не должен знать о Langfuse internals *(Agent)*
@@ -43,7 +44,6 @@
 - **P2** Semantic Similarity output check — embedding-based проверка ответа на близость к system prompt *(Agent)*
 - **P2** Async Guard — параллельная проверка guard с main LLM для снижения latency. Tool execution ждёт вердикта *(Agent)*
 - **P2** Multi-turn escalation detection — обнаружение постепенных атак через серию сообщений *(Agent)*
-- **P2** Security Event Pipeline — единая подсистема сбора, хранения и корреляции security-событий из всех источников (auth, rate limiter, security guard/Langfuse). structlog processor как точка интеграции: маркированные log-вызовы автоматически становятся security events, без дублирования emit-логики в бизнес-коде. Correlation engine (background asyncio task) — SQL-правила по time window + группировке (IP, user_id). Результат: таблицы `security_events` + `security_alerts` в PostgreSQL, REST API + React-страница для мониторинга. Langfuse остаётся source of truth для LLM traces/prompts; security events — нормализованный слой поверх всех источников *(Backend, Agent, Frontend)*
 - **P2** Base prompt + security wrapper merge — сейчас `security system prompt` оборачивает `base system prompt` через Jinja-шаблон в `prompt_build.py`. Архитектурно плохо: security-промпт нельзя модифицировать без изменения кода, он не живёт как обычный промпт в Langfuse. Варианты: (a) объединить в единый промпт, в котором security-обвязка — неотъемлемая часть основного; (b) оставить два, но вынести оба в Langfuse с явным контрактом обёртывания. Замечено при обсуждении `tech/security.md`, но исправление в коде *(Agent)*
 
 ## Cross-cutting

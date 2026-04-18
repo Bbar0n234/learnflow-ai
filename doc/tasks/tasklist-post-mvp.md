@@ -24,16 +24,23 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 | feat-002 | ✅ Done | agent/backend | Agent observability & tooling |
 | feat-003 | ✅ Done | cross-cutting | Runtime agent configuration (3 tracks: Langfuse+Model, Memory, User MCP) |
 | feat-004 | ✅ Done | agent/backend | Prompt injection protection |
+| feat-005 | 📋 Planned | cross-cutting | Security Event Pipeline (SIEM Core): collection, correlation, alerting, monitoring UI |
+| feat-006 | 📋 Planned | agent | Security 2.0: Universal I/O Guard + Boundary Enforcement |
+| feat-007 | 📋 Planned | cross-cutting | SIEM Extensions: dashboard, basic response actions, search, notifications, export |
 
 ## Параллелизация
 
 ```
-feat-003 (Agent Config: 3 tracks) ── feat-004 (Security) ──
-feat-001 (Chat UX) ── когда будет время ────────────────────
+feat-003 (Agent Config: 3 tracks) ── feat-004 (Security) ─┬─ feat-005 (SIEM Core) ── feat-007 (SIEM Extensions)
+                                                          └─ feat-006 (Security 2.0) ─────────────────────────
+feat-001 (Chat UX) ── когда будет время ─────────────────────────────────────────────────────────────────────
 ```
 
 - **feat-003** — первый приоритет. Три трека проектируются параллельно (Track A: Langfuse+Model, Track B: Memory, Track C: User MCP), реализуются вместе
 - **feat-004** — после feat-003 (security проектируется по финальной поверхности атаки)
+- **feat-005** — после feat-004 (строится поверх security-событий Security 1.0; forward compatible с Security 2.0)
+- **feat-006** — после feat-004, параллельно с feat-005, не блокирует и не блокируется (разные scope: SIEM = aggregation/correlation events, Security 2.0 = расширение защиты на новые I/O границы графа)
+- **feat-007** — после feat-005; продуктовые улучшения поверх SIEM Core (dashboard, basic ban, search, notifications, export)
 - **feat-001** — отложена, не блокирует реальное использование
 
 ## Итерации
@@ -214,3 +221,142 @@ KS Write Guard, LLM Output Classifier, SUSPICIOUS → ограничения, To
 - [summary.md](iterations/post-mvp/feat-004-security/summary.md) — Post-implementation summary: отклонения, решения, tech debt
 - [security.md](../tech/security.md) — Архитектурный документ: три слоя защиты, SecurityGuard, canary, hardening, observability
 - [ADR-017](../tech/adr/ADR-017-prompt-injection-defense.md) — Prompt Injection Defense: sync guard, full history, fail-open, hardening wrapper
+
+---
+
+### feat-005: Security Event Pipeline (SIEM Core)
+
+**Цель:** SIEM-подсистема: сбор, нормализация, хранение и корреляция security-событий из всех источников (SecurityGuard, auth, rate limiter). Alerting, REST API, React monitoring page. Закрывает academic SIEM requirements (R1–R10) + backlog P2.
+
+**Статус:** 📋 Planned
+**Scope:** cross-cutting (Backend + Frontend)
+**After:** feat-004
+
+#### Из backlog
+
+- **P2** Security Event Pipeline — unified subsystem for collecting, storing, and correlating security events from all sources (auth, rate limiter, security guard/Langfuse). structlog processor as integration point. Correlation engine (background asyncio task) with SQL rules by time window + grouping (IP, user_id). Result: `security_events` + `security_alerts` tables in PostgreSQL, REST API + React page for monitoring. *(cross: Backend, Frontend)*
+
+#### Definition of Done
+
+**Event Collection & Storage (R1, R2):**
+- [ ] structlog processor перехватывает log-вызовы с `security_event=True`, записывает в `security_events`
+- [ ] Таблица `security_events`: id, event_type, severity, source, timestamp, identifiers (JSONB), metadata (JSONB)
+- [ ] Таблица `security_alerts`: id, rule_id, severity, matched_events, status (new/acknowledged/resolved), created_at, acknowledged_at, resolved_at
+- [ ] Таблица `correlation_rules`: id, name, rule_type, config (JSONB), severity, enabled
+
+**Correlation Engine (R3, R4):**
+- [ ] Background asyncio task с настраиваемым polling interval
+- [ ] Типы правил: Threshold, Sequence, Aggregate
+- [ ] Минимум 4 правила: brute_force_auth, injection_spike, targeted_attack, mass_suspicious
+- [ ] Срабатывание правила → создание записи в `security_alerts`
+
+**REST API (R5, R6):**
+- [ ] `GET /api/security/events` — pagination + фильтры (event_type, severity, source, time range)
+- [ ] `GET /api/security/alerts` — pagination + фильтры (severity, status)
+- [ ] `PATCH /api/security/alerts/:id` — acknowledge / resolve (admin only)
+
+**Frontend (R5, R9):**
+- [ ] React страница `/security`: список событий + алертов с фильтрами
+- [ ] UI labels на русском (локализация)
+
+**RBAC + meta-logging (R7, R8):**
+- [ ] Admin-only доступ к `/security` endpoints и странице
+- [ ] CRUD-операции с alerts мета-логируются как security events
+
+**Integration (R1):**
+- [ ] Существующие log-вызовы в SecurityGuard, auth дополнены `security_event=True`
+
+**Rules extensibility (R10):**
+- [ ] Добавление нового correlation rule не требует изменения кода SIEM (механизм определяется на Phase 2: таблица в БД / YAML-seed / CRUD API / комбинация)
+- [ ] Добавление нового event_type не требует изменения кода SIEM (schema не валидирует конкретные значения)
+
+**Cross-cutting:**
+- [ ] `make check` + `make check-fe` проходят
+- [ ] Миграции применяются на чистой БД
+
+#### Сознательно deferred
+
+Dashboard & Metrics, basic response actions (ban IP/user), расширенный Search, Notifications, Export — вынесены в feat-007. Threat Intelligence, UEBA, SOAR automation, Log Forwarding, Compliance Frameworks — out of scope (not planned).
+
+#### Документация
+
+- [design-brief.md](iterations/post-mvp/feat-005-security-event-pipeline/design-brief.md) — Context, scope, функциональная карта, контракт событий, scope boundaries
+
+---
+
+### feat-006: Security 2.0 — Universal I/O Guard + Boundary Enforcement
+
+**Цель:** расширить защиту от prompt injection на все I/O границы графа (tool input/output, KS write, semantic output) + ввести бинарную enforceable границу confidentiality (PUBLIC capabilities / PRIVATE identifiers).
+
+**Статус:** 📋 Planned (skeleton, ожидает research outputs)
+**Scope:** agent
+**After:** feat-004
+**Параллельно с:** feat-005
+
+#### Triggered by
+
+- Red Team incidents: tools/schemas leak через social engineering, MCP injection vector confirmed
+- Investigation: [tool-confidentiality-investigation.md](iterations/post-mvp/feat-006-security-2.0/tool-confidentiality-investigation.md)
+
+#### Из backlog (переходят в этот scope)
+
+- **P1** KS Write Guard
+- **P1** LLM Output Classifier
+- **P2** Tool Result Guard
+- **P2** Semantic Similarity output check (становится частью Output Classifier composite)
+
+#### Новые элементы (вне existing backlog)
+
+- Tool Call Guard (новый attack vector — MCP injection через arguments)
+- Boundary formalization (encapsulation principle: PUBLIC/PRIVATE)
+- Composite deterministic detector (tool-name greppable + threshold)
+- Eval infrastructure (trace harvest → curated dataset → regression runner)
+
+#### Research items (pending, sub-agents)
+
+- **R1** — Industry MCP defense overview
+- **R2** — Output vs system prompt similarity metric
+- **R3** — Confidentiality boundary precise definition
+
+#### Сознательно вне scope (остаётся в backlog или другие итерации)
+
+- Multi-turn escalation detection — symptom Класса 2, не отдельная проблема (текущий guard видит history)
+- Async Guard — latency-оптимизация, после functional baseline
+- SecurityObserver extraction — SIEM-related, отдельно
+- Base prompt + security wrapper merge — tech debt, отдельно
+- Reasoning ChatOpenAI everywhere — отдельный convention/backlog item
+- Model whitelist expansion — отдельный backlog item
+- **SUSPICIOUS actions (graduated response)** — переезжают в feat-007 (SIEM Extensions) как расширение существующего ban mechanism. В Sec 2.0 verdict только логируется как сейчас
+- **KS Write через direct REST endpoint** — open question при детальном проектировании Phase 3. Делаем, если обёртывается без капитального рефакторинга абстракций; откидываем, если требует перелопачивания половины проекта
+
+#### Документация
+
+- [design-brief.md](iterations/post-mvp/feat-006-security-2.0/design-brief.md) — Skeleton: context, threat model, principles, coverage map, eval strategy, phasing. Финализация после research
+- [tool-confidentiality-investigation.md](iterations/post-mvp/feat-006-security-2.0/tool-confidentiality-investigation.md) — Investigation notes (Iteration 1, провал, Key Insight)
+
+---
+
+### feat-007: SIEM Extensions
+
+**Цель:** продуктовые расширения поверх SIEM Core (feat-005): dashboard с метриками, базовые manual response actions (ban IP/user из UI), расширенный поиск/фильтры, in-app notifications, export событий и алертов.
+
+**Статус:** 📋 Planned
+**Scope:** cross-cutting (Backend + Frontend)
+**After:** feat-005
+
+#### Scope
+
+- **Dashboard & Metrics** — агрегатные REST-эндпоинты поверх `security_events` / `security_alerts`; графики events/hour, severity distribution, top event_types, trends
+- **Basic response actions** — manual-trigger блокировка (ban IP / ban user) из алерта или events list. Отдельная таблица `security_blocks`; auth middleware читает её и отклоняет заблокированные IP/user. SIEM остаётся точкой наблюдения, executor — auth middleware
+- **Graduated Response extension** — correlation rule на SUSPICIOUS verdicts от SecurityGuard (Sec 1.0/2.0): `N suspicious в M сообщениях → automated ban через существующий security_blocks mechanism`. Связывает graduated response (CLEAN / SUSPICIOUS / INJECTION) с actionable enforcement. Сейчас SUSPICIOUS только логируется; здесь добавляется actionable слой поверх threshold-правил. Приходит из feat-006 (Sec 2.0) как сознательно deferred функционал
+- **Extended Search** — полнотекстовый поиск по metadata, timeline-view, drill-down от алерта к событиям. GIN index на JSONB
+- **Notifications** — in-app badge / toast при новых алертах (триггер на `status=new`)
+- **Export** — CSV/PDF экспорт событий и алертов за период
+
+#### Архитектурный инвариант
+
+Response actions расширяют ответственность SIEM с чистого observer'а на observer+manual-responder. Сепарация сохраняется через отдельную таблицу блокировок: SIEM записывает intent, auth middleware исполняет. Автоматические response actions (auto-ban на threshold) в scope не входят — это SOAR, остаётся not planned.
+
+#### Документация
+
+На этапе tasklist содержательный design-brief не пишется; создаётся при старте итерации.

@@ -1,32 +1,27 @@
 # Design Brief: Security 2.0 — Universal I/O Guard + Boundary Enforcement
 
-> **Статус:** Skeleton. Архитектурные решения pending по результатам research items (R1, R2, R3).
+> **Статус:** Skeleton. Зафиксированы: §3.2 (boundary PUBLIC/PRIVATE), §3.7 (эскиз промпта), §5 (coverage map). Pending: R1 (MCP defense overview), R2 (output similarity metric). R3 закрыт отчётом [confidentiality-boundary-research.md](../../../../research/security/confidentiality-boundary-research.md).
 > Документ обновляется по мере поступления research outputs и итераций обсуждения с архитектором.
 
 ## 1. Context & Trigger
 
 ### 1.1 Trigger
 
-После внедрения Security 1.0 (feat-004) Red Team обнаружил серию уязвимостей:
+После внедрения Security 1.0 (feat-004) Red Team обнаружил серию уязвимостей. Картина по итогам дополнительного опроса:
 
-1. **Утечка системного промпта** — получена через MCP tool argument (не через conversation)
-2. **Раскрытие описаний инструментов** — выдаёт точные имена, параметры и схемы через conversation
-3. **Расширение surface после Iteration 1** — попытка ограничить описания в промпте не сработала; модель находит обходы (format-shift, перефразирование)
-
-**Уточнение после дополнительного опроса Red Team:**
-
-- Системный промпт через conversation (escalation, social engineering) **держится** — Sec 1.0 защита эффективна
-- Системный промпт утёк **только через MCP** — это разрыв в покрытии (Class 1), не слабость контроля моделью
-- Описания tools/параметров утекают через conversation — это основная активная проблема (Class 2), слабость boundary enforcement
+- **Системный промпт через conversation** (escalation, social engineering) — **держится**, защита Sec 1.0 эффективна
+- **Системный промпт через MCP tool argument** (подтверждено: `health_check(environment_config=...)`) — утёк. Разрыв в покрытии (Class 1), не слабость контроля моделью
+- **Точные имена tools, параметры и схемы через conversation** — утекают при запросе с «internal documentation» framing. Основная активная проблема (Class 2), слабость boundary enforcement
+- **Iteration 1** — попытка ограничить описания в промпте не сработала: модель находит обходы (format-shift, перефразирование)
 
 ### 1.2 References
 
-- [tool-confidentiality-investigation.md](./tool-confidentiality-investigation.md) — рабочее расследование инцидента, Iteration 1, провал и Key Insight
+- [tool-confidentiality-investigation.md](./tool-confidentiality-investigation.md) — расследование инцидента, Iteration 1, Key Insight
 - [doc/security/threat-model.md](../../../../security/threat-model.md) — модель угроз (V1–V3)
-- [doc/security/architecture.md](../../../../security/architecture.md) — архитектура Security 1.0 (трёхслойная защита, extension points)
-- [doc/research/security/llm-defense-architecture-research.md](../../../../research/security/llm-defense-architecture-research.md) — архитектурный research: Defense in Depth (§2.1), Trust Boundaries (§2.2), Assume Compromise (§2.5), Least Privilege (§2.3), Fail-Safe Defaults (§2.4)
-- [doc/reference/security/prompt-injection-guard-reference.md](../../../../reference/security/prompt-injection-guard-reference.md) — паттерны runtime-защиты (принцип проверки всех входов §1.1, многоуровневые guard'ы §1.2, graduated response §1.3)
-- [doc/research/security/prompt-hardening-techniques.md](../../../../research/security/prompt-hardening-techniques.md) — техники: иерархия инструкций, sandwich defense, role anchoring, delimiters
+- [doc/security/architecture.md](../../../../security/architecture.md) — архитектура Security 1.0, extension points
+- [doc/research/security/llm-defense-architecture-research.md](../../../../research/security/llm-defense-architecture-research.md) — Defense in Depth, Trust Boundaries, Assume Compromise, Least Privilege, Fail-Safe Defaults
+- [doc/reference/security/prompt-injection-guard-reference.md](../../../../reference/security/prompt-injection-guard-reference.md) — runtime-защита: проверка всех входов, многоуровневые guard'ы, graduated response
+- [doc/research/security/prompt-hardening-techniques.md](../../../../research/security/prompt-hardening-techniques.md) — иерархия инструкций, sandwich defense, role anchoring, delimiters
 - [feat-004 summary](../feat-004-security/summary.md) — реализованное в Security 1.0
 
 ### 1.3 Security 1.0 — что работает / что не работает
@@ -77,11 +72,11 @@ Confidentiality системного промпта на уровне conversati
 
 ### 2.3 Multi-turn escalation — проявление, не отдельная уязвимость
 
-Градуальное расширение контекста, наблюдавшееся в трейсах — это **не отдельная проблема**, а следствие Класса 2. Когда граница PUBLIC/PRIVATE будет binary и enforce'на output-классификатором, градуальный социальный инжиниринг теряет смысл: каждое отдельное сообщение не пройдёт детектор независимо от фрейма.
+Градуальное расширение контекста, наблюдавшееся в трейсах — это **не отдельная проблема**, а следствие Класса 2. Когда граница PUBLIC/PRIVATE будет binary и принудительно применяется output-классификатором, градуальный социальный инжиниринг теряет смысл: каждое отдельное сообщение не пройдёт детектор независимо от фрейма.
 
 Guard classifier уже видит полную conversation history → multi-turn как mechanism классификации работает. Проблема была в неоднозначности того, что считать утечкой.
 
-→ Multi-turn detection как отдельный механизм — **out of scope** данной итерации. Остаётся в backlog на переоценку если возникнет конкретный pain.
+→ Multi-turn detection как отдельный механизм — **out of scope** данной итерации.
 
 ## 3. Architectural Principles
 
@@ -124,24 +119,20 @@ Security 2.0 реализует то, что архитектурно преду
 
 **Правило «no echo»:** если пользователь сам назвал техническое имя («вызови brave_web_search»), агент не подтверждает и не повторяет. Отвечает в терминах возможности («Выполнил поиск»). Иначе атакующий получает подтверждение, просто угадывая имя.
 
-**Свойства границы:** бинарная (каждый элемент явно в одной из колонок), enforce'имая (runtime-детектор + классификатор, §3.5), тестируемая (eval dataset по категориям PRIVATE).
+**Свойства границы:** бинарная (каждый элемент явно в одной из колонок), обязательна к исполнению (runtime-детектор + классификатор, §3.4), тестируемая (eval dataset по категориям PRIVATE).
 
 **Грей-зоны:** при проработке разобраны пограничные случаи (сообщения об ошибках с техидентификаторами, вопросы пользователя про инструменты, артефакты и цитаты, MCP пользователя, ссылки агента на процесс рассуждения, накопление при дроблении описания возможности). Все они сводятся к принципу «возможность vs реализация» и не вносятся в промпт отдельными правилами — зафиксированы как проверочные кейсы для eval (§7.2).
 
 **Обоснование через векторы атак:** PRIVATE-элементы закрывают reconnaissance (enumeration поверхности атаки для косвенной injection), tool poisoning (подмена описаний через MCP), targeted attacks (атакующий с точными идентификаторами конструирует payload). Детали — в [confidentiality-boundary-research.md](../../../../research/security/confidentiality-boundary-research.md).
 
-### 3.3 Defense in Depth + Assume Compromise (architect-level only)
+### 3.3 Принципы уровня архитектора + изоляция classifier'ов
 
-Базовые принципы ИБ, применяются на уровне архитектурного проектирования:
+Базовые принципы ИБ применяются на уровне архитектурного проектирования — **не транслируются в classifier prompt'ы**:
 
 - **Defense in Depth** — многослойная защита, ни один слой не достаточен. См. [llm-defense-architecture-research.md §2.1](../../../../research/security/llm-defense-architecture-research.md)
 - **Assume Compromise** — проектируем считая, что любой слой может быть скомпрометирован. См. [llm-defense-architecture-research.md §2.5](../../../../research/security/llm-defense-architecture-research.md)
 
-**Важно:** эти принципы применяются на уровне architect, **не транслируются в classifier promptы** (см. §3.4).
-
-### 3.4 Classifier Isolation
-
-Каждый guard **строго изолирован** от существования других guard'ов:
+**Classifier Isolation.** Каждый guard строго изолирован от существования других guard'ов:
 
 - В classifier prompt **нет** упоминаний "до тебя проверил X" или "после тебя проверит Y"
 - Classifier знает только свой checkpoint scope и что ему искать
@@ -149,16 +140,16 @@ Security 2.0 реализует то, что архитектурно преду
 
 **Обоснование:** lightweight guard LLM, осведомлённая о наличии других слоёв, получает психологическое оправдание халтурить ("следующий поймает"). FN rate растёт. Изоляция убирает этот confound.
 
-### 3.5 Контроль на уровне prompt'а — defense-in-depth, не primary
+### 3.4 Контроль на уровне prompt'а — defense-in-depth, не primary
 
-Iteration 1 показала: ограничения в системном промпте **не enforce'ятся надёжно** — модель находит обходы.
+Iteration 1 показала: ограничения в системном промпте **не принуждаются к исполнению надёжно** — модель находит обходы.
 
 Индустриальный research подтверждает: "adaptive attacks bypass explicit priority markers with 95–99% success when the attacker has knowledge of the defense" ([prompt-hardening-techniques.md §1.1](../../../../research/security/prompt-hardening-techniques.md), The Attacker Moves Second, Oct 2025).
 
-→ **Primary enforcement:** detect-and-block на output (composite metric + classifier).
+→ **Основная линия защиты:** detect-and-block на output (composite metric + classifier).
 → Инструкции в системном промпте остаются как второй слой (задают желаемое поведение), но не основа защиты.
 
-### 3.7 Двухуровневая защита output: детерминированная + LLM классификация
+### 3.5 Двухуровневая защита output: детерминированная + LLM классификация
 
 Output guard'ы Sec 2.0 состоят из двух слоёв разной природы:
 
@@ -168,17 +159,17 @@ Output guard'ы Sec 2.0 состоят из двух слоёв разной п�
 **Принципы:**
 
 - **Дополнительность, не замещение** — слои друг друга не исключают. Defense in Depth (§3.3), разные методы детектирования
-- **Short-circuit** — при срабатывании детерминированного слоя mid-stream классификатор не запускается (стрим уже обрван, действие выполнено)
+- **Short-circuit** — при срабатывании детерминированного слоя mid-stream классификатор не запускается (стрим уже оборван, действие выполнено)
 - **Единое действие** — любой слой генерирует LEAK → один и тот же ответ (§5). Источник детекта (canary / composite / classifier) пишется в метаданные для трейсов и eval
 - **Функциональное описание classifier'а** — описываем задачу классификатора в общих терминах (детектирование утечек в рамках границы §3.2). Явный акцент «ищи exact matches» или «не ищи exact matches» не делаем — scope формируется задачей и eval dataset'ом, не инструкцией про другие слои
 
-### 3.8 Единое правило для всех пользователей
+### 3.6 Единое правило для всех пользователей
 
 Output boundary и все guard'ы применяются одинаково ко всем пользователям. Ролевые исключения, admin/owner/developer-exemption, debug-mode ослабления в runtime — не вводятся. Ролевая модель в агентском runtime не строится.
 
-Если в будущем понадобится debug / аудит / инцидент-разбор — через отдельные каналы (Langfuse traces, SIEM metadata в feat-005/007, logs), не через ослабление user-facing ответа. Связано с §7.2 (user's own MCP — та же единая строгость).
+Если в будущем понадобится debug / аудит / инцидент-разбор — через отдельные каналы (Langfuse traces, SIEM metadata в feat-005/007, logs), не через ослабление user-facing ответа. Связано с §7.2 (user's own MCP — та же единая строгость для пользовательских MCP).
 
-### 3.9 Примерное содержание промпта (эскиз)
+### 3.7 Примерное содержание промпта (эскиз)
 
 > **Статус:** формулировки не финальные, корректируются по ходу реализации и eval.
 
@@ -195,7 +186,7 @@ Output boundary и все guard'ы применяются одинаково к�
 **Разделение ответственности:**
 
 - Промпт задаёт намерение (desired behavior)
-- Primary enforcement — runtime-детектор + классификатор (§3.5)
+- Основная линия защиты — runtime-детектор + классификатор (§3.4)
 - Грей-зоны фиксируются как проверочные кейсы eval (§7.2), не попадают в промпт
 
 ## 4. Open Research Items (pending sub-agents)
@@ -220,7 +211,7 @@ Output boundary и все guard'ы применяются одинаково к�
 
 **Результат research:** [confidentiality-boundary-research.md](../../../../research/security/confidentiality-boundary-research.md) — индустриальные позиции (Anthropic, OpenAI, MCP, Lakera, Rebuff), обоснование через векторы атак (reconnaissance, tool poisoning), приёмы борьбы с ложными срабатываниями.
 
-**На основе отчёта финализированы:** §3.2 (принцип «возможность vs реализация», списки PUBLIC/PRIVATE, no-echo правило), §3.6 (эскиз содержания промпта).
+**На основе отчёта финализированы:** §3.2 (принцип «возможность vs реализация», списки PUBLIC/PRIVATE, no-echo правило), §3.7 (эскиз содержания промпта).
 
 ## 5. Coverage Map (target)
 
@@ -232,14 +223,14 @@ graph TB
 
     subgraph IN["In-graph (agent processor / node interceptors)"]
         LLM["Main LLM"]
-        TC[tool_call_arg] --> G2["BaseGuard<br/>NEW"]
-        TR[tool_result] --> G3["BaseGuard<br/>NEW"]
-        KS[ks_write: agent path] --> G4["BaseGuard<br/>NEW"]
+        TC[tool_call_arg] --> G2["BaseGuard<br/>новый"]
+        TR[tool_result] --> G3["BaseGuard<br/>новый"]
+        KS[ks_write: agent path] --> G4["BaseGuard<br/>новый"]
     end
 
     subgraph POST["Stream"]
         FO[final_output] --> G5["Canary substr<br/>есть"]
-        FO --> G6["Output Classifier<br/>semantic + composite<br/>NEW"]
+        FO --> G6["Output Classifier<br/>semantic + composite<br/>новый"]
     end
 
     G1 -->|verdict| LLM
@@ -257,10 +248,10 @@ graph TB
 | Checkpoint | Pre-filter (deterministic) | Classifier prompt | Verdict |
 |-----------|---------------------------|-------------------|---------|
 | user_input | canary, unicode (есть) | guard-classifier (есть) | block / pass / (suspicious logged) |
-| tool_call_arg | canary в args, system_prompt overlap (NEW) | tool-call-guard (NEW) | pending |
-| tool_result | TBD | tool-result-guard (NEW) | pending |
-| ks_write (agent) | TBD | ks-write-guard (NEW) | pending |
-| final_output | canary substr (есть), composite tool-name detector (NEW) | output-classifier (NEW, R2 informs) | pending |
+| tool_call_arg | canary в args, system_prompt overlap (новый) | tool-call-guard (новый) | pending |
+| tool_result | TBD | tool-result-guard (новый) | pending |
+| ks_write (agent) | TBD | ks-write-guard (новый) | pending |
+| final_output | canary substr (есть), composite tool-name detector (новый) | output-classifier (новый, R2 informs) | pending |
 
 **Out of coverage:**
 
@@ -281,30 +272,19 @@ graph TB
 
 **Действие при детектировании утечки:**
 
-Действие **не зависит от источника триггера** — детерминированный и classifier приводят к одному результату.
+Действие **не зависит от источника триггера** — детерминированный и classifier приводят к одному результату. Отдельная таблица инцидентов не вводится: checkpointer выступает источником audit-данных (оригинал + timestamp + контекст через `thread_id`). Проекция для SIEM-агрегации — при необходимости в feat-007.
 
 При LEAK:
 
-1. **Флаг на `AIMessage`** — `additional_kwargs["security_redacted"] = True`. Используем механизм BaseMessage (аналогично `additional_kwargs["created_at"]`, см. `graph.py:222`, `runner.py:538`). Checkpointer сохраняет сообщение с оригинальным content и флагом. Отдельная таблица инцидентов не вводится — checkpointer выступает источником audit-данных (оригинал + timestamp + контекст через `thread_id`).
-   
-   Применяется ко всем триггерам:
+1. **Флаг на `AIMessage`** — `additional_kwargs["security_redacted"] = True`. Используем механизм BaseMessage (аналогично `additional_kwargs["created_at"]`, см. `graph.py:222`, `runner.py:538`). Checkpointer сохраняет сообщение с оригинальным content и флагом.
    - **End-of-stream** (classifier) — флаг ставится на финализированный в state `AIMessage` в ноде графа перед checkpoint'ом
-   - **Mid-stream** (canary, composite) — после `return` из generator'а записываем **синтетический** `AIMessage` с накопленным ответом и флагом. Механизм записи (`graph.update_state` vs прямой checkpoint write) детализируется на Phase 1 — см. §11
-   
-   **Fallback:** если LangGraph API не даёт чистого пути mid-stream write без переделки runner'а или графа — откатываемся на асимметричное поведение: mid-stream триггеры без записи в checkpointer, end-of-stream classifier как описано. Выравнивание в backlog. Решение — на Phase 1
+   - **Mid-stream** (canary, composite) — после `return` из generator'а записываем **синтетический** `AIMessage` с накопленным ответом и флагом. Механизм mid-stream write — open question, см. §11; при отсутствии чистого пути — fallback на асимметричное поведение (mid-stream без записи в checkpointer, выравнивание в backlog)
 
 2. **Фильтр в API-маппере истории** — при чтении из checkpointer: если флаг `security_redacted` → content заменяется на generic-заглушку, добавляется признак `redacted: true` для UI
 
 3. **Thread-level блокировка** — `thread_views.security_blocked = True`. Middleware отклоняет POST в тред (продолжение) с 403. GET истории разрешён — пользователь видит свои сообщения + заглушку вместо утекшего ответа
 
 4. **Потоковая передача** — отправляется `security_block` SSE event; frontend заменяет уже отрисованный текст на заглушку (UX trade-off описан выше)
-
-**Что НЕ делаем:**
-
-- Отдельная таблица `security_incidents` — оригинал в checkpointer, дубль не требуется. Когда feat-007 (SIEM) потребует быстрой агрегации инцидентов — вводим как проекцию
-- Мутация state через `graph.update_state` — флаг ставится на сообщение в ноде перед checkpoint'ом (как `created_at`)
-- Отрезание history на чтении — не требуется, content подменяется по флагу на уровне DTO-маппера
-- Различение действия по триггеру — единое действие независимо от источника
 
 ## 6. Component Spec (skeleton — детали после research)
 
@@ -314,10 +294,10 @@ graph TB
 - **Tool Call Guard** — pre-execution для каждого tool call, валидирует аргументы (canary, overlap системного промпта, LLM классификатор)
 - **Tool Result Guard** — post-execution, валидирует результат tool'а
 - **KS Write Guard** — перед записью в Knowledge Sphere (path агента), полная LLM-проверка
-- **LLM Output Classifier** — семантическая проверка полного ответа (end-of-stream). Работает в связке с детерминированным слоем (§3.7). Вердикт: CLEAN / SUSPICIOUS / LEAK (SUSPICIOUS → только лог). R2 informs метрика. Latency ~1–3 сек — frontend показывает индикатор в конце потока. При LEAK — post-factum замена в UI через `security_block` event. Промпт описывает задачу функционально через границу §3.2, без прямых указаний «ищи / не ищи exact matches» — эта область естественно покрывается детерминированным слоем и eval dataset'ом
-- **Composite deterministic detector** — автоматически собираемый список имён инструментов, параметров, MCP-серверов, провайдеров (из конфигов). Проверяет каждый чанк как canary-check, ловит exact matches в реальном времени (R3 informs FP strategy). Canary-check — частный случай этого detector'а; на Phase 1 предусмотреть возможность слияния (оптимизация, не блокирует). Если mid-stream write в checkpointer окажется дорогим — canary остаётся отдельно с новой механикой, merge откладывается
+- **LLM Output Classifier** — семантическая проверка полного ответа (end-of-stream). Работает в связке с детерминированным слоем (§3.5). Вердикт: CLEAN / SUSPICIOUS / LEAK (SUSPICIOUS → только лог). R2 informs метрика. Latency ~1–3 сек — frontend показывает индикатор в конце потока. При LEAK — post-factum замена в UI через `security_block` event. Промпт описывает задачу функционально через границу §3.2, без прямых указаний «ищи / не ищи exact matches» — эта область естественно покрывается детерминированным слоем и eval dataset'ом
+- **Composite deterministic detector** — автоматически собираемый список имён инструментов, параметров, MCP-серверов, провайдеров (из конфигов). Проверяет каждый чанк как canary-check, ловит exact matches в реальном времени (R3 informs FP strategy). Canary-check — частный случай этого detector'а; слияние — оптимизация, не блокирующая
 - **Thread-level security block** — флаг `security_blocked=true` в таблице `thread_views`. Ставится при любом guard-триггере. Middleware отклоняет последующие POST в блокированный thread с 403. GET истории разрешён — пользователь видит свои сообщения + заглушку вместо утекшего ответа. Минимум до SIEM-блокировок (ban user/IP, threshold — feat-007)
-- **Message-level redaction** — флаг `security_redacted=true` в `additional_kwargs` блокированного `AIMessage`. Ставится при любом guard-триггере (canary, composite, classifier). Для classifier — на финализированный `AIMessage` в ноде графа (как `created_at`). Для mid-stream триггеров — синтетический `AIMessage` с накопленным ответом записывается при обрыве потока (механизм на Phase 1, см. §11; при сложностях — fallback, см. §5). Checkpointer хранит оригинал — audit-источник. На чтении истории DTO-маппер подменяет content на заглушку при наличии флага
+- **Message-level redaction** — флаг `security_redacted=true` в `additional_kwargs` блокированного `AIMessage`. Ставится при любом guard-триггере (canary, composite, classifier). Для classifier — на финализированный `AIMessage` в ноде графа (как `created_at`). Для mid-stream триггеров — синтетический `AIMessage` с накопленным ответом записывается при обрыве потока (см. §11). Checkpointer хранит оригинал — audit-источник. На чтении истории DTO-маппер подменяет content на заглушку при наличии флага
 - **Error message normalization** — замена сырого `str(exception)` в SSE-event `error` на нормализованное сообщение без техдеталей (имена классов, пути, значения параметров). Не guard-компонент, отдельная нормализация в runner'е. Закрывает канал утечки через SSE, который не проходит через классификатор
 
 ## 7. Eval Strategy
@@ -328,7 +308,7 @@ graph TB
 
 ### 7.2 Curated dataset
 
-**Proposal:** jsonl + pytest fixtures. Минимальная зависимость, версионируется в репо рядом с защитами. Кейсы помечаются tag'ами по attack vector.
+**Proposal:** jsonl + pytest fixtures. Минимальная зависимость, версионируется в репо рядом с защитами. Кейсы помечаются тегами по attack vector.
 
 **Альтернатива:** Langfuse Datasets — если позже понадобится UI для добавления non-engineers'ами. Не делаем сейчас (избыточно для текущей фазы).
 
@@ -346,7 +326,7 @@ graph TB
 
 ### 7.3 Regression runner
 
-На каждом изменении (guard prompt, guard model, system prompt, hardening template) — прогон curated dataset. Метрики breakdown по tag.
+На каждом изменении (guard prompt, guard model, system prompt, hardening template) — прогон curated dataset. Метрики breakdown по тегам.
 
 ### 7.4 Метрики
 
@@ -372,18 +352,18 @@ Guard LLM × N checkpoints. Оценка в ходе реализации пос
 
 Текущая guard model usage не передаётся в Langfuse → costs = 0. Закрывается отдельным backlog item ("Guard LLM observability"). Не блокирует Security 2.0, но рекомендуется до или параллельно.
 
-## 9. Phasing (proposal)
+## 9. Phasing
 
-Всё в одной итерации feat-006. Sequential phases, R1/R2/R3 запускаются параллельно с Phase 1 (не блокируют старт кода).
+Всё в одной итерации feat-006. Sequential phases, R1/R2 запускаются параллельно с Phase 1 (не блокируют старт кода).
 
-| Phase | Scope | Зависимости |
-|-------|-------|-------------|
-| **1** | Boundary enforcement: composite detector (R3) + LLM Output Classifier (R2) + boundary formalization в system.txt + нормализация ошибок в SSE + выравнивание canary-check под единую механику redaction (mid-stream write синтетического AIMessage; при архитектурных сложностях — fallback в backlog, см. §5) | R2, R3 outputs по мере готовности |
-| **2** | Tool Call Guard + Tool Result Guard (universal pattern, R1 informs) | R1 |
-| **3** | KS Write Guard (agent path) | — |
-| **4** | Eval infra formalization (если в Phase 1/2 не сделана minimal) | — |
+| Phase | Scope |
+|-------|-------|
+| **1** | Boundary enforcement: composite detector + LLM Output Classifier + boundary formalization в system.txt + нормализация ошибок в SSE + выравнивание canary-check под единую механику redaction |
+| **2** | Tool Call Guard + Tool Result Guard (universal pattern) |
+| **3** | KS Write Guard (agent path) |
+| **4** | Eval infra formalization (если в Phase 1/2 не сделана minimal) |
 
-Phase 1 даёт максимум value на минимум effort — закрывает Class 2 (текущий active red team pain).
+Phase 1 идёт первой: закрывает Class 2 (текущая активная проблема Red Team) и даёт максимум value на минимум effort.
 
 ## 10. Out of Scope (→ backlog или other iterations)
 

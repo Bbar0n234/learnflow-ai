@@ -229,7 +229,7 @@ features/settings/   → useModels, useSettings, useUpdateSettings, useInstructi
 
 Кастомный хук `useAgentStream` поверх native `fetch`. Полная спецификация протокола, event types, lifecycle, cancellation — [streaming.md](streaming.md).
 
-Связь с frontend state: Zustand stream store обновляется на каждое событие, TanStack Query инвалидируется после `done` и `artifact_created` (таблица в секции State Management выше). `security_block` — terminal event, обрабатывается аналогично `error`: generic сообщение пользователю, reason в developer console (→ [security.md](security.md)).
+Связь с frontend state: Zustand stream store обновляется на каждое событие, TanStack Query инвалидируется после `done` и `artifact_created` (таблица в секции State Management выше). `security_block` — terminal event, обрабатывается аналогично `error`: generic сообщение пользователю, reason в developer console (→ [architecture.md](../security/architecture.md)).
 
 ## Стек и инструменты
 

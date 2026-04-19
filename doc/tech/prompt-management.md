@@ -118,7 +118,7 @@ sync: make sync-prompts → commit updated seed files
 |------|-----------|---------------|------------|
 | `system` | `configs/prompts/system.txt` | `agent.yaml` → `llm` (model, extra_body) | Base system prompt агента |
 | `summarization` | `configs/prompts/summarization.txt` | `agent.yaml` → `summarization` (model, max_tokens) | Суммаризация при message compaction |
-| `guard-classifier` | `configs/prompts/guard-classifier.txt` | `agent.yaml` → `security` (guard_model) | Security input classifier (→ [security.md](security.md)) |
+| `guard-classifier` | `configs/prompts/guard-classifier.txt` | `agent.yaml` → `security` (guard_model) | Security input classifier (→ [architecture.md](../security/architecture.md)) |
 
 Prompt config хранится в Langfuse metadata вместе с текстом. `get_config()` используется ModelConfigResolver как нижний уровень каскада (Langfuse prompt config → agent.yaml default).
 

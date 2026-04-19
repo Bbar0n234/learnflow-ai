@@ -165,5 +165,5 @@ Knowledge Sphere — это персистентное хранилище. Ес�
 
 ## Связанные документы
 
-- [Red Team Brief](red-team-brief.md) — брифинг для команды атакующих
-- [Blue Team Strategy](blue-team-strategy.md) — стратегия защиты
+- [architecture.md](architecture.md) — архитектура защиты (три слоя: input guard, hardening, canary)
+- [doc/research/security/](../research/security/) — исследования по защите от prompt injection

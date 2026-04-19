@@ -218,11 +218,11 @@ logger.warning(
 
 ### Research docs
 
-- [security.md](../../tech/security.md) — архитектура Security 1.0: три слоя защиты
-- [observability.md](../../tech/observability.md) — Langfuse observability, tracing, security scores
-- [conventions.md](../../tech/conventions.md) — logging conventions (structlog)
-- [ADR-017](../../tech/adr/ADR-017-prompt-injection-defense.md) — Prompt Injection Defense
-- [backlog.md](../../backlog.md) — P2 Security Event Pipeline
+- [architecture.md](../../../../security/architecture.md) — архитектура Security 1.0: три слоя защиты
+- [observability.md](../../../../tech/observability.md) — Langfuse observability, tracing, security scores
+- [conventions.md](../../../../tech/conventions.md) — logging conventions (structlog)
+- [ADR-017](../../../../tech/adr/ADR-017-prompt-injection-defense.md) — Prompt Injection Defense
+- [backlog.md](../../../../backlog.md) — P2 Security Event Pipeline
 
 ### Iteration artifacts
 

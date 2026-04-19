@@ -29,7 +29,7 @@ data: {"type": "done", "message_id": "msg-uuid", "trace_id": "trace-uuid"}\n\n
 
 `done`, `error` и `security_block` — взаимоисключающие **terminal events**. После любого из них поток закрывается. Если соединение обрывается без terminal event — frontend трактует это как connection lost.
 
-`security_block` — отдельный от `error` event: security incidents отображаются специфичным UI (generic сообщение пользователю), не generic error. Reason values: `invisible_chars`, `llm_classifier`, `canary_in_input`, `canary_leak`. Подробнее — [security.md](security.md).
+`security_block` — отдельный от `error` event: security incidents отображаются специфичным UI (generic сообщение пользователю), не generic error. Reason values: `invisible_chars`, `llm_classifier`, `canary_in_input`, `canary_leak`. Подробнее — [architecture.md](../security/architecture.md).
 
 `trace_id` — internal event: ChatService перехватывает его (не пробрасывает клиенту), сохраняет в Redis, а затем включает trace_id в payload `done` event. Frontend получает trace_id только через `done`.
 
@@ -48,7 +48,7 @@ sequenceDiagram
     API->>SVC: send_message()
     SVC->>AGT: stream()
 
-    Note over AGT: SecurityGuard.check() (→ security.md)
+    Note over AGT: SecurityGuard.check() (→ security/architecture.md)
     alt INJECTION
         AGT-->>C: security_block
     else CLEAN / SUSPICIOUS

@@ -219,7 +219,7 @@ KS Write Guard, LLM Output Classifier, SUSPICIOUS → ограничения, To
 - [plan.md](iterations/post-mvp/feat-004-security/plan.md) — Implementation plan: 11 phases, API verification
 - [test-cases.md](iterations/post-mvp/feat-004-security/test-cases.md) — 71 test case (59 pass, 12 deferred), 5 findings
 - [summary.md](iterations/post-mvp/feat-004-security/summary.md) — Post-implementation summary: отклонения, решения, tech debt
-- [security.md](../tech/security.md) — Архитектурный документ: три слоя защиты, SecurityGuard, canary, hardening, observability
+- [architecture.md](../security/architecture.md) — Архитектурный документ: три слоя защиты, SecurityGuard, canary, hardening, observability
 - [ADR-017](../tech/adr/ADR-017-prompt-injection-defense.md) — Prompt Injection Defense: sync guard, full history, fail-open, hardening wrapper
 
 ---

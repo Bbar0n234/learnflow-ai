@@ -23,11 +23,10 @@
 
 - [tool-confidentiality-investigation.md](./tool-confidentiality-investigation.md) — рабочее расследование инцидента, Iteration 1, провал и Key Insight
 - [doc/security/threat-model.md](../../../../security/threat-model.md) — модель угроз (V1-V3)
-- [doc/security/blue-team-strategy.md](../../../../security/blue-team-strategy.md) — стратегия защиты
-- [doc/security/llm-defense-architecture-research.md](../../../../security/llm-defense-architecture-research.md) — архитектурный research: Defense in Depth (§2.1), Trust Boundaries (§2.2), Assume Compromise (§2.5), Least Privilege (§2.3), Fail-Safe Defaults (§2.4)
-- [doc/security/prompt-injection-guard-reference.md](../../../../security/prompt-injection-guard-reference.md) — паттерны runtime-защиты (принцип "проверяй все входы" §1.1, Layered Guards §1.2, Graduated Response §1.3)
-- [doc/security/prompt-hardening-techniques.md](../../../../security/prompt-hardening-techniques.md) — техники hardening (instruction hierarchy, sandwich, role anchoring, delimiters)
-- [doc/tech/security.md](../../../../tech/security.md) — архитектура Security 1.0 (трёхслойная защита, BaseGuard extension points)
+- [doc/security/architecture.md](../../../../security/architecture.md) — архитектура Security 1.0 (трёхслойная защита, BaseGuard extension points)
+- [doc/research/security/llm-defense-architecture-research.md](../../../../research/security/llm-defense-architecture-research.md) — архитектурный research: Defense in Depth (§2.1), Trust Boundaries (§2.2), Assume Compromise (§2.5), Least Privilege (§2.3), Fail-Safe Defaults (§2.4)
+- [doc/reference/security/prompt-injection-guard-reference.md](../../../../reference/security/prompt-injection-guard-reference.md) — паттерны runtime-защиты (принцип "проверяй все входы" §1.1, Layered Guards §1.2, Graduated Response §1.3)
+- [doc/research/security/prompt-hardening-techniques.md](../../../../research/security/prompt-hardening-techniques.md) — техники hardening (instruction hierarchy, sandwich, role anchoring, delimiters)
 - [feat-004 summary](../feat-004-security/summary.md) — что было сделано в Security 1.0
 
 ### 1.3 Sec 1.0 — что работает / что не работает
@@ -91,8 +90,8 @@ Multi-turn escalation, который наблюдался в трейсах —
 **Не новый паттерн.** Использование extension points existing `SecurityGuard.check(content, history?, checkpoint, canary_token?)`, заложенных в Sec 1.0 архитектуре:
 
 - Interface уже universal — параметр `checkpoint` enum управляет per-call config
-- В [tech/security.md](../../../../tech/security.md) явно описаны Extension Points для новых checkpoints (KS Write Guard, Tool Result Guard)
-- Принцип "проверяй все входы, не только user input" — [prompt-injection-guard-reference.md §1.1](../../../../security/prompt-injection-guard-reference.md)
+- В [security/architecture.md](../../../../security/architecture.md) явно описаны Extension Points для новых checkpoints (KS Write Guard, Tool Result Guard)
+- Принцип "проверяй все входы, не только user input" — [prompt-injection-guard-reference.md §1.1](../../../../reference/security/prompt-injection-guard-reference.md)
 
 В Sec 2.0 реализуем то, что заложено архитектурно: новые checkpoint values + per-checkpoint classifier prompts + per-checkpoint deterministic pre-filters.
 
@@ -129,14 +128,14 @@ Multi-turn escalation, который наблюдался в трейсах —
 
 **Грей-зоны:** при проработке разобраны пограничные случаи (сообщения об ошибках с техидентификаторами, вопросы пользователя про инструменты, артефакты и цитаты, MCP пользователя, ссылки агента на процесс рассуждения, накопление при дроблении описания возможности). Все они сводятся к принципу «возможность vs реализация» и не вносятся в промпт отдельными правилами — зафиксированы как проверочные кейсы для eval (§7.2).
 
-**Обоснование через векторы атак:** PRIVATE-элементы закрывают reconnaissance (enumeration поверхности атаки для indirect injection), tool poisoning (подмена описаний через MCP), targeted attacks (атакующий с exact identifiers конструирует payload). Детали — в [confidentiality-boundary-research.md](../../../../security/confidentiality-boundary-research.md).
+**Обоснование через векторы атак:** PRIVATE-элементы закрывают reconnaissance (enumeration поверхности атаки для indirect injection), tool poisoning (подмена описаний через MCP), targeted attacks (атакующий с exact identifiers конструирует payload). Детали — в [confidentiality-boundary-research.md](../../../../research/security/confidentiality-boundary-research.md).
 
 ### 3.3 Defense in Depth + Assume Compromise (architect-level only)
 
 Базовые принципы ИБ, применяются на уровне архитектурного проектирования:
 
-- **Defense in Depth** — многослойная защита, ни один слой не достаточен. См. [llm-defense-architecture-research.md §2.1](../../../../security/llm-defense-architecture-research.md)
-- **Assume Compromise** — проектируем считая, что любой слой может быть скомпрометирован. См. [llm-defense-architecture-research.md §2.5](../../../../security/llm-defense-architecture-research.md)
+- **Defense in Depth** — многослойная защита, ни один слой не достаточен. См. [llm-defense-architecture-research.md §2.1](../../../../research/security/llm-defense-architecture-research.md)
+- **Assume Compromise** — проектируем считая, что любой слой может быть скомпрометирован. См. [llm-defense-architecture-research.md §2.5](../../../../research/security/llm-defense-architecture-research.md)
 
 **Важно:** эти принципы применяются на уровне architect, **не транслируются в classifier promptы** (см. §3.4).
 
@@ -154,7 +153,7 @@ Multi-turn escalation, который наблюдался в трейсах —
 
 Iteration 1 показала: prompt-level prohibition **не enforce'ится надёжно** (модель находит loophole).
 
-Также подтверждено индустриальным research: "adaptive attacks bypass explicit priority markers with 95-99% success when the attacker has knowledge of the defense" ([prompt-hardening-techniques.md §1.1](../../../../security/prompt-hardening-techniques.md), The Attacker Moves Second, Oct 2025).
+Также подтверждено индустриальным research: "adaptive attacks bypass explicit priority markers with 95-99% success when the attacker has knowledge of the defense" ([prompt-hardening-techniques.md §1.1](../../../../research/security/prompt-hardening-techniques.md), The Attacker Moves Second, Oct 2025).
 
 → Primary enforcement — **detect-and-block на output** (composite metric + classifier).
 → Prompt-level `<confidentiality>` остаётся как defense-in-depth (задаёт desired behavior), но не основа защиты.
@@ -219,7 +218,7 @@ Output boundary и все guard'ы применяются одинаково к�
 
 **Статус:** boundary spec закрыт (§3.2). Composite enforcement rules и FP strategy — pending (зависят от R2 и детализации классификатора — блоки D, E плана).
 
-**Результат research:** [confidentiality-boundary-research.md](../../../../security/confidentiality-boundary-research.md) — индустриальные позиции (Anthropic, OpenAI, MCP, Lakera, Rebuff), обоснование через векторы атак (reconnaissance, tool poisoning), приёмы борьбы с ложными срабатываниями.
+**Результат research:** [confidentiality-boundary-research.md](../../../../research/security/confidentiality-boundary-research.md) — индустриальные позиции (Anthropic, OpenAI, MCP, Lakera, Rebuff), обоснование через векторы атак (reconnaissance, tool poisoning), приёмы борьбы с ложными срабатываниями.
 
 **На основе отчёта финализированы:** §3.2 (принцип «возможность vs реализация», списки PUBLIC/PRIVATE, no-echo правило), §3.6 (эскиз содержания промпта).
 

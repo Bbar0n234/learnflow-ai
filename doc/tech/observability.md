@@ -103,7 +103,7 @@ sequenceDiagram
 
 ## Security Observability
 
-Мониторинг security incidents через Langfuse. Архитектура защиты — [security.md](security.md).
+Мониторинг security incidents через Langfuse. Архитектура защиты — [architecture.md](../security/architecture.md).
 
 **Score:** `security_verdict` (CATEGORICAL: `CLEAN` / `SUSPICIOUS` / `INJECTION`) на уровне trace. Создаётся при старте через `ensure_security_score_config()`.
 

@@ -69,7 +69,7 @@ graph LR
 - **tools** — `ToolNode` (prebuilt), выполнение tool calls
 - **tools_condition** (prebuilt) — routing: AIMessage с tool_calls → tools, иначе → END
 
-**Context schema:** `AgentContext(project_id, user_id, canary_token)` — передаётся через `context=` параметр `astream()`, доступен в nodes и tools через `runtime.context`. `canary_token` вычисляется per-request для system prompt hardening (→ [security.md](security.md)).
+**Context schema:** `AgentContext(project_id, user_id, canary_token)` — передаётся через `context=` параметр `astream()`, доступен в nodes и tools через `runtime.context`. `canary_token` вычисляется per-request для system prompt hardening (→ [architecture.md](../security/architecture.md)).
 
 **Compile:** GraphFactory на каждый запрос:
 - `checkpointer=AsyncPostgresSaver` — shared, персистентная история (PostgreSQL)
@@ -84,12 +84,12 @@ graph.astream(input_msg, config, stream_mode=["messages", "updates"], context=co
 
 ## System Message
 
-Собирается из семи частей на каждый вызов agent node. Base prompt обёрнут в hardened Jinja-template с security-секциями (→ [security.md](security.md)):
+Собирается из семи частей на каждый вызов agent node. Base prompt обёрнут в hardened Jinja-template с security-секциями (→ [architecture.md](../security/architecture.md)):
 
 ```
 ┌─────────────────────────────────┐
 │ <system_instructions>           │  ← Security hardening
-│   Instruction hierarchy,        │     (→ security.md)
+│   Instruction hierarchy,        │     (→ security/architecture.md)
 │   confidentiality, canary token │
 ├─────────────────────────────────┤
 │ Base Prompt                     │  ← PromptProvider (→ prompt-management.md)
@@ -113,12 +113,12 @@ graph.astream(input_msg, config, stream_mode=["messages", "updates"], context=co
 
 | Часть | Source | Scope | Обновление |
 |-------|--------|-------|------------|
-| System instructions | Hardened template (security.md) | Global | Canary token per-request |
+| System instructions | Hardened template (security/architecture.md) | Global | Canary token per-request |
 | Base prompt | PromptProvider (Langfuse → file fallback) | Global | При изменении в Langfuse (SDK cache TTL) |
 | Custom instructions | LangGraph Store | Per-user | При сохранении через REST API |
 | User memory | LangGraph Store | Per-user | Автономно агентом (tools) |
 | KS Index | LangGraph Store | Per-project | При изменении секций (agent tools / REST API) |
-| Instruction reminder | Hardened template (security.md) | Global | Статический |
+| Instruction reminder | Hardened template (security/architecture.md) | Global | Статический |
 | Skills Index | Filesystem scan | Global | При старте приложения |
 
 Пересборка на каждый вызов гарантирует актуальность динамических частей (KS Index, memories могли измениться между вызовами).
@@ -292,7 +292,7 @@ CRUD и каскадная видимость — [backend.md](backend.md).
 
 ## Security
 
-Pre-graph input guard, system prompt hardening, canary token output check. SecurityGuard — зависимость runner'а, проверяет user input до запуска графа. При verdict INJECTION — `security_block` SSE event, запрос не доходит до графа. Подробнее — [security.md](security.md), обоснование — [ADR-017](adr/ADR-017-prompt-injection-defense.md).
+Pre-graph input guard, system prompt hardening, canary token output check. SecurityGuard — зависимость runner'а, проверяет user input до запуска графа. При verdict INJECTION — `security_block` SSE event, запрос не доходит до графа. Подробнее — [architecture.md](../security/architecture.md), обоснование — [ADR-017](adr/ADR-017-prompt-injection-defense.md).
 
 ## Observability
 
@@ -341,7 +341,7 @@ Langfuse выполняет dual role: tracing (observability) + prompt manageme
 | `context` | max_tokens, compaction_threshold_ratio, recent_messages_to_keep |
 | `prompt` | Путь к файлу system prompt (seed) |
 | `summarization` | Модель суммаризации, max_summary_tokens |
-| `security` | Guard model, max retries, temperature (→ [security.md](security.md)) |
+| `security` | Guard model, max retries, temperature (→ [architecture.md](../security/architecture.md)) |
 | `mcp_servers` | Global MCP-серверы: transport, URL, API keys, allowed_tools |
 | `models` | Model definitions: pricing, match patterns (Langfuse cost tracking) |
 

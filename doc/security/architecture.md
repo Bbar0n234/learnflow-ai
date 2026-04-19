@@ -1,8 +1,8 @@
 # Security
 
-Защита AI-агента от prompt injection: input guard, system prompt hardening, canary token output check. Инкапсулирована в Agent Layer — API и Service Layer не содержат security-логики. Threat model и research — [security/](../security/).
+Защита AI-агента от prompt injection: input guard, system prompt hardening, canary token output check. Инкапсулирована в Agent Layer — API и Service Layer не содержат security-логики. Threat model — [threat-model.md](threat-model.md), research — [doc/research/security/](../research/security/).
 
-Обоснование архитектурных решений — [ADR-017](adr/ADR-017-prompt-injection-defense.md).
+Обоснование архитектурных решений — [ADR-017](../tech/adr/ADR-017-prompt-injection-defense.md).
 
 ## Architecture Overview
 
@@ -39,7 +39,7 @@ graph TB
 - Security инкапсулирован в Agent Layer: ChatService и API Layer не знают про security — работают с `StreamEvent` (включая `security_block`) как с любым другим событием
 - SecurityGuard — зависимость runner'а, инжектится через конструктор
 - Guard LLM отделён от main LLM (отдельная модель, конфигурация, cost tracking)
-- Graceful degradation: отказ guard → CLEAN verdict (availability > security). Подробнее — [ADR-017](adr/ADR-017-prompt-injection-defense.md)
+- Graceful degradation: отказ guard → CLEAN verdict (availability > security). Подробнее — [ADR-017](../tech/adr/ADR-017-prompt-injection-defense.md)
 
 ## Input Guard
 
@@ -98,7 +98,7 @@ Classifier получает full history (не только текущее со�
 
 Хранится в Langfuse (`guard-classifier--{label}`) с file fallback (`configs/prompts/guard-classifier.txt`). Переменная `{{ checkpoint }}` подставляется через PromptProvider.
 
-Калибровка: false negatives > false positives. Образовательная платформа — ложная блокировка легитимного пользователя дороже пропущенной атаки (есть дополнительные слои защиты). Подробнее — [prompt-management.md](prompt-management.md).
+Калибровка: false negatives > false positives. Образовательная платформа — ложная блокировка легитимного пользователя дороже пропущенной атаки (есть дополнительные слои защиты). Подробнее — [prompt-management.md](../tech/prompt-management.md).
 
 ### Extension Points
 
@@ -177,7 +177,7 @@ Output check на `full_response` (не per-chunk): токен может поп
 
 ## SSE: security_block
 
-Terminal SSE event — взаимоисключающий с `done` и `error`. Подробнее о SSE-протоколе — [streaming.md](streaming.md).
+Terminal SSE event — взаимоисключающий с `done` и `error`. Подробнее о SSE-протоколе — [streaming.md](../tech/streaming.md).
 
 ```
 data: {"type": "security_block", "reason": "llm_classifier"}\n\n
@@ -196,7 +196,7 @@ Frontend: generic error message пользователю, reason — в develope
 
 ## Observability
 
-Интеграция с Langfuse для мониторинга security incidents. Подробнее об observability-архитектуре — [observability.md](observability.md).
+Интеграция с Langfuse для мониторинга security incidents. Подробнее об observability-архитектуре — [observability.md](../tech/observability.md).
 
 ### Score
 

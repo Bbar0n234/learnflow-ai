@@ -10,7 +10,7 @@ LearnFlowAI — AI-агент для подготовки образовател
 
 Проект участвует в учебном Red Team / Blue Team формате (репозиторий open-source, принцип Кирхгоффа). MVP scope ограничен — часть векторов сознательно оставлена открытой.
 
-Threat model: [security/threat-model.md](../../security/threat-model.md). Архитектурный ресёрч: [security/llm-defense-architecture-research.md](../../security/llm-defense-architecture-research.md).
+Threat model: [security/threat-model.md](../../security/threat-model.md). Архитектурный ресёрч: [research/security/llm-defense-architecture-research.md](../../research/security/llm-defense-architecture-research.md).
 
 Ключевые вопросы при проектировании:
 
@@ -109,7 +109,7 @@ Threat model: [security/threat-model.md](../../security/threat-model.md). Арх
 
 ## Связанные документы
 
-- [security.md](../security.md) — архитектурная документация security
+- [security/architecture.md](../../security/architecture.md) — архитектурная документация security
 - [security/threat-model.md](../../security/threat-model.md) — threat model
-- [security/llm-defense-architecture-research.md](../../security/llm-defense-architecture-research.md) — research
+- [research/security/llm-defense-architecture-research.md](../../research/security/llm-defense-architecture-research.md) — research
 - [feat-004 design-brief](../../tasks/iterations/post-mvp/feat-004-security/design-brief.md) — детали реализации, 20 decisions

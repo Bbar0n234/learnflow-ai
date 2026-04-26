@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import { useInstructions } from "../hooks/useInstructions";
 import { useUpdateInstructions } from "../hooks/useUpdateInstructions";
 import { Button } from "@/shared/ui/button";
+import {
+  isSecurityViolation,
+  SECURITY_VIOLATION_MESSAGE,
+} from "@/shared/lib/security-error";
 
 export function CustomInstructionsSection() {
   const { data } = useInstructions();
@@ -53,6 +57,11 @@ export function CustomInstructionsSection() {
           {content.length}/5000
         </span>
       </div>
+      {isSecurityViolation(update.error) && (
+        <p className="mt-2 text-sm text-destructive">
+          {SECURITY_VIOLATION_MESSAGE}
+        </p>
+      )}
     </div>
   );
 }

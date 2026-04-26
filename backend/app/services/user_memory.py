@@ -4,6 +4,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol
 
+import structlog
+from fastapi import HTTPException
+
+from app.agent.security.guard import SecurityGuard
+from app.agent.security.types import Checkpoint, Verdict
+
+logger = structlog.get_logger()
+
 
 @dataclass
 class MemoryItemData:
@@ -20,8 +28,13 @@ class UserMemoryService(Protocol):
 
 
 class LangGraphUserMemoryService:
-    def __init__(self, store: Any) -> None:
+    def __init__(
+        self,
+        store: Any,
+        guard: SecurityGuard | None = None,
+    ) -> None:
         self._store = store
+        self._guard = guard
 
     async def get_instructions(self, user_id: str) -> str:
         item = await self._store.aget(("user", user_id, "instructions"), "default")
@@ -30,6 +43,42 @@ class LangGraphUserMemoryService:
         return item.value.get("content", "")
 
     async def update_instructions(self, user_id: str, content: str) -> str:
+        if self._guard is not None:
+            result = await self._guard.check(
+                content,
+                Checkpoint.CUSTOM_INSTRUCTIONS_WRITE,
+                trace_ctx={
+                    "top_level": True,
+                    "user_id": user_id,
+                    "scope": "custom_instructions",
+                },
+            )
+            if result.verdict == Verdict.INJECTION:
+                logger.warning(
+                    "custom instructions injection blocked",
+                    security_event=True,
+                    checkpoint=Checkpoint.CUSTOM_INSTRUCTIONS_WRITE.value,
+                    verdict=Verdict.INJECTION.value,
+                    identifiers={"user_id": user_id},
+                    metadata={
+                        "detection_layer": (
+                            result.detection_layer.value
+                            if result.detection_layer
+                            else None
+                        )
+                    },
+                )
+                raise HTTPException(
+                    status_code=422,
+                    detail={
+                        "error": "security_policy_violation",
+                        "reason": (
+                            result.detection_layer.value
+                            if result.detection_layer
+                            else "custom_instructions_write"
+                        ),
+                    },
+                )
         await self._store.aput(
             ("user", user_id, "instructions"),
             "default",

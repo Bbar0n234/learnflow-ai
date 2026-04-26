@@ -23,9 +23,17 @@ export function ChatView() {
     setLocalMessages([]);
   }, []);
 
+  const handleSecurityBlock = useCallback(() => {
+    // Server-side already persisted the user message + redacted placeholder
+    // and we invalidated the chat query — drop the optimistic local copy
+    // to avoid duplicates after refetch.
+    setLocalMessages([]);
+  }, []);
+
   const { send, cancel } = useAgentStream(id!, cid!, {
     onDone: handleDone,
     onError: (detail) => setStreamError(detail),
+    onSecurityBlock: handleSecurityBlock,
   });
 
   const streamingText = useStreamStore((s) => s.streamingText);
@@ -79,6 +87,12 @@ export function ChatView() {
         onSend={handleSend}
         isStreaming={isStreaming}
         onCancel={cancel}
+        disabled={data?.security_blocked}
+        placeholder={
+          data?.security_blocked
+            ? "Чат заблокирован системой безопасности"
+            : undefined
+        }
       />
     </div>
   );

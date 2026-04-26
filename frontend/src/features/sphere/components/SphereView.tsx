@@ -32,6 +32,7 @@ export function SphereView() {
       <SphereEditor
         content={data?.content ?? ""}
         isPending={updateSphere.isPending}
+        error={updateSphere.error}
         onSave={(content) => {
           updateSphere.mutate(
             { projectId: id!, data: { content } },

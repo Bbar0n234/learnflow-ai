@@ -25,7 +25,7 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 | feat-003 | ✅ Done | cross-cutting | Runtime agent configuration (3 tracks: Langfuse+Model, Memory, User MCP) |
 | feat-004 | ✅ Done | agent/backend | Prompt injection protection |
 | feat-005 | 📋 Planned | cross-cutting | Security Event Pipeline (SIEM Core): collection, correlation, alerting, monitoring UI |
-| feat-006 | 📋 Planned | agent | Security 2.0: Universal I/O Guard + Boundary Enforcement |
+| feat-006 | ✅ Done | agent | Security 2.0: Universal I/O Guard + Boundary Enforcement |
 | feat-007 | 📋 Planned | cross-cutting | SIEM Extensions: dashboard, basic response actions, search, notifications, export |
 
 ## Параллелизация
@@ -288,8 +288,8 @@ Dashboard & Metrics, basic response actions (ban IP/user), расширенны�
 
 **Цель:** расширить защиту от prompt injection на все I/O границы графа (tool input/output, KS write, semantic output) + ввести бинарную enforceable границу confidentiality (PUBLIC capabilities / PRIVATE identifiers).
 
-**Статус:** 📋 Planned (skeleton, ожидает research outputs)
-**Scope:** agent
+**Статус:** ✅ Done
+**Scope:** agent (+ minor frontend для UX inline-error на add-time формах)
 **After:** feat-004
 **Параллельно с:** feat-005
 
@@ -304,6 +304,8 @@ Dashboard & Metrics, basic response actions (ban IP/user), расширенны�
 - **P1** LLM Output Classifier
 - **P2** Tool Result Guard
 - **P2** Semantic Similarity output check (становится частью Output Classifier composite)
+- **P2** Guard LLM observability — закрыт в Engineering follow-up (EF-5c/EF-5d): `normalize_usage_for_langfuse` + pricing re-seed для `output_reasoning`
+- **P2** Guard LLM reasoning — закрыт в Engineering follow-up (EF-5b): guard model переключена на `google/gemini-3-flash-preview` (text reasoning); `create_guard_llm` уже выбирает `ReasoningChatOpenAI` при `include_reasoning: true`
 
 #### Новые элементы (вне existing backlog)
 
@@ -333,6 +335,9 @@ Dashboard & Metrics, basic response actions (ban IP/user), расширенны�
 
 - [design-brief.md](iterations/post-mvp/feat-006-security-2.0/design-brief.md) — Skeleton: context, threat model, principles, coverage map, eval strategy, phasing. Финализация после research
 - [tool-confidentiality-investigation.md](iterations/post-mvp/feat-006-security-2.0/tool-confidentiality-investigation.md) — Investigation notes (Iteration 1, провал, Key Insight)
+- [plan.md](iterations/post-mvp/feat-006-security-2.0/plan.md) — Implementation plan Phases 1–3 (Track A, guard-код)
+- [plan-phase-4.md](iterations/post-mvp/feat-006-security-2.0/plan-phase-4.md) — Implementation plan Phase 4 (Track B, eval infra)
+- [summary.md](iterations/post-mvp/feat-006-security-2.0/summary.md) — Post-implementation summary (Track A — код + ручная верификация ⏳ за архитектором; Track B — single-run сделан вручную через Langfuse UI, регулярный pipeline не доводился, пакет переведён в **archived (parked)** 2026-04-26) + раздел `Engineering follow-up (2026-04-25)` (EF-1..EF-6 после первого rerun-цикла; EF-6 — изоляция guard LLM от parent callback chain + known limitation по иерархии guard observations в Langfuse UI)
 
 ---
 

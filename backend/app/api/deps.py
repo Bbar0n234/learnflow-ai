@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncGenerator
-from typing import Annotated
+from typing import Annotated, Any
 
 import jwt
 from fastapi import Depends, HTTPException, Request
@@ -25,6 +25,14 @@ from app.services import (
 )
 from app.services.security import decode_access_token
 from app.services.sphere import LangGraphSphereService, SphereService
+
+
+def get_security_guard(request: Request) -> Any:
+    return request.app.state.security_guard
+
+
+def get_security_config(request: Request) -> Any:
+    return request.app.state.security_config
 
 
 async def get_db_session(request: Request) -> AsyncGenerator[AsyncSession]:
@@ -89,7 +97,10 @@ def get_chat_service(session: DBSession, request: Request) -> ChatService:
 
 
 def get_sphere_service(request: Request) -> SphereService:
-    return LangGraphSphereService(store=request.app.state.store)
+    return LangGraphSphereService(
+        store=request.app.state.store,
+        guard=getattr(request.app.state, "security_guard", None),
+    )
 
 
 ProjectServiceDep = Annotated[ProjectService, Depends(get_project_service)]
@@ -110,3 +121,13 @@ async def get_user_project(
 
 
 UserProject = Annotated[Project, Depends(get_user_project)]
+
+
+async def require_unblocked_thread(
+    chat_id: uuid.UUID,
+    session: DBSession,
+) -> None:
+    """Reject requests against threads that are security-blocked."""
+    repo = ThreadViewRepository(session)
+    if await repo.is_security_blocked(chat_id):
+        raise HTTPException(status_code=403, detail="Thread blocked by security policy")

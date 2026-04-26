@@ -4,10 +4,16 @@ import json
 import uuid
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from starlette.responses import StreamingResponse
 
-from app.api.deps import ChatServiceDep, CurrentUser, DBSession, UserProject
+from app.api.deps import (
+    ChatServiceDep,
+    CurrentUser,
+    DBSession,
+    UserProject,
+    require_unblocked_thread,
+)
 from app.api.schemas.messages import CancelResponse, MessageCreate
 from app.repositories.thread_view import ThreadViewRepository
 from app.services.agent_runner import StreamEvent
@@ -36,7 +42,10 @@ async def _event_generator(
         yield f"data: {json.dumps(payload)}\n\n"
 
 
-@router.post("/projects/{project_id}/chats/{chat_id}/messages")
+@router.post(
+    "/projects/{project_id}/chats/{chat_id}/messages",
+    dependencies=[Depends(require_unblocked_thread)],
+)
 async def send_message(
     chat_id: uuid.UUID,
     body: MessageCreate,

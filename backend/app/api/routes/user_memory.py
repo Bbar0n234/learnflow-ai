@@ -15,7 +15,10 @@ router = APIRouter(tags=["user-memory"])
 
 
 def _get_memory_service(request: Request) -> LangGraphUserMemoryService:
-    return LangGraphUserMemoryService(store=request.app.state.store)
+    return LangGraphUserMemoryService(
+        store=request.app.state.store,
+        guard=getattr(request.app.state, "security_guard", None),
+    )
 
 
 @router.get("/users/me/instructions", response_model=InstructionsResponse)

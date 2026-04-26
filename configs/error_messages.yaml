@@ -1,0 +1,5 @@
+generic: Request failed. Please try again.
+timeout: Upstream service timed out. Please retry shortly.
+cancelled: Request was cancelled.
+auth: Authentication failed.
+upstream: An upstream service is temporarily unavailable.

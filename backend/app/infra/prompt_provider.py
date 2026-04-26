@@ -42,7 +42,7 @@ class PromptProvider:
                     self._qualified(name),
                     label="latest",
                     cache_ttl_seconds=self._cache_ttl,
-                    fallback=self._load_file(name),
+                    fallback=self.load_file(name),
                 )
                 self._prompt_cache[name] = prompt
                 return prompt.compile(**variables)
@@ -52,7 +52,7 @@ class PromptProvider:
                     name=name,
                     exc_info=True,
                 )
-        text = self._load_file(name)
+        text = self.load_file(name)
         if variables:
             return Template(text).render(**variables)
         return text
@@ -63,7 +63,7 @@ class PromptProvider:
             return cached.config
         return None
 
-    def _load_file(self, name: str) -> str:
+    def load_file(self, name: str) -> str:
         path = self._prompts_dir / f"{name}.txt"
         if path.exists():
             return path.read_text(encoding="utf-8")

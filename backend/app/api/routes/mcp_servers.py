@@ -25,6 +25,7 @@ from app.models.mcp_server import (
 )
 from app.repositories.mcp_server import MCPServerRepository
 from app.services.encryption import EncryptionService
+from app.services.mcp_server import McpServerService
 from app.services.url_validator import validate_url
 
 logger = structlog.get_logger()
@@ -40,6 +41,14 @@ def _get_encryption(request: Request) -> EncryptionService:
 
 def _get_tool_resolver(request: Request) -> Any:
     return request.app.state.tool_resolver
+
+
+def _build_mcp_service(request: Request, session: Any) -> McpServerService:
+    return McpServerService(
+        repo=MCPServerRepository(session),
+        guard=getattr(request.app.state, "security_guard", None),
+        encryption=_get_encryption(request),
+    )
 
 
 def _to_response(
@@ -73,50 +82,6 @@ def _to_inherited(
         is_active=server.is_active,
         is_disabled=server.id in disabled_ids,
     )
-
-
-def _validate_and_encrypt(
-    body: MCPServerCreate | MCPServerUpdate,
-    encryption: EncryptionService,
-) -> dict:
-    """Validate URL, encrypt API key, return data dict for DB."""
-    data: dict = {}
-
-    url = getattr(body, "url", None)
-    if url is not None:
-        url_str = str(url)
-        try:
-            validate_url(url_str)
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from None
-        data["url"] = url_str
-
-    if hasattr(body, "name") and body.name is not None:
-        data["name"] = body.name
-    if hasattr(body, "transport") and body.transport is not None:
-        data["transport"] = body.transport
-    if hasattr(body, "allowed_tools") and body.allowed_tools is not None:
-        data["allowed_tools"] = body.allowed_tools
-    if hasattr(body, "is_active") and body.is_active is not None:
-        data["is_active"] = body.is_active
-
-    api_key = getattr(body, "api_key", None)
-    if api_key is not None:
-        if api_key == "":
-            data["api_key_encrypted"] = None
-            data["api_key_hint"] = None
-        else:
-            if not encryption.is_available:
-                raise HTTPException(
-                    status_code=400,
-                    detail="MCP_ENCRYPTION_KEY not configured, cannot store API keys",
-                )
-            data["api_key_encrypted"] = encryption.encrypt(api_key)
-            data["api_key_hint"] = (
-                f"{api_key[:4]}...{api_key[-4:]}" if len(api_key) > 8 else "***"
-            )
-
-    return data
 
 
 async def _test_connection(
@@ -181,16 +146,16 @@ async def create_user_server(
     request: Request,
 ) -> MCPServerResponse:
     repo = MCPServerRepository(session)
-    enc = _get_encryption(request)
     count = await repo.count_by_scope("user", user.id)
     if count >= MAX_SERVERS_PER_SCOPE:
         raise HTTPException(
             status_code=400,
             detail=f"Maximum {MAX_SERVERS_PER_SCOPE} servers per scope",
         )
-    data = _validate_and_encrypt(body, enc)
-    data["user_id"] = user.id
-    server = await repo.create_user_server(**data)
+    service = _build_mcp_service(request, session)
+    server = await service.guard_and_persist(
+        scope="user", owner_id=user.id, payload=body
+    )
     _get_tool_resolver(request).invalidate("user", user.id)
     return _to_response(server)
 
@@ -204,13 +169,13 @@ async def update_user_server(
     request: Request,
 ) -> MCPServerResponse:
     repo = MCPServerRepository(session)
-    enc = _get_encryption(request)
     server = await repo.get_user_server(server_id)
     if server is None or server.user_id != user.id:
         raise HTTPException(status_code=404, detail="Server not found")
-    data = _validate_and_encrypt(body, enc)
-    if data:
-        server = await repo.update(server, **data)
+    service = _build_mcp_service(request, session)
+    server = await service.update_and_reguard(
+        scope="user", owner_id=user.id, server=server, payload=body
+    )
     _get_tool_resolver(request).invalidate("user", user.id)
     return _to_response(server)
 
@@ -288,16 +253,16 @@ async def create_project_server(
     request: Request,
 ) -> MCPServerResponse:
     repo = MCPServerRepository(session)
-    enc = _get_encryption(request)
     count = await repo.count_by_scope("project", project.id)
     if count >= MAX_SERVERS_PER_SCOPE:
         raise HTTPException(
             status_code=400,
             detail=f"Maximum {MAX_SERVERS_PER_SCOPE} servers per scope",
         )
-    data = _validate_and_encrypt(body, enc)
-    data["project_id"] = project.id
-    server = await repo.create_project_server(**data)
+    service = _build_mcp_service(request, session)
+    server = await service.guard_and_persist(
+        scope="project", owner_id=project.id, payload=body
+    )
     _get_tool_resolver(request).invalidate("project", project.id)
     return _to_response(server)
 
@@ -314,13 +279,13 @@ async def update_project_server(
     request: Request,
 ) -> MCPServerResponse:
     repo = MCPServerRepository(session)
-    enc = _get_encryption(request)
     server = await repo.get_project_server(server_id)
     if server is None or server.project_id != project.id:
         raise HTTPException(status_code=404, detail="Server not found")
-    data = _validate_and_encrypt(body, enc)
-    if data:
-        server = await repo.update(server, **data)
+    service = _build_mcp_service(request, session)
+    server = await service.update_and_reguard(
+        scope="project", owner_id=project.id, server=server, payload=body
+    )
     _get_tool_resolver(request).invalidate("project", project.id)
     return _to_response(server)
 
@@ -427,16 +392,16 @@ async def create_thread_server(
     request: Request,
 ) -> MCPServerResponse:
     repo = MCPServerRepository(session)
-    enc = _get_encryption(request)
     count = await repo.count_by_scope("thread", thread_id)
     if count >= MAX_SERVERS_PER_SCOPE:
         raise HTTPException(
             status_code=400,
             detail=f"Maximum {MAX_SERVERS_PER_SCOPE} servers per scope",
         )
-    data = _validate_and_encrypt(body, enc)
-    data["thread_id"] = thread_id
-    server = await repo.create_thread_server(**data)
+    service = _build_mcp_service(request, session)
+    server = await service.guard_and_persist(
+        scope="thread", owner_id=thread_id, payload=body
+    )
     _get_tool_resolver(request).invalidate("thread", thread_id)
     return _to_response(server)
 
@@ -454,13 +419,13 @@ async def update_thread_server(
     request: Request,
 ) -> MCPServerResponse:
     repo = MCPServerRepository(session)
-    enc = _get_encryption(request)
     server = await repo.get_thread_server(server_id)
     if server is None or server.thread_id != thread_id:
         raise HTTPException(status_code=404, detail="Server not found")
-    data = _validate_and_encrypt(body, enc)
-    if data:
-        server = await repo.update(server, **data)
+    service = _build_mcp_service(request, session)
+    server = await service.update_and_reguard(
+        scope="thread", owner_id=thread_id, server=server, payload=body
+    )
     _get_tool_resolver(request).invalidate("thread", thread_id)
     return _to_response(server)
 

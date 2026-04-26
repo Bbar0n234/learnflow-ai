@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import contains_eager
 
@@ -59,3 +59,18 @@ class ThreadViewRepository:
     async def delete(self, thread_view: ThreadView) -> None:
         await self._session.delete(thread_view)
         await self._session.flush()
+
+    async def mark_security_blocked(self, thread_id: uuid.UUID) -> None:
+        await self._session.execute(
+            update(ThreadView)
+            .where(ThreadView.thread_id == thread_id)
+            .values(security_blocked=True)
+        )
+        await self._session.flush()
+
+    async def is_security_blocked(self, thread_id: uuid.UUID) -> bool:
+        result = await self._session.execute(
+            select(ThreadView.security_blocked).where(ThreadView.thread_id == thread_id)
+        )
+        row = result.first()
+        return bool(row[0]) if row is not None else False

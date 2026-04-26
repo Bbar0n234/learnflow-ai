@@ -226,7 +226,7 @@ Observation type `guardrail` (name: `input-guard`) отображается в t
 
 | Метаполе | Тип | Значение |
 |---------|-----|---------|
-| `guard_model` | str | Модель classifier: `"google/gemini-3.1-flash-lite-preview"` |
+| `guard_model` | str | Модель classifier: `"google/gemini-3-flash-preview"` |
 | `verdict_raw` | str | Сырой ответ от classifier (для анализа) |
 | `unicode_chars_found` | list | Обнаруженные опасные символы: `["U+200B", "U+FEFF"]` |
 

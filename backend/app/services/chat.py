@@ -47,6 +47,13 @@ class ChatService:
         thread_view = await self._thread_view_repo.create(
             project_id=project_id, title=title
         )
+        # Commit before returning — clients may issue the next request
+        # (POST /messages) before FastAPI's yield-dependency commits at the end
+        # of the response cycle, which races against the message route's own
+        # session reading thread_views.
+        if self._session is not None:
+            await self._session.commit()
+            await self._session.refresh(thread_view)
         logger.info(
             "chat created",
             thread_id=str(thread_view.thread_id),

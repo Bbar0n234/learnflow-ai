@@ -68,6 +68,7 @@ async def get_chat(
     return ChatDetailResponse(
         thread_id=chat_detail.thread_view.thread_id,
         title=chat_detail.thread_view.title,
+        security_blocked=chat_detail.thread_view.security_blocked,
         messages=[
             MessageOut(
                 id=m.id,
@@ -77,6 +78,7 @@ async def get_chat(
                 artifacts=artifacts_by_msg.get(m.id, []),
                 trace_id=chat_detail.trace_ids.get(m.id),
                 feedback_score=_feedback_for(m.id),
+                redacted=m.redacted,
             )
             for m in chat_detail.messages
         ],
@@ -98,6 +100,7 @@ async def list_recent_chats(
                 project_id=tv.project_id,
                 project_name=tv.project.name,
                 updated_at=tv.updated_at,
+                security_blocked=tv.security_blocked,
             )
             for tv in thread_views
         ]

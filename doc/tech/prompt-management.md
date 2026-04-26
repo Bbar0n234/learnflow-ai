@@ -118,11 +118,13 @@ sync: make sync-prompts → commit updated seed files
 |------|-----------|---------------|------------|
 | `system` | `configs/prompts/system.txt` | `agent.yaml` → `llm` (model, extra_body) | Base system prompt агента |
 | `summarization` | `configs/prompts/summarization.txt` | `agent.yaml` → `summarization` (model, max_tokens) | Суммаризация при message compaction |
-| `guard-classifier` | `configs/prompts/guard-classifier.txt` | `agent.yaml` → `security` (guard_model) | Security input classifier (→ [architecture.md](../security/architecture.md)) |
+| `security-classifier` | `configs/prompts/security-classifier.txt` | `security.yaml` → `llm_classifier` | Composite classifier для всех security checkpoints (→ [architecture.md](../security/architecture.md)) |
+
+Реестр — `configs/prompts.yaml`: `name → source файл + config-источник`. Добавление промпта = новый файл в `configs/prompts/` + запись в `prompts.yaml`, без правок кода.
 
 Prompt config хранится в Langfuse metadata вместе с текстом. `get_config()` используется ModelConfigResolver как нижний уровень каскада (Langfuse prompt config → agent.yaml default).
 
-**guard-classifier** — промпт для LLM-классификатора prompt injection. Содержит переменную `{{ checkpoint }}` (описание точки проверки), подставляемую через `prompt.compile(checkpoint=...)`. Калибровка: false negatives > false positives (образовательная платформа, дополнительные слои защиты).
+**security-classifier** — единый промпт для всех security checkpoints. Per-checkpoint специфика подставляется через переменные `checkpoint_description`, `checkpoint_specifics_section`, `history_section`, `content` из `configs/security.yaml`. Промпт работает как security boundary classifier (оценивает факт пересечения границы), не как изолированный prompt-injection классификатор.
 
 ## Configuration
 

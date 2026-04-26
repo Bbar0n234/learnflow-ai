@@ -47,7 +47,7 @@ doc/
 - [tech/user-memory.md](tech/user-memory.md) — custom instructions, agent memory, кросс-проектная персонализация
 - [tech/prompt-management.md](tech/prompt-management.md) — Langfuse prompts, dev/prod separation, seed/sync, fallback
 - [tech/observability.md](tech/observability.md) — Langfuse трейсинг, cost tracking, user feedback loop
-- [security/architecture.md](security/architecture.md) — Prompt injection protection: input guard, hardening, canary token
+- [security/architecture.md](security/architecture.md) — Защита агента: семь I/O checkpoints, детекторы, trust boundaries, block mechanics
 
 **Соглашения и решения:**
 - [tech/conventions.md](tech/conventions.md) — git flow, code quality, naming, logging, Docker

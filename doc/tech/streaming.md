@@ -22,14 +22,18 @@ data: {"type": "done", "message_id": "msg-uuid", "trace_id": "trace-uuid"}\n\n
 | `tool_start` | `{tool, call_id}` | Агент инициировал вызов инструмента |
 | `tool_end` | `{tool, call_id}` | Инструмент завершил выполнение |
 | `artifact_created` | `{id, title, artifact_type}` | Агент создал артефакт (сохранён в БД) |
+| `final_output_review_started` | `{}` | Перед end-of-stream проверкой final output |
+| `final_output_review_complete` | `{}` | Final output проверен, verdict CLEAN |
 | `trace_id` | `{trace_id}` | Langfuse trace ID (internal, не доходит до frontend) |
 | `done` | `{message_id, trace_id}` | Генерация завершена успешно |
 | `error` | `{detail}` | Ошибка или отмена генерации |
-| `security_block` | `{reason}` | Блокировка security guard или canary leak |
+| `security_block` | `{checkpoint, detection_layer}` | Блокировка по одному из четырёх runtime-checkpoint'ов |
 
 `done`, `error` и `security_block` — взаимоисключающие **terminal events**. После любого из них поток закрывается. Если соединение обрывается без terminal event — frontend трактует это как connection lost.
 
-`security_block` — отдельный от `error` event: security incidents отображаются специфичным UI (generic сообщение пользователю), не generic error. Reason values: `invisible_chars`, `llm_classifier`, `canary_in_input`, `canary_leak`. Подробнее — [architecture.md](../security/architecture.md).
+`security_block` — отдельный от `error` event: security incidents отображаются специфичным UI (generic сообщение пользователю), не generic error. `checkpoint` принимает значения `user_input`, `tool_result`, `tool_call_arg`, `final_output`; `detection_layer` — `canary`, `unicode`, `fragment`, `paired`, `llm_classifier`. Подробнее — [architecture.md](../security/architecture.md).
+
+`final_output_review_*` — non-terminal события вокруг end-of-stream проверки final output. Frontend показывает индикатор «проверка ответа» в паузе между последним `text_chunk` и `done`. При INJECTION на этой проверке вместо `final_output_review_complete` отправляется `security_block`.
 
 `trace_id` — internal event: ChatService перехватывает его (не пробрасывает клиенту), сохраняет в Redis, а затем включает trace_id в payload `done` event. Frontend получает trace_id только через `done`.
 
@@ -48,12 +52,20 @@ sequenceDiagram
     API->>SVC: send_message()
     SVC->>AGT: stream()
 
-    Note over AGT: SecurityGuard.check() (→ security/architecture.md)
-    alt INJECTION
+    Note over AGT: SecurityGuard.check(user_input) (→ security/architecture.md)
+    alt INJECTION на user_input
         AGT-->>C: security_block
     else CLEAN / SUSPICIOUS
         loop LangGraph astream
+            Note over AGT: inline guards (tool_result, tool_call_arg, mid-stream final_output)
             AGT-->>C: text_chunk / tool_start / tool_end / artifact_created
+        end
+        AGT-->>C: final_output_review_started
+        Note over AGT: end-of-stream final_output check
+        alt INJECTION
+            AGT-->>C: security_block
+        else CLEAN
+            AGT-->>C: final_output_review_complete
         end
     end
 
@@ -63,7 +75,7 @@ sequenceDiagram
     Note over C: invalidate queries, reset stream store
 ```
 
-При ошибке на любом этапе — поток завершается событием `error` вместо `done`. При security incident (INJECTION verdict или canary leak) — `security_block`.
+При ошибке на любом этапе — поток завершается событием `error` вместо `done`. При INJECTION на любом из четырёх runtime-checkpoint'ов — `security_block`.
 
 ## Cancellation
 

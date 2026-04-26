@@ -35,14 +35,12 @@
 
 ## Security
 
-- **P1** KS Write Guard — guard при записи в Knowledge Sphere (защита от memory poisoning). Тот же LLM classifier с контекстным промптом. При наличии фундамента feat-004 — минимальный effort *(Agent)*
-- **P1** LLM Output Classifier — семантическая проверка ответа агента на утечку system prompt и internal data. Тот же BaseGuard, другой промпт *(Agent)*
-- **P2** SecurityObserver extraction — вынос Langfuse observability кода (~90 строк) из runner.py в отдельный SecurityObserver. Runner содержит business logic (вызов guard, verdict → action), observer инкапсулирует guardrail observations, score_trace, metadata. SRP: runner не должен знать о Langfuse internals *(Agent)*
-- **P2** Tool Result Guard — проверка результатов MCP/tools на indirect prompt injection. Покрывает и безопасность user-added MCP серверов *(Agent)*
-- **P2** Semantic Similarity output check — embedding-based проверка ответа на близость к system prompt *(Agent)*
 - **P2** Async Guard — параллельная проверка guard с main LLM для снижения latency. Tool execution ждёт вердикта *(Agent)*
-- **P2** Multi-turn escalation detection — обнаружение постепенных атак через серию сообщений *(Agent)*
-- **P2** Base prompt + security wrapper merge — сейчас `security system prompt` оборачивает `base system prompt` через Jinja-шаблон в `prompt_build.py`. Архитектурно плохо: security-промпт нельзя модифицировать без изменения кода, он не живёт как обычный промпт в Langfuse. Варианты: (a) объединить в единый промпт, в котором security-обвязка — неотъемлемая часть основного; (b) оставить два, но вынести оба в Langfuse с явным контрактом обёртывания. Замечено при обсуждении `security/architecture.md`, но исправление в коде *(Agent)*
+- **P2** Multi-turn escalation detection — текущий classifier видит history, отдельный механизм not planned; пересматриваем при появлении подтверждённого FN-класса, который history-aware classifier стабильно пропускает *(Agent)*
+- **P3** Trust-tier formalization для internal tools — если выйдет class internal tools, чьи outputs регулярно конфликтуют с защитными слоями (по аналогии с tool result + skills corpus), описать tier-механизм для исключений *(Agent)*
+- **P3** User MCP attack probe в eval-наборе — добавить attack probe для пункта «User MCP → единая строгость» при возврате eval-инфраструктуры из parked-режима *(Agent)*
+- **P3** Глобальный refactor паттерна `get_db_session` commit — активируется при повторном проявлении 404-симптома в других routes (сейчас покрыт точечным фиксом в ChatService, конвенция — в conventions.md) *(Backend)*
+- **P3** Guard observations иерархия в Langfuse UI — guards рендерятся как siblings root span, не вложены в позицию между iter'ами agent node. Не блокирует observability; ремедиация требует синхронизации CallbackHandler vs OTel scope, low value *(Agent)*
 
 ## Cross-cutting
 

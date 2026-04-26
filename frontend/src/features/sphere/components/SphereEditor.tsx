@@ -1,10 +1,15 @@
 import { useState } from "react";
 import { Button } from "@/shared/ui/button";
 import { Textarea } from "@/shared/ui/textarea";
+import {
+  isSecurityViolation,
+  SECURITY_VIOLATION_MESSAGE,
+} from "@/shared/lib/security-error";
 
 interface SphereEditorProps {
   content: string;
   isPending: boolean;
+  error: unknown;
   onSave: (content: string) => void;
   onCancel: () => void;
 }
@@ -12,10 +17,12 @@ interface SphereEditorProps {
 export function SphereEditor({
   content,
   isPending,
+  error,
   onSave,
   onCancel,
 }: SphereEditorProps) {
   const [text, setText] = useState(content);
+  const showSecurityError = isSecurityViolation(error);
 
   return (
     <div className="flex h-full flex-col">
@@ -30,7 +37,12 @@ export function SphereEditor({
           </Button>
         </div>
       </div>
-      <div className="flex-1 p-6">
+      <div className="flex flex-1 flex-col p-6">
+        {showSecurityError && (
+          <p className="mb-2 text-sm text-destructive">
+            {SECURITY_VIOLATION_MESSAGE}
+          </p>
+        )}
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}

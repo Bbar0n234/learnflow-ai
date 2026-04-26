@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -12,10 +13,30 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
-from app.agent.config import load_agent_config
+from app.agent.config import (
+    PromptsRegistry,
+    load_agent_config,
+    load_error_messages,
+    load_pricing_config,
+    load_prompt_fragments,
+    load_prompts_registry,
+)
 from app.agent.graph_factory import GraphFactory
 from app.agent.runner import LangGraphAgentRunner
+from app.agent.security.classifier import LLMClassifier
+from app.agent.security.config import checkpoint_configs, load_security_config
+from app.agent.security.corpus import (
+    collect_fragment_corpus,
+    collect_tool_registry,
+)
+from app.agent.security.detectors import (
+    CanaryDetector,
+    FragmentDetector,
+    PairedToolIdentifierDetector,
+    UnicodeDetector,
+)
 from app.agent.security.guard import SecurityGuard
+from app.agent.security.observer import GuardObserver
 from app.agent.tools import (
     ks_tools,
     make_create_artifact_tool,
@@ -64,26 +85,68 @@ def _content_hash(text: str, config: dict[str, Any]) -> str:
     ).hexdigest()
 
 
-def _load_prompt_config(agent_config: Any, name: str) -> dict[str, Any]:
-    if name == "system":
-        return {
-            "model": agent_config.llm.model,
-            "extra_body": agent_config.llm.extra_body,
-        }
-    if name == "summarization" and agent_config.summarization:
-        return {
-            "model": agent_config.summarization.model,
-            "max_tokens": agent_config.summarization.max_summary_tokens,
-        }
-    if name == "guard-classifier" and agent_config.security:
-        return {"model": agent_config.security.guard_model}
-    return {}
+async def _validate_builtin_mcp(
+    servers: dict[str, Any],
+    guard: Any,
+) -> set[str]:
+    """Validate each enabled remote built-in MCP server at startup.
+
+    Fetches remote ``tools/list`` and runs the guard against the full
+    metadata blob. Returns names of servers to disable (fetch failed OR
+    guard fired INJECTION). ``stdio`` / disabled servers are skipped.
+    """
+    from app.agent.security.types import Checkpoint, Verdict
+    from app.services.mcp_server import (
+        fetch_remote_metadata,
+        serialize_mcp_meta_blob,
+    )
+
+    disabled: set[str] = set()
+    for name, cfg in servers.items():
+        if not cfg.enabled or cfg.transport == "stdio":
+            continue
+        api_key = os.environ.get(cfg.api_key_env, "") if cfg.api_key_env else None
+        try:
+            remote_tools = await fetch_remote_metadata(
+                cfg.url or "", cfg.transport, api_key
+            )
+            blob = serialize_mcp_meta_blob(
+                name=name,
+                transport=cfg.transport,
+                url=cfg.url or "",
+                allowed_tools=cfg.allowed_tools or [],
+                remote_tools=remote_tools,
+            )
+            result = await guard.check(
+                blob,
+                Checkpoint.MCP_METADATA,
+                trace_ctx={"top_level": True, "scope": "mcp.builtin"},
+            )
+            if result.verdict == Verdict.INJECTION:
+                logger.warning(
+                    "built-in mcp disabled after guard failure",
+                    name=name,
+                    detection_layer=(
+                        result.detection_layer.value if result.detection_layer else None
+                    ),
+                )
+                disabled.add(name)
+        except Exception:
+            logger.warning(
+                "built-in mcp disabled after guard/fetch failure",
+                name=name,
+                exc_info=True,
+            )
+            disabled.add(name)
+    return disabled
 
 
 def _seed_prompts(
     langfuse: Any,
     prompts_dir: Path,
     agent_config: Any,
+    security_config: Any,
+    prompts_registry: PromptsRegistry,
     label: str,
 ) -> None:
     """Seed prompts to Langfuse on startup (idempotent, duplicate-safe).
@@ -92,14 +155,16 @@ def _seed_prompts(
     This gives full isolation between environments — each has its own version history.
     Dedup compares file content against all versions of the qualified prompt.
     """
-    for prompt_name in ["system", "summarization", "guard-classifier"]:
+    for prompt_name in prompts_registry.prompts:
         file_path = prompts_dir / f"{prompt_name}.txt"
         if not file_path.exists():
             continue
 
         qualified = f"{prompt_name}--{label}"
         file_text = file_path.read_text(encoding="utf-8")
-        file_config = _load_prompt_config(agent_config, prompt_name)
+        file_config = prompts_registry.resolve(
+            prompt_name, agent_config, security_config
+        )
         file_hash = _content_hash(file_text, file_config)
 
         try:
@@ -155,9 +220,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
 
     agent_config = load_agent_config()
+    security_config = load_security_config()
+    pricing_config = load_pricing_config()
+    error_messages = load_error_messages()
+    prompt_fragments = load_prompt_fragments()
+    prompts_registry = load_prompts_registry()
 
     try:
-        ensure_model_definitions(agent_config.models)
+        ensure_model_definitions(pricing_config.models)
     except Exception:
         logger.warning("langfuse model definitions init failed", exc_info=True)
 
@@ -203,7 +273,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Seed prompts to Langfuse
     if langfuse_client:
         _seed_prompts(
-            langfuse_client, prompts_dir, agent_config, settings.langfuse_prompt_label
+            langfuse_client,
+            prompts_dir,
+            agent_config,
+            security_config,
+            prompts_registry,
+            settings.langfuse_prompt_label,
         )
 
     # Encryption service
@@ -228,25 +303,85 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         skills_idx = scan_skills_index(skills_dir)
         create_artifact = make_create_artifact_tool(app.state.session_factory)
 
+        internal_tools: list = (
+            ks_tools + user_memory_tools + [load_skill, create_artifact]
+        )
+
+        # Security guard (Sec 2.0 — always on). Must exist before MCP built-in
+        # validation so the startup guard can call it.
+        guard_llm = create_guard_llm(settings, security_config)
+        fragment_corpus = collect_fragment_corpus(
+            system_prompt=prompt_provider.load_file("system"),
+            guard_classifier_prompt=prompt_provider.load_file("security-classifier"),
+            internal_tools=internal_tools,
+        )
+        tool_registry = collect_tool_registry(internal_tools)
+        from app.agent.security.detectors.base import DeterministicDetector
+
+        detectors: list[DeterministicDetector] = [
+            CanaryDetector(),
+            UnicodeDetector(),
+            PairedToolIdentifierDetector(
+                tool_registry,
+                min_compromised_tools=security_config.detectors.paired.min_compromised_tools,
+                min_params_per_tool=security_config.detectors.paired.min_params_per_tool,
+            ),
+            FragmentDetector(
+                fragment_corpus,
+                window_size=security_config.detectors.fragment.window_size,
+                stride=security_config.detectors.fragment.stride,
+                min_unique_matches=security_config.detectors.fragment.min_unique_matches,
+            ),
+        ]
+        classifier = LLMClassifier(
+            llm=guard_llm,
+            prompt_provider=prompt_provider,
+            security_config=security_config,
+            checkpoint_configs=checkpoint_configs(security_config),
+        )
+        security_guard = SecurityGuard(
+            detectors=detectors,
+            classifier=classifier,
+            observer=GuardObserver(),
+            config=security_config,
+        )
+        logger.info(
+            "security guard initialized",
+            guard_model=security_config.llm_classifier.model,
+            corpus_items=len(fragment_corpus),
+            tool_registry_size=len(tool_registry),
+        )
+
+        # Built-in MCP validation: fetch remote tools/list + run guard. A
+        # server that fails the fetch or the guard check is excluded from the
+        # runtime tool registry. App still boots (graceful disable).
+        disabled_builtin_mcp: set[str] = await _validate_builtin_mcp(
+            agent_config.mcp_servers, security_guard
+        )
+        app.state.disabled_builtin_mcp = disabled_builtin_mcp
+
         # MCP external tools (graceful degradation)
         mcp_tools: list = []
         try:
-            mcp_client = create_mcp_client(agent_config.mcp_servers)
+            active_mcp: dict[str, Any] = {
+                name: cfg
+                for name, cfg in agent_config.mcp_servers.items()
+                if cfg.enabled and name not in disabled_builtin_mcp
+            }
+            mcp_client = create_mcp_client(active_mcp)
             if mcp_client is not None:
-                for server_name, server_config in agent_config.mcp_servers.items():
-                    if not server_config.enabled:
-                        continue
+                for server_name, server_config in active_mcp.items():
                     tools = await mcp_client.get_tools(server_name=server_name)
                     if server_config.allowed_tools:
                         allowed = set(server_config.allowed_tools)
                         tools = [t for t in tools if t.name in allowed]
                     mcp_tools.extend(tools)
-                enabled = sum(1 for s in agent_config.mcp_servers.values() if s.enabled)
                 logger.info(
                     "mcp tools loaded",
                     tool_count=len(mcp_tools),
-                    servers_active=enabled,
+                    servers_active=len(active_mcp),
                     servers_total=len(agent_config.mcp_servers),
+                    servers_disabled=len(disabled_builtin_mcp),
                 )
         except Exception:
             logger.warning(
@@ -262,11 +397,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         graph_factory = GraphFactory(
             settings=settings,
             agent_config=agent_config,
+            prompt_fragments=prompt_fragments,
+            security_messages=security_config.messages,
             global_tools=global_tools,
             skills_index=skills_idx,
             checkpointer=checkpointer,
             store=store,
             prompt_provider=prompt_provider,
+            security_guard=security_guard,
         )
 
         model_resolver = ModelConfigResolver(
@@ -284,20 +422,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         app.state.tool_resolver = tool_resolver
 
-        # Security guard (optional — only if security config present)
-        security_guard = None
-        if agent_config.security:
-            guard_llm = create_guard_llm(settings, agent_config.security)
-            security_guard = SecurityGuard(
-                guard_llm=guard_llm,
-                prompt_provider=prompt_provider,
-                config=agent_config.security,
-            )
-            logger.info(
-                "security guard initialized",
-                guard_model=agent_config.security.guard_model,
-            )
-
         if not settings.canary_secret:
             logger.warning("CANARY_SECRET not configured, canary protection disabled")
 
@@ -305,11 +429,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             graph_factory=graph_factory,
             model_resolver=model_resolver,
             checkpointer=checkpointer,
+            security_messages=security_config.messages,
+            error_messages=error_messages,
             tool_resolver=tool_resolver,
             security_guard=security_guard,
             canary_secret=settings.canary_secret,
+            session_factory=app.state.session_factory,
         )
         app.state.agent_config = agent_config
+        app.state.security_config = security_config
+        app.state.security_guard = security_guard
+        app.state.pricing_config = pricing_config
+        app.state.error_messages = error_messages
+        app.state.prompt_fragments = prompt_fragments
+        app.state.prompts_registry = prompts_registry
 
         yield
 

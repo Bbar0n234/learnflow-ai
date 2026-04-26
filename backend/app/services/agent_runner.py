@@ -27,6 +27,7 @@ class Message:
     role: str
     content: str
     created_at: datetime | None = None
+    redacted: bool = False
 
 
 class AgentRunner(Protocol):

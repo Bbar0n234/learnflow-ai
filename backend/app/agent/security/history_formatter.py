@@ -1,7 +1,9 @@
+from collections.abc import Sequence
+
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
 
-def format_for_classifier(messages: list[BaseMessage], current_content: str) -> str:
+def format_for_classifier(messages: Sequence[BaseMessage], current_content: str) -> str:
     """Format conversation history + current message for the security classifier.
 
     Produces XML-wrapped text with role prefixes for each message.

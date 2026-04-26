@@ -1,6 +1,6 @@
 # Agent Runtime
 
-Ядро AI-функциональности: LangGraph-граф с ReAct-паттерном, context engineering, tools, skills, MCP-интеграция. Инкапсулирован в Agent Layer — наружу выходят только доменные типы (`StreamEvent`, `Message`), не LangGraph-специфичные. Стриминг событий — [streaming.md](streaming.md).
+Ядро AI-функциональности: LangGraph StateGraph с ReAct-паттерном, context engineering, tools, skills, MCP-интеграция. Инкапсулирован в Agent Layer — наружу выходят только доменные типы (`StreamEvent`, `Message`), не специфичные для LangGraph. Стриминг событий описан в [streaming.md](streaming.md).
 
 ## Architecture Overview
 
@@ -26,7 +26,7 @@ graph TD
     GRAPH --> CP
 ```
 
-**AgentRunner** — protocol-интерфейс взаимодействия с Service Layer:
+**AgentRunner** — контрактный интерфейс взаимодействия с Service Layer:
 
 | Метод | Назначение |
 |-------|------------|
@@ -54,74 +54,64 @@ ChatService
 
 ## Agent Graph
 
-`StateGraph(MessagesState)` — single key `messages`, reducer `add_messages`.
+`StateGraph(MessagesState)` — один ключ `messages` с reducer `add_messages`.
 
 ```mermaid
 graph LR
-    START(("START")) --> AGENT["agent"]
+    START(("START")) --> AGENT["agent node"]
     AGENT --> COND{tool_calls?}
     COND -->|Да| TOOLS["tools (ToolNode)"]
     TOOLS --> AGENT
     COND -->|Нет| END_(("END"))
 ```
 
-- **agent** — основной узел: compaction → system message → trimming → LLM invocation
-- **tools** — `ToolNode` (prebuilt), выполнение tool calls
-- **tools_condition** (prebuilt) — routing: AIMessage с tool_calls → tools, иначе → END
+- **agent node** — основной узел: compaction → system message assembly → trimming → LLM call
+- **tools** — встроенный `ToolNode`, выполнение tool calls
+- **tools_condition** — встроенный router: AIMessage с tool_calls → tools node, иначе → END
 
-**Context schema:** `AgentContext(project_id, user_id, canary_token)` — передаётся через `context=` параметр `astream()`, доступен в nodes и tools через `runtime.context`. `canary_token` вычисляется per-request для system prompt hardening (→ [security.md](security.md)).
+**Context schema:** `AgentContext(project_id, user_id, canary_token, user_installed_tool_names)` — передаётся через параметр `context=` в `astream()`, доступен в nodes и tools через `runtime.context`. `canary_token` вычисляется для каждого запроса; `user_installed_tool_names` нужен prompt-builder'у для дифференциации built-in / user-installed MCP-инструментов (→ [architecture.md](../security/architecture.md)).
 
-**Compile:** GraphFactory на каждый запрос:
-- `checkpointer=AsyncPostgresSaver` — shared, персистентная история (PostgreSQL)
-- `store=AsyncPostgresStore` — shared, key-value для Knowledge Sphere и User Memory
+**Compilation:** GraphFactory на каждый запрос настраивает:
+- `checkpointer=AsyncPostgresSaver` — shared, персистentна история в PostgreSQL
+- `store=AsyncPostgresStore` — shared, key-value хранилище для Knowledge Sphere и User Memory
 
 **Invocation:**
 ```
 graph.astream(input_msg, config, stream_mode=["messages", "updates"], context=context)
 ```
-- `stream_mode=["messages"]` — потоковые токены от LLM → `text_chunk` events
+- `stream_mode=["messages"]` — потоковые токены от LLM → `text_chunk` SSE events
 - `stream_mode=["updates"]` — результаты узлов → `tool_start`, `tool_end`, `artifact_created` events
 
 ## System Message
 
-Собирается из семи частей на каждый вызов agent node. Base prompt обёрнут в hardened Jinja-template с security-секциями (→ [security.md](security.md)):
+Собирается секционно (Python, не Jinja-template) на каждый вызов agent node. Структура отражает trust- и disclosure-границы; маркировка обёртками — вход в [Security](#security):
 
 ```
-┌─────────────────────────────────┐
-│ <system_instructions>           │  ← Security hardening
-│   Instruction hierarchy,        │     (→ security.md)
-│   confidentiality, canary token │
-├─────────────────────────────────┤
-│ Base Prompt                     │  ← PromptProvider (→ prompt-management.md)
-│ (стиль, guidelines, boundaries) │
-├─────────────────────────────────┤
-│ <custom_instructions>           │  ← LangGraph Store, per-user
-│   Пользовательские инструкции   │     (→ user-memory.md)
-├─────────────────────────────────┤
-│ <user_memory>                   │  ← LangGraph Store, per-user
-│   Факты о пользователе          │     (→ user-memory.md)
-├─────────────────────────────────┤
-│ <knowledge_sphere>              │  ← LangGraph Store, per-project
-│   KS Index                      │     (→ knowledge-sphere.md)
-├─────────────────────────────────┤
-│ <instruction_reminder>          │  ← Security hardening (sandwich defense)
-├─────────────────────────────────┤
-│ <available_skills>              │  ← skills/ directory (scanned at startup)
-│   Skills Index                  │
-└─────────────────────────────────┘
+<system_instructions>           ← hardening preamble + canary token
+[base prose]                    ← PromptProvider (→ prompt-management.md)
+<tools>
+  <internal_tools>              ← capability-only описания internal non-MCP tools
+  <builtin_mcp_tools>           ← descriptions vendored MCP-серверов
+  <user_installed_mcp_tools>    ← per-user MCP, обёрнутые в <untrusted_tool_description>
+</tools>
+<knowledge_sphere>              ← Knowledge Sphere Index (per-project)
+<custom_instructions>           ← user-provided (per-user)
+[guidelines: artifacts, skills, user_memory, error_handling]
+<instruction_reminder>          ← sandwich defense
 ```
 
-| Часть | Source | Scope | Обновление |
-|-------|--------|-------|------------|
-| System instructions | Hardened template (security.md) | Global | Canary token per-request |
-| Base prompt | PromptProvider (Langfuse → file fallback) | Global | При изменении в Langfuse (SDK cache TTL) |
+| Раздел | Источник | Область | Обновление |
+|--------|----------|--------|-----------|
+| System instructions | hardening preamble + base prose из Langfuse | Global | Canary token per-request |
+| Base prose | PromptProvider (Langfuse → file fallback) | Global | При изменении в Langfuse (SDK cache TTL) |
+| Tools (3 подсекции) | static + agent.yaml + DB (per-user MCP) | Mixed | На сборку prompt'а |
 | Custom instructions | LangGraph Store | Per-user | При сохранении через REST API |
 | User memory | LangGraph Store | Per-user | Автономно агентом (tools) |
-| KS Index | LangGraph Store | Per-project | При изменении секций (agent tools / REST API) |
-| Instruction reminder | Hardened template (security.md) | Global | Статический |
-| Skills Index | Filesystem scan | Global | При старте приложения |
+| Knowledge Sphere Index | LangGraph Store | Per-project | При изменении секций (agent tools / REST API) |
+| Instruction reminder | hardening preamble | Global | Статический |
+| Skills Index | filesystem scan | Global | При старте приложения |
 
-Пересборка на каждый вызов гарантирует актуальность динамических частей (KS Index, memories могли измениться между вызовами).
+Пересборка на каждый вызов гарантирует актуальность динамических частей (Knowledge Sphere Index, memories, набор user MCP). Подробнее о trust-обёртках и disclosure-границе — [security/architecture.md](../security/architecture.md).
 
 ## Context Engineering
 
@@ -129,31 +119,31 @@ graph.astream(input_msg, config, stream_mode=["messages", "updates"], context=co
 
 ```mermaid
 graph TD
-    subgraph "Всегда в system message"
+    subgraph "Pre-loaded (always in system message)"
         CI["Custom Instructions"]
         UM["User Memory"]
-        KSI["KS Index (~500-1500 tokens)"]
+        KSI["KS Index ~500–1500 tokens"]
         SI["Skills Index"]
     end
 
-    subgraph "JIT — по запросу агента"
-        KSF["Полная секция KS (get_section)"]
-        SKL["Полный SKILL.md (load_skill)"]
+    subgraph "JIT (on-demand by agent)"
+        KSF["Full KS section"]
+        SKL["Full SKILL.md"]
     end
 
-    KSI -.->|"Агент видит список и решает"| KSF
-    SI -.->|"Агент видит список и решает"| SKL
+    KSI -.->|"Agent sees index"| KSF
+    SI -.->|"Agent sees index"| SKL
 ```
 
-| Уровень | Что | Когда | Размер |
-|---------|-----|-------|--------|
+| Уровень | Содержимое | Когда | Размер |
+|---------|-----------|-------|--------|
 | Pre-loaded | Custom Instructions, User Memory | Каждый вызов agent node | Variable (user-dependent) |
-| Pre-loaded | KS Index, Skills Index | Каждый вызов agent node | ~500-1500 tokens |
-| JIT | Полная секция KS | `get_section(section_id)` | Variable |
+| Pre-loaded | Knowledge Sphere Index, Skills Index | Каждый вызов agent node | ~500–1500 tokens |
+| JIT | Полная секция Knowledge Sphere | `get_section(section_id)` | Variable |
 | JIT | Полный SKILL.md | `load_skill(skill_name)` | Variable |
 | Managed | Message history | Trimming + compaction | До `max_tokens` budget |
 
-Агент видит индексы в system message и решает, какой контекст подтянуть для текущей задачи. Полные данные загружаются только когда нужны — минимизирует расход контекстного окна.
+Агент видит индексы в системном промпте и решает, какой контекст подтянуть для текущей задачи. Полные данные загружаются только когда нужны — минимизирует расход контекстного окна.
 
 ## Message Compaction
 
@@ -164,7 +154,7 @@ graph TD
 | Параметр | Default | Назначение |
 |----------|---------|------------|
 | `max_tokens` | 100 000 | Бюджет контекстного окна |
-| `compaction_threshold_ratio` | 0.75 | Порог (75k tokens) |
+| `compaction_threshold_ratio` | 0.75 | Порог срабатывания (75k tokens) |
 | `recent_messages_to_keep` | 10 | Сколько последних сообщений оставить |
 | `max_summary_tokens` | 500 | Лимит на summary |
 
@@ -172,24 +162,24 @@ graph TD
 
 ```mermaid
 flowchart TD
-    CHECK["total_tokens > threshold?"] -->|Да| SPLIT["Разделить: old / recent (последние 10)"]
-    SPLIT --> SUMM["Суммаризировать old отдельной моделью"]
-    SUMM -->|Успех| REPLACE["RemoveMessage(old) + AIMessage(summary)"]
-    SUMM -->|Ошибка| TRIM
+    CHECK["total_tokens > threshold?"] -->|Yes| SPLIT["Split: old / recent last 10"]
+    SPLIT --> SUMM["Summarize old (separate model)"]
+    SUMM -->|Success| REPLACE["RemoveMessage old + AIMessage summary"]
+    SUMM -->|Error| TRIM
     REPLACE --> TRIM
-    CHECK -->|Нет| TRIM
-    TRIM["trim_messages (strategy=last, max_tokens) — ВСЕГДА"]
+    CHECK -->|No| TRIM
+    TRIM["trim_messages strategy=last"]
 ```
 
-**Compaction** (условный) — умная суммаризация: старые сообщения заменяются на summary отдельной моделью. Сохраняет ключевые решения, нерешённые вопросы, текущий фокус; отбрасывает промежуточные tool outputs и reasoning. При ошибке суммаризации — пропускается (graceful degradation).
+**Compaction** (условный) — умная суммаризация: старые сообщения заменяются summary отдельной моделью. Сохраняет ключевые решения, нерешённые вопросы, текущий фокус; отбрасывает промежуточные tool outputs и reasoning. При ошибке суммаризации — пропускается (graceful degradation).
 
-**Trimming** (безусловный) — safety net после compaction. `trim_messages(strategy="last")` гарантирует, что финальный набор сообщений не превышает `max_tokens`. Если всё влезает — no-op. Нужен потому, что compaction считает только messages, а system message (based prompt + KS Index + Skills Index) тоже занимает место в контекстном окне.
+**Trimming** (обязательный) — safety net после compaction. `trim_messages(strategy="last")` гарантирует, что финальный набор сообщений не превышает `max_tokens`. Если всё влезает — no-op. Нужен потому, что compaction считает только messages, а система сообщения (base prompt + Knowledge Sphere Index + Skills Index) тоже занимает место в контексте.
 
-**Checkpointer хранит полную историю** — оба механизма оптимизируют контекстное окно, не уничтожают данные.
+**Checkpointer хранит полную историю** — оба механизма оптимизируют контекстное окно, не удаляют данные.
 
 ## Tools
 
-Четыре категории, объединяются при компиляции графа:
+Четыре категории, объединяются при компиляции графа. Internal non-MCP tools — PROTECTED implementation surface: их имена, параметры и схемы не должны попадать в final output (→ [security/architecture.md](../security/architecture.md)).
 
 ### Internal Tools
 
@@ -208,7 +198,7 @@ flowchart TD
 |------|------------|
 | `create_artifact` | Сохранить результат работы агента как артефакт проекта |
 
-`response_format="content_and_artifact"` — tool возвращает и текстовый ответ, и metadata артефакта (`id`, `title`, `type`). Metadata передаётся через SSE как `artifact_created` event.
+`response_format="content_and_artifact"` — tool возвращает текстовый ответ и metadata артефакта (`id`, `title`, `type`). Metadata передаётся через SSE как `artifact_created` event.
 
 **User Memory** — автономное управление фактами о пользователе (подробнее — [user-memory.md](user-memory.md)):
 
@@ -217,7 +207,7 @@ flowchart TD
 | `save_user_memory` | Сохранить/обновить факт о пользователе |
 | `delete_user_memory` | Удалить запись из памяти |
 
-Агент решает самостоятельно, когда сохранять информацию. Память кросс-проектная — доступна во всех чатах пользователя.
+Агент решает самостоятельно, когда сохранять информацию. Память кросс-проектна — доступна во всех чатах пользователя.
 
 **Skills:**
 
@@ -233,7 +223,7 @@ flowchart TD
 all_tools = internal_tools + mcp_tools(resolved)
 ```
 
-Подробнее об MCP-архитектуре — секция [MCP Integration](#mcp-integration).
+Подробнее об MCP-архитектуре — раздел [MCP Integration](#mcp-integration).
 
 ## Skills System
 
@@ -250,31 +240,35 @@ Skill — модуль специализированных знаний, заг
 
 ## MCP Integration
 
-Расширение агента внешними инструментами через Model Context Protocol. Двухуровневая архитектура: global + per-user.
+Расширение агента внешними инструментами через Model Context Protocol. Двухуровневая архитектура: built-in + per-user. Trust-различие проводится по источнику: built-in vendored в репо TRUSTED, user-installed — UNTRUSTED. Защита симметричная для обеих категорий — [security/architecture.md](../security/architecture.md).
 
-### Global MCP Servers
+### Built-in MCP Servers
 
 Конфигурируются в `configs/agent.yaml`, секция `mcp_servers`. Доступны всем пользователям.
+
+При старте каждый `enabled` remote-сервер проходит fetch `tools/list` и проверку через `mcp_metadata`-checkpoint. Сервера с INJECTION или ошибкой fetch попадают в `app.state.disabled_builtin_mcp` и не экспонируются в runtime tools — приложение стартует.
 
 | Поле | Назначение |
 |------|------------|
 | `transport` | Тип соединения: `stdio`, `sse`, `streamable_http` |
 | `url` | URL для sse/http транспортов |
-| `api_key_env` | Имя env-переменной с API ключом |
+| `api_key_env` | Имя переменной окружения с API ключом |
 | `command` / `args` | Команда запуска для stdio |
 | `allowed_tools` | Whitelist инструментов (фильтрация после получения) |
 | `enabled` | Включён/выключен без удаления конфигурации |
 
-Client: `MultiServerMCPClient` из `langchain_mcp_adapters`. Создаётся при старте, shared across invocations.
+Client: `MultiServerMCPClient` из `langchain_mcp_adapters`. Создаётся при старте, используется для всех запросов.
 
 ### Per-User MCP Servers
 
-Пользователи добавляют собственные MCP-серверы через REST API на трёх уровнях: user → project → thread. Хранятся в БД с шифрованием API-ключей (Fernet).
+Пользователи добавляют собственные MCP-серверы через REST API на трёх уровнях: user → project → thread. Хранятся в БД с шифрованием API-ключей (Fernet). Регистрация и обновление проходят `mcp_metadata`-checkpoint — INJECTION → HTTP 422, запись не сохраняется.
 
 Ограничения безопасности:
-- Только HTTP-транспорты (`streamable_http`, `sse`) — `stdio` запрещён (RCE-вектор)
-- SSRF-защита: DNS resolve + deny list приватных IP-диапазонов
+- Только HTTP-транспорты (`streamable_http`, `sse`) — `stdio` запрещён (удалённое выполнение кода)
+- Защита от SSRF: DNS resolve + deny list приватных IP-диапазонов
 - API-ключи зашифрованы, API возвращает только `has_api_key: bool` + `api_key_hint`
+
+User MCP-tools передаются модели в секции `<user_installed_mcp_tools>` system message, обёрнутые в `<untrusted_tool_description>` — модель различает источник descriptions при принятии решений.
 
 CRUD и каскадная видимость — [backend.md](backend.md).
 
@@ -284,15 +278,17 @@ CRUD и каскадная видимость — [backend.md](backend.md).
 
 **Additive merge:** thread ∪ project ∪ user ∪ global — tools от всех уровней объединяются.
 
-**Dedup:** при конфликте имён инструментов global побеждает (security boundary — пользовательский MCP не может подменить системный tool).
+**Dedup:** при конфликте имён инструментов built-in выигрывает (security boundary — пользовательский MCP не может подменить системный tool).
 
-**Cache:** TTL-кэш с targeted invalidation по scope tuple `(user_id, project_id, thread_id)`. CRUD-операции над MCP-серверами инвалидируют соответствующий scope.
+**Cache:** TTL-кэш с targeted invalidation по scope tuple `(user_id, project_id, thread_id)`. CRUD-операции над MCP-серверами инвалидируют соответствующий scope (избирательная инвалидация).
 
 **Graceful degradation:** недоступный MCP-сервер → skip + warning в логах, остальные tools работают.
 
 ## Security
 
-Pre-graph input guard, system prompt hardening, canary token output check. SecurityGuard — зависимость runner'а, проверяет user input до запуска графа. При verdict INJECTION — `security_block` SSE event, запрос не доходит до графа. Подробнее — [security.md](security.md), обоснование — [ADR-017](adr/ADR-017-prompt-injection-defense.md).
+`SecurityGuard` проверяет данные на семи checkpoint'ах: четыре в runtime (user input до графа, tool result до LLM, tool call args после ответа, final output на стриме) и три на add-time write paths в service-слое (MCP-регистрация, custom instructions, KS write через REST). При INJECTION — `security_block` SSE event и блокировка thread'а в runtime, или HTTP 422 на add-time. Подробнее — [security/architecture.md](../security/architecture.md), обоснование — [ADR-017](adr/ADR-017-prompt-injection-defense.md).
+
+Топология графа из-за защиты не меняется: проверки inline в `agent_node` и в runner, `tools_condition` сохранён.
 
 ## Observability
 
@@ -303,7 +299,7 @@ Pre-graph input guard, system prompt hardening, canary token output check. Secur
 - `trace_id` передаётся через SSE для привязки user feedback
 - Model definitions с pricing — cost tracking per invocation
 
-Langfuse выполняет dual role: tracing (observability) + prompt management (runtime source of truth для системных промптов). Подробнее — [prompt-management.md](prompt-management.md).
+Langfuse выполняет две роли: tracing (observability) + prompt management (runtime source of truth для системных промптов). Подробнее — [prompt-management.md](prompt-management.md).
 
 **Graceful degradation:** при недоступности Langfuse — `_NoOpSpan` (no-op tracing), промпты переключаются на file fallback. Приложение работает без трейсинга.
 
@@ -328,7 +324,12 @@ Langfuse выполняет dual role: tracing (observability) + prompt manageme
 
 | Источник | Что настраивает | Приоритет |
 |----------|----------------|-----------|
-| `configs/agent.yaml` | LLM defaults, context params, summarization, global MCP, models whitelist | Base defaults |
+| `configs/agent.yaml` | LLM defaults, context params, summarization, built-in MCP | Base defaults |
+| `configs/security.yaml` | Guard model, детекторы, per-checkpoint config, user-facing messages | Base defaults для security |
+| `configs/pricing.yaml` | Model pricing для cost tracking в Langfuse (shared agent + guard) | — |
+| `configs/prompts.yaml` | Реестр промптов (`name → source файл`) | — |
+| `configs/prompt_fragments.yaml` | XML-обёртки и заголовки секций system message | — |
+| `configs/error_messages.yaml` | Нормализованные сообщения SSE error events и заглушки | — |
 | `configs/prompts/*.txt` | Seed-файлы промптов | Seed → Langfuse |
 | Langfuse | Runtime промпты, model config в prompt metadata | Runtime override |
 | DB (settings tables) | Per-scope model overrides, per-user MCP servers | Per-request override |
@@ -341,13 +342,13 @@ Langfuse выполняет dual role: tracing (observability) + prompt manageme
 | `context` | max_tokens, compaction_threshold_ratio, recent_messages_to_keep |
 | `prompt` | Путь к файлу system prompt (seed) |
 | `summarization` | Модель суммаризации, max_summary_tokens |
-| `security` | Guard model, max retries, temperature (→ [security.md](security.md)) |
-| `mcp_servers` | Global MCP-серверы: transport, URL, API keys, allowed_tools |
-| `models` | Model definitions: pricing, match patterns (Langfuse cost tracking) |
+| `mcp_servers` | Built-in MCP-серверы: transport, URL, API keys, whitelist инструментов |
 
-**Prompt files** — seed-файлы в `configs/prompts/`. Source of truth для промптов — Langfuse; файлы используются для seeding и как fallback. Подробнее — [prompt-management.md](prompt-management.md).
+Security-конфиги, model pricing и реестр промптов вынесены отдельными файлами — детали в соответствующих документах ([security/architecture.md](../security/architecture.md), [observability.md](observability.md), [prompt-management.md](prompt-management.md)).
+
+**Prompt files** — seed-файлы в `configs/prompts/`. Источник истины для промптов — Langfuse; файлы используются для seeding и как fallback. Подробнее — [prompt-management.md](prompt-management.md).
 
 Application-level настройки — `backend/app/config.py` через Pydantic Settings. Ключевые env vars:
-- `MCP_ENCRYPTION_KEY` — Fernet-ключ для шифрования API-ключей per-user MCP
-- `LANGFUSE_PROMPT_LABEL` — label для фетча промптов (default: `development`)
-- `CANARY_SECRET` — HMAC secret для canary token (пустой = canary disabled + warning)
+- `MCP_ENCRYPTION_KEY` — Fernet-ключ для шифрования API-ключей пользовательских MCP-серверов
+- `LANGFUSE_PROMPT_LABEL` — label для получения промптов (по умолчанию: `development`)
+- `CANARY_SECRET` — HMAC secret для canary token (пустой = canary отключён + warning)

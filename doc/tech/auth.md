@@ -1,172 +1,172 @@
-# Authentication
+# Аутентификация и управление сессией
 
-Кросс-сервисный концепт: backend (выдача/валидация токенов, хранение сессий) + frontend (хранение, обновление, передача токенов). Обоснование выбора схемы и технологий — [ADR-011](adr/ADR-011-auth-architecture.md).
+Система защищает доступ к API и инструментам на основе JWT access token (краткосрочный, без обращения к БД) и refresh token (долгосрочный, один раз переиспользуется, хранится в БД). Реализована кросс-сервисно: backend отвечает за выдачу и валидацию, frontend — за хранение и обновление. Обоснование архитектуры и выбора технологий — [ADR-011](adr/ADR-011-auth-architecture.md).
 
 ## Auth Scheme Overview
 
-Гибридная схема: stateless access token (JWT) + stateful refresh token (opaque, хранится в БД).
+Гибридная схема: access token (JWT, без состояния) + refresh token (opaque, хранится в БД).
 
-Access token не требует обращения к БД — сервер верифицирует подпись. Refresh token даёт возможность мгновенного отзыва. Максимальное окно уязвимости при компрометации access token = его lifetime, после чего требуется refresh, который можно отозвать.
+Access token верифицируется по подписи без обращения к БД. Refresh token позволяет мгновенно отозвать все сессии при компрометации. Максимальное окно уязвимости при краже access token равно его lifetime; по истечении требуется refresh, который можно отозвать.
 
-| Token | Storage | Lifetime | XSS | CSRF |
+| Token | Хранилище | Lifetime | XSS | CSRF |
 |-------|---------|----------|-----|------|
-| Access | localStorage | 30 min | Уязвим, но short-lived | Иммунен (не отправляется автоматически) |
-| Refresh | httpOnly cookie | 30 days | Защищён (JS не имеет доступа) | Mitigated: SameSite=Lax + Path=/api/auth |
+| Access | localStorage | 30 мин | Уязвим, но краткосрочный | Защищён (не отправляется автоматически) |
+| Refresh | httpOnly cookie | 30 дней | Защищён (JS не имеет доступа) | Ограничен: SameSite=Lax + Path=/api/auth |
 
-Access token передаётся через `Authorization: Bearer` header — единообразно для SPA, CLI, любого клиента. Refresh token отправляется автоматически через cookie только на auth-эндпоинты.
+Access token передаётся через заголовок `Authorization: Bearer` — единообразно для браузерного приложения, CLI, любого клиента. Refresh token отправляется автоматически через cookie только при обращении к эндпоинтам `/api/auth/*`.
 
-## Token Lifecycle
+## Жизненный цикл токена
 
 ```mermaid
 sequenceDiagram
-    participant C as Client
+    participant C as Клиент
     participant B as Backend
-    participant DB as Database
+    participant DB as База данных
 
-    Note over C,DB: Login
+    Note over C,DB: Вход
     C->>B: POST /api/auth/login (credentials)
-    B->>DB: verify user, create refresh token
-    B->>C: access_token (body) + refresh_token (httpOnly cookie)
+    B->>DB: проверить пользователя, создать refresh token
+    B->>C: access_token (тело) + refresh_token (httpOnly cookie)
 
-    Note over C,DB: Authenticated Request
+    Note over C,DB: Запрос с аутентификацией
     C->>B: GET /api/... (Authorization: Bearer <access>)
-    B->>B: verify JWT signature
+    B->>B: проверить подпись JWT
     B->>C: 200 OK
 
-    Note over C,DB: Token Refresh (access expired)
+    Note over C,DB: Обновление токена (access истёк)
     C->>B: POST /api/auth/refresh (cookie: refresh_token)
-    B->>DB: validate & revoke old refresh, issue new pair
-    B->>C: new access_token (body) + new refresh_token (cookie)
+    B->>DB: проверить и отозвать старый refresh, выдать новую пару
+    B->>C: новый access_token (тело) + новый refresh_token (cookie)
 
-    Note over C,DB: Logout
+    Note over C,DB: Выход
     C->>B: POST /api/auth/logout (cookie: refresh_token)
-    B->>DB: revoke refresh token
-    B->>C: 200 OK + delete cookie
+    B->>DB: отозвать refresh token
+    B->>C: 200 OK + удалить cookie
 ```
 
-## Refresh Token Rotation & Replay Detection
+## Ротация и обнаружение повторного использования refresh token
 
-Refresh tokens — одноразовые. При каждом использовании:
+Refresh tokens одноразовые и ротируются при каждом использовании:
 
-1. Старый token помечается как revoked (`revoked_at` timestamp)
-2. Выдаётся новая пара access + refresh
-3. Raw token не хранится в БД — хранится SHA256 hash
+1. Старый token помечается как revoked (устанавливается `revoked_at`)
+2. Выдаётся новая пара access + refresh token
+3. Raw token не хранится в БД — в БД хранится SHA256 hash
 
-**Replay detection:** повторное использование уже revoked token — сигнал компрометации.
+**Обнаружение replay-атак:** повторное использование уже revoked token триггерит принудительный logout для всех сессий пользователя — признак компрометации.
 
 ```mermaid
 flowchart TD
-    REQ["Refresh request с token"] --> LOOKUP["Найти token по hash в БД"]
+    REQ["Запрос refresh с token"] --> LOOKUP["Найти token по hash в БД"]
     LOOKUP --> REVOKED{revoked_at != null?}
-    REVOKED -->|Да| ALARM["Revoke ALL tokens пользователя"]
+    REVOKED -->|Да| ALARM["Отозвать все tokens пользователя"]
     ALARM --> ERR401["401 ReplayDetected"]
     REVOKED -->|Нет| EXPIRED{expires_at < now?}
     EXPIRED -->|Да| ERR401E["401 TokenExpired"]
-    EXPIRED -->|Нет| ROTATE["Revoke текущий, выдать новую пару"]
-    ROTATE --> OK["200 + new tokens"]
+    EXPIRED -->|Нет| ROTATE["Отозвать текущий, выдать новую пару"]
+    ROTATE --> OK["200 + новая пара токенов"]
 ```
 
-Окно обнаружения: если атакующий и реальный пользователь оба имеют один refresh token, первый использовавший получает новую пару, второй триггерит alarm и force re-login для всех сессий.
+Окно обнаружения: если refresh token был украден и использован атакующим, первый использовавший получает новую пару, а второй (злоумышленник) получает 401 и триггерит блокировку всех сессий пользователя.
 
-## Password Hashing
+## Хеширование паролей
 
-Argon2id (argon2-cffi) — memory-hard + CPU-hard, рекомендация OWASP, RFC 9106.
+Используется Argon2id (реализация argon2-cffi) — одновременно memory-hard и CPU-hard, рекомендуется OWASP и RFC 9106.
 
 | Параметр | Значение |
 |----------|----------|
-| Algorithm | Argon2id |
-| memory_cost | 65536 (64 MiB) |
+| Алгоритм | Argon2id |
+| memory_cost | 65536 (64 МиБ) |
 | time_cost | 3 |
 | parallelism | 4 |
-| Target time | ~50ms |
+| Целевое время | ~50 мс |
 
-## Rate Limiting
+## Ограничение частоты запросов
 
-In-memory sliding window rate limiter. При превышении — HTTP 429 с заголовком `Retry-After`.
+Используется in-memory sliding window rate limiter. При превышении лимита возвращается HTTP 429 с заголовком `Retry-After`.
 
-| Endpoint | Limit | Window | Key |
+| Эндпоинт | Лимит | Окно | Ключ |
 |----------|-------|--------|-----|
-| `/auth/register` | 3 | 1 hour | IP |
-| `/auth/login` | 5 | 1 min | username + IP |
-| `/auth/refresh` | 10 | 1 min | IP |
+| `/api/auth/register` | 3 | 1 час | IP |
+| `/api/auth/login` | 5 | 1 мин | username + IP |
+| `/api/auth/refresh` | 10 | 1 мин | IP |
 
 Составной ключ для login (username + IP) предотвращает как brute force на один аккаунт, так и credential stuffing с одного IP.
 
-## Cookie Configuration
+## Конфигурация cookie
 
 Атрибуты refresh token cookie:
 
 | Атрибут | Значение | Назначение |
 |---------|----------|------------|
-| httpOnly | true | JS не имеет доступа |
+| httpOnly | true | JavaScript не имеет доступа (защита от XSS) |
 | secure | configurable | HTTPS-only в production |
-| samesite | lax | Блокирует cross-origin POST |
-| path | /api/auth | Cookie отправляется только на auth-эндпоинты |
-| max_age | 30 days (сек) | Совпадает с lifetime refresh token |
+| samesite | lax | Блокирует передачу cookie при cross-origin POST |
+| path | /api/auth | Cookie отправляется только на эндпоинты `/api/auth/*` |
+| max_age | 30 дней (в сек) | Совпадает с lifetime refresh token |
 
-CORS: `allow_credentials: true` — необходим для отправки httpOnly cookie в cross-origin запросах (frontend на другом порту в dev-режиме).
+CORS: `allow_credentials: true` требуется для отправки httpOnly cookie при cross-origin запросах (фронтенд на другом порту в режиме dev).
 
-## Frontend Auth Flow
+## Поток аутентификации на frontend
 
-### Axios Interceptor
+### Axios interceptor
 
-Request interceptor добавляет `Authorization: Bearer` header из localStorage (`learnflow-access-token`).
+Request interceptor добавляет заголовок `Authorization: Bearer` с access token из localStorage (ключ `learnflow-access-token`).
 
-Response interceptor перехватывает 401 (кроме запросов к `/auth/*`):
+Response interceptor перехватывает ошибки 401 (кроме запросов к `/auth/*`) и инициирует обновление токена:
 
 ```mermaid
 flowchart TD
-    ERR["401 от API"] --> RETRY{Уже retry?}
-    RETRY -->|Да| FAIL["Reject"]
+    ERR["Ошибка 401 от API"] --> RETRY{Уже retry?}
+    RETRY -->|Да| FAIL["Отклонить запрос"]
     RETRY -->|Нет| REFRESHING{isRefreshing?}
-    REFRESHING -->|Да| QUEUE["Добавить в очередь pending requests"]
+    REFRESHING -->|Да| QUEUE["Добавить в очередь ожидающих запросов"]
     REFRESHING -->|Нет| START["isRefreshing = true"]
-    START --> REFRESH["POST /auth/refresh"]
+    START --> REFRESH["POST /api/auth/refresh"]
     REFRESH --> SUCCESS{Успех?}
     SUCCESS -->|Да| SAVE["Сохранить новый access token"]
-    SAVE --> PROCESS["Выполнить pending requests с новым token"]
-    PROCESS --> ORIGINAL["Повторить оригинальный запрос"]
+    SAVE --> PROCESS["Обновить ожидающие запросы новым token"]
+    PROCESS --> ORIGINAL["Повторить исходный запрос"]
     SUCCESS -->|Нет| CLEAR["Очистить token, перезагрузить страницу"]
     QUEUE --> WAIT["Ждать завершения refresh"]
     WAIT --> ORIGINAL
 ```
 
-**Thundering herd protection:** флаг `isRefreshing` гарантирует один refresh-запрос при нескольких параллельных 401. Остальные запросы встают в очередь и выполняются после получения нового токена.
+**Защита от "thundering herd":** флаг `isRefreshing` гарантирует ровно один запрос refresh при нескольких параллельных 401. Остальные запросы встают в очередь и выполняются после получения нового токена.
 
 ### AuthGate
 
-Компонент-guard: оборачивает всё приложение, рендерит children только при наличии access token. Без токена — блокирующая модалка login/register (не dismissible).
+Компонент-страж оборачивает приложение и разрешает доступ только с действительным access token. При отсутствии токена показывает блокирующее модальное окно входа/регистрации (невозможно закрыть).
 
-## SSE Token Management
+## Управление токеном при SSE
 
-SSE-соединения используют raw `fetch()` (не axios) для работы с `ReadableStream` — axios interceptor не действует.
+SSE-соединения используют raw `fetch()` (не axios) для работы с потоком — axios interceptor не действует. Поэтому refresh инициируется явно:
 
-**Проактивный refresh:** перед инициацией SSE вызывается `ensureFreshToken()`:
-1. Декодирует JWT payload (client-side, без верификации подписи)
-2. Если до expiry >= 30 секунд — возвращает текущий token
-3. Если до expiry < 30 секунд — выполняет refresh, возвращает новый token
+**Упреждающий refresh:** перед инициацией SSE вызывается `ensureFreshToken()`:
+1. Декодирует JWT payload (клиент, без проверки подписи)
+2. Если до истечения ≥ 30 сек — возвращает текущий token
+3. Если до истечения < 30 сек — выполняет refresh и возвращает новый token
 
-**Reactive fallback:** если во время стрима приходит 401 — повторный вызов `ensureFreshToken()` и retry соединения.
+**Резервный вариант:** если во время потока приходит 401 — повторный вызов `ensureFreshToken()` и переподключение.
 
-Порог 30 секунд выбран с запасом: SSE-соединение может длиться минуты, refresh во время стрима невозможен без разрыва.
+Порог 30 сек выбран с запасом: SSE-соединение может длиться минуты, а refresh во время передачи разрывает поток.
 
-## API Endpoints
+## API endpoints
 
-| Method | Path | Назначение | Rate Limit | Auth |
+| Метод | Путь | Назначение | Rate limit | Auth |
 |--------|------|-----------|------------|------|
-| POST | `/api/auth/register` | Регистрация | 3/hour/IP | — |
-| POST | `/api/auth/login` | Аутентификация | 5/min/user+IP | — |
-| POST | `/api/auth/refresh` | Обновление токенов | 10/min/IP | cookie |
-| GET | `/api/auth/me` | Текущий пользователь | — | Bearer |
+| POST | `/api/auth/register` | Регистрация | 3/час/IP | — |
+| POST | `/api/auth/login` | Аутентификация | 5/мин/user+IP | — |
+| POST | `/api/auth/refresh` | Обновление токенов | 10/мин/IP | cookie |
+| GET | `/api/auth/me` | Информация о пользователе | — | Bearer |
 | POST | `/api/auth/logout` | Завершение сессии | — | cookie |
 
-Все эндпоинты возвращают стандартные HTTP-коды: 200 (успех), 401 (не авторизован), 409 (username занят), 422 (валидация), 429 (rate limit).
+Все эндпоинты возвращают стандартные HTTP-коды: 200 (успех), 401 (не авторизован), 409 (username уже зарегистрирован), 422 (ошибка валидации), 429 (превышен rate limit).
 
-## Configuration
+## Конфигурация
 
 | Переменная | Обязательна | Default | Назначение |
 |-----------|-------------|---------|------------|
-| `JWT_SECRET` | Да | — | Ключ подписи HS256. Компрометация = forge любого токена |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Нет | 30 | Lifetime access token |
-| `REFRESH_TOKEN_EXPIRE_DAYS` | Нет | 30 | Lifetime refresh token |
-| `SECURE_COOKIES` | Нет | true | Флаг Secure на cookie (false для local dev без HTTPS) |
+| `JWT_SECRET` | Да | — | Ключ подписи HS256. Компрометация позволяет подделать любой токен |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Нет | 30 | Lifetime access token в минутах |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | Нет | 30 | Lifetime refresh token в днях |
+| `SECURE_COOKIES` | Нет | true | Флаг Secure для cookie (false при локальной разработке без HTTPS) |

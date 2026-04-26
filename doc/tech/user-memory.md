@@ -101,6 +101,8 @@ LangGraph Store (`AsyncPostgresStore`) — общий бэкенд с Knowledge 
 
 Аутентификация: JWT (как все endpoints). Memories read-only для пользователя через API — создание и обновление только через agent tools.
 
+`PUT /instructions` проходит security guard (`custom_instructions_write` checkpoint, → [security/architecture.md](../security/architecture.md)); при INJECTION — HTTP 422, запись не выполняется.
+
 ## Frontend
 
 Страница `/settings` — две секции:

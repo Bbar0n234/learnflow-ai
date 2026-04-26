@@ -1,9 +1,10 @@
 import { useEffect, useRef } from "react";
 import type { Message } from "@/shared/api/types";
-import type { StreamingArtifact } from "@/stores/stream-store";
+import { useStreamStore, type StreamingArtifact } from "@/stores/stream-store";
 import { MessageItem } from "./MessageItem";
 import { MarkdownRenderer } from "@/shared/components/MarkdownRenderer";
 import { ToolIndicator } from "./ToolIndicator";
+import { ReviewIndicator } from "./ReviewIndicator";
 import { ArtifactCard } from "./ArtifactCard";
 
 interface MessageListProps {
@@ -26,10 +27,11 @@ export function MessageList({
   streamError,
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const isReviewing = useStreamStore((s) => s.isReviewing);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, streamingText, isStreaming]);
+  }, [messages.length, streamingText, isStreaming, isReviewing]);
 
   return (
     <div className="flex-1 overflow-auto p-6">
@@ -45,6 +47,7 @@ export function MessageList({
                 <MarkdownRenderer isStreaming>{streamingText}</MarkdownRenderer>
               )}
               {activeTool && <ToolIndicator toolName={activeTool} />}
+              {isReviewing && !activeTool && <ReviewIndicator />}
               {streamingArtifacts.map((artifact) => (
                 <ArtifactCard
                   key={artifact.id}

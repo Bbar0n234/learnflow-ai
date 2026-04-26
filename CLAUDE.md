@@ -35,11 +35,11 @@ doc/
 │   ├── user-memory.md       # Custom instructions, agent memory, personalization
 │   ├── prompt-management.md # Langfuse prompts, dev/prod, seed/sync
 │   ├── observability.md     # Langfuse tracing, cost tracking, feedback loop
-│   ├── security.md          # Prompt injection protection, input guard, canary
-│   ├── conventions.md       # Git flow, naming, code quality setup
+│   ├── conventions.md       # Git flow, naming, code quality, documentation
 │   └── adr/                 # Architecture Decision Records
 ├── research/            # Technology research, deep-dives, approach analysis
-├── security/            # Threat model, red/blue team research
+├── reference/           # Reference materials: patterns, domain handbooks
+├── security/            # Threat model + defense architecture (architecture.md)
 └── tasks/               # Task lists and iterations
 ```
 

@@ -11,43 +11,8 @@ context:
 summarization:
   model: z-ai/glm-4.7-flash
   max_summary_tokens: 500
-security:
-  guard_model: google/gemini-3.1-flash-lite-preview
-  guard_extra_body: {}
-  max_retries: 3
-  temperature: 0.0
-models:
-- name: z-ai/glm-5
-  match_pattern: (?i)^z-ai/glm-5
-  unit: TOKENS
-  prices:
-    input: 1.0e-06
-    output: 3.2e-06
-    output_reasoning: 3.2e-06
-    input_cache_read: 2.5e-07
-- name: z-ai/glm-4.7-flash
-  match_pattern: (?i)^z-ai/glm-4\.7-flash
-  unit: TOKENS
-  prices:
-    input: 1.25e-07
-    output: 5.0e-07
-    output_reasoning: 5.0e-07
-    input_cache_read: 3.125e-08
-- name: google/gemini-3.1-pro-preview
-  match_pattern: (?i)^google/gemini-3\.1-pro-preview
-  unit: TOKENS
-  prices:
-    input: 2.0e-06
-    output: 1.2e-05
-    output_reasoning: 1.2e-05
-    input_cache_read: 5.0e-07
-- name: google/gemini-3.1-flash-lite-preview
-  match_pattern: (?i)^google/gemini-3\.1-flash-lite-preview
-  unit: TOKENS
-  prices:
-    input: 2.5e-07
-    output: 1.5e-06
-    input_cache_read: 2.5e-08
+  extra_body:
+    include_reasoning: true
 available_models:
 - name: z-ai/glm-5
   display_name: GLM-5

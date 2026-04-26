@@ -2,7 +2,7 @@
 
 ## Context
 
-Агент LearnFlowAI не имеет защиты от prompt injection. Threat model (`doc/security/threat-model.md`), архитектурный ресёрч (`doc/security/llm-defense-architecture-research.md`), техники hardening (`doc/security/prompt-hardening-techniques.md`) и референсная реализация (`doc/security/prompt-injection-guard-reference.md`) — проработаны. Реализации нет.
+Агент LearnFlowAI не имеет защиты от prompt injection. Threat model (`doc/security/threat-model.md`), архитектурный ресёрч (`doc/research/security/llm-defense-architecture-research.md`), техники hardening (`doc/research/security/prompt-hardening-techniques.md`) и референсная реализация (`doc/reference/security/prompt-injection-guard-reference.md`) — проработаны. Реализации нет.
 
 Проект участвует в учебном Red Team / Blue Team формате: Blue Team (мы) строит защиту, Red Team (коллеги) атакует. Репозиторий open-source — действует принцип Кирхгоффа: безопасность через качество механизмов, не через сокрытие.
 
@@ -602,10 +602,9 @@ CANARY_SECRET=<random hex string, generated once at setup>
 ### Research docs
 
 - [threat-model.md](../../../../security/threat-model.md) — активы, поверхности атак, приоритизация
-- [llm-defense-architecture-research.md](../../../../security/llm-defense-architecture-research.md) — принципы, layered defense, design patterns
-- [prompt-hardening-techniques.md](../../../../security/prompt-hardening-techniques.md) — шаблоны, effectiveness data, classifier prompts
-- [prompt-injection-guard-reference.md](../../../../security/prompt-injection-guard-reference.md) — паттерны защиты, Langfuse integration
-- [blue-team-strategy.md](../../../../security/blue-team-strategy.md) — стратегия защиты, scope для Red Team
+- [llm-defense-architecture-research.md](../../../../research/security/llm-defense-architecture-research.md) — принципы, layered defense, design patterns
+- [prompt-hardening-techniques.md](../../../../research/security/prompt-hardening-techniques.md) — шаблоны, effectiveness data, classifier prompts
+- [prompt-injection-guard-reference.md](../../../../reference/security/prompt-injection-guard-reference.md) — паттерны защиты, Langfuse integration
 
 ### Iteration artifacts
 

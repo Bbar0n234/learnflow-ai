@@ -105,26 +105,32 @@ sequenceDiagram
 
 Мониторинг security incidents через Langfuse. Архитектура защиты — [architecture.md](../security/architecture.md).
 
-**Score:** `security_verdict` (CATEGORICAL: `CLEAN` / `SUSPICIOUS` / `INJECTION`) на уровне trace. Создаётся при старте через `ensure_security_score_config()`.
+**Score:** `security_verdict` (CATEGORICAL: `CLEAN` / `SUSPICIOUS` / `INJECTION`) на уровне trace. Создаётся при старте через `ensure_security_score_config()`. Применяется и к agent-trace (runtime checkpoints), и к top-level traces `security.<checkpoint>` (add-time checkpoints в service-слое).
 
-**Guardrail observation:** type `guardrail`, name `input-guard` — иконка щита в timeline. Вложенные observations: event `unicode-detector`, generation `llm-classifier`. Observation levels: DEFAULT (CLEAN), WARNING (SUSPICIOUS, degradation), ERROR (INJECTION, canary leak).
+**Guardrail observation:** type `guardrail`, name `guard-<checkpoint>` — иконка щита в timeline. Вложенные observations: deterministic-детекторы как events, LLM classifier как generation. Observation levels: DEFAULT (CLEAN), WARNING (SUSPICIOUS, graceful degradation), ERROR (INJECTION).
 
-**Metadata на trace** (только при инцидентах): `blocked` (bool), `detection_layer` (str), `block_reason` (str). **На guardrail observation:** `guard_model`, `verdict_raw`, `unicode_chars_found`.
+**Два режима эмиссии** (`GuardObserver`):
+- **Nested** — guardrail вкладывается в текущий agent-trace (runtime checkpoints).
+- **Top-level** — guard создаёт собственный trace `security.<checkpoint>` (add-time checkpoints в service-слое); root trace получает score, output и metadata блокировки.
 
-Guard LLM generation регистрируется как отдельная generation внутри guardrail — cost tracking guard-модели изолирован от main LLM.
+**Metadata на trace** (при INJECTION): `blocked`, `checkpoint`, `detection_layer`. **На guardrail observation:** модель classifier'а, raw verdict, reasoning, детали детекторов (например, найденные fragment-окна или paired tools).
+
+`detection_layer` принимает значения `canary`, `unicode`, `fragment`, `paired`, `llm_classifier`, `graceful_degradation` — стабильные машинно-читаемые идентификаторы для дашбордов и SIEM-pipeline'а ([architecture.md](../security/architecture.md)).
+
+Guard LLM generation регистрируется внутри guardrail-observation; cost tracking guard-модели изолирован от main LLM. Mid-stream проверки на стриме создают одну ретроспективную observation на инцидент, чтобы не плодить per-chunk шум в trace tree.
 
 ## Model Definitions & Cost Tracking
 
-Конфигурация: `configs/agent.yaml`, секция `models`. Per-model:
+Конфигурация — `configs/pricing.yaml` (shared между agent и security: cost tracking guard-модели нужен симметрично main LLM). Per-model:
 
 | Поле | Назначение | Пример |
 |------|------------|--------|
 | `name` | Имя модели | `z-ai/glm-5` |
 | `match_pattern` | Regex для matching | `(?i)^z-ai/glm-5` |
 | `unit` | Единица биллинга | `TOKENS` |
-| `prices` | Цены за единицу | `{input: 0.000001, output: 0.0000032, ...}` |
+| `prices` | Цены за единицу: `input`, `output`, `output_reasoning`, `input_cache_read` | `{input: 0.000001, output: 0.0000032, ...}` |
 
-Регистрация в Langfuse при старте (`ensure_model_definitions()`). Idempotent — повторные запуски не дублируют. Langfuse автоматически считает cost per trace на основе token usage из `CallbackHandler` + зарегистрированных prices.
+Регистрация в Langfuse при старте (`ensure_model_definitions()`): сравнивает зарегистрированную definition с ожидаемой; при diff — пересоздаёт. Langfuse считает cost per trace на основе token usage из `CallbackHandler` + зарегистрированных prices. Reasoning-токены учитываются через `usage.completion_tokens_details.reasoning_tokens` и поле `output_reasoning` в pricing — подробнее о reasoning-моделях см. [conventions.md](conventions.md).
 
 ## Graceful Degradation
 
@@ -144,4 +150,4 @@ Guard LLM generation регистрируется как отдельная gene
 | `LANGFUSE_SECRET_KEY` | Нет | `""` | Secret key |
 | `LANGFUSE_BASE_URL` | Нет | `https://cloud.langfuse.com` | Host (cloud или self-hosted) |
 
-Model definitions (pricing) — в `configs/agent.yaml`, секция `models`.
+Model definitions (pricing) — в `configs/pricing.yaml`.

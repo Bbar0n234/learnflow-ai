@@ -8,11 +8,16 @@ import {
   SelectValue,
 } from "@/shared/ui/select";
 import type { MCPServer, MCPServerCreate } from "@/shared/api/types";
+import {
+  isSecurityViolation,
+  SECURITY_VIOLATION_MESSAGE,
+} from "@/shared/lib/security-error";
 
 interface Props {
   onSubmit: (data: MCPServerCreate) => void;
   onCancel: () => void;
   isPending: boolean;
+  error: unknown;
   initialData?: MCPServer;
 }
 
@@ -20,6 +25,7 @@ export function MCPServerForm({
   onSubmit,
   onCancel,
   isPending,
+  error,
   initialData,
 }: Props) {
   const isEdit = !!initialData;
@@ -110,6 +116,9 @@ export function MCPServerForm({
           Cancel
         </Button>
       </div>
+      {isSecurityViolation(error) && (
+        <p className="text-sm text-destructive">{SECURITY_VIOLATION_MESSAGE}</p>
+      )}
     </form>
   );
 }

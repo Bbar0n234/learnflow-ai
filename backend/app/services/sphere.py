@@ -6,8 +6,16 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Protocol
 
+import structlog
+from fastapi import HTTPException
+
+from app.agent.security.guard import SecurityGuard
+from app.agent.security.types import Checkpoint, Verdict
+
 if TYPE_CHECKING:
     from langgraph.store.base import BaseStore
+
+logger = structlog.get_logger()
 
 
 @dataclass(frozen=True)
@@ -76,8 +84,13 @@ def _parse_markdown_sections(
 
 
 class LangGraphSphereService:
-    def __init__(self, store: BaseStore) -> None:
+    def __init__(
+        self,
+        store: BaseStore,
+        guard: SecurityGuard | None = None,
+    ) -> None:
         self._store = store
+        self._guard = guard
 
     def _namespace(self, project_id: uuid.UUID) -> tuple[str, ...]:
         return ("project", str(project_id), "sphere")
@@ -93,6 +106,43 @@ class LangGraphSphereService:
         return SphereData(project_id=project_id, content=content, updated_at=updated_at)
 
     async def update(self, *, project_id: uuid.UUID, content: str) -> SphereData:
+        if self._guard is not None:
+            result = await self._guard.check(
+                content,
+                Checkpoint.KS_WRITE_REST,
+                trace_ctx={
+                    "top_level": True,
+                    "project_id": str(project_id),
+                    "scope": "ks",
+                },
+            )
+            if result.verdict == Verdict.INJECTION:
+                logger.warning(
+                    "ks write injection blocked",
+                    security_event=True,
+                    checkpoint=Checkpoint.KS_WRITE_REST.value,
+                    verdict=Verdict.INJECTION.value,
+                    identifiers={"project_id": str(project_id)},
+                    metadata={
+                        "detection_layer": (
+                            result.detection_layer.value
+                            if result.detection_layer
+                            else None
+                        )
+                    },
+                )
+                raise HTTPException(
+                    status_code=422,
+                    detail={
+                        "error": "security_policy_violation",
+                        "reason": (
+                            result.detection_layer.value
+                            if result.detection_layer
+                            else "ks_write_rest"
+                        ),
+                    },
+                )
+
         ns = self._namespace(project_id)
 
         # Parse incoming markdown into sections

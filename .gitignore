@@ -130,6 +130,7 @@ celerybeat.pid
 # Environments
 .env
 .env.local
+.env.eval
 .venv
 env/
 venv/
@@ -212,6 +213,9 @@ node_modules/
 .firecrawl/
 
 render_prompts.py
+
+# eval-sec run artifacts
+tools/eval-sec/reports/
 
 # Obsidian source (symlink)
 doc/.obsidian-source

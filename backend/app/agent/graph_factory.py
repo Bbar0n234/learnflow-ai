@@ -6,8 +6,10 @@ import structlog
 from langchain_core.tools import BaseTool
 from langgraph.graph.state import CompiledStateGraph
 
-from app.agent.config import AgentConfig, ResolvedModelConfig
+from app.agent.config import AgentConfig, PromptFragmentsConfig, ResolvedModelConfig
 from app.agent.graph import build_graph, compile_graph
+from app.agent.security.guard import SecurityGuard
+from app.agent.security.types import SecurityMessages
 from app.config import Settings
 from app.infra.llm import create_llm_from_config, create_summarization_llm
 from app.infra.prompt_provider import PromptProvider
@@ -22,19 +24,25 @@ class GraphFactory:
         self,
         settings: Settings,
         agent_config: AgentConfig,
+        prompt_fragments: PromptFragmentsConfig,
+        security_messages: SecurityMessages,
         global_tools: list[BaseTool],
         skills_index: str,
         checkpointer: Any,
         store: Any,
         prompt_provider: PromptProvider,
+        security_guard: SecurityGuard | None = None,
     ) -> None:
         self._settings = settings
         self._agent_config = agent_config
+        self._prompt_fragments = prompt_fragments
+        self._security_messages = security_messages
         self._global_tools = global_tools
         self._skills_index = skills_index
         self._checkpointer = checkpointer
         self._store = store
         self._prompt_provider = prompt_provider
+        self._security_guard = security_guard
 
     def build(
         self,
@@ -57,9 +65,12 @@ class GraphFactory:
             model=llm,
             tools=all_tools,
             agent_config=self._agent_config,
+            prompt_fragments=self._prompt_fragments,
+            security_messages=self._security_messages,
             skills_index=self._skills_index,
             summarization_model=summarization_llm,
             prompt_provider=self._prompt_provider,
+            security_guard=self._security_guard,
         )
 
         logger.debug(

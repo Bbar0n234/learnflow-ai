@@ -22,7 +22,11 @@ export function MessageItem({ message, projectId }: MessageItemProps) {
             : "bg-muted text-foreground",
         )}
       >
-        {isUser ? (
+        {message.redacted ? (
+          <p className="whitespace-pre-wrap text-sm italic opacity-70">
+            [Сообщение скрыто в целях безопасности]
+          </p>
+        ) : isUser ? (
           <p className="whitespace-pre-wrap text-sm">{message.content}</p>
         ) : (
           <MarkdownRenderer>{message.content}</MarkdownRenderer>

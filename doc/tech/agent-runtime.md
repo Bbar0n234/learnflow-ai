@@ -69,7 +69,7 @@ graph LR
 - **tools** — встроенный `ToolNode`, выполнение tool calls
 - **tools_condition** — встроенный router: AIMessage с tool_calls → tools node, иначе → END
 
-**Context schema:** `AgentContext(project_id, user_id, canary_token)` — передаётся через параметр `context=` в `astream()`, доступен в nodes и tools через `runtime.context`. `canary_token` вычисляется для каждого запроса для system prompt hardening (→ [architecture.md](../security/architecture.md)).
+**Context schema:** `AgentContext(project_id, user_id, canary_token, user_installed_tool_names)` — передаётся через параметр `context=` в `astream()`, доступен в nodes и tools через `runtime.context`. `canary_token` вычисляется для каждого запроса; `user_installed_tool_names` нужен prompt-builder'у для дифференциации built-in / user-installed MCP-инструментов (→ [architecture.md](../security/architecture.md)).
 
 **Compilation:** GraphFactory на каждый запрос настраивает:
 - `checkpointer=AsyncPostgresSaver` — shared, персистentна история в PostgreSQL
@@ -84,44 +84,34 @@ graph.astream(input_msg, config, stream_mode=["messages", "updates"], context=co
 
 ## System Message
 
-Собирается из семи частей на каждый вызов agent node. Base prompt обёрнут в hardened Jinja-template с защитными секциями (→ [architecture.md](../security/architecture.md)):
+Собирается секционно (Python, не Jinja-template) на каждый вызов agent node. Структура отражает trust- и disclosure-границы; маркировка обёртками — вход в [Security](#security):
 
 ```
-┌─────────────────────────────────┐
-│ <system_instructions>           │  ← Hardened template
-│   Иерархия инструкций,          │     (→ security/architecture.md)
-│   confidentiality, canary token │
-├─────────────────────────────────┤
-│ Base Prompt                     │  ← PromptProvider (→ prompt-management.md)
-│ (style, guidelines, boundaries) │
-├─────────────────────────────────┤
-│ <custom_instructions>           │  ← LangGraph Store, per-user
-│                                 │     (→ user-memory.md)
-├─────────────────────────────────┤
-│ <user_memory>                   │  ← LangGraph Store, per-user
-│   (facts about user)            │     (→ user-memory.md)
-├─────────────────────────────────┤
-│ <knowledge_sphere>               │  ← LangGraph Store, per-project
-│   Knowledge Sphere Index        │     (→ knowledge-sphere.md)
-├─────────────────────────────────┤
-│ <instruction_reminder>          │  ← Hardened template (sandwich defense)
-├─────────────────────────────────┤
-│ <available_skills>              │  ← Filesystem scan (at startup)
-│   Skills Index                  │
-└─────────────────────────────────┘
+<system_instructions>           ← hardening preamble + canary token
+[base prose]                    ← PromptProvider (→ prompt-management.md)
+<tools>
+  <internal_tools>              ← capability-only описания internal non-MCP tools
+  <builtin_mcp_tools>           ← descriptions vendored MCP-серверов
+  <user_installed_mcp_tools>    ← per-user MCP, обёрнутые в <untrusted_tool_description>
+</tools>
+<knowledge_sphere>              ← Knowledge Sphere Index (per-project)
+<custom_instructions>           ← user-provided (per-user)
+[guidelines: artifacts, skills, user_memory, error_handling]
+<instruction_reminder>          ← sandwich defense
 ```
 
 | Раздел | Источник | Область | Обновление |
 |--------|----------|--------|-----------|
-| Security instructions | Hardened template (security/architecture.md) | Global | Canary token per-request |
-| Base prompt | PromptProvider (Langfuse → file fallback) | Global | При изменении в Langfuse (SDK cache TTL) |
+| System instructions | hardening preamble + base prose из Langfuse | Global | Canary token per-request |
+| Base prose | PromptProvider (Langfuse → file fallback) | Global | При изменении в Langfuse (SDK cache TTL) |
+| Tools (3 подсекции) | static + agent.yaml + DB (per-user MCP) | Mixed | На сборку prompt'а |
 | Custom instructions | LangGraph Store | Per-user | При сохранении через REST API |
 | User memory | LangGraph Store | Per-user | Автономно агентом (tools) |
 | Knowledge Sphere Index | LangGraph Store | Per-project | При изменении секций (agent tools / REST API) |
-| Instruction reminder | Hardened template (security/architecture.md) | Global | Статический |
-| Skills Index | Filesystem scan | Global | При старте приложения |
+| Instruction reminder | hardening preamble | Global | Статический |
+| Skills Index | filesystem scan | Global | При старте приложения |
 
-Пересборка на каждый вызов гарантирует актуальность динамических частей (Knowledge Sphere Index, memories могли измениться между вызовами).
+Пересборка на каждый вызов гарантирует актуальность динамических частей (Knowledge Sphere Index, memories, набор user MCP). Подробнее о trust-обёртках и disclosure-границе — [security/architecture.md](../security/architecture.md).
 
 ## Context Engineering
 
@@ -189,7 +179,7 @@ flowchart TD
 
 ## Tools
 
-Четыре категории, объединяются при компиляции графа:
+Четыре категории, объединяются при компиляции графа. Internal non-MCP tools — PROTECTED implementation surface: их имена, параметры и схемы не должны попадать в final output (→ [security/architecture.md](../security/architecture.md)).
 
 ### Internal Tools
 
@@ -250,11 +240,13 @@ Skill — модуль специализированных знаний, заг
 
 ## MCP Integration
 
-Расширение агента внешними инструментами через Model Context Protocol. Двухуровневая архитектура: global + per-user.
+Расширение агента внешними инструментами через Model Context Protocol. Двухуровневая архитектура: built-in + per-user. Trust-различие проводится по источнику: built-in vendored в репо TRUSTED, user-installed — UNTRUSTED. Защита симметричная для обеих категорий — [security/architecture.md](../security/architecture.md).
 
-### Global MCP Servers
+### Built-in MCP Servers
 
 Конфигурируются в `configs/agent.yaml`, секция `mcp_servers`. Доступны всем пользователям.
+
+При старте каждый `enabled` remote-сервер проходит fetch `tools/list` и проверку через `mcp_metadata`-checkpoint. Сервера с INJECTION или ошибкой fetch попадают в `app.state.disabled_builtin_mcp` и не экспонируются в runtime tools — приложение стартует.
 
 | Поле | Назначение |
 |------|------------|
@@ -269,12 +261,14 @@ Client: `MultiServerMCPClient` из `langchain_mcp_adapters`. Создаётся
 
 ### Per-User MCP Servers
 
-Пользователи добавляют собственные MCP-серверы через REST API на трёх уровнях: user → project → thread. Хранятся в БД с шифрованием API-ключей (Fernet).
+Пользователи добавляют собственные MCP-серверы через REST API на трёх уровнях: user → project → thread. Хранятся в БД с шифрованием API-ключей (Fernet). Регистрация и обновление проходят `mcp_metadata`-checkpoint — INJECTION → HTTP 422, запись не сохраняется.
 
 Ограничения безопасности:
 - Только HTTP-транспорты (`streamable_http`, `sse`) — `stdio` запрещён (удалённое выполнение кода)
 - Защита от SSRF: DNS resolve + deny list приватных IP-диапазонов
 - API-ключи зашифрованы, API возвращает только `has_api_key: bool` + `api_key_hint`
+
+User MCP-tools передаются модели в секции `<user_installed_mcp_tools>` system message, обёрнутые в `<untrusted_tool_description>` — модель различает источник descriptions при принятии решений.
 
 CRUD и каскадная видимость — [backend.md](backend.md).
 
@@ -284,7 +278,7 @@ CRUD и каскадная видимость — [backend.md](backend.md).
 
 **Additive merge:** thread ∪ project ∪ user ∪ global — tools от всех уровней объединяются.
 
-**Dedup:** при конфликте имён инструментов global выигрывает (security boundary — пользовательский MCP не может подменить системный tool).
+**Dedup:** при конфликте имён инструментов built-in выигрывает (security boundary — пользовательский MCP не может подменить системный tool).
 
 **Cache:** TTL-кэш с targeted invalidation по scope tuple `(user_id, project_id, thread_id)`. CRUD-операции над MCP-серверами инвалидируют соответствующий scope (избирательная инвалидация).
 
@@ -292,7 +286,9 @@ CRUD и каскадная видимость — [backend.md](backend.md).
 
 ## Security
 
-Pre-graph input guard, system prompt hardening, canary token output check. SecurityGuard — dependency runner'а, проверяет user input до запуска графа. При verdict INJECTION — `security_block` SSE event, запрос не доходит до графа. Подробнее — [architecture.md](../security/architecture.md), обоснование — [ADR-017](adr/ADR-017-prompt-injection-defense.md).
+`SecurityGuard` проверяет данные на семи checkpoint'ах: четыре в runtime (user input до графа, tool result до LLM, tool call args после ответа, final output на стриме) и три на add-time write paths в service-слое (MCP-регистрация, custom instructions, KS write через REST). При INJECTION — `security_block` SSE event и блокировка thread'а в runtime, или HTTP 422 на add-time. Подробнее — [security/architecture.md](../security/architecture.md), обоснование — [ADR-017](adr/ADR-017-prompt-injection-defense.md).
+
+Топология графа из-за защиты не меняется: проверки inline в `agent_node` и в runner, `tools_condition` сохранён.
 
 ## Observability
 
@@ -328,7 +324,12 @@ Langfuse выполняет две роли: tracing (observability) + prompt ma
 
 | Источник | Что настраивает | Приоритет |
 |----------|----------------|-----------|
-| `configs/agent.yaml` | LLM defaults, context params, summarization, global MCP, models whitelist | Base defaults |
+| `configs/agent.yaml` | LLM defaults, context params, summarization, built-in MCP | Base defaults |
+| `configs/security.yaml` | Guard model, детекторы, per-checkpoint config, user-facing messages | Base defaults для security |
+| `configs/pricing.yaml` | Model pricing для cost tracking в Langfuse (shared agent + guard) | — |
+| `configs/prompts.yaml` | Реестр промптов (`name → source файл`) | — |
+| `configs/prompt_fragments.yaml` | XML-обёртки и заголовки секций system message | — |
+| `configs/error_messages.yaml` | Нормализованные сообщения SSE error events и заглушки | — |
 | `configs/prompts/*.txt` | Seed-файлы промптов | Seed → Langfuse |
 | Langfuse | Runtime промпты, model config в prompt metadata | Runtime override |
 | DB (settings tables) | Per-scope model overrides, per-user MCP servers | Per-request override |
@@ -341,9 +342,9 @@ Langfuse выполняет две роли: tracing (observability) + prompt ma
 | `context` | max_tokens, compaction_threshold_ratio, recent_messages_to_keep |
 | `prompt` | Путь к файлу system prompt (seed) |
 | `summarization` | Модель суммаризации, max_summary_tokens |
-| `security` | Guard model, max retries, temperature (→ [architecture.md](../security/architecture.md)) |
-| `mcp_servers` | Global MCP-серверы: transport, URL, API keys, whitelist инструментов |
-| `models` | Model definitions: pricing, match patterns (Langfuse cost tracking) |
+| `mcp_servers` | Built-in MCP-серверы: transport, URL, API keys, whitelist инструментов |
+
+Security-конфиги, model pricing и реестр промптов вынесены отдельными файлами — детали в соответствующих документах ([security/architecture.md](../security/architecture.md), [observability.md](observability.md), [prompt-management.md](prompt-management.md)).
 
 **Prompt files** — seed-файлы в `configs/prompts/`. Источник истины для промптов — Langfuse; файлы используются для seeding и как fallback. Подробнее — [prompt-management.md](prompt-management.md).
 

@@ -1,14 +1,51 @@
 from app.agent.security.canary import generate_canary_token
-from app.agent.security.detectors import check_canary_in_text, detect_invisible_chars
+from app.agent.security.detectors import (
+    CanaryDetector,
+    DeterministicDetector,
+    FragmentDetector,
+    Hit,
+    PairedToolIdentifierDetector,
+    UnicodeDetector,
+    check_canary_in_text,
+    detect_invisible_chars,
+)
 from app.agent.security.guard import SecurityGuard
-from app.agent.security.types import GuardResult, SecurityConfig, SecurityVerdict
+from app.agent.security.types import (
+    VERDICT_TO_LEVEL,
+    Checkpoint,
+    ClassifierResult,
+    DetectionLayer,
+    Direction,
+    GuardResult,
+    LLMClassifierConfig,
+    LLMExtraBody,
+    SecurityConfig,
+    SecurityMessages,
+    Verdict,
+    direction_of,
+)
 
 __all__ = [
+    "VERDICT_TO_LEVEL",
+    "CanaryDetector",
+    "Checkpoint",
+    "ClassifierResult",
+    "DetectionLayer",
+    "DeterministicDetector",
+    "Direction",
+    "FragmentDetector",
     "GuardResult",
+    "Hit",
+    "LLMClassifierConfig",
+    "LLMExtraBody",
+    "PairedToolIdentifierDetector",
     "SecurityConfig",
     "SecurityGuard",
-    "SecurityVerdict",
+    "SecurityMessages",
+    "UnicodeDetector",
+    "Verdict",
     "check_canary_in_text",
     "detect_invisible_chars",
+    "direction_of",
     "generate_canary_token",
 ]

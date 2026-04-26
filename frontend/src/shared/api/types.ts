@@ -12,11 +12,13 @@ export interface Chat {
   title: string;
   created_at: string;
   updated_at: string;
+  security_blocked: boolean;
 }
 
 export interface ChatDetail {
   thread_id: string;
   title: string;
+  security_blocked: boolean;
   messages: Message[];
 }
 
@@ -28,6 +30,7 @@ export interface Message {
   artifacts: Artifact[];
   trace_id?: string | null;
   feedback_score?: boolean | null;
+  redacted?: boolean;
 }
 
 export interface RecentChat {
@@ -36,6 +39,7 @@ export interface RecentChat {
   project_id: string;
   project_name: string;
   updated_at: string;
+  security_blocked: boolean;
 }
 
 export interface Sphere {
@@ -187,4 +191,6 @@ export type SSEEvent =
     }
   | { type: "done"; message_id?: string; trace_id?: string }
   | { type: "error"; detail: string }
-  | { type: "security_block"; reason: string };
+  | { type: "security_block"; reason: string }
+  | { type: "final_output_review_started" }
+  | { type: "final_output_review_complete" };

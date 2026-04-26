@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cancelChat } from "@/shared/api/chats";
 import { ensureFreshToken } from "@/shared/api/client";
-import type { SSEEvent } from "@/shared/api/types";
+import type { ChatDetail, SSEEvent } from "@/shared/api/types";
 import { logger } from "@/shared/lib/logger";
 import { useStreamStore } from "@/stores/stream-store";
 
@@ -14,6 +14,7 @@ interface DoneInfo {
 interface UseAgentStreamOptions {
   onDone?: (info: DoneInfo) => void;
   onError?: (detail: string) => void;
+  onSecurityBlock?: () => void;
 }
 
 export function useAgentStream(
@@ -37,11 +38,19 @@ export function useAgentStream(
 
   const send = useCallback(
     (content: string) => {
-      const { startStream, appendText, setTool, addArtifact, endStream } =
-        useStreamStore.getState();
+      const {
+        startStream,
+        appendText,
+        setTool,
+        addArtifact,
+        replaceWithRedacted,
+        setReviewing,
+        endStream,
+      } = useStreamStore.getState();
 
       startStream(chatId);
       isCancellingRef.current = false;
+      let hasText = false;
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -115,6 +124,7 @@ export function useAgentStream(
 
               switch (event.type) {
                 case "text_chunk":
+                  hasText = true;
                   appendText(event.content);
                   break;
                 case "tool_start":
@@ -133,6 +143,12 @@ export function useAgentStream(
                     queryKey: ["projects", projectId, "artifacts"],
                   });
                   break;
+                case "final_output_review_started":
+                  setReviewing(true);
+                  break;
+                case "final_output_review_complete":
+                  setReviewing(false);
+                  break;
                 case "done": {
                   terminated = true;
                   const traceId = event.trace_id ?? null;
@@ -147,13 +163,33 @@ export function useAgentStream(
                   optionsRef.current?.onDone?.({ messageId, traceId });
                   break;
                 }
-                case "security_block":
+                case "security_block": {
                   terminated = true;
-                  endStream();
-                  optionsRef.current?.onError?.(
-                    "Сообщение заблокировано системой безопасности.",
+                  // Optimistic cache patch: disable input immediately, no wait for refetch.
+                  queryClient.setQueryData<ChatDetail | undefined>(
+                    ["projects", projectId, "chats", chatId],
+                    (prev) =>
+                      prev ? { ...prev, security_blocked: true } : prev,
                   );
+                  // Pull persisted user message + redacted placeholder from server.
+                  queryClient.invalidateQueries({
+                    queryKey: ["projects", projectId, "chats", chatId],
+                  });
+                  queryClient.invalidateQueries({
+                    queryKey: ["chats", "recent"],
+                  });
+                  if (hasText) {
+                    replaceWithRedacted(
+                      "[Сообщение скрыто в целях безопасности]",
+                    );
+                  } else {
+                    // No transient error banner — persisted placeholder + disabled input
+                    // are the single source of truth, identical before and after reload.
+                    endStream();
+                  }
+                  optionsRef.current?.onSecurityBlock?.();
                   break;
+                }
                 case "error":
                   terminated = true;
                   endStream();

@@ -1,271 +1,163 @@
 # Security
 
-Система защиты AI-агента от prompt injection атак. Три независимых слоя защиты покрывают попытки манипуляции системными инструкциями на входе (input guard), во время выполнения (system prompt hardening) и на выходе (canary token detection).
+Защита AI-агента от prompt injection и от утечки внутренней реализации в выходные данные. Семь точек проверки покрывают входы, выходы и точки записи: пользовательский ввод, результаты инструментов, аргументы tool-вызовов, финальный ответ, регистрация MCP-серверов, запись custom instructions, прямая запись Knowledge Sphere через REST.
 
-Логика защиты инкапсулирована в Agent Layer — API и Service Layer работают только с security-событиями, не реализуя саму защиту. Архитектурное обоснование и threat model — [ADR-017](../tech/adr/ADR-017-prompt-injection-defense.md) и [threat-model.md](threat-model.md); исследование атак и техник — [doc/research/security/](../research/security/).
+Логика защиты живёт в Agent Layer и в service-методах, выполняющих запись. API Layer пробрасывает события: `security_block` через SSE, HTTP 403 на заблокированном thread'е, HTTP 422 на отклонённой записи. Обоснование — [ADR-017](../tech/adr/ADR-017-prompt-injection-defense.md); модель угроз — [threat-model.md](threat-model.md).
 
+## Принципы
 
-## Архитектура
+- **Defense in depth.** На каждой точке — несколько независимых детекторов: substring и LLM classifier. Отказ одного слоя не обнуляет остальные.
+- **Граница PROTECTED / DISCLOSABLE.** Бинарный признак на content. PROTECTED — наш код: системный промпт, имена / параметры / схемы internal non-MCP инструментов. DISCLOSABLE — внешнее: MCP (built-in и user-installed) и пользовательский content (Knowledge Sphere, custom instructions, memory). Capability раскрывается всегда, implementation — никогда.
+- **Trust ≠ Disclosure.** Trust определяет, оборачивать ли content в untrusted-теги при composition (для модели). Disclosure определяет, можно ли отдавать content на выход (runtime-детектор). Internal tools — TRUSTED + PROTECTED. Built-in MCP — TRUSTED + DISCLOSABLE. User MCP — UNTRUSTED + DISCLOSABLE.
+- **Classifier isolation.** Промпт classifier'а не знает о других слоях защиты. Калибровка через FN/FP формулируется внутри промпта, без апелляции к «следующему уровню».
+- **Fail-open на guard LLM.** Недоступен или не вернул валидный verdict — CLEAN + WARNING в логах. Доступность приоритетнее отказа.
+- **Единое правило для всех.** Нет ролевых exemption'ов, debug-mode ослаблений, admin override'ов.
 
-Трёхслойная защита: каждый слой перехватывает определённый вектор атаки и работает независимо от других.
-
-```mermaid
-graph TB
-    subgraph PRE["Layer 1 — Input Guard (pre-graph)"]
-        GUARD["SecurityGuard.check()"]
-        DET["Detectors:<br/>canary-in-input, unicode"]
-        CLS["LLM Classifier:<br/>CLEAN / SUSPICIOUS / INJECTION"]
-        GUARD --> DET --> CLS
-    end
-
-    subgraph IN["Layer 2 — System Prompt Hardening (in-graph)"]
-        TPL["Hardened Jinja Template:<br/>instruction hierarchy, trust boundaries,<br/>sandwich defense, canary embedding"]
-    end
-
-    subgraph POST["Layer 3 — Output Check (streaming)"]
-        CANARY_OUT["Canary substring match<br/>в накопленном ответе"]
-    end
-
-    INPUT["Сообщение пользователя"] --> PRE
-    PRE -->|"INJECTION"| BLOCK["SSE-событие security_block"]
-    PRE -->|"CLEAN / SUSPICIOUS"| IN
-    IN --> LLM["Main LLM"]
-    LLM --> POST
-    POST -->|"canary найден"| BLOCK
-    POST -->|"clean"| OUTPUT["text_chunk → done"]
-```
-
-**Инварианты:**
-
-- Security инкапсулирован в Agent Layer: ChatService и API Layer не знают про защиту — работают с `StreamEvent` (включая `security_block`) как с любым другим событием
-- SecurityGuard — зависимость Agent Runner'а, инжектится через конструктор
-- Guard LLM отделён от main LLM (отдельная модель, конфигурация, cost tracking в Langfuse)
-- Graceful degradation: при отказе guard → CLEAN verdict (availability имеет приоритет над security). Дополнительные слои компенсируют снижение надёжности этого уровня
-
-## Input Guard (Слой 1 — до запуска агента)
-
-SecurityGuard — orchestrator, выполняющий серию быстрых проверок перед тем, как запрос попадёт в LangGraph-граф. Блокирует явные признаки injection атак на этапе, когда затраты на отклонение минимальны.
-
-### Interface
-
-```
-SecurityGuard
-├── check(content, history?, checkpoint, canary_token?) → GuardResult
-```
-
-| Параметр | Назначение |
-|----------|-----------|
-| `content` | Данные для проверки (сообщение, KS content, tool output) |
-| `history` | Контекст разговора из checkpointer (optional) |
-| `checkpoint` | Описание точки проверки для classifier (`user_input`, `knowledge_sphere_write`, `mcp_tool_result`) |
-| `canary_token` | Для canary-in-input detection (optional) |
-
-### Pipeline
+## Coverage map
 
 ```mermaid
 flowchart LR
-    INPUT["content"] --> C["Canary-in-input"]
-    C -->|"found"| INJ1["→ INJECTION"]
-    C -->|"clean"| U["Unicode detector"]
-    U -->|"invisible chars"| INJ2["→ INJECTION"]
-    U -->|"clean"| L["LLM classify"]
-    L --> RETRY["Retry loop (max_retries)"]
-    RETRY -->|"валидный ответ"| RESULT["→ verdict"]
-    RETRY -->|"попытки исчерпаны"| FALLBACK["→ CLEAN (degradation)"]
+    USER["Пользователь"] -->|chat| UI["user_input"]
+    UI -->|CLEAN| GRAPH["Agent graph"]
+    GRAPH -->|tool result| TR["tool_result"]
+    TR --> LLM["LLM"]
+    LLM -->|tool calls| TCA["tool_call_arg"]
+    TCA --> GRAPH
+    LLM -->|stream tokens| FO["final_output"]
+    FO --> CLIENT["Клиент"]
+
+    USER -.->|REST| RESTBLOCK["Service Layer"]
+    RESTBLOCK -.->|POST/PUT MCP| MM["mcp_metadata"]
+    RESTBLOCK -.->|PUT instructions| CIW["custom_instructions_write"]
+    RESTBLOCK -.->|PUT sphere| KSW["ks_write_rest"]
 ```
 
-**Детерминистические проверки (~0ms, независимые от LLM):**
+| Checkpoint | Где срабатывает | Направление | Действие при INJECTION |
+|------------|-----------------|-------------|------------------------|
+| `user_input` | Runner, до запуска графа | inbound | Reject, `security_block` SSE, thread blocked |
+| `tool_result` | `agent_node`, до вызова LLM | inbound | Заглушка-`ToolMessage`, thread blocked |
+| `tool_call_arg` | `agent_node`, после ответа LLM | outbound | `tool_calls=[]` + redacted `AIMessage`, thread blocked, граф уходит в END |
+| `final_output` | Runner, mid-stream и end-of-stream | outbound | Redacted `AIMessage`, thread blocked, `security_block` SSE |
+| `mcp_metadata` | Service, регистрация user MCP + built-in startup | add-time | HTTP 422 (для built-in — disable конкретного сервера) |
+| `custom_instructions_write` | Service, PUT instructions | add-time | HTTP 422 |
+| `ks_write_rest` | Service, PUT sphere | add-time | HTTP 422 |
 
-- **Canary-in-input** — substring match: если canary token обнаружен в пользовательском вводе, это аномалия (система использует токен только для собственной отметки — наличие его в input признак скомпрометированного потока)
-- **Unicode detector** — ищет потенциально опасные Unicode-категории (Format, Private Use, Unassigned): невидимые символы, RTL override, zero-width space. Кириллица, эмодзи, CJK — допустимы
+Knowledge Sphere через agent-tool попадает в `tool_call_arg`; через REST — в `ks_write_rest`. Каждый путь к записи — свой checkpoint.
 
-**LLM classifier** — guard LLM классифицирует content с контекстом разговора:
+## Detectors
 
-| Verdict | Семантика | Действие |
-|---------|-----------|----------|
-| CLEAN | Легитимный запрос | Запрос проходит |
-| SUSPICIOUS | Необычно, но допустимо в образовательном контексте | Запрос проходит + усиленный лог |
-| INJECTION | Попытка override system instructions, extraction, jailbreak | Блокировка → `security_block` |
+Четыре детерминированных детектора + LLM classifier. Применимость к checkpoint'у фиксируется в коде, пороги — в `configs/security.yaml`.
 
-Classifier получает полную историю разговора (не только текущее сообщение) — критично для образовательной платформы, где обсуждение prompt injection как школьной темы должно отличаться от попытки реальной атаки.
+| Детектор | user_input | tool_result | tool_call_arg | final_output | mcp_metadata | custom_instructions_write | ks_write_rest |
+|----------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| Canary | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Unicode | ✓ | ✓ | — | — | ✓ | ✓ | ✓ |
+| Fragment | ✓ | ✓ | ✓ | ✓ | — | — | — |
+| Paired | — | — | ✓ | ✓ | — | — | — |
+| LLM Classifier | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
-**Retry и graceful degradation:**
+Детерминированные срабатывания — short-circuit: classifier не запускается, если deterministic detector уже вернул INJECTION.
 
-- Если classifier выдал невалидный ответ → retry до `max_retries`
-- Если попытки исчерпаны → CLEAN (graceful degradation: платформа остаётся доступной, другие слои защиты компенсируют)
-- Если guard LLM недоступен → CLEAN + warning в логах
+### Canary
 
-### Classifier Prompt
+HMAC-токен от `(CANARY_SECRET, thread_id)`. Embedded в system prompt при composition; substring match на любом checkpoint'е → INJECTION. Появление токена в data — признак скомпрометированного потока.
 
-Хранится в Langfuse (`guard-classifier--{label}`) с fallback на файл (`configs/prompts/guard-classifier.txt`). Переменная `{{ checkpoint }}` подставляется через PromptProvider для адаптации к разным точкам проверки.
+### Unicode
 
-**Калибровка:** false negatives приносят меньше вреда, чем false positives. На образовательной платформе ложная блокировка легитимного запроса хуже пропущенной атаки (есть дополнительные слои защиты). Детали стратегии и перечень промптов — [prompt-management.md](../tech/prompt-management.md).
+Невидимые / форматирующие символы (категории Cf, Co, Cn). Применяется только к inbound и add-time content — модель не генерирует такие символы как атаку.
 
-### Расширяемость на новые точки проверки
+### Fragment
 
-Метод `check()` принимает параметр `checkpoint`, позволяя масштабировать защиту на любые входные точки без изменения интерфейса. Два примера для Security 2.0:
+Sliding-window substring match (60 символов, шаг 30, минимум два уникальных совпадения) против корпуса PROTECTED-материала. Корпус собирается на старте: hardening preamble, security instructions, base prompt prose, descriptions internal non-MCP tools. Не входит: descriptions MCP (DISCLOSABLE), пользовательский content.
 
-| Точка | Защита | checkpoint | Задача |
-|-------|---------|-----------|--------|
-| Knowledge Sphere Write | Memory poisoning | `knowledge_sphere_write` | Запретить injection в сохраняемые данные |
-| MCP Tool Result | Indirect injection | `mcp_tool_result` | Перехватить payload из tool output |
+### Paired
 
-## System Prompt Hardening (Слой 2 — во время выполнения)
+Two-list match: имя internal non-MCP tool **И** ≥1 параметр из его сигнатуры. Tool помечается скомпрометированным при совпадении пары; checkpoint INJECTION при ≥3 скомпрометированных tools. Применяется только на outbound — модель сама знает имена.
 
-Jinja-шаблон в `prompt_builder.py`, оборачивающий исходный `system.txt` защитными инструкциями. Base prompt не модифицируется — оригинал сохраняется для удобства итераций и отката.
+### LLM Classifier
 
-### Template Structure
+Один composite-промпт `security-classifier` в Langfuse. Per-checkpoint специфика подставляется через переменные `checkpoint_description` и `checkpoint_specifics_section` из `configs/security.yaml`. Промпт работает как security boundary classifier: оценивает факт пересечения границы, не «попытку атаки» — legitimate-looking запрос с PROTECTED-материалом на выход всё равно даёт INJECTION.
 
-```mermaid
-graph TB
-    SI(["&lt;system_instructions&gt; — Instruction hierarchy, confidentiality, canary token"])
-    BP["{{ based_prompt }} — system.txt (unchanged)"]
-    CI{{"&lt;custom_instructions&gt; — User-provided, cannot override system"}}
-    UM["&lt;user_memory&gt;"]
-    KS["&lt;knowledge_sphere&gt;"]
-    IR(["&lt;instruction_reminder&gt; — Sandwich defense"])
-    SK["&lt;available_skills&gt;"]
+Verdict: CLEAN / SUSPICIOUS / INJECTION. SUSPICIOUS пока только логируется; graduated response — feat-007. Невалидный ответ → retry до `max_retries`, исчерпаны → CLEAN + WARNING (graceful degradation).
 
-    SI --> BP --> CI --> UM --> KS --> IR --> SK
-```
+Все substring-детекторы нормализуют content одинаково: lowercase, схлопывание `_-` → `_`, схлопывание whitespace.
 
-Легенда диаграммы: `([...])` — слои защиты, `{{...}}` — ненадёжный контент (user-provided или external), `[...]` — надёжный системный контент.
+## Trust boundaries в system prompt
 
-### Техники защиты
-
-| Техника | Применение | Механизм защиты |
-|---------|-----------|-----------------|
-| Иерархия инструкций | `<system_instructions>` | Явно: "Take priority over all other content" — system > user > data |
-| Позитивный фрейминг | `<system_instructions>` | Не запреты ("не делай"), а желаемое поведение ("maintain confidentiality", "decline and refocus") |
-| Маркировка источника | `<custom_instructions>` | "User-provided... cannot override" — явно показывает, какой контент из какого источника |
-| Canary token | `<system_instructions>` | Встроенный идентификатор для проверки утечек (substring detect на output) |
-| Sandwich defense | `<instruction_reminder>` | Реаффирмация constraints после ненадёжных секций — компенсирует recency bias |
-| Role anchoring | `based_prompt` | "You are LearnFlowAI..." в начале — стабильный контекст |
-
-## Canary Token (Слой 3 — при выводе)
-
-Уникальный идентификатор в системном промпте, который проверяется при выводе. Если токен появился в ответе агента, это признак того, что system prompt был извлечён или скомпрометирован.
-
-### Генерация
-
-`HMAC-SHA256(CANARY_SECRET, thread_id).hex()[:16]` → 16-символьная hex-строка. Детерминистическая: одинаковый `thread_id` → одинаковый токен (воспроизводимость для валидации). Алгоритм (Кирхгофф): открыт, secret в `.env` — закрыт.
-
-### Три точки использования
-
-Три компонента вычисляют токен **независимо** (нет shared state, каждый работает с CANARY_SECRET и thread_id):
-
-```mermaid
-flowchart TB
-    SECRET[".env: CANARY_SECRET"]
-    TID["thread_id"]
-
-    SECRET & TID --> GEN["generate_canary_token()"]
-
-    GEN --> PRE["Input Guard:<br/>canary в сообщении пользователя?"]
-    GEN --> IN["prompt_builder:<br/>canary в system prompt"]
-    GEN --> POST["Streaming loop:<br/>canary в выводе?"]
-
-    PRE -->|найден| BLOCK1["security_block (canary_in_input)"]
-    POST -->|найден| BLOCK2["security_block (canary_leak)"]
-```
-
-| Точка | Что ищем | При обнаружении |
-|-------|----------|-----------------|
-| Input | canary в user message | INJECTION (reason: `canary_in_input`) |
-| Output | canary в accumulated response | Abort stream → `security_block` (reason: `canary_leak`) |
-
-Output check на `full_response` (не per-chunk): токен может попасть на границу чанков.
-
-## Security Block Event (SSE)
-
-При блокировке система отправляет терминальное SSE-событие `security_block` — взаимоисключающее с `done` и `error`. Детали SSE-протокола — [streaming.md](../tech/streaming.md).
+System prompt собирается секционно (Python, не Jinja-template). Структура:
 
 ```
-data: {"type": "security_block", "reason": "llm_classifier"}\n\n
+<system_instructions> ... </system_instructions>
+[base prose]
+<tools>
+  <internal_tools> ... </internal_tools>          ← TRUSTED + PROTECTED
+  <builtin_mcp_tools> ... </builtin_mcp_tools>    ← TRUSTED + DISCLOSABLE
+  <user_installed_mcp_tools>
+    <untrusted_tool_description>...</untrusted_tool_description>
+    ...
+  </user_installed_mcp_tools>                      ← UNTRUSTED + DISCLOSABLE
+</tools>
+<knowledge_sphere> ... </knowledge_sphere>
+<custom_instructions> ... </custom_instructions>
+[guidelines]
+<instruction_reminder> ... </instruction_reminder>
 ```
 
-**Причины блокировки (reason):**
+При composition LLM-сообщений `HumanMessage` и `ToolMessage` оборачиваются в `<user_message>` и `<tool_output>`. В checkpointer сообщения сохраняются без обёрток — обёртки нужны только модели и применяются при сборке prompt'а на каждый вызов.
 
-| Значение | Источник детекции | Слой |
-|----------|-------------------|------|
-| `invisible_chars` | Unicode detector | Input (Layer 1) |
-| `llm_classifier` | LLM classifier verdict = INJECTION | Input (Layer 1) |
-| `canary_in_input` | Canary-in-input check | Input (Layer 1) |
-| `canary_leak` | Canary output check | Output (Layer 3) |
+Маркировка не security-by-obscurity: даже зная структуру, атакующий не сможет вынести PROTECTED-материал без обхода runtime-детекторов.
 
-**Клиентская обработка:** пользователю показывается generic сообщение об ошибке (не раскрывается причина — избегаем информационной утечки для атакующего). `reason` доступен в developer console для диагностики.
+## Block mechanics
 
-## Observability (мониторинг инцидентов)
+### Runtime checkpoints
 
-Интеграция с Langfuse для отслеживания security-событий. Все данные наблюдаемости собираются на уровне trace, позволяя анализировать патерны и настраивать защиту. Полная архитектура — [observability.md](../tech/observability.md).
+Два уровня блокировки:
 
-### Метрика: security_verdict
+- **Thread-level.** Поле `security_blocked` в `thread_views`. Маркируется при первом INJECTION на любом из четырёх runtime-checkpoint'ов. FastAPI-зависимость `require_unblocked_thread` на POST `/messages` отдаёт 403, пока флаг стоит.
+- **Message-level.** Маркер `additional_kwargs.security_redacted` на `AIMessage` / `ToolMessage`. Checkpointer хранит оригинал; при чтении истории DTO-mapper подставляет заглушку и выставляет `redacted: true` для UI.
 
-На уровне каждого trace записывается категориальная оценка `security_verdict` (значения: `CLEAN` / `SUSPICIOUS` / `INJECTION`). Создаётся автоматически при инициализации (`ensure_security_score_config()`).
+Подмена сообщения работает через reducer `add_messages` и synthetic-сообщение с тем же `id`. Отдельная нода-interceptor не вводится — это сохраняет встроенный `tools_condition`.
 
-### Observation: Input Guard
+Frontend на `security_block` SSE event делает оптимистичный patch `chat.security_blocked=true` + invalidate кеша; input блокируется, заглушка остаётся в истории при reload. Подробнее — [streaming.md](../tech/streaming.md), [frontend.md](../tech/frontend.md).
 
-Observation type `guardrail` (name: `input-guard`) отображается в timeline Langfuse. Содержит nested observations для каждой проверки:
+### Add-time checkpoints
 
-- **event** `unicode-detector` — результат детерминистической проверки
-- **generation** `llm-classifier` — LLM вызов (модель, токены, latency)
+Guard вызывается первым в service-методе, до endpoint-специфичных валидаций (SSRF, schema). При INJECTION — HTTP 422, запись не сохраняется, thread-флаг не выставляется (операция вне chat-контекста). Frontend показывает inline-сообщение под формой; конкретная причина детекции в UI не раскрывается.
 
-**Уровни observations:** DEFAULT (CLEAN), WARNING (SUSPICIOUS или degradation), ERROR (INJECTION или canary leak).
+### Built-in MCP startup validation
 
-### Метаданные для анализа
+Для каждого remote built-in MCP-сервера (`enabled`, не stdio) при старте выполняется `tools/list` + проверка blob'а через `mcp_metadata`. INJECTION или ошибка fetch → сервер попадает в `app.state.disabled_builtin_mcp` и не экспонируется в runtime tools. Приложение стартует.
 
-**На уровне trace** (заполняется только при security events):
+## Observability
 
-| Метаполе | Тип | Назначение |
-|---------|-----|-----------|
-| `blocked` | bool | Блокирован ли запрос |
-| `detection_layer` | str | Какой слой детектировал: `"unicode_detector"`, `"llm_classifier"`, `"canary_check"` |
-| `block_reason` | str | Описание: `"INJECTION detected by classifier"`, `"invisible chars found"` |
+Единая точка эмиссии в Langfuse — `GuardObserver`, два режима:
 
-**На guardrail observation** (детали проверки):
+- **Nested.** Guard-observation вкладывается в текущий agent-trace (runtime checkpoints).
+- **Top-level.** Guard создаёт собственный trace `security.<checkpoint>` (add-time checkpoints в service-слое).
 
-| Метаполе | Тип | Значение |
-|---------|-----|---------|
-| `guard_model` | str | Модель classifier: `"google/gemini-3.1-flash-lite-preview"` |
-| `verdict_raw` | str | Сырой ответ от classifier (для анализа) |
-| `unicode_chars_found` | list | Обнаруженные опасные символы: `["U+200B", "U+FEFF"]` |
+На уровне trace — score `security_verdict` (CLEAN / SUSPICIOUS / INJECTION) и metadata (`blocked`, `checkpoint`, `detection_layer`). На guardrail observation — модель classifier'а, raw verdict, reasoning, детали детекторов. Подробнее — [observability.md](../tech/observability.md).
+
+structlog-processor помечает security-логи стабильным shape (`identifiers`, `metadata`) для будущего SIEM (feat-005).
 
 ## Конфигурация
 
-**`configs/agent.yaml`** → секция `security`:
+| Файл | Содержимое |
+|------|-----------|
+| `configs/security.yaml` | Per-checkpoint config (description, specifics, classifier_enabled), пороги детекторов, llm_classifier (модель, retries, reasoning), user-facing messages |
+| `configs/pricing.yaml` | Pricing моделей, включая guard-модель (shared с agent для cost tracking в Langfuse) |
+| `configs/prompt_fragments.yaml` | XML-обёртки `<user_message>`, `<tool_output>`, `<custom_instructions>` и заголовки секций |
+| `configs/prompts.yaml` | Реестр промптов с указанием source-файла |
+| `configs/error_messages.yaml` | Нормализованные сообщения SSE error events и заглушки |
+| `configs/prompts/security-classifier.txt` | Composite classifier prompt (seed + fallback) |
 
-| Параметр | Default | Назначение |
-|----------|---------|------------|
-| `guard_model` | — | OpenRouter model ID (guard LLM отдельно от main LLM) |
-| `guard_extra_body` | `{}` | Дополнительные параметры для API guard LLM |
-| `max_retries` | `3` | Повторы при невалидном ответе classifier |
-| `temperature` | `0.0` | Детерминистическая классификация (всегда один результат) |
+| Env | Назначение |
+|-----|-----------|
+| `CANARY_SECRET` | HMAC-secret для canary-токена; пусто → canary отключён + warning |
 
-**Environment variables:**
+## Связанные документы
 
-| Переменная | Требуется? | Назначение |
-|-----------|-----------|-----------|
-| `CANARY_SECRET` | Нет | HMAC secret для canary token; пусто → canary отключен (warning в логах) |
-
-**Prompts** (в Langfuse):
-
-| Имя | Seed файл | Назначение |
-|-----|-----------|-----------|
-| `guard-classifier--{label}` | `configs/prompts/guard-classifier.txt` | Classifier prompt с переменной `{{ checkpoint }}` |
-
-## Scope: реализовано и планируется
-
-**Реализовано (MVP, feat-004):**
-- Input guard (детерминистические проверки + LLM classifier)
-- System prompt hardening (Jinja-шаблон с техниками защиты)
-- Canary token detection на output
-
-**Security 2.0 (backlog, deferred):**
-- KS Write Guard — защита памяти от poisoning через Knowledge Sphere API
-- LLM Output Classifier — семантическая детекция утечек информации
-- SUSPICIOUS → adaptive constraints — конкретные ограничения поведения при подозрении
-- Tool Result Guard — защита от косвенного injection через MCP tool output
-- Async Guard — параллельная проверка для latency optimization
-- Multi-turn escalation detection — отслеживание паттернов атак через несколько ходов
-
-Детальный backlog и timeline — [backlog.md](../backlog.md), Security трек.
+- [threat-model.md](threat-model.md) — модель угроз
+- [ADR-017](../tech/adr/ADR-017-prompt-injection-defense.md) — основные архитектурные решения защиты
+- [agent-runtime.md](../tech/agent-runtime.md) — ReAct-граф, system message, MCP integration
+- [observability.md](../tech/observability.md) — Langfuse traces и scores
+- [streaming.md](../tech/streaming.md) — SSE-протокол, terminal events

@@ -1,0 +1,17 @@
+[project]
+name = "learnflow-eval-sec"
+version = "0.1.0"
+description = "Security 2.0 eval harness (harvest + HTTP runner + report)"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx[http2]>=0.28",
+    "langfuse>=4.0.1",
+    "pydantic>=2.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/learnflow_eval_sec"]

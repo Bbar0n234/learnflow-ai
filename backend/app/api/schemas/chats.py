@@ -19,6 +19,7 @@ class ChatResponse(BaseModel):
     title: str
     created_at: datetime
     updated_at: datetime
+    security_blocked: bool = False
 
 
 class ChatListResponse(BaseModel):
@@ -31,6 +32,7 @@ class ChatRecentItem(BaseModel):
     project_id: uuid.UUID
     project_name: str
     updated_at: datetime
+    security_blocked: bool = False
 
 
 class ChatRecentResponse(BaseModel):
@@ -45,9 +47,11 @@ class MessageOut(BaseModel):
     artifacts: list[ArtifactListItem] = []
     trace_id: str | None = None
     feedback_score: bool | None = None
+    redacted: bool = False
 
 
 class ChatDetailResponse(BaseModel):
     thread_id: uuid.UUID
     title: str
+    security_blocked: bool = False
     messages: list[MessageOut]

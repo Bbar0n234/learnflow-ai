@@ -5,46 +5,53 @@ import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import ExitStack, contextmanager
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
 import structlog
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.agent.config import ResolvedModelConfig
+from app.agent.config import ErrorMessagesConfig, ResolvedModelConfig
+from app.agent.error_mapper import normalize_error_message
 from app.agent.graph import AgentContext
 from app.agent.graph_factory import GraphFactory
 from app.agent.security.canary import generate_canary_token
-from app.agent.security.detectors import check_canary_in_text
 from app.agent.security.guard import SecurityGuard
-from app.agent.security.types import SecurityVerdict
+from app.agent.security.types import (
+    VERDICT_TO_LEVEL,  # noqa: F401  # re-export for tests/legacy imports
+    Checkpoint,
+    DetectionLayer,
+    GuardResult,
+    SecurityMessages,
+    Verdict,
+    direction_of,
+)
 from app.repositories.settings import SettingsRepository
+from app.repositories.thread_view import ThreadViewRepository
 from app.services.agent_runner import Message, StreamEvent
 from app.services.model_config_resolver import ModelConfigResolver
 
 logger = structlog.get_logger()
 
-BLOCKED_USER_MESSAGE = "Запрос заблокирован из соображений безопасности."
-CANARY_BLOCKED_USER_MESSAGE = (
-    "Ответ заблокирован: обнаружена потенциальная утечка системной информации."
-)
-
-_VERDICT_TO_LEVEL = {
-    SecurityVerdict.CLEAN: "DEFAULT",
-    SecurityVerdict.SUSPICIOUS: "WARNING",
-    SecurityVerdict.INJECTION: "ERROR",
-}
-
 
 class _NoOpSpan:
-    """No-op span when Langfuse is unavailable."""
-
     trace_id = None
     id = None
 
     def update(self, **kwargs: Any) -> None:
         pass
+
+    def score_trace(self, **kwargs: Any) -> None:
+        pass
+
+
+@dataclass(frozen=True)
+class _InGraphSecurityHit:
+    checkpoint: Checkpoint
+    detection_layer: DetectionLayer | None
+    reason: str
 
 
 @contextmanager
@@ -54,12 +61,6 @@ def _langfuse_observation(
     thread_id: uuid.UUID,
     project_id: uuid.UUID,
 ) -> Any:
-    """Fail-safe Langfuse instrumentation. Yields (span, handler).
-
-    ExitStack keeps CM references alive so OTel context stays active during
-    the async generator stream. OTel detach errors on cleanup are expected
-    (token created in a different async context) and suppressed.
-    """
     from langfuse import get_client, propagate_attributes
     from langfuse.langchain import CallbackHandler
 
@@ -116,16 +117,22 @@ class LangGraphAgentRunner:
         graph_factory: GraphFactory,
         model_resolver: ModelConfigResolver,
         checkpointer: Any,
+        security_messages: SecurityMessages,
+        error_messages: ErrorMessagesConfig,
         tool_resolver: Any | None = None,
         security_guard: SecurityGuard | None = None,
         canary_secret: str = "",
+        session_factory: async_sessionmaker[AsyncSession] | None = None,
     ) -> None:
         self._graph_factory = graph_factory
         self._model_resolver = model_resolver
         self._checkpointer = checkpointer
+        self._security_messages = security_messages
+        self._error_messages = error_messages
         self._tool_resolver = tool_resolver
         self._security_guard = security_guard
         self._canary_secret = canary_secret
+        self._session_factory = session_factory
         self._cancel_events: dict[uuid.UUID, asyncio.Event] = {}
         self._pending_cancels: set[uuid.UUID] = set()
 
@@ -152,7 +159,6 @@ class LangGraphAgentRunner:
                 settings_repo, user_id, project_id, thread_id
             )
 
-        # Fallback to config default if no session available
         if model_config is None:
             model_config = self._model_resolver._from_llm_config(
                 self._model_resolver._llm_config
@@ -171,10 +177,12 @@ class LangGraphAgentRunner:
                     exc_info=True,
                 )
 
-        # Build graph per-request
+        user_installed_tool_names = frozenset(
+            getattr(t, "name", "") for t in extra_tools if getattr(t, "name", None)
+        )
+
         graph = self._graph_factory.build(model_config, extra_tools=extra_tools)
 
-        # Generate canary token
         canary_token = ""
         if self._canary_secret:
             canary_token = generate_canary_token(str(thread_id), self._canary_secret)
@@ -189,24 +197,43 @@ class LangGraphAgentRunner:
         stream_start = time.monotonic()
         stream_error = False
         full_response = ""
+        last_message_id: str | None = None
+        injection_emitted = False
+        chunks_processed = 0
 
         with _langfuse_observation(content, user_id, thread_id, project_id) as (
             span,
             lf_handler,
         ):
-            # --- Pre-graph security check ---
-            guard_result = None
+            # --- Pre-graph security check (USER_INPUT) ---
+            guard_result: GuardResult | None = None
             if self._security_guard is not None:
                 history = await self._get_checkpoint_messages(thread_id)
-                guard_result = await self._run_guard_with_observability(
-                    span, content, history, canary_token
+                guard_result = await self._security_guard.check(
+                    content,
+                    Checkpoint.USER_INPUT,
+                    history=history,
+                    canary_token=canary_token,
                 )
 
-                if guard_result.verdict == SecurityVerdict.INJECTION:
-                    self._finalize_blocked_trace(span, guard_result, "input_guard")
+                if guard_result.verdict == Verdict.INJECTION:
+                    self._finalize_blocked_trace(span, guard_result)
+                    await self._persist_user_input_block(
+                        graph,
+                        thread_id,
+                        content,
+                        guard_result,
+                    )
+                    await self._mark_security_blocked(thread_id)
                     yield StreamEvent(
                         type="security_block",
-                        data={"reason": guard_result.reason or "prompt_injection"},
+                        data={
+                            "reason": (
+                                guard_result.detection_layer.value
+                                if guard_result.detection_layer
+                                else "prompt_injection"
+                            )
+                        },
                     )
                     if span.trace_id:
                         yield StreamEvent(
@@ -215,16 +242,23 @@ class LangGraphAgentRunner:
                         )
                     return
 
-                if guard_result.verdict == SecurityVerdict.SUSPICIOUS:
+                if guard_result.verdict == Verdict.SUSPICIOUS:
                     logger.warning(
                         "suspicious input detected, proceeding",
                         thread_id=str(thread_id),
-                        reason=guard_result.reason,
+                        detection_layer=(
+                            guard_result.detection_layer.value
+                            if guard_result.detection_layer
+                            else None
+                        ),
                     )
 
-            # --- Score CLEAN/SUSPICIOUS on trace ---
             if guard_result is not None:
-                self._score_trace(span, guard_result.verdict, guard_result.reason)
+                self._score_trace(
+                    span,
+                    guard_result.verdict,
+                    guard_result.detection_layer,
+                )
 
             config: dict[str, Any] = {"configurable": {"thread_id": str(thread_id)}}
             if lf_handler:
@@ -234,6 +268,7 @@ class LangGraphAgentRunner:
                 project_id=str(project_id),
                 user_id=str(user_id),
                 canary_token=canary_token,
+                user_installed_tool_names=user_installed_tool_names,
             )
             input_msg = {
                 "messages": [
@@ -254,7 +289,14 @@ class LangGraphAgentRunner:
                     context=context,
                 ):
                     if cancel_event.is_set():
-                        yield StreamEvent(type="error", data={"detail": "Cancelled"})
+                        yield StreamEvent(
+                            type="error",
+                            data={
+                                "detail": normalize_error_message(
+                                    asyncio.CancelledError(), self._error_messages
+                                )
+                            },
+                        )
                         return
 
                     if mode == "messages":
@@ -264,22 +306,53 @@ class LangGraphAgentRunner:
                             and isinstance(msg_chunk.content, str)
                             and msg_chunk.content
                         ):
+                            if msg_chunk.id is not None:
+                                last_message_id = str(msg_chunk.id)
                             full_response += msg_chunk.content
+                            chunks_processed += 1
 
-                            # Canary output check
-                            if canary_token and check_canary_in_text(
-                                full_response, canary_token
+                            # Mid-stream tail-only deterministic guard (skip_classifier=True).
+                            # observe=False: per-chunk observations flood traces; a single
+                            # retrospective observation is emitted only on INJECTION below.
+                            tail_len = self._tail_window_len(canary_token)
+                            tail = full_response[-(tail_len + len(msg_chunk.content)) :]
+                            mid_result = await self._maybe_guard(
+                                tail,
+                                Checkpoint.FINAL_OUTPUT,
+                                canary_token=canary_token,
+                                skip_classifier=True,
+                                observe=False,
+                            )
+                            if (
+                                mid_result is not None
+                                and mid_result.verdict == Verdict.INJECTION
                             ):
-                                logger.error(
-                                    "canary token leaked in output",
-                                    thread_id=str(thread_id),
+                                injection_emitted = True
+                                self._record_mid_stream_hit_observation(
+                                    thread_id=thread_id,
+                                    full_response=full_response,
+                                    tail=tail,
+                                    result=mid_result,
+                                    chunks_processed=chunks_processed,
                                 )
-                                self._record_canary_leak(
-                                    span, full_response, canary_token
+                                await self._handle_final_output_injection(
+                                    graph,
+                                    config,
+                                    thread_id,
+                                    full_response,
+                                    mid_result,
+                                    last_message_id,
                                 )
+                                self._finalize_blocked_trace(span, mid_result)
                                 yield StreamEvent(
                                     type="security_block",
-                                    data={"reason": "canary_leak"},
+                                    data={
+                                        "reason": (
+                                            mid_result.detection_layer.value
+                                            if mid_result.detection_layer
+                                            else "final_output"
+                                        )
+                                    },
                                 )
                                 if span.trace_id:
                                     yield StreamEvent(
@@ -304,7 +377,10 @@ class LangGraphAgentRunner:
                     thread_id=str(thread_id),
                     error=str(e),
                 )
-                yield StreamEvent(type="error", data={"detail": str(e)})
+                yield StreamEvent(
+                    type="error",
+                    data={"detail": normalize_error_message(e, self._error_messages)},
+                )
             finally:
                 duration_ms = int((time.monotonic() - stream_start) * 1000)
                 logger.info(
@@ -316,13 +392,301 @@ class LangGraphAgentRunner:
                 self._cancel_events.pop(thread_id, None)
                 self._pending_cancels.discard(thread_id)
 
-            span.update(output=full_response)
+            # --- End-of-stream FINAL_OUTPUT classifier ---
+            if (
+                not stream_error
+                and not injection_emitted
+                and self._security_guard is not None
+                and full_response
+            ):
+                yield StreamEvent(type="final_output_review_started", data={})
+                final_result = await self._security_guard.check(
+                    full_response,
+                    Checkpoint.FINAL_OUTPUT,
+                    canary_token=canary_token,
+                )
+                if final_result.verdict == Verdict.INJECTION:
+                    injection_emitted = True
+                    await self._handle_final_output_injection(
+                        graph,
+                        config,
+                        thread_id,
+                        full_response,
+                        final_result,
+                        last_message_id,
+                    )
+                    self._finalize_blocked_trace(span, final_result)
+                    yield StreamEvent(
+                        type="security_block",
+                        data={
+                            "reason": (
+                                final_result.detection_layer.value
+                                if final_result.detection_layer
+                                else "final_output"
+                            )
+                        },
+                    )
+                    if span.trace_id:
+                        yield StreamEvent(
+                            type="trace_id", data={"trace_id": span.trace_id}
+                        )
+                    return
+
+                yield StreamEvent(type="final_output_review_complete", data={})
+
+            # --- Post-stream in-graph INJECTION inspection (TOOL_CALL_ARG / TOOL_RESULT) ---
+            if not injection_emitted and not stream_error:
+                hit = await self._inspect_in_graph_injection(thread_id, config)
+                if hit is not None:
+                    await self._mark_security_blocked(thread_id)
+                    injection_emitted = True
+                    result = GuardResult(
+                        verdict=Verdict.INJECTION,
+                        checkpoint=hit.checkpoint,
+                        direction=direction_of(hit.checkpoint),
+                        detection_layer=hit.detection_layer,
+                        details={"reason": "in_graph_security_redaction"},
+                    )
+                    self._finalize_blocked_trace(span, result)
+                    yield StreamEvent(
+                        type="security_block", data={"reason": hit.reason}
+                    )
+
+            if not injection_emitted:
+                span.update(output=full_response)
 
         if span.trace_id:
             yield StreamEvent(type="trace_id", data={"trace_id": span.trace_id})
 
+    @staticmethod
+    def _tail_window_len(canary_token: str) -> int:
+        return max(len(canary_token) if canary_token else 0, 64)
+
+    async def _maybe_guard(
+        self,
+        content: str,
+        checkpoint: Checkpoint,
+        *,
+        canary_token: str,
+        skip_classifier: bool,
+        observe: bool = True,
+    ) -> GuardResult | None:
+        if self._security_guard is None:
+            return None
+        return await self._security_guard.check(
+            content,
+            checkpoint,
+            canary_token=canary_token,
+            skip_classifier=skip_classifier,
+            observe=observe,
+        )
+
+    @staticmethod
+    def _record_mid_stream_hit_observation(
+        *,
+        thread_id: uuid.UUID,
+        full_response: str,
+        tail: str,
+        result: GuardResult,
+        chunks_processed: int,
+    ) -> None:
+        """Emit a single retrospective guardrail observation for a mid-stream hit.
+
+        Mid-stream checks run per-chunk with ``observe=False`` to keep traces
+        readable; when a hit fires we record one ``guard-final_output`` observation
+        with the full context (accumulated response, detected tail, detector
+        layer/details, chunk counter).
+        """
+        try:
+            from langfuse import get_client
+
+            from app.infra.langfuse import langfuse_enabled
+
+            if not langfuse_enabled:
+                return
+            detection_layer = (
+                result.detection_layer.value if result.detection_layer else None
+            )
+            with get_client().start_as_current_observation(
+                as_type="guardrail",
+                name=f"guard-{Checkpoint.FINAL_OUTPUT.value}",
+                input=full_response,
+            ) as obs:
+                obs.update(
+                    output={
+                        "verdict": result.verdict.value,
+                        "detection_layer": detection_layer,
+                    },
+                    metadata={
+                        "mode": "mid_stream",
+                        "detection_layer": detection_layer,
+                        "details": result.details or {},
+                        "chunks_processed": chunks_processed,
+                        "response_length": len(full_response),
+                        "tail_length": len(tail),
+                        "tail_snapshot": tail,
+                        "duration_ms": result.duration_ms,
+                        "thread_id": str(thread_id),
+                    },
+                    level="ERROR",
+                )
+        except Exception:
+            logger.warning(
+                "mid-stream hit observation failed",
+                thread_id=str(thread_id),
+                exc_info=True,
+            )
+
+    async def _handle_final_output_injection(
+        self,
+        graph: Any,
+        config: dict[str, Any],
+        thread_id: uuid.UUID,
+        full_response: str,
+        result: GuardResult,
+        last_message_id: str | None,
+    ) -> None:
+        """Redact the assistant message via replace-by-id + mark thread blocked."""
+        try:
+            redacted = AIMessage(
+                id=last_message_id,
+                content=self._security_messages.redacted_user_facing,
+                additional_kwargs={
+                    "security_redacted": True,
+                    "original_detection_layer": (
+                        result.detection_layer.value
+                        if result.detection_layer
+                        else DetectionLayer.LLM_CLASSIFIER.value
+                    ),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+            await graph.aupdate_state(config, {"messages": [redacted]}, as_node="agent")
+        except Exception:
+            logger.warning(
+                "final_output aupdate_state failed",
+                thread_id=str(thread_id),
+                exc_info=True,
+            )
+        await self._mark_security_blocked(thread_id)
+        logger.warning(
+            "final output blocked",
+            security_event=True,
+            checkpoint=Checkpoint.FINAL_OUTPUT.value,
+            verdict=Verdict.INJECTION.value,
+            identifiers={"thread_id": str(thread_id)},
+            metadata={
+                "detection_layer": (
+                    result.detection_layer.value if result.detection_layer else None
+                ),
+                "response_length": len(full_response),
+            },
+        )
+
+    async def _persist_user_input_block(
+        self,
+        graph: Any,
+        thread_id: uuid.UUID,
+        content: str,
+        result: GuardResult,
+    ) -> None:
+        """Write the blocked HumanMessage + redacted AIMessage placeholder to checkpointer.
+
+        The graph never runs for USER_INPUT injections, so messages would otherwise
+        not appear in history. We replay them as if `agent` had produced them:
+        the user sees their original prompt and the placeholder when reopening the chat.
+        """
+        config: dict[str, Any] = {"configurable": {"thread_id": str(thread_id)}}
+        now_iso = datetime.now(timezone.utc).isoformat()
+        try:
+            human = HumanMessage(
+                content=content,
+                additional_kwargs={"created_at": now_iso},
+            )
+            placeholder = AIMessage(
+                content=self._security_messages.redacted_user_facing,
+                additional_kwargs={
+                    "security_redacted": True,
+                    "original_detection_layer": (
+                        result.detection_layer.value
+                        if result.detection_layer
+                        else Checkpoint.USER_INPUT.value
+                    ),
+                    "created_at": now_iso,
+                },
+            )
+            await graph.aupdate_state(
+                config, {"messages": [human, placeholder]}, as_node="agent"
+            )
+        except Exception:
+            logger.warning(
+                "user_input block persist failed",
+                thread_id=str(thread_id),
+                exc_info=True,
+            )
+
+    async def _mark_security_blocked(self, thread_id: uuid.UUID) -> None:
+        if self._session_factory is None:
+            return
+        try:
+            async with self._session_factory() as session, session.begin():
+                repo = ThreadViewRepository(session)
+                await repo.mark_security_blocked(thread_id)
+        except Exception:
+            logger.warning(
+                "mark_security_blocked failed",
+                thread_id=str(thread_id),
+                exc_info=True,
+            )
+
+    async def _inspect_in_graph_injection(
+        self, thread_id: uuid.UUID, config: dict[str, Any]
+    ) -> _InGraphSecurityHit | None:
+        """Check the latest turn for an in-graph redaction flag."""
+        try:
+            checkpoint = await self._checkpointer.aget_tuple(config)
+            if checkpoint is None:
+                return None
+            messages = checkpoint.checkpoint.get("channel_values", {}).get(
+                "messages", []
+            )
+            for m in reversed(messages):
+                if isinstance(m, (AIMessage, ToolMessage)) and m.additional_kwargs.get(
+                    "security_redacted"
+                ):
+                    layer = m.additional_kwargs.get("original_detection_layer")
+                    if layer is None:
+                        logger.warning(
+                            "security_redacted set without original_detection_layer",
+                            thread_id=str(thread_id),
+                        )
+                        layer = "unknown"
+                    try:
+                        detection_layer = DetectionLayer(layer)
+                    except ValueError:
+                        detection_layer = None
+                    checkpoint = (
+                        Checkpoint.TOOL_RESULT
+                        if isinstance(m, ToolMessage)
+                        else Checkpoint.TOOL_CALL_ARG
+                    )
+                    return _InGraphSecurityHit(
+                        checkpoint=checkpoint,
+                        detection_layer=detection_layer,
+                        reason=layer,
+                    )
+                # Stop at the previous user message to bound scan.
+                if isinstance(m, HumanMessage):
+                    break
+        except Exception:
+            logger.warning(
+                "post-stream state inspection failed",
+                thread_id=str(thread_id),
+                exc_info=True,
+            )
+        return None
+
     async def _get_checkpoint_messages(self, thread_id: uuid.UUID) -> list[Any]:
-        """Get messages from checkpoint for guard context."""
         try:
             config = {"configurable": {"thread_id": str(thread_id)}}
             checkpoint = await self._checkpointer.aget_tuple(config)
@@ -337,96 +701,44 @@ class LangGraphAgentRunner:
             )
             return []
 
-    async def _run_guard_with_observability(
-        self,
-        span: Any,
-        content: str,
-        history: list[Any],
-        canary_token: str,
-    ) -> Any:
-        """Run SecurityGuard.check within a Langfuse guardrail observation."""
-        assert self._security_guard is not None
-
-        guard_cm = None
-        guard_obs = None
-        try:
-            guard_cm = span.start_as_current_observation(
-                as_type="guardrail", name="input-guard", input=content
-            )
-            guard_obs = guard_cm.__enter__()
-        except Exception:
-            guard_cm = None
-
-        try:
-            result = await self._security_guard.check(
-                content,
-                history=history,
-                checkpoint="user_input",
-                canary_token=canary_token,
-            )
-
-            if guard_obs is not None:
-                try:
-                    metadata: dict[str, Any] = {}
-                    if result.reason:
-                        metadata["block_reason"] = result.reason
-                    if result.details and "degradation" in result.details.lower():
-                        metadata["degraded"] = True
-
-                    level = _VERDICT_TO_LEVEL.get(result.verdict, "DEFAULT")
-                    if result.details and "degradation" in result.details.lower():
-                        level = "WARNING"
-
-                    guard_obs.update(
-                        output={
-                            "verdict": result.verdict.value,
-                            "reason": result.reason,
-                        },
-                        metadata=metadata,
-                        level=level,
-                    )
-                except Exception:
-                    logger.warning("guard langfuse update failed", exc_info=True)
-
-            return result
-        finally:
-            if guard_cm is not None:
-                try:
-                    guard_cm.__exit__(None, None, None)
-                except Exception:
-                    logger.warning("guard langfuse cleanup failed", exc_info=True)
-
     @staticmethod
-    def _score_trace(span: Any, verdict: SecurityVerdict, reason: str | None) -> None:
-        """Score trace with security verdict."""
+    def _score_trace(
+        span: Any,
+        verdict: Verdict,
+        detection_layer: DetectionLayer | None,
+    ) -> None:
         try:
             span.score_trace(
                 name="security_verdict",
                 value=verdict.value,
                 data_type="CATEGORICAL",
-                comment=reason,
+                comment=detection_layer.value if detection_layer else None,
             )
         except Exception:
             logger.warning("security score failed", exc_info=True)
 
-    @staticmethod
-    def _finalize_blocked_trace(
-        span: Any, guard_result: Any, detection_layer: str
-    ) -> None:
-        """Update trace for a blocked request."""
+    def _finalize_blocked_trace(self, span: Any, guard_result: GuardResult) -> None:
         try:
             span.score_trace(
                 name="security_verdict",
-                value=SecurityVerdict.INJECTION.value,
+                value=Verdict.INJECTION.value,
                 data_type="CATEGORICAL",
-                comment=guard_result.reason,
+                comment=(
+                    guard_result.detection_layer.value
+                    if guard_result.detection_layer
+                    else None
+                ),
             )
             span.update(
-                output=BLOCKED_USER_MESSAGE,
+                output=self._security_messages.redacted_user_facing,
                 metadata={
                     "blocked": True,
-                    "detection_layer": detection_layer,
-                    "block_reason": guard_result.reason,
+                    "checkpoint": guard_result.checkpoint.value,
+                    "detection_layer": (
+                        guard_result.detection_layer.value
+                        if guard_result.detection_layer
+                        else None
+                    ),
                 },
                 level="ERROR",
             )
@@ -434,36 +746,7 @@ class LangGraphAgentRunner:
             logger.warning("blocked trace finalization failed", exc_info=True)
 
     @staticmethod
-    def _record_canary_leak(span: Any, output: str, canary_token: str) -> None:
-        """Record canary leak event + update trace."""
-        try:
-            span.create_event(
-                name="canary-detected",
-                input={"output_length": len(output)},
-                output={"canary_token": canary_token},
-                level="ERROR",
-            )
-            span.score_trace(
-                name="security_verdict",
-                value=SecurityVerdict.INJECTION.value,
-                data_type="CATEGORICAL",
-                comment="canary_leak",
-            )
-            span.update(
-                output=CANARY_BLOCKED_USER_MESSAGE,
-                metadata={
-                    "blocked": True,
-                    "detection_layer": "output_check",
-                    "block_reason": "canary_leak",
-                },
-                level="ERROR",
-            )
-        except Exception:
-            logger.warning("canary leak recording failed", exc_info=True)
-
-    @staticmethod
     def _process_updates(data: dict[str, Any]) -> list[StreamEvent]:
-        """Extract tool_start / tool_end / artifact_created events from updates."""
         events: list[StreamEvent] = []
 
         if "agent" in data:
@@ -473,10 +756,7 @@ class LangGraphAgentRunner:
                         events.append(
                             StreamEvent(
                                 type="tool_start",
-                                data={
-                                    "tool": tc["name"],
-                                    "call_id": tc["id"],
-                                },
+                                data={"tool": tc["name"], "call_id": tc["id"]},
                             )
                         )
 
@@ -509,7 +789,6 @@ class LangGraphAgentRunner:
         *,
         thread_id: uuid.UUID,
     ) -> str | None:
-        """Get ID of the last AIMessage without tool_calls (final user-facing message)."""
         config = {"configurable": {"thread_id": str(thread_id)}}
         checkpoint = await self._checkpointer.aget_tuple(config)
         if checkpoint is None:
@@ -530,17 +809,28 @@ class LangGraphAgentRunner:
         if checkpoint is None:
             return []
         messages = checkpoint.checkpoint.get("channel_values", {}).get("messages", [])
-        return [
-            Message(
-                id=str(m.id),
-                role="user" if isinstance(m, HumanMessage) else "assistant",
-                content=m.content if isinstance(m.content, str) else "",
-                created_at=_parse_created_at(m.additional_kwargs.get("created_at")),
+        result: list[Message] = []
+        for m in messages:
+            if not isinstance(m, (HumanMessage, AIMessage)):
+                continue
+            if getattr(m, "tool_calls", None):
+                continue
+            redacted = bool(m.additional_kwargs.get("security_redacted"))
+            content = (
+                self._security_messages.redacted_user_facing
+                if redacted
+                else (m.content if isinstance(m.content, str) else "")
             )
-            for m in messages
-            if isinstance(m, (HumanMessage, AIMessage))
-            and not getattr(m, "tool_calls", None)
-        ]
+            result.append(
+                Message(
+                    id=str(m.id),
+                    role="user" if isinstance(m, HumanMessage) else "assistant",
+                    content=content,
+                    created_at=_parse_created_at(m.additional_kwargs.get("created_at")),
+                    redacted=redacted,
+                )
+            )
+        return result
 
     async def cancel(self, *, thread_id: uuid.UUID) -> bool:
         event = self._cancel_events.get(thread_id)

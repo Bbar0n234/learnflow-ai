@@ -95,6 +95,12 @@ uv workspace, monorepo.
 
 Конкретные правила и конфигурация — в соответствующих конфиг-файлах (ruff.toml, pyproject.toml).
 
+## DB-сессии и commit
+
+Базовый паттерн — yield-dependency `get_db_session` (`backend/app/api/deps.py`): commit выполняется после `yield`, то есть **после** отправки response клиенту. Этого достаточно для read-only routes и для случаев, когда клиент не делает следующий запрос немедленно.
+
+**Исключение.** Routes/services, чьи возвращаемые данные клиент сразу читает следующим запросом (например, `POST /chats` → клиент тут же делает `POST /messages` по новому `thread_id`), должны выполнять `await session.commit()` **до return**, иначе следующий запрос в параллельной сессии увидит missing row (race на ownership/lookup). Дублирующий commit на уже закоммиченной сессии — no-op в SQLAlchemy.
+
 ## Тестирование
 
 Pytest. MVP без тестов — инфраструктура для запуска подготовлена (конфиг + директория), тесты добавляются после MVP.
@@ -255,3 +261,39 @@ summarization--production
 - INFO на входе/выходе каждой функции — шум, INFO только для бизнес-событий
 - WARNING для ожидаемого поведения ("пользователь не создал проект" — нормальный flow)
 - ERROR для клиентских ошибок (невалидный JSON → 422, не error в логах)
+
+## Reasoning LLMs
+
+Часть моделей (OpenRouter-совместимые) отдают цепочку рассуждений в нестандартном поле `reasoning`. Чтобы извлекать её в `AIMessage.additional_kwargs["reasoning"]` — используется `ReasoningChatOpenAI` из `app/infra/llm.py`.
+
+**Когда применяется:**
+
+- `create_llm` / `create_llm_from_config` — основной агент (уже использует).
+- `create_guard_llm` — security guard classifier (дефолт с Sec 2.0).
+- `create_summarization_llm*` — summarizer.
+
+**Конфигурация.** Триггер — `extra_body.include_reasoning: true` в соответствующем YAML:
+
+- `configs/agent.yaml`: `llm.extra_body.include_reasoning`, `summarization.extra_body.include_reasoning`.
+- `configs/security.yaml`: `llm_classifier.extra_body.include_reasoning`.
+
+При `false`/отсутствии — обычный `ChatOpenAI`, reasoning не извлекается, но цена за reasoning-токены не списывается в Langfuse (так как модель их не возвращает).
+
+**Видимость.** В Langfuse generation `additional_kwargs.reasoning` попадает в поле output вместе с основным текстом; цена reasoning-токенов учитывается через `usage.completion_tokens_details.reasoning_tokens` — требуется корректный `prices.output_reasoning` в определении модели.
+
+## Типизация
+
+В проекте соседствуют четыре способа описать «тип данных»: `Enum`, Pydantic `BaseModel`, `@dataclass`, `TypedDict`. Чтобы не размазывать один концепт по разным формам, следуем таблице ниже. Если сомневаетесь — `BaseModel` по умолчанию.
+
+| Форма | Когда использовать | Примеры из кода |
+|-------|--------------------|-----------------|
+| `Enum` | Фиксированный набор строковых значений (конечный домен), участвует в `match`/`dict`-ключах, сериализуется. | `Verdict`, `Checkpoint`, `Direction`, `DetectionLayer` (`app/agent/security/types.py`). |
+| Pydantic `BaseModel` | Данные пересекают границу: YAML → код (конфиги), HTTP → код (схемы), LangGraph state. Нужна валидация + JSON-сериализация + наследование. | `SecurityConfig`, `LLMClassifierConfig`, `GuardResult`, `ClassifierResult`, все схемы `app/api/schemas/*`. |
+| `@dataclass` (frozen при возможности) | Внутренние value-объекты агента/рантайма, не сериализуются из внешнего источника, передаются по коду. Validation не нужна. | `AgentContext`, `ResolvedModelConfig`, `StreamEvent`, `Message`. |
+| `TypedDict` | В проекте **не используется**. Если встретится в стороннем API — принять извне, не заводить свои. |
+
+`dict[Enum, X]` — допустимый паттерн, когда ключ должен быть строго из конечного домена (`dict[Checkpoint, CheckpointConfig]`, `dict[Verdict, str]`). Его не заменяет «объект с полями», потому что порядок/набор ключей совпадает с Enum-доменом и итерации по `for cp in Checkpoint` остаются безопасными.
+
+**Консистентность.** Одну сущность описываем одной формой. Если `Verdict` — Enum, его не дублируем как `Literal[...]`. Если конфиг-модель — `BaseModel`, её поля не превращаем в отдельные `dataclass`-обёртки ради «красоты». Смешение форм в одном файле = повод для ревью.
+
+**Паттерн для YAML-конфигов.** Каждый раздел `configs/*.yaml` имеет один `BaseModel` с явными полями (не `dict[str, Any]`). Loader пишется рядом с моделью: `load_<name>() -> <Model>`. Это дает: типизированный IDE-autocomplete, Pydantic-валидацию при старте (fail-fast вместо KeyError в рантайме), единый источник дефолтов.

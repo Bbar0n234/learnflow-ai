@@ -8,6 +8,7 @@ interface ChatInputProps {
   disabled?: boolean;
   isStreaming?: boolean;
   onCancel?: () => void;
+  placeholder?: string;
 }
 
 export function ChatInput({
@@ -15,6 +16,7 @@ export function ChatInput({
   disabled,
   isStreaming,
   onCancel,
+  placeholder,
 }: ChatInputProps) {
   const [value, setValue] = useState("");
 
@@ -40,7 +42,7 @@ export function ChatInput({
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Type a message..."
+          placeholder={placeholder ?? "Type a message..."}
           disabled={disabled || isStreaming}
           className="min-h-10 resize-none"
         />

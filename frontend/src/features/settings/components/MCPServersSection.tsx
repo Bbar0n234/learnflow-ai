@@ -90,6 +90,7 @@ export function MCPServersSection({ scope, projectId, threadId }: Props) {
             onSubmit={handleCreate}
             onCancel={() => setShowForm(false)}
             isPending={create.isPending}
+            error={create.error}
           />
         </div>
       )}
@@ -100,6 +101,7 @@ export function MCPServersSection({ scope, projectId, threadId }: Props) {
             onSubmit={handleUpdate}
             onCancel={() => setEditingServer(null)}
             isPending={update.isPending}
+            error={update.error}
             initialData={editingServer}
           />
         </div>

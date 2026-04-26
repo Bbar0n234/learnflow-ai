@@ -117,7 +117,7 @@ Similarity: `1 - (match.dist / len(target))`. При similarity ≥ threshold �
 **Service layer** (`LangGraphSphereService`) — мост между REST API и LangGraph Store:
 
 - **GET:** собирает все секции из Store → сортирует по `created_at` → форматирует в единый Markdown
-- **PUT:** парсит входящий Markdown на секции → пишет каждую в Store → удаляет секции, отсутствующие в новом контенте (reconciliation)
+- **PUT:** проверяет содержимое через security guard (`ks_write_rest` checkpoint, → [security/architecture.md](../security/architecture.md)); при INJECTION — HTTP 422, запись не выполняется. CLEAN-путь парсит входящий Markdown на секции → пишет каждую в Store → удаляет секции, отсутствующие в новом контенте (reconciliation)
 
 Агент и пользователь работают с одним Store — изменения через UI немедленно видны агенту (KS Index обновляется на каждый вызов agent node).
 

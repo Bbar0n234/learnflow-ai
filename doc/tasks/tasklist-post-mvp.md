@@ -340,6 +340,9 @@ Dashboard & Metrics, basic response actions (ban IP/user), расширенны�
 - [plan.md](iterations/post-mvp/feat-006-security-2.0/plan.md) — Implementation plan Phases 1–3 (Track A, guard-код)
 - [plan-phase-4.md](iterations/post-mvp/feat-006-security-2.0/plan-phase-4.md) — Implementation plan Phase 4 (Track B, eval infra)
 - [summary.md](iterations/post-mvp/feat-006-security-2.0/summary.md) — Post-implementation summary (Track A — код + ручная верификация ⏳ за архитектором; Track B — single-run сделан вручную через Langfuse UI, регулярный pipeline не доводился, пакет переведён в **archived (parked)** 2026-04-26) + раздел `Engineering follow-up (2026-04-25)` (EF-1..EF-6 после первого rerun-цикла; EF-6 — изоляция guard LLM от parent callback chain + known limitation по иерархии guard observations в Langfuse UI)
+- [ADR-022](../tech/adr/ADR-022-protected-disclosable-boundary.md) — PROTECTED / DISCLOSABLE Confidentiality Boundary: бинарная граница, MCP trust hierarchy, enforcement semantics
+- [ADR-023](../tech/adr/ADR-023-two-level-detection.md) — Two-Level Detection: deterministic detectors + LLM classifier, composite prompt, classifier isolation
+- [ADR-024](../tech/adr/ADR-024-streaming-security-guard.md) — Streaming Security Guard: live stream с post-classifier validation, block mechanics, replace-by-id
 
 ---
 

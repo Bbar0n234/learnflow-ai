@@ -240,3 +240,5 @@ doc/lab
 
 # Claude Code internals
 .claude/commands/
+
+team-report/

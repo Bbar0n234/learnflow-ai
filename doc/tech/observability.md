@@ -115,7 +115,7 @@ sequenceDiagram
 
 **Metadata на trace** (при INJECTION): `blocked`, `checkpoint`, `detection_layer`. **На guardrail observation:** модель classifier'а, raw verdict, reasoning, детали детекторов (например, найденные fragment-окна или paired tools).
 
-`detection_layer` принимает значения `canary`, `unicode`, `fragment`, `paired`, `llm_classifier`, `graceful_degradation` — стабильные машинно-читаемые идентификаторы для дашбордов и SIEM-pipeline'а ([architecture.md](../security/architecture.md)).
+`detection_layer` принимает значения `canary`, `unicode`, `fragment`, `paired`, `llm_classifier`, `graceful_degradation` — стабильные машинно-читаемые идентификаторы для дашбордов и SIEM-pipeline'а ([architecture.md](../security/architecture.md), [ADR-020](adr/ADR-020-security-event-contract.md)).
 
 Guard LLM generation регистрируется внутри guardrail-observation; cost tracking guard-модели изолирован от main LLM. Mid-stream проверки на стриме создают одну ретроспективную observation на инцидент, чтобы не плодить per-chunk шум в trace tree.
 

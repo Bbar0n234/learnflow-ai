@@ -1,0 +1,384 @@
+# Test Cases: feat-005 — Security Event Pipeline
+
+## Формат прохождения
+
+Кейсы проходятся агентом-tester'ом по фазам реализации (T1-T4) и финальным cross-cutting прогоном. Каждый кейс отмечается сразу:
+
+- `- [x]` + лаконичный результат: что проверялось, что получилось, значимые нюансы
+- `- [ ] ⚠️` + причина, если кейс не пройден или требует ручной проверки
+- Кейсы помечены треком: `{T1}`, `{T2}`, `{T3}`, `{T4}`. Cross-cutting кейсы Layer 2 / Layer 3 — без префикса (прогоняются финально)
+- Кейсы с 👤 — эскалация архитектору (UI, браузер)
+- Кейсы с 🔴 — проверка реальных security-событий / атак
+- Кейсы с 📊 — проверка observability (структура БД, метрики, Redis state)
+
+### Процесс
+
+1. Агент-tester поднимает инфраструктуру через `make docker-up-db`, `make docker-up`, `make dev`, `make dev-fe` по необходимости
+2. Прогоняет кейсы трека после реализации этого трека implementer'ом
+3. Cross-cutting Layer 2/3 кейсы — после всех треков
+4. Каждый failed кейс эскалируется оркестратору после повторной попытки (см. SKILL.md `aidd-orchestrator`, loop bound = 2 fix-цикла на кейс)
+5. Найденные баги фиксируются в секции [Findings](#findings) с severity и описанием
+6. После прохождения — сводка (pass / failed / deferred / findings)
+
+### Где смотреть состояние
+
+| Что | Команда / место |
+|-----|------|
+| Логи main app | structlog stdout, `make logs` или docker-compose logs |
+| Логи siem-service | docker-compose logs siem-service |
+| Redis Stream `security.events` | `redis-cli XLEN security.events`, `redis-cli XINFO STREAM security.events`, `redis-cli XREAD COUNT 10 STREAMS security.events 0` |
+| Pending list consumer group | `redis-cli XPENDING security.events siem-readers` |
+| siem_events / siem_alerts / correlation_rules | psql в БД siem-service |
+| Langfuse | dashboard для security trace observability (не SoT для feat-005, но смотрим на следы main app) |
+
+---
+
+## Layer 0: Automated (gate)
+
+Prerequisites: рабочее окружение, зависимости установлены, чистая БД.
+
+- [ ] `make check` (ruff + mypy на main app + siem-service + siem-contracts) — 0 errors
+- [ ] `make check-fe` (ESLint + Prettier + tsc) — 0 errors (после T4)
+- [ ] Миграции main app применяются на чистой БД: `docker-compose down -v` → `make docker-up-db` → `make migrate` без ошибок
+- [ ] Миграции siem-service применяются на чистой БД (отдельная БД)
+- [ ] `docker-compose up` поднимает оба сервиса + Redis без ошибок; healthcheck'и зелёные
+
+---
+
+## Layer 1: Component Verification
+
+Prerequisites: backend code available, виртуальное окружение активно. Проверки — `python -c` из директории соответствующего пакета или unit-вызовы через REPL.
+
+### Track T1 — Vocabulary + Contracts + Producer
+
+**{T1.1}. Pydantic-валидация SecurityEvent: positive**
+
+- [ ] Валидный объект (все обязательные поля, корректные типы, известный `event_type` из Literal) → парсится без ошибок
+
+**{T1.2}. Pydantic-валидация SecurityEvent: negative**
+
+- [ ] Пропущен `event_id` → ValidationError
+- [ ] Невалидный `severity` (строка не из `info|warning|critical`) → ValidationError
+- [ ] Битый `timestamp` (не datetime) → ValidationError
+
+**{T1.3}. Literal-vocabulary mypy-проверяемо**
+
+- [ ] Производство `SecurityEvent(event_type="not.in.vocabulary", ...)` ловится mypy на producer-сайде
+
+**{T1.4}. structlog processor: сборка SecurityEvent**
+
+- [ ] `logger.warning("...", security_event=True, event_type="auth.login.failed", ...)` → processor строит корректный `SecurityEvent` с заполненными полями
+- [ ] Лог без `security_event=True` → processor не вмешивается
+
+**{T1.5}. contextvars binding: HTTP middleware**
+
+- [ ] HTTP запрос с известным IP → events внутри запроса имеют `ip` в `identifiers`
+- [ ] `request_id` пробрасывается в каждое событие
+- [ ] `user_agent_hash` устанавливается из заголовка User-Agent
+
+**{T1.6}. contextvars binding: auth dependency**
+
+- [ ] Аутентифицированный запрос → `user_id` присутствует в `identifiers`
+- [ ] Refresh token flow → `session_id` присутствует
+
+**{T1.7}. contextvars binding: chat route**
+
+- [ ] Запрос в /chat/... → `thread_id` и `project_id` подмешиваются
+
+**{T1.8}. Producer-side bounded queue**
+
+- [ ] Заполнение очереди до `maxsize` → `put_nowait` бросает `QueueFull` → событие отбрасывается, метрика `producer_drop_newest` инкрементируется
+- [ ] App не падает, hot path не блокируется
+
+**{T1.9}. Publisher loop: graceful shutdown**
+
+- [ ] `lifespan` shutdown → publisher дренирует очередь до таймаута (видно по логам / метрике)
+
+**{T1.10}. Existing producers переведены**
+
+- [ ] `SecurityGuard` log-вызовы используют canonical `event_type` (не `identifiers={}`)
+- [ ] auth-handlers пишут `auth.login.failed`, `auth.refresh.replay_detected` и т.п.
+- [ ] rate-limiter пишет `rate_limit.<scope>.exceeded`
+
+**{T1.11}. 📊 Redis Stream: producer пишет**
+
+- [ ] После `SecurityGuard.check()` на инъекции — `redis-cli XLEN security.events` увеличивается
+- [ ] `XREAD` возвращает запись с корректной структурой (event_id, event_type, severity, timestamp, identifiers, metadata)
+
+### Track T2 — SIEM service skeleton + ingestion
+
+**{T2.1}. Pydantic-валидация на consumer**
+
+- [ ] Валидное событие → INSERT в `siem_events` + XACK
+- [ ] Невалидное событие → drop, метрика `siem_events_invalid`++, raw payload в warning-лог, XACK (не зацикливается)
+
+**{T2.2}. Дедупликация по event_id**
+
+- [ ] Повторное событие с тем же `event_id` → `ON CONFLICT (event_id) DO NOTHING`, XACK
+- [ ] Количество строк в `siem_events` не увеличивается
+
+**{T2.3}. XREADGROUP → INSERT → XACK атомарность**
+
+- [ ] Симуляция падения между INSERT и XACK (`SIGKILL` siem-service) → после рестарта pending list содержит событие → XCLAIM → INSERT (`ON CONFLICT`) → XACK
+- [ ] Дубликата в БД не появляется
+
+**{T2.4}. Unknown event_type принимается**
+
+- [ ] Producer пишет событие с `event_type="future.subject.outcome"` (не в Literal на consumer'е) → INSERT в БД, метрика `siem_unknown_event_type`++, не drop
+
+**{T2.5}. Dual timestamp**
+
+- [ ] `event_timestamp` совпадает с producer'ским временем
+- [ ] `ingested_at` устанавливается на consumer-сайде, отличается от `event_timestamp` при отставании
+
+**{T2.6}. REST `GET /security/events`: pagination**
+
+- [ ] Без параметров → первая страница с дефолтным limit
+- [ ] `limit=10&offset=20` → возвращает 10 записей со смещением
+- [ ] `total` в response отражает фактическое количество
+
+**{T2.7}. REST `GET /security/events`: фильтры**
+
+- [ ] `event_type=auth.login.failed` → только эти события
+- [ ] `severity=warning` → только warning
+- [ ] `from=...&to=...` → только в окне
+
+### Track T3 — Correlation + Alerts + RBAC + API + Meta-log
+
+**{T3.1}. Threshold rule: brute_force_auth**
+
+- [ ] 5 событий `auth.login.failed` с одного IP за <60s → создаётся 1 алерт
+- [ ] 4 события — алерта нет
+
+**{T3.2}. Sequence rule**
+
+- [ ] Событие A (`auth.login.failed`) с IP=X → событие B (`agent.guard.input.classifier_injection`) с IP=X в окне → алерт
+- [ ] Если B без A или вне окна — алерта нет
+
+**{T3.3}. Aggregate rule**
+
+- [ ] ≥10 событий `event_type LIKE 'agent.guard.%.injection'` за 5 мин → алерт без grouping
+
+**{T3.4}. NULL group_key**
+
+- [ ] Правило с `group_key=user_id`, событие без `user_id` → пропускается, алерта нет
+
+**{T3.5}. Open-alert dedup: append**
+
+- [ ] Повторное срабатывание правила (тот же `rule_id`+`group_key`) внутри 24h при существующем open-алерте → НЕ создаётся новый алерт; счётчик/timeline существующего обновляется
+
+**{T3.6}. Open-alert dedup: возрастной лимит**
+
+- [ ] Open-алерт старше 24h → новое срабатывание создаёт новый алерт, не приклеивает к старому
+
+**{T3.7}. Open-alert dedup: после resolve**
+
+- [ ] Алерт переведён в `resolved` → следующее срабатывание создаёт новый алерт
+
+**{T3.8}. JWT validation**
+
+- [ ] Валидный JWT с `is_admin=true` → 200 на security endpoints
+- [ ] Валидный JWT с `is_admin=false` или без claim → 403
+- [ ] Протухший JWT → 401
+- [ ] Битая подпись → 401
+
+**{T3.9}. CRUD correlation_rules**
+
+- [ ] `POST /security/rules` → созданное правило в `correlation_rules`, начинает срабатывать в следующем polling-цикле
+- [ ] `PATCH /security/rules/:id` → обновлено
+- [ ] `DELETE /security/rules/:id` → правило больше не срабатывает
+- [ ] `GET /security/rules` → список с пагинацией
+
+**{T3.10}. PATCH /security/alerts/:id — acknowledge**
+
+- [ ] PATCH с `status=acknowledged` → status обновлён, `acknowledged_at` заполнен
+- [ ] Не-админ → 403
+- [ ] Несуществующий ID → 404
+
+**{T3.11}. PATCH /security/alerts/:id — resolve**
+
+- [ ] PATCH с `status=resolved` → `resolved_at` заполнен
+- [ ] Resolve уже resolved алерта → 409 или idempotent (по решению в плане)
+
+**{T3.12}. Idempotent seed правил**
+
+- [ ] Перезапуск siem-service на непустой БД → дубликаты правил не создаются, существующие не перетираются (или перетираются по политике из плана — фиксируем)
+
+**{T3.13}. Bootstrap админа**
+
+- [ ] Миграция `users.is_admin` применилась
+- [ ] При старте main app с `INITIAL_ADMIN_USERNAME=alice` существующий пользователь `alice` получает `is_admin=true`
+- [ ] Перезапуск — `is_admin` остаётся, не сбрасывается; повторный seed идемпотентен
+
+**{T3.14}. Meta-log: acknowledge**
+
+- [ ] PATCH alert acknowledged → событие `siem.alert.acknowledged` появляется в `siem_events` через тот же pipeline (Redis Stream → consumer → INSERT)
+- [ ] `identifiers.user_id` = админ, который сделал ack
+- [ ] Видно в `GET /security/events?event_type=siem.alert.acknowledged`
+
+**{T3.15}. Meta-log: resolve**
+
+- [ ] PATCH alert resolved → `siem.alert.resolved` событие в БД
+
+**{T3.16}. Meta-log: rule CRUD**
+
+- [ ] POST/PATCH/DELETE rule → meta-event с правильным event_type (`siem.rule.created`, etc.)
+
+### Track T4 — Frontend
+
+**{T4.1}. RBAC guard на роуте /security**
+
+- [ ] Пользователь без `is_admin` claim → редирект / 403 page
+- [ ] Админ → страница рендерится
+
+**{T4.2}. Localization**
+
+- [ ] Все labels на странице `/security` на русском (заголовки секций, кнопки, статусы алертов, severity, фильтры)
+
+**{T4.3}. RQ-хуки: фильтры и пагинация**
+
+- [ ] Изменение фильтра в UI → запрос с правильными query-параметрами
+- [ ] Пагинация переключает страницы корректно
+- [ ] Loading / error states отображаются
+
+**{T4.4}. UI: events view**
+
+- [ ] Список событий с колонками (timestamp, event_type, severity, identifiers, metadata)
+- [ ] Drill-down или expand для metadata
+
+**{T4.5}. UI: alerts view**
+
+- [ ] Список алертов с фильтрами (severity, status)
+- [ ] Кнопки acknowledge / resolve работают
+- [ ] При acknowledge виден toast / обновление статуса без полной перезагрузки
+
+**{T4.6}. UI: rules view**
+
+- [ ] Список правил
+- [ ] Форма CRUD: создание, редактирование, удаление с подтверждением
+- [ ] Формы под тип правила (Threshold / Sequence / Aggregate) с правильными полями
+
+---
+
+## Layer 2: Integration Tests
+
+Prerequisites: оба сервиса запущены, БД подняты, Redis работает.
+
+**{INT.1} 🔴 End-to-end producer→consumer**
+
+- [ ] Триггер `SecurityGuard.check()` на тестовой инъекции в main app → событие появляется в `siem_events` за <2 секунды (с учётом publisher batching)
+- [ ] Все identifiers заполнены (ip, user_id, thread_id, project_id, request_id)
+
+**{INT.2} 📊 Backpressure (overflow)**
+
+- [ ] Симуляция отказа Redis (остановить контейнер) → publisher loop в supervisor mode переподнимается; producer queue заполняется → drop-newest, метрика
+- [ ] Восстановление Redis → publisher возобновляет, очередь дренируется
+
+**{INT.3} Correlation engine: фильтр по ingested_at**
+
+- [ ] События с `event_timestamp` в прошлом, но `ingested_at` = сейчас → попадают в окно правила
+- [ ] Старое событие, недавно доехавшее, не «выпадает» из окна из-за NTP-drift между producer и consumer
+
+**{INT.4} Background task supervisor**
+
+- [ ] Принудительная исключительная ошибка в correlation engine → supervisor перезапускает с exponential backoff (1s → 60s cap)
+- [ ] Ошибка в subscriber → перезапуск; pending list обрабатывается
+
+**{INT.5} Username enrichment: happy path**
+
+- [ ] siem-service делает back-channel запрос `GET /api/internal/users?ids=...` в main app с админским JWT → получает имена → UI показывает username вместо `user_id`
+- [ ] Кеш TTL 5 мин: повторный запрос за теми же ids не идёт в main app
+
+**{INT.6} Username enrichment: graceful degradation**
+
+- [ ] Main app остановлен → SIEM запрос падает → UI показывает `user_id` без имени, не падает
+
+**{INT.7} Forward compatibility: новый event_type**
+
+- [ ] Добавление нового `event_type` в Literal-vocabulary shared-пакета + producer-вызов с этим типом → siem-service принимает (vocabulary-soft на consumer), пишет в БД, UI отображает
+- [ ] Никаких миграций SIEM не требуется
+
+---
+
+## Layer 3: E2E Scenarios (UI)
+
+Prerequisites: оба сервиса запущены, есть админ-пользователь.
+
+**E2E-1 👤 Login admin**
+
+- [ ] Логин обычным пользователем → /security → 403 / редирект
+- [ ] Логин админом (через `INITIAL_ADMIN_USERNAME`) → /security доступен
+
+**E2E-2 👤🔴 Live event flow**
+
+- [ ] Из обычной чат-сессии отправить сообщение с очевидной prompt injection → блокировка
+- [ ] Через ~10s в /security → events list содержит событие `agent.guard.input.classifier_injection` с правильными identifiers (user_id, thread_id, project_id, ip)
+
+**E2E-3 👤🔴 Brute force scenario**
+
+- [ ] 5 неудачных логинов с одного IP подряд (например, через curl или две вкладки) → в течение polling interval появляется алерт `brute_force_auth` в /security
+
+**E2E-4 👤 Filters/pagination в Events list**
+
+- [ ] Фильтр по `event_type` отрабатывает, выдача меняется
+- [ ] Фильтр по severity
+- [ ] Фильтр по time range
+- [ ] Пагинация работает (при >limit событий)
+
+**E2E-5 👤 Acknowledge alert**
+
+- [ ] Существующий new-алерт в /security → клик "Acknowledge" → status меняется на acknowledged, `acknowledged_at` отображается
+- [ ] В /security/events появляется meta-event `siem.alert.acknowledged` за <10s
+
+**E2E-6 👤 Resolve alert**
+
+- [ ] Acknowledged алерт → клик "Resolve" → status `resolved`, `resolved_at` заполнен
+- [ ] Meta-event `siem.alert.resolved` записан
+
+**E2E-7 👤 CRUD correlation rule через UI**
+
+- [ ] Создать новое Threshold-правило через форму → правило в /security/rules
+- [ ] Триггерим условие (например, искусственно вызвать N событий за окно) → правило срабатывает, создаётся алерт
+- [ ] Удалить правило → оно перестаёт срабатывать
+
+**E2E-8 👤 Localization**
+
+- [ ] Прохождение по всем view (events / alerts / rules) — все ключевые UI-элементы на русском
+- [ ] Severity labels, статусы, кнопки переведены
+
+---
+
+## Findings
+
+Таблица обнаруженных проблем при тестировании. Заполняется по мере прохождения.
+
+| # | Severity | Файл / симптом | Описание | Статус |
+|---|----------|---------------|----------|--------|
+| _Пока пусто_ | | | | |
+
+---
+
+## Сводка
+
+Заполняется после прохождения всех кейсов.
+
+### Статистика по слоям
+
+| Слой | Passed | Failed | Deferred | Всего |
+|------|--------|--------|----------|-------|
+| Layer 0 | 0 | 0 | 0 | 5 |
+| Layer 1 — T1 | 0 | 0 | 0 | 11 |
+| Layer 1 — T2 | 0 | 0 | 0 | 7 |
+| Layer 1 — T3 | 0 | 0 | 0 | 16 |
+| Layer 1 — T4 | 0 | 0 | 0 | 6 |
+| Layer 2 (Integration) | 0 | 0 | 0 | 7 |
+| Layer 3 (E2E) | 0 | 0 | 0 | 8 |
+| **Итого** | **0** | **0** | **0** | **60** |
+
+### Deferred кейсы
+
+_Список deferred кейсов с причиной._
+
+### Findings — итог
+
+_Сводка по обнаруженным проблемам с severity и статусом._

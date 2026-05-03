@@ -238,41 +238,42 @@ KS Write Guard, LLM Output Classifier, SUSPICIOUS → ограничения, To
 
 #### Definition of Done
 
-**Event Collection & Storage (R1, R2):**
-- [ ] structlog processor перехватывает log-вызовы с `security_event=True`, записывает в `security_events`
-- [ ] Таблица `security_events`: id, event_type, severity, source, timestamp, identifiers (JSONB), metadata (JSONB)
-- [ ] Таблица `security_alerts`: id, rule_id, severity, matched_events, status (new/acknowledged/resolved), created_at, acknowledged_at, resolved_at
-- [ ] Таблица `correlation_rules`: id, name, rule_type, config (JSONB), severity, enabled
+Декомпозиция на 4 трека для последовательной реализации в одной ветке. DoD проверяется агентом-тестировщиком через `test-cases.md`.
 
-**Correlation Engine (R3, R4):**
-- [ ] Background asyncio task с настраиваемым polling interval
-- [ ] Типы правил: Threshold, Sequence, Aggregate
-- [ ] Минимум 4 правила: brute_force_auth, injection_spike, targeted_attack, mass_suspicious
-- [ ] Срабатывание правила → создание записи в `security_alerts`
+**T1 — Vocabulary + Contracts + Producer:**
+- [ ] `doc/tech/security-events.md` создан: полный vocabulary `event_type`, форма `metadata` per type, обязательность `identifiers`
+- [ ] `packages/siem-contracts/` собран как uv-workspace member: `SecurityEvent` (Pydantic), `Literal[...]` event_type, `SecurityEventIdentifiers`
+- [ ] structlog processor строит `SecurityEvent` из `logger.*(security_event=True, ...)` + `contextvars`; identifiers подмешиваются автоматически (HTTP middleware: `ip` / `request_id` / `user_agent_hash`; auth dep: `user_id` / `session_id`; chat route: `thread_id` / `project_id`)
+- [ ] Producer'ы (`SecurityGuard`, auth-handlers, rate limiter) пишут события через canonical `event_type`; existing log-вызовы рефакторятся
+- [ ] Publisher loop публикует события в Redis Stream `security.events`; видно через `redis-cli XREAD`
 
-**REST API (R5, R6):**
-- [ ] `GET /api/security/events` — pagination + фильтры (event_type, severity, source, time range)
-- [ ] `GET /api/security/alerts` — pagination + фильтры (severity, status)
-- [ ] `PATCH /api/security/alerts/:id` — acknowledge / resolve (admin only)
+**T2 — SIEM service skeleton + ingestion:**
+- [ ] siem-service в `docker-compose.yml` с собственной PostgreSQL БД и миграциями (`siem_events` с `UNIQUE event_id`, индексы по timestamp / event_type)
+- [ ] Subscriber: XREADGROUP → Pydantic-валидация → INSERT с дедупом → XACK; pending list переживает рестарт
+- [ ] Минимальный REST `GET /security/events`: pagination + фильтры (event_type, severity, time range)
+- [ ] Producer-сайд → Redis → consumer → БД → API: end-to-end доставка одного события воспроизводима
 
-**Frontend (R5, R9):**
-- [ ] React страница `/security`: список событий + алертов с фильтрами
-- [ ] UI labels на русском (локализация)
+**T3 — Correlation + Alerts + RBAC + полный API + Meta-log:**
+- [ ] Миграции `siem_alerts`, `correlation_rules`; идемпотентный seed правил при старте (≥4 baseline: brute_force_auth, injection_spike, targeted_user_attack, mass_suspicious)
+- [ ] Correlation engine: asyncio polling 10s; стратегии Threshold / Sequence / Aggregate; срабатывание создаёт алерт
+- [ ] Alert deduper: open-alert policy с возрастным лимитом 24h
+- [ ] Полный REST API: `GET /security/alerts`, `PATCH /security/alerts/:id` (acknowledge / resolve), CRUD `correlation_rules`
+- [ ] Identity: JWT HS256 общий с main app, claim `is_admin`; admin-only зависимость на всех security-endpoints
+- [ ] Bootstrap админа: миграция `users.is_admin` + env `INITIAL_ADMIN_USERNAME` в main app; идемпотентный seed
+- [ ] Meta-log: PATCH alerts эмитит `siem.alert.acknowledged` / `siem.alert.resolved` через тот же producer-pipeline
 
-**RBAC + meta-logging (R7, R8):**
-- [ ] Admin-only доступ к `/security` endpoints и странице
-- [ ] CRUD-операции с alerts мета-логируются как security events
-
-**Integration (R1):**
-- [ ] Существующие log-вызовы в SecurityGuard, auth дополнены `security_event=True`
-
-**Rules extensibility (R10):**
-- [ ] Добавление нового correlation rule не требует изменения кода SIEM (механизм определяется на Phase 2: таблица в БД / YAML-seed / CRUD API / комбинация)
-- [ ] Добавление нового event_type не требует изменения кода SIEM (schema не валидирует конкретные значения)
+**T4 — Frontend + Integration + ADRs:**
+- [ ] React страница `/security` (lazy chunk + RBAC guard): три view (events / alerts / rules) с фильтрами и пагинацией
+- [ ] Все UI labels на русском
+- [ ] E2E через UI: админ логинится, видит события и алерты, может acknowledge / resolve, видит срабатывания correlation rules
+- [ ] ADR-018..021 проверены и актуализированы под фактическую реализацию
 
 **Cross-cutting:**
 - [ ] `make check` + `make check-fe` проходят
-- [ ] Миграции применяются на чистой БД
+- [ ] Миграции применяются на чистой БД (`docker-compose down -v` → `make docker-up-db` → `make migrate`) для main app и siem-service независимо
+- [ ] `siem-contracts` импортируется и main app, и siem-service из локального workspace источника
+- [ ] Forward compatibility: добавление нового `event_type` требует только расширения Literal-vocabulary в shared-пакете, без миграций SIEM
+- [ ] `architecture.md`, `observability.md`, `backend.md` актуализированы
 
 #### Сознательно deferred
 
@@ -281,6 +282,7 @@ Dashboard & Metrics, basic response actions (ban IP/user), расширенны�
 #### Документация
 
 - [design-brief.md](iterations/post-mvp/feat-005-security-event-pipeline/design-brief.md) — Context, scope, функциональная карта, контракт событий, scope boundaries
+- [test-cases.md](iterations/post-mvp/feat-005-security-event-pipeline/test-cases.md) — 60 тестовых кейсов: Layer 0 (Automated) / Layer 1 (Component, по трекам T1-T4) / Layer 2 (Integration) / Layer 3 (E2E)
 
 ---
 

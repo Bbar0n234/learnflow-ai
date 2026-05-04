@@ -40,8 +40,8 @@ Prerequisites: рабочее окружение, зависимости уст�
 - [x] `make check` (ruff + mypy на main app + siem-service + siem-contracts) — 0 errors ✅ All checks passed (ruff, formatter, mypy)
 - [ ] `make check-fe` (ESLint + Prettier + tsc) — 0 errors (N/A для T1, проверится в T4)
 - [ ] Миграции main app применяются на чистой БД: `docker-compose down -v` → `make docker-up-db` → `make migrate` без ошибок (N/A для T1 — миграции БД не требуются для producer-side)
-- [ ] Миграции siem-service применяются на чистой БД (отдельная БД) (N/A для T1 — в scope T2)
-- [ ] `docker-compose up` поднимает оба сервиса + Redis без ошибок; healthcheck'и зелёные (N/A для T1 — проверится в T2)
+- [x] Миграции siem-service применяются на чистой БД (отдельная БД) ✅ `alembic upgrade head` применяется успешно; schema: siem_events с event_id (UNIQUE), identifiers (JSONB + GIN index), event_metadata (JSONB), event_timestamp, ingested_at, severity
+- [ ] `docker-compose up` поднимает оба сервиса + Redis без ошибок; healthcheck'и зелёные ⚠️ siem-service контейнер не запускается (блокирующая ошибка — Dockerfile issue)
 
 ---
 
@@ -355,6 +355,7 @@ Prerequisites: оба сервиса запущены, есть админ-по�
 | # | Severity | Файл / симптом | Описание | Статус |
 |---|----------|---------------|----------|--------|
 | 1 | minor | backend/app/api/routes/messages.py | {T1.7} contextvars binding: chat route не реализовано | ✅ Resolved (fix-cycle 2): bind_security_context добавлен в `send_message` route handler перед делегированием в стрим |
+| 2 | blocker | packages/siem-service/Dockerfile | Layer 0 deferred: siem-service контейнер не запускается | ⚠️ ESCALATION: `uv run --package siem-service` в контейнере не находит модуль siem_service. Ошибка: `ModuleNotFoundError: No module named 'siem_service'`. Требует fix в Dockerfile (install siem-service в editable mode или use `uv pip install -e .` после uv sync). |
 
 ---
 
@@ -366,25 +367,26 @@ Prerequisites: оба сервиса запущены, есть админ-по�
 
 | Слой | Passed | Failed | Deferred | Всего |
 |------|--------|--------|----------|-------|
-| Layer 0 | 1 | 0 | 4 | 5 |
+| Layer 0 | 2 | 1 | 2 | 5 |
 | Layer 1 — T1 | 11 | 0 | 0 | 11 |
 | Layer 1 — T2 | 0 | 0 | 7 | 7 |
 | Layer 1 — T3 | 0 | 0 | 16 | 16 |
 | Layer 1 — T4 | 0 | 0 | 6 | 6 |
 | Layer 2 (Integration) | 0 | 0 | 7 | 7 |
 | Layer 3 (E2E) | 0 | 0 | 8 | 8 |
-| **Итого** | **12** | **0** | **48** | **60** |
+| **Итого** | **13** | **1** | **46** | **60** |
 
 ### Deferred кейсы
 
-**Layer 0 (4 deferred для T1):**
+**Layer 0 (2 deferred):**
 - `make check-fe` — N/A для T1 (frontend реализуется в T4), проверится тогда
 - Миграции main app — N/A для T1 (producer не требует миграций БД, миграции будут в T2 для SIEM)
-- Миграции siem-service — N/A для T1 (в scope T2)
-- docker-compose up (full stack) — N/A для T1 (проверится в T2 с siem-service)
 
-**Layer 1 — T2, T3, T4 (48 deferred):**
-- Все кейсы T2–T4 и Layer 2–3 отложены до реализации соответствующих фаз
+**Layer 0 (1 failed → escalation):**
+- `docker-compose up` с siem-service — BLOCKED на Dockerfile issue (Finding #2). Требует implementer fix.
+
+**Layer 1 — T2, T3, T4 (46 deferred):**
+- Все кейсы T2–T4 и Layer 2–3 отложены до реализации соответствующих фаз / до fix Finding #2
 
 ### Findings — итог
 

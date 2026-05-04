@@ -1,12 +1,14 @@
 """SIEM service main FastAPI application."""
 
 import asyncio
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import redis.asyncio as redis
 import structlog
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from siem_service.api.routes import router
 from siem_service.config import Settings
@@ -115,6 +117,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="SIEM Service", version="0.1.0", lifespan=lifespan)
+
+# CORS middleware - allow frontend to access SIEM API
+frontend_origins = os.environ.get("SIEM_FRONTEND_ORIGIN", "*").split(",")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=frontend_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Include routes
 app.include_router(router)

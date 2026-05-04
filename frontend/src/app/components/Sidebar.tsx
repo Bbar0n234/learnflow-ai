@@ -8,6 +8,7 @@ import {
   Plus,
   Settings,
   User,
+  Shield,
 } from "lucide-react";
 import { getMe, logout } from "@/shared/api/auth";
 import { clearAccessToken } from "@/shared/api/client";
@@ -82,6 +83,17 @@ export function Sidebar() {
           <Plus className="mr-2 h-4 w-4" />
           New Project
         </Button>
+        {user?.is_admin && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="justify-start"
+            onClick={() => navigate("/security")}
+          >
+            <Shield className="mr-2 h-4 w-4" />
+            Security
+          </Button>
+        )}
       </div>
 
       {/* Projects */}

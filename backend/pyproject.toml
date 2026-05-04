@@ -27,11 +27,15 @@ dependencies = [
     "pyjwt>=2.11.0",
     "langfuse>=4.0.1",
     "langchain>=1.2.13",
-    "redis[hiredis]>=7.4.0",
+    "redis[asyncio,hiredis]>=7.4.0",
+    "siem-contracts>=0.1.0",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.uv.sources]
+siem-contracts = { workspace = true }
 
 [dependency-groups]
 dev = [

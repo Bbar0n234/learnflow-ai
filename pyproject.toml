@@ -14,7 +14,7 @@ dev = [
 ]
 
 [tool.uv.workspace]
-members = ["backend"]
+members = ["backend", "packages/siem-contracts"]
 
 [tool.mypy]
 python_version = "3.12"

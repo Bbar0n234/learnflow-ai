@@ -16,6 +16,7 @@ from app.api.deps import (
 )
 from app.api.schemas.messages import CancelResponse, MessageCreate
 from app.repositories.thread_view import ThreadViewRepository
+from app.security_pipeline.context import bind_security_context
 from app.services.agent_runner import StreamEvent
 
 router = APIRouter(tags=["messages"])
@@ -56,6 +57,12 @@ async def send_message(
 ) -> StreamingResponse:
     # Pre-validate before creating stream (contract from feat-004)
     await _validate_thread_ownership(session, chat_id, project.id)
+
+    # Bind thread_id and project_id to security context for logging
+    bind_security_context(
+        thread_id=str(chat_id),
+        project_id=str(project.id),
+    )
 
     events = service.send_message(
         thread_id=chat_id,

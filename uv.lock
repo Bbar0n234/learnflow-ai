@@ -10,6 +10,7 @@ resolution-markers = [
 members = [
     "learnflow-ai",
     "learnflow-backend",
+    "siem-contracts",
 ]
 
 [[package]]
@@ -966,6 +967,7 @@ dependencies = [
     { name = "python-markdown-math" },
     { name = "pyyaml" },
     { name = "redis", extra = ["hiredis"] },
+    { name = "siem-contracts" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "structlog" },
     { name = "uvicorn", extra = ["standard"] },
@@ -998,7 +1000,8 @@ requires-dist = [
     { name = "pyjwt", specifier = ">=2.11.0" },
     { name = "python-markdown-math", specifier = ">=0.8" },
     { name = "pyyaml", specifier = ">=6.0" },
-    { name = "redis", extras = ["hiredis"], specifier = ">=7.4.0" },
+    { name = "redis", extras = ["asyncio", "hiredis"], specifier = ">=7.4.0" },
+    { name = "siem-contracts", editable = "packages/siem-contracts" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.48" },
     { name = "structlog", specifier = ">=25.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.41.0" },
@@ -2070,6 +2073,17 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/b8/00/bf077a505b4e649bdd3c47ff8ec967735ce2544c8e4a43aba42ee9bf935d/ruff-0.15.5-py3-none-win_amd64.whl", hash = "sha256:821d41c5fa9e19117616c35eaa3f4b75046ec76c65e7ae20a333e9a8696bc7fe", size = 11678972, upload-time = "2026-03-05T20:06:45.379Z" },
     { url = "https://files.pythonhosted.org/packages/fe/4e/cd76eca6db6115604b7626668e891c9dd03330384082e33662fb0f113614/ruff-0.15.5-py3-none-win_arm64.whl", hash = "sha256:b498d1c60d2fe5c10c45ec3f698901065772730b411f164ae270bb6bfcc4740b", size = 10965572, upload-time = "2026-03-05T20:06:16.984Z" },
 ]
+
+[[package]]
+name = "siem-contracts"
+version = "0.1.0"
+source = { editable = "packages/siem-contracts" }
+dependencies = [
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pydantic", specifier = ">=2.0" }]
 
 [[package]]
 name = "sniffio"

@@ -1,8 +1,9 @@
+import asyncio
 import hashlib
 import json
 import os
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any, AsyncIterator
 
@@ -252,6 +253,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     app.state.redis = await create_redis(settings)
 
+    # Initialize security event transport
+    from app.security_pipeline.transport import RedisEventTransport, set_transport
+
+    if app.state.redis is not None:
+        event_transport = RedisEventTransport(
+            redis_client=app.state.redis,
+            queue_maxsize=1000,
+        )
+        set_transport(event_transport)
+        # Start publisher loop in background
+        publisher_task = asyncio.create_task(event_transport.publisher_loop())
+        app.state.security_publisher_task = publisher_task
+        logger.info("security event publisher started")
+
     # PromptProvider
     prompts_dir = Path(__file__).resolve().parents[2] / "configs" / "prompts"
     langfuse_client = None
@@ -446,6 +461,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         yield
 
+    # Graceful shutdown of security event publisher
+    if hasattr(app.state, "security_publisher_task"):
+        from app.security_pipeline.transport import get_transport
+
+        transport = get_transport()
+        if transport is not None:
+            await transport.graceful_shutdown(timeout=5.0)
+        app.state.security_publisher_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await app.state.security_publisher_task
+        logger.info("security event publisher stopped")
+
     shutdown_langfuse()
     if app.state.redis:
         await app.state.redis.aclose()
@@ -465,12 +492,32 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Request ID middleware
+    # Request ID and security context middleware
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next: Any) -> Any:
+        import hashlib
+
         structlog.contextvars.clear_contextvars()
         request_id = str(uuid.uuid4())
-        structlog.contextvars.bind_contextvars(request_id=request_id)
+
+        # Extract client IP (handle X-Forwarded-For for proxies)
+        client_ip = "unknown"
+        if request.client:
+            client_ip = request.client.host
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            client_ip = forwarded.split(",")[0].strip()
+
+        # Extract User-Agent and hash it
+        user_agent = request.headers.get("User-Agent", "")
+        user_agent_hash = hashlib.sha256(user_agent.encode()).hexdigest()
+
+        # Bind security context
+        structlog.contextvars.bind_contextvars(
+            request_id=request_id,
+            ip=client_ip,
+            user_agent_hash=user_agent_hash,
+        )
         response = await call_next(request)
         return response
 

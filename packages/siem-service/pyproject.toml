@@ -1,0 +1,30 @@
+[project]
+name = "siem-service"
+version = "0.1.0"
+description = "SIEM service for security event ingestion and correlation"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.135.1",
+    "uvicorn[standard]>=0.41.0",
+    "sqlalchemy[asyncio]>=2.0.48",
+    "asyncpg>=0.31.0",
+    "alembic>=1.15",
+    "redis[hiredis]>=7.4.0",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.13.1",
+    "structlog>=25.0",
+    "siem-contracts>=0.1.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["siem_service*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.uv.sources]
+siem-contracts = { workspace = true }
+
+[dependency-groups]
+dev = []

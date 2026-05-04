@@ -66,6 +66,55 @@ services:
       retries: 5
       start_period: 30s
 
+  siem-db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${SIEM_POSTGRES_USER:-siem}
+      POSTGRES_PASSWORD: ${SIEM_POSTGRES_PASSWORD:-siem}
+      POSTGRES_DB: ${SIEM_POSTGRES_DB:-siem}
+    volumes:
+      - siem_pgdata:/var/lib/postgresql/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SIEM_POSTGRES_USER:-siem} -d ${SIEM_POSTGRES_DB:-siem}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  siem-service:
+    build:
+      context: .
+      dockerfile: packages/siem-service/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8001:8001"
+    environment:
+      SIEM_DATABASE_URL: postgresql+asyncpg://${SIEM_POSTGRES_USER:-siem}:${SIEM_POSTGRES_PASSWORD:-siem}@siem-db/${SIEM_POSTGRES_DB:-siem}
+      SIEM_REDIS_URL: redis://redis:6379
+      SIEM_JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      PYTHONUNBUFFERED: "1"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      siem-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
 networks:
   default:
     driver: bridge
@@ -75,3 +124,4 @@ networks:
 volumes:
   pgdata:
   redisdata:
+  siem_pgdata:

@@ -56,7 +56,10 @@ PLAN (если plan.md нет)
   │
   ▼
 TRACK loop (по фазам плана):
-  IMPLEMENT → TEST → [≤2 fix-цикла] → локальный коммит
+  IMPLEMENT → TEST(track) → [≤2 fix-цикла] → локальный коммит
+  │
+  ▼ (после последнего трека)
+INTEGRATION_TEST(final) → [≤2 fix-цикла] → локальный коммит
   │
   ▼
 CODE_REVIEW → [фиксы] → локальный коммит
@@ -106,10 +109,24 @@ END
 | Когда | После IMPLEMENT или после IMPLEMENT-фиксов |
 | Сабагент | `prompts/tester.md` |
 | Модель | Opus |
-| Вход | `test-cases.md`, `plan.md`, `summary.md`, `{track_id}` |
+| Вход | `test-cases.md`, `plan.md`, `summary.md`, `{track_id}` (значение трека: `T1`, `T2`, ...) |
+| Scope | Tester прогоняет только кейсы с префиксом `{track_id}` (например, `{T1.1}`) + Layer 0 automated gate. Cross-cutting кейсы Layer 2/3 пропускаются — закрываются в INTEGRATION_TEST |
 | Выход | Обновлённые статусы в `test-cases.md` + краткий отчёт оркестратору |
 | Loop bound | На один test-case ≤2 fix-цикла с implementer'ом. Не сдвинулся — эскалация |
-| Переход | Все кейсы трека прошли → локальный коммит → следующий трек или CODE_REVIEW |
+| Переход | Все кейсы трека прошли → локальный коммит → следующий трек или INTEGRATION_TEST (если был последний трек) |
+
+### Фаза INTEGRATION_TEST
+
+| Параметр | Значение |
+|----------|----------|
+| Когда | После TEST последнего трека плана |
+| Сабагент | `prompts/tester.md` |
+| Модель | Opus |
+| Вход | `test-cases.md`, `plan.md`, `summary.md`, `{track_id}=final` |
+| Scope | Layer 2 (Integration) + Layer 3 (E2E) — кейсы без префикса трека. Кейсы с пометкой 👤 (UI / браузер) tester помечает как требующие ручной проверки и эскалирует архитектору |
+| Выход | Обновлённые статусы cross-cutting кейсов + отчёт |
+| Loop bound | На один test-case ≤2 fix-цикла с implementer'ом. Не сдвинулся — эскалация |
+| Переход | Все cross-cutting кейсы прошли (или эскалированы как 👤) → локальный коммит → CODE_REVIEW |
 
 ### Фаза CODE_REVIEW
 
@@ -204,7 +221,7 @@ END
 
 | Цикл | Бюджет | Что после исчерпания |
 |------|--------|----------------------|
-| Tester ↔ implementer на один test-case | 2 fix-цикла | Эскалация архитектору |
+| Tester ↔ implementer на один test-case (TEST или INTEGRATION_TEST) | 2 fix-цикла | Эскалация архитектору |
 | Implementer fail подряд по фазе | 2 (Sonnet) → перевызов Opus | Эскалация после fail Opus |
 | Code-reviewer ↔ implementer | На усмотрение оркестратора, ориентир — пока blocker'ы не закрыты | Эскалация при blocker без прецедента |
 
@@ -252,7 +269,7 @@ Pull в remote оркестратор не делает. Push после фин�
 | `{plan_path}` | Путь к plan.md итерации |
 | `{summary_path}` | Путь к summary.md итерации |
 | `{test_cases_path}` | Путь к test-cases.md итерации |
-| `{track_id}` | Идентификатор фазы плана (T1, T2, ...) или фразовое описание |
+| `{track_id}` | Идентификатор фазы плана (T1, T2, ...) или `final` для прогона cross-cutting кейсов в INTEGRATION_TEST |
 | `{fix_list}` | Структурированный список фиксов от tester'а или code-reviewer'а |
 
 Если шаблон требует переменную, для которой нет значения, — оркестратор останавливается и эскалирует. Не подставлять заглушки.

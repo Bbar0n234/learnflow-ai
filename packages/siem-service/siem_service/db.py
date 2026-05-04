@@ -41,3 +41,10 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
     async with _async_session_maker() as session:
         yield session
+
+
+def get_async_session_maker() -> "async_sessionmaker[AsyncSession]":
+    """Get async session maker (for non-lifespan use)."""
+    if _async_session_maker is None:
+        raise RuntimeError("Database not initialized")
+    return _async_session_maker

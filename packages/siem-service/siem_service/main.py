@@ -10,6 +10,7 @@ from fastapi import FastAPI
 
 from siem_service.api.routes import router
 from siem_service.config import Settings
+from siem_service.correlation.engine import get_correlation_engine
 from siem_service.db import close_db, init_db
 from siem_service.subscriber import Subscriber
 from siem_service.supervisor import supervised
@@ -18,6 +19,7 @@ logger = structlog.get_logger()
 
 # Global references to manage cleanup
 _subscriber_task: asyncio.Task[None] | None = None
+_engine_task: asyncio.Task[None] | None = None
 _redis_client: redis.Redis | None = None
 
 
@@ -36,10 +38,16 @@ async def _subscriber_coro(redis_client: redis.Redis, settings: Settings) -> Non
         await engine.dispose()
 
 
+async def _engine_coro(settings: Settings) -> None:
+    """Coroutine for correlation engine task."""
+    engine = get_correlation_engine(settings.poll_interval_seconds)
+    await engine.start()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Lifespan context manager for startup and shutdown."""
-    global _subscriber_task, _redis_client
+    global _subscriber_task, _engine_task, _redis_client
 
     # Startup
     settings = Settings()
@@ -66,10 +74,27 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     logger.info("subscriber task started")
 
+    # Start correlation engine task with supervision
+    async def _make_engine_coro() -> None:
+        await _engine_coro(settings)
+
+    _engine_task = asyncio.create_task(
+        supervised("correlation_engine", _make_engine_coro)
+    )
+    logger.info("correlation engine task started")
+
     yield
 
     # Shutdown
     logger.info("siem service shutting down")
+
+    # Cancel engine
+    if _engine_task:
+        _engine_task.cancel()
+        try:
+            await _engine_task
+        except asyncio.CancelledError:
+            logger.info("correlation engine task cancelled")
 
     # Cancel subscriber
     if _subscriber_task:

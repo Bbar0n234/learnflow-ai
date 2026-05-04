@@ -562,10 +562,271 @@ include = ["siem_service*"]
 - `backend/pyproject.toml` — Removed `asyncio` extra from redis dependency
 - `packages/siem-service/pyproject.toml` — Removed `asyncio` extra + added setuptools.packages.find config
 
-## Next Steps (T3)
+## T3 — Correlation + Alerts + RBAC + Meta-log
 
-- **Correlation Engine**: Polling task evaluating threshold, sequence, aggregate rules
-- **Alerting**: SiemAlert table, deduplication logic, status workflow
-- **RBAC**: JWT admin-only guard, admin bootstrap (INITIAL_ADMIN_USERNAME)
-- **Meta-logging**: SIEM events (rule CRUD, alert acknowledge/resolve) back-channel to main app
-- **Baseline Rules**: Seed 4+ built-in correlation rules (brute_force_auth, injection_spike, targeted_user_attack, mass_suspicious)
+**Status:** ✅ Complete (ready for tester verification and integration phase)
+
+### Implementation Summary
+
+T3 delivers the complete correlation engine, alert management, RBAC enforcement, and meta-logging infrastructure. This phase enables automated threat detection via rule evaluation, administrative management of alerts and rules, and secure access control via JWT claims.
+
+### Architecture Overview
+
+```
+[Correlation Engine] (polling, 10s)
+       ↓
+    [Strategies] (Threshold, Sequence, Aggregate)
+       ↓
+[AlertDeduper] (open-alert policy, 24h age limit)
+       ↓
+[SiemAlert] PostgreSQL table
+       ↓
+[REST API] admin-only endpoints
+       ↓
+[Meta-Emitter] → Redis Stream (back-channel meta-events)
+```
+
+### Realized Components
+
+#### 1. **Database Migrations** (alembic/versions/)
+- **002_alerts_and_rules.py**: Creates `siem_alerts` and `correlation_rules` tables
+  - `correlation_rules`: id, name (UNIQUE), description, rule_type (threshold|sequence|aggregate), enabled, severity, config (JSONB), timestamps
+  - `siem_alerts`: id, rule_id (FK→correlation_rules), severity, status (new|acknowledged|resolved), group_key, matched_events_count, first_event_id (FK), latest_event_id (FK), timestamps, acknowledged_by, resolved_by
+  - Indexes: rule_id, status, created_at, composite (rule_id, group_key, status) for open-alert lookup
+
+- **003_baseline_correlation_rules.py**: Idempotent seed of 4 baseline rules
+  - `brute_force_auth`: Threshold, 5+ auth.login.failed in 60s, group by ip, severity=critical
+  - `injection_spike`: Aggregate, 10+ agent.guard.%.injection in 300s, severity=critical
+  - `targeted_user_attack`: Threshold, 3+ agent.guard.% in 600s, group by user_id, severity=warning
+  - `mass_suspicious`: Aggregate, 15+ agent.guard.%.suspicious in 600s, severity=critical
+
+#### 2. **ORM Models** (models.py)
+- **CorrelationRule**: Stores rule definitions with relationship to SiemAlert
+- **SiemAlert**: Stores generated alerts with relationships to rule and events (via foreign keys)
+- Relationships: one-to-many (CorrelationRule → SiemAlert), one-to-many cascade delete
+
+#### 3. **Correlation Engine** (correlation/)
+- **engine.py**: Main CorrelationEngine class
+  - Polling loop (configurable 10s interval, read from Settings.poll_interval_seconds)
+  - Loads enabled rules, delegates to strategy for each rule
+  - Applies deduplication, writes alerts to database
+  - Wrapped in supervisor (exponential backoff restart)
+
+- **strategies.py**: Three evaluation strategies
+  - **ThresholdStrategy**: COUNT(event_type LIKE pattern) >= threshold in window, grouped by optional group_key, handles NULL group_key (skip events without identifier)
+  - **SequenceStrategy**: Event A THEN Event B within window, grouped by optional group_key
+  - **AggregateStrategy**: COUNT(event_type LIKE pattern) >= threshold without grouping (NULL group_key)
+  - All use `ingested_at` for deterministic window anchor (immune to NTP drift)
+
+- **deduper.py**: Alert deduplication logic
+  - Open-alert policy: finds existing 'new' status alert for (rule_id, group_key) within 24h
+  - If found: increment matched_events_count, update latest_event_id, update updated_at
+  - If not found: create new alert with status='new'
+  - Returns updated or new SiemAlert instance
+
+#### 4. **JWT & RBAC** (auth.py)
+- **JWTValidator**: HS256 validation using shared JWT_SECRET
+  - Validates token signature
+  - Extracts claims: `sub` (user_id), `is_admin` (boolean)
+  - Dependency `require_admin`: validates + checks `is_admin == true` → 403 Forbidden if false
+
+#### 5. **REST API** (api/routes.py)
+All endpoints admin-only via `Depends(require_admin)`.
+
+**Alerts Endpoints**:
+- `GET /security/alerts`: List alerts with pagination, filters (severity, status)
+  - Response: PaginatedAlertsResponse
+- `GET /security/alerts/:id`: Get alert details
+- `PATCH /security/alerts/:id`: Update status (acknowledge | resolve)
+  - Request: AlertPatchRequest with status field
+  - Validates status transition (new→acknowledged→resolved, or new→resolved)
+  - Emits meta-event (`siem.alert.acknowledged` | `siem.alert.resolved`)
+  - Idempotent resolve: resolved→resolved is allowed (no error)
+
+**Rules Endpoints**:
+- `GET /security/rules`: List rules with pagination
+- `GET /security/rules/:id`: Get rule details
+- `POST /security/rules`: Create rule
+  - Request: RuleCreateRequest
+  - Emits meta-event `siem.rule.created`
+- `PATCH /security/rules/:id`: Update rule
+  - Request: RuleUpdateRequest with optional fields
+  - Emits meta-event `siem.rule.updated`
+- `DELETE /security/rules/:id`: Delete rule
+  - Emits meta-event `siem.rule.deleted`
+  - Returns 204 No Content
+
+#### 6. **Services & Repositories** (services.py, repositories.py)
+- **AlertService**: list, get, acknowledge, resolve with meta-emission
+- **RuleService**: list, get, create, update, delete with meta-emission
+- **AlertRepository**: query builder for alerts, status update
+- **RuleRepository**: CRUD operations for rules
+- All meta-events emitted if MetaEmitter provided
+
+#### 7. **Meta-Emitter** (meta_emitter.py)
+- Singleton factory for emitting meta-events to Redis Stream
+- Async `emit(event_type, severity, user_id, metadata)` method
+- Creates SecurityEvent, XADD to `security.events` stream
+- Events consumed by siem-service's own subscriber (loop back)
+- Duplification via event_id deduplication in siem_events table
+
+#### 8. **Bootstrap Admin** (main app)
+- **backend/app/bootstrap.py**: Idempotent admin bootstrap
+  - On startup, checks env `INITIAL_ADMIN_USERNAME`
+  - Finds user by name, sets `is_admin = true` if not already set
+  - Gracefully skips if user not found
+
+- **backend/app/models/user.py**: Added `is_admin: bool` field (default False)
+
+- **backend/app/services/security.py**: Updated `create_access_token()`
+  - Now accepts `is_admin: bool` parameter
+  - Includes `is_admin` claim in JWT payload
+
+- **backend/app/services/auth.py**: Updated `_create_access()`
+  - Now accepts User object (not just user_id)
+  - Extracts `is_admin` and passes to token creation
+
+- **backend/app/main.py**: Added bootstrap call in lifespan
+  - After DB initialization, calls `bootstrap_admin(session)`
+
+- **backend/alembic/versions/**: Migration to add is_admin column to users table
+
+#### 9. **Lifespan Updates** (siem_service/main.py)
+- Correlation engine task started in supervised context alongside subscriber
+- Engine polls rules every 10s, evaluates candidates, applies dedup, writes alerts
+- Graceful shutdown cancels engine task
+
+#### 10. **Schemas** (schemas.py)
+- **AlertResponse**, **AlertPatchRequest**: Alert DTOs
+- **RuleResponse**, **RuleCreateRequest**, **RuleUpdateRequest**: Rule DTOs
+- **PaginatedAlertsResponse**, **PaginatedRulesResponse**: List response wrappers
+
+### Database Design Changes (T3)
+
+**siem_alerts table**:
+- Stores alert instances generated by rules
+- `status` field: 'new' | 'acknowledged' | 'resolved'
+- `group_key`: identifies the grouped entity (e.g., IP for brute force)
+- `matched_events_count`: cumulative count of events triggering alert
+- `first_event_id`, `latest_event_id`: FK to siem_events for drill-down
+- Open-alert policy: only one new alert per (rule_id, group_key) within 24h
+
+**correlation_rules table**:
+- Stores rule definitions
+- `config`: JSONB containing rule-specific parameters (threshold, window_seconds, event_type_pattern, group_key)
+- Seed data: 4 baseline rules inserted idempotently on migration 003
+
+### Files Created (T3)
+
+#### SIEM Service
+- `packages/siem-service/alembic/versions/002_alerts_and_rules.py` — DDL for alerts and rules tables
+- `packages/siem-service/alembic/versions/003_baseline_correlation_rules.py` — Baseline rules seed
+- `packages/siem-service/siem_service/auth.py` — JWT validation + require_admin dependency
+- `packages/siem-service/siem_service/meta_emitter.py` — Meta-event XADD singleton
+- `packages/siem-service/siem_service/correlation/__init__.py` — Package marker
+- `packages/siem-service/siem_service/correlation/deduper.py` — Open-alert deduplication logic
+- `packages/siem-service/siem_service/correlation/strategies.py` — Three rule evaluation strategies
+- `packages/siem-service/siem_service/correlation/engine.py` — Main polling engine
+
+#### Backend (Main App)
+- `backend/app/bootstrap.py` — Admin bootstrap logic
+- `backend/alembic/versions/add_is_admin_to_users.py` — Migration for is_admin field
+
+### Files Modified (T3)
+
+#### SIEM Service
+- `packages/siem-service/siem_service/models.py` — Added CorrelationRule, SiemAlert ORM models
+- `packages/siem-service/siem_service/schemas.py` — Added Alert, Rule response + request schemas
+- `packages/siem-service/siem_service/repositories.py` — Added AlertRepository, RuleRepository
+- `packages/siem-service/siem_service/services.py` — Added AlertService, RuleService with meta-emission
+- `packages/siem-service/siem_service/api/routes.py` — Added admin-only endpoints for alerts and rules
+- `packages/siem-service/siem_service/config.py` — Added get_settings() singleton
+- `packages/siem-service/siem_service/main.py` — Added correlation engine task to lifespan
+
+#### Backend (Main App)
+- `backend/app/models/user.py` — Added is_admin field
+- `backend/app/services/security.py` — Updated create_access_token to include is_admin claim
+- `backend/app/services/auth.py` — Updated _create_access to pass User object and extract is_admin
+- `backend/app/main.py` — Added bootstrap_admin call in lifespan + import
+
+### Design Decisions (T3-Specific)
+
+#### 1. **Correlation Engine: Polling vs Event-Driven**
+- **Decision**: Polling loop (10s interval) rather than event-driven
+- **Rationale**: Simpler, deterministic for time-window rules, no cascade delays from subscriber lag
+- **Source**: design-brief D11
+
+#### 2. **Alert Deduplication: Open-Alert Policy**
+- **Decision**: Single new alert per (rule_id, group_key) within 24h
+- **Rationale**: Signal-to-noise: one incident = one alert; 24h age limit forces refresh
+- **Source**: design-brief D13
+
+#### 3. **JWT Shared Secret**
+- **Decision**: SIEM uses same JWT_SECRET as main app (HS256)
+- **Rationale**: Trusted-service deployment; avoided complexity of PKI
+- **Source**: design-brief D14
+
+#### 4. **Admin Bootstrap: Idempotent Env-Variable Trigger**
+- **Decision**: INITIAL_ADMIN_USERNAME env var; if set and user exists, enable is_admin
+- **Rationale**: Supports both bootstrap (new user created elsewhere) and promotion (existing user)
+- **Source**: design-brief D15
+
+#### 5. **Meta-Events: Same Pipeline**
+- **Decision**: SIEM admin actions emit events back through Redis Stream to main app
+- **Rationale**: Reuses contract; alerts and rule changes become observable events
+- **Source**: design-brief D16
+
+#### 6. **Rule Config: Discriminated Union (Future)**
+- **Decision**: T3 uses generic JSONB dict; discriminated union deferred to T4
+- **Rationale**: Simpler for MVP; no schema change needed when rule_type validation tightens
+- **Trade-off**: Validation at service layer (not Pydantic) to allow flexibility
+
+### Code Quality
+
+- ✅ `make check` passes (ruff check + format + mypy for backend and siem-service)
+- ✅ Migrations apply cleanly on empty database (tested manually)
+- ✅ Smoke imports:
+  - `from siem_service.correlation import engine, strategies, deduper`
+  - `from siem_service.auth import JWTValidator, require_admin`
+  - `from siem_service.meta_emitter import MetaEmitter`
+- ✅ No blind `# type: ignore` comments (all justified or removed)
+- ✅ structlog logging conventions followed (keyword-args style)
+
+### Known Limitations & Future Work
+
+1. **Rule Config Schema Validation**
+   - T3 accepts any JSONB in config field; no discriminated union per rule_type
+   - T4 may tighten to Pydantic discriminated union if strict validation needed
+
+2. **Sequence Rule: Stateless Design**
+   - Evaluates all A→B pairs within window on each poll
+   - May generate duplicate alerts for same pair if window slides
+   - Dedup via open-alert policy mitigates noise
+
+3. **Event Type Pattern Matching**
+   - Uses `LIKE` with % wildcards (SQL string matching)
+   - No regex support (kept simple per design-brief)
+   - `agent.guard.%.injection` matches any checkpoint injection
+
+4. **Username Enrichment**
+   - T3 stores user_id only; username display deferred to frontend/T4
+   - Future: back-channel fetch from main app if needed
+
+5. **Live Testing**
+   - E2E XADD → correlation → alert flow not tested (infra blockers in T2)
+   - Tester phase will verify end-to-end
+
+### Deviations from Plan
+
+**Idempotent Resolve Decision**:
+- Plan left "409 vs idempotent for resolve→resolve" as open question
+- T3 chose idempotent (resolved→resolved is OK, no error)
+- Rationale: Simpler client code; matches PATCH semantics; no loss of data
+
+### Next Steps (T4)
+
+- **Frontend**: React page `/security` with three tabs (Events, Alerts, Rules)
+- **UI Features**: Filters, paging, drill-down, CRUD forms (rules)
+- **RBAC Guard**: Check is_admin claim before rendering route
+- **Integration**: E2E test with live docker-compose
+- **ADR Finalization**: Update ADR-018..021 to match implementation

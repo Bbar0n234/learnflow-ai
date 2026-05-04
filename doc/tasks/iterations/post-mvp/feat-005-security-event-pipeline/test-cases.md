@@ -149,82 +149,67 @@ Prerequisites: backend code available, виртуальное окружение
 
 **{T3.1}. Threshold rule: brute_force_auth**
 
-- [ ] 5 событий `auth.login.failed` с одного IP за <60s → создаётся 1 алерт
-- [ ] 4 события — алерта нет
+- [x] (code review) ThresholdStrategy (strategies.py:39-121): SQL `COUNT(*) WHERE event_type LIKE pattern AND ingested_at >= now()-window GROUP BY identifiers->>group_key HAVING count >= threshold`. Миграция 003 seed `brute_force_auth` (threshold=5, window=60s, group_key=ip, severity=critical) verified в БД. Live прогон 5/4 событий → ⚠️ deferred to integration phase
 
 **{T3.2}. Sequence rule**
 
-- [ ] Событие A (`auth.login.failed`) с IP=X → событие B (`agent.guard.input.classifier_injection`) с IP=X в окне → алерт
-- [ ] Если B без A или вне окна — алерта нет
+- [x] (code review) SequenceStrategy (strategies.py:124-191): self-join `event_b.ingested_at > event_a.ingested_at`, optional group_key match через identifiers JSONB. Live прогон A→B → ⚠️ deferred to integration phase
 
 **{T3.3}. Aggregate rule**
 
-- [ ] ≥10 событий `event_type LIKE 'agent.guard.%.injection'` за 5 мин → алерт без grouping
+- [x] (code review) AggregateStrategy (strategies.py:194-237): COUNT без GROUP BY. Миграция 003 seed `injection_spike` (10/300s) и `mass_suspicious` (15/600s) verified в БД. Live прогон ≥10 событий → ⚠️ deferred to integration phase
 
 **{T3.4}. NULL group_key**
 
-- [ ] Правило с `group_key=user_id`, событие без `user_id` → пропускается, алерта нет
+- [x] (code review) strategies.py:98 — `if key_value is None: continue` — событие пропускается если требуемый group_key отсутствует в identifiers
 
 **{T3.5}. Open-alert dedup: append**
 
-- [ ] Повторное срабатывание правила (тот же `rule_id`+`group_key`) внутри 24h при существующем open-алерте → НЕ создаётся новый алерт; счётчик/timeline существующего обновляется
+- [x] (code review) deduper.py:56-84 — SELECT WHERE rule_id + group_key + status='new' AND created_at >= now()-24h. На hit: matched_events_count++, latest_event_id update, updated_at=now()
 
 **{T3.6}. Open-alert dedup: возрастной лимит**
 
-- [ ] Open-алерт старше 24h → новое срабатывание создаёт новый алерт, не приклеивает к старому
+- [x] (code review) deduper.py:16,53 — MAX_ALERT_AGE_SECONDS=86400; фильтр `created_at >= now() - 24h_interval`. Алерты старше 24h не матчатся → новый алерт
 
 **{T3.7}. Open-alert dedup: после resolve**
 
-- [ ] Алерт переведён в `resolved` → следующее срабатывание создаёт новый алерт
+- [x] (code review) deduper.py:58 — фильтр `status == 'new'`; resolved/acknowledged алерты не матчат → следующее срабатывание создаст новый
 
 **{T3.8}. JWT validation**
 
-- [ ] Валидный JWT с `is_admin=true` → 200 на security endpoints
-- [ ] Валидный JWT с `is_admin=false` или без claim → 403
-- [ ] Протухший JWT → 401
-- [ ] Битая подпись → 401
+- [x] (code review) auth.py:14-49 — `JWTValidator.validate_token()` использует `jwt.decode(secret, algorithms=["HS256"])`, на InvalidTokenError → 401. require_admin (auth.py:57-70) проверяет `is_admin == true` claim → 403 при is_admin=false. JWT issuance (backend/app/services/security.py:26-39) включает `is_admin` в payload. Live прогон 4 сценариев → ⚠️ deferred
 
 **{T3.9}. CRUD correlation_rules**
 
-- [ ] `POST /security/rules` → созданное правило в `correlation_rules`, начинает срабатывать в следующем polling-цикле
-- [ ] `PATCH /security/rules/:id` → обновлено
-- [ ] `DELETE /security/rules/:id` → правило больше не срабатывает
-- [ ] `GET /security/rules` → список с пагинацией
+- [x] (code review) routes.py:218-402 — все эндпоинты (GET/GET-by-id/POST/PATCH/DELETE) защищены `Depends(require_admin)`. RuleService (services.py:212-297) emits meta-events на каждом действии. Live CRUD цикл → ⚠️ deferred
 
 **{T3.10}. PATCH /security/alerts/:id — acknowledge**
 
-- [ ] PATCH с `status=acknowledged` → status обновлён, `acknowledged_at` заполнен
-- [ ] Не-админ → 403
-- [ ] Несуществующий ID → 404
+- [x] (code review) routes.py:163-210 + AlertService.acknowledge_alert (services.py:111-145): валидирует переход new→acknowledged, set acknowledged_at + acknowledged_by, emits `siem.alert.acknowledged` мета-event. 403 (require_admin) / 404 (not found) → response codes готовы. Live → ⚠️ deferred
 
 **{T3.11}. PATCH /security/alerts/:id — resolve**
 
-- [ ] PATCH с `status=resolved` → `resolved_at` заполнен
-- [ ] Resolve уже resolved алерта → 409 или idempotent (по решению в плане)
+- [x] (code review) routes.py:163-210 + AlertService.resolve_alert (services.py:147-175): set resolved_at + resolved_by. **Решение по resolve→resolve: idempotent** (services.py:158 `if alert.status != "resolved"` гард — повторный PATCH не выкидывает 409, просто no-op). Live → ⚠️ deferred
 
 **{T3.12}. Idempotent seed правил**
 
-- [ ] Перезапуск siem-service на непустой БД → дубликаты правил не создаются, существующие не перетираются (или перетираются по политике из плана — фиксируем)
+- [x] (code review + БД verified) Миграция 003 использует `INSERT ... ON CONFLICT (name) DO NOTHING`. БД verified: `SELECT count(*) FROM correlation_rules` = 4 (brute_force_auth/critical-threshold, injection_spike/critical-aggregate, targeted_user_attack/warning-threshold, mass_suspicious/critical-aggregate). Перезапуск миграции — alembic_version защищает от повторного выполнения
 
 **{T3.13}. Bootstrap админа**
 
-- [ ] Миграция `users.is_admin` применилась
-- [ ] При старте main app с `INITIAL_ADMIN_USERNAME=alice` существующий пользователь `alice` получает `is_admin=true`
-- [ ] Перезапуск — `is_admin` остаётся, не сбрасывается; повторный seed идемпотентен
+- [x] (code review + миграция) `backend/alembic/versions/add_is_admin_to_users.py` — ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT false. backend/app/bootstrap.py:14-51 — идемпотентная проверка: `if not getattr(user, "is_admin", False)` перед UPDATE. Live `INITIAL_ADMIN_USERNAME=...` test → ⚠️ deferred
 
 **{T3.14}. Meta-log: acknowledge**
 
-- [ ] PATCH alert acknowledged → событие `siem.alert.acknowledged` появляется в `siem_events` через тот же pipeline (Redis Stream → consumer → INSERT)
-- [ ] `identifiers.user_id` = админ, который сделал ack
-- [ ] Видно в `GET /security/events?event_type=siem.alert.acknowledged`
+- [x] (code review) AlertService.acknowledge_alert (services.py) → meta_emitter.emit(event_type=`siem.alert.acknowledged`, identifiers.user_id=jwt.sub, metadata={alert_id, rule_id, severity}). meta_emitter.py:38-102 — XADD в `security.events` с `data` поле = SecurityEvent.model_dump_json(). Live event in siem_events → ⚠️ deferred
 
 **{T3.15}. Meta-log: resolve**
 
-- [ ] PATCH alert resolved → `siem.alert.resolved` событие в БД
+- [x] (code review) Аналогично T3.14 — `siem.alert.resolved` event_type. Live → ⚠️ deferred
 
 **{T3.16}. Meta-log: rule CRUD**
 
-- [ ] POST/PATCH/DELETE rule → meta-event с правильным event_type (`siem.rule.created`, etc.)
+- [x] (code review) RuleService (services.py:212-297) emits `siem.rule.created`/`siem.rule.updated`/`siem.rule.deleted` через meta_emitter на каждом CRUD. Live → ⚠️ deferred
 
 ### Track T4 — Frontend
 

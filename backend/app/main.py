@@ -58,6 +58,7 @@ from app.api.routes import (
     user_memory,
 )
 from app.api.routes import settings as settings_routes
+from app.bootstrap import bootstrap_admin
 from app.config import Settings
 from app.infra.db import create_engine, create_session_factory
 from app.infra.langfuse import (
@@ -250,6 +251,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await conn.execute(text("SELECT 1"))
     app.state.engine = engine
     app.state.session_factory = create_session_factory(engine)
+
+    # Bootstrap admin user if configured
+    async with app.state.session_factory() as session:
+        await bootstrap_admin(session)
 
     app.state.redis = await create_redis(settings)
 

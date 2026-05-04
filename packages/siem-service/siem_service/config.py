@@ -1,5 +1,7 @@
 """SIEM service configuration."""
 
+from functools import lru_cache
+
 from pydantic_settings import BaseSettings
 
 
@@ -27,3 +29,9 @@ class Settings(BaseSettings):
         """Pydantic config."""
 
         env_prefix = "SIEM_"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Get settings singleton."""
+    return Settings()

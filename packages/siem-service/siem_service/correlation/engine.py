@@ -75,7 +75,7 @@ class CorrelationEngine:
         session: AsyncSession,
     ) -> None:
         """Evaluate a single rule."""
-        strategy = get_strategy(rule.rule_type)  # type: ignore[arg-type]  # SQLAlchemy Column type
+        strategy = get_strategy(rule.rule_type)  # type: ignore[arg-type]  # rule_type is SQLAlchemy Column[str], not literal str
 
         # Get alert candidates from strategy
         candidates = await strategy.evaluate(rule, session)

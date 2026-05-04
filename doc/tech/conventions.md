@@ -262,6 +262,30 @@ summarization--production
 - WARNING для ожидаемого поведения ("пользователь не создал проект" — нормальный flow)
 - ERROR для клиентских ошибок (невалидный JSON → 422, не error в логах)
 
+### Security Event Logging
+
+Логирование security-событий для SIEM pipeline (feat-005). Используется флаг `security_event=True` и canonical `event_type` из shared vocabulary. Context (ip, user_id, thread_id, request_id и т.д.) вытягивается из contextvars автоматически.
+
+**Пример:**
+```python
+logger.warning(
+    "injection detected",
+    security_event=True,
+    event_type="agent.guard.input.classifier_injection",
+    severity="critical",
+    metadata={"checkpoint": "user_input", "detector": "llm_classifier", "verdict": "INJECTION"}
+)
+```
+
+**Vocabulary.** Event types организованы по доменам (auth, rate_limit, agent.guard, agent.runtime, siem) и зафиксированы в `packages/siem-contracts/siem_contracts/vocabulary.py`. Полный каталог — [security-events.md](security-events.md).
+
+**Processing.** `SecurityEventProcessor` в structlog цепи перехватывает лог-записи с `security_event=True`, собирает в `SecurityEvent`, публирует в Redis Stream. Downstream-логирование (renderer) видит полный контекст (identifiers из contextvars уже merged). Processor — pure side-effect sink, не мутирует event_dict.
+
+**Требования:**
+- `event_type` обязателен — из Literal vocabulary (mypy-проверяемо на call site)
+- `severity` обязателен — одно из: info, warning, critical
+- `metadata` опциональна — event-specific детали (не identifiers — они вытягиваются автоматически)
+
 ## Reasoning LLMs
 
 Часть моделей (OpenRouter-совместимые) отдают цепочку рассуждений в нестандартном поле `reasoning`. Чтобы извлекать её в `AIMessage.additional_kwargs["reasoning"]` — используется `ReasoningChatOpenAI` из `app/infra/llm.py`.

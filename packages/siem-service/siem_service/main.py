@@ -64,6 +64,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await _redis_client.ping()  # type: ignore[misc]  # redis-py asyncio stubs incomplete
     logger.info("redis connected")
 
+    # Store Redis client in app state for dependency injection
+    app.state.redis = _redis_client
+
     # Start subscriber task with supervision
     if _redis_client is None:
         raise RuntimeError("Redis client not initialized")
@@ -119,7 +122,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="SIEM Service", version="0.1.0", lifespan=lifespan)
 
 # CORS middleware - allow frontend to access SIEM API
-frontend_origins = os.environ.get("SIEM_FRONTEND_ORIGIN", "*").split(",")
+# Default to localhost dev port if SIEM_FRONTEND_ORIGIN not set
+frontend_origin_env = os.environ.get("SIEM_FRONTEND_ORIGIN", "").strip()
+if frontend_origin_env:
+    # Split by comma and strip whitespace
+    frontend_origins = [origin.strip() for origin in frontend_origin_env.split(",")]
+else:
+    # Default: local Vite dev server (typical React dev port)
+    frontend_origins = ["http://localhost:5173"]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=frontend_origins,

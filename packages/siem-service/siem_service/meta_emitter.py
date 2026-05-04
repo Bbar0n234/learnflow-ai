@@ -3,11 +3,9 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
-import redis
+import redis.asyncio as redis
 import structlog
 from pydantic import BaseModel, Field
-
-from siem_service.config import get_settings
 
 logger = structlog.get_logger()
 
@@ -65,7 +63,7 @@ class MetaEmitter:
 
         try:
             # XADD security.events with event_id as field to ensure idempotency
-            self.redis.xadd(
+            await self.redis.xadd(
                 self.stream_name,
                 {
                     "data": event.model_dump_json(),
@@ -89,13 +87,25 @@ _meta_emitter: MetaEmitter | None = None
 
 
 def get_meta_emitter(redis_client: redis.Redis | None = None) -> MetaEmitter:
-    """Get or create meta-emitter singleton."""
+    """Get or create meta-emitter singleton.
+
+    Args:
+        redis_client: Async Redis client (required). Must not be None.
+
+    Returns:
+        MetaEmitter singleton instance
+
+    Raises:
+        ValueError: If redis_client is None (must be provided via dependency)
+    """
     global _meta_emitter
 
     if _meta_emitter is None:
         if redis_client is None:
-            settings = get_settings()
-            redis_client = redis.from_url(settings.redis_url)
+            raise ValueError(
+                "redis_client must be provided to get_meta_emitter. "
+                "Pass it as a FastAPI dependency."
+            )
 
         _meta_emitter = MetaEmitter(redis_client)
 

@@ -39,8 +39,11 @@ export function SecurityRouteGuard({ children }: { children: ReactNode }) {
     try {
       const parts = token.split(".");
       if (parts.length === 3) {
-        const payload = JSON.parse(atob(parts[1]!));
-        isAdmin = payload.is_admin === true;
+        const payloadEncoded = parts[1];
+        if (payloadEncoded) {
+          const payload = JSON.parse(atob(payloadEncoded));
+          isAdmin = payload.is_admin === true;
+        }
       }
     } catch {
       // Ignore JWT parse errors

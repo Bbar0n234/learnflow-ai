@@ -349,6 +349,80 @@ Artifact.thread_id → ThreadView.thread_id (артефакт создаётся
 
 FastAPI middleware генерирует UUID для каждого HTTP-запроса → `structlog.contextvars`. Все лог-записи в контексте запроса автоматически содержат `request_id`.
 
+### Security Event Logging Convention
+
+Структурированное логирование security-событий для SIEM pipeline. Логирование вызывается с флагом `security_event=True` и canonical `event_type` из vocabulary:
+
+```python
+logger.warning(
+    "injection detected",
+    security_event=True,
+    event_type="agent.guard.input.classifier_injection",
+    severity="critical",
+    metadata={"checkpoint": "user_input", "detector": "llm_classifier"}
+)
+```
+
+**Обработка:** `SecurityEventProcessor` перехватывает лог-записи с `security_event=True`, нормализует в `SecurityEvent`, пубирует в Redis Stream. Context binding (ip, user_id, request_id, thread_id и т.д.) вытягивается из contextvars автоматически.
+
+**Vocabulary:** Полный набор `event_type` и их metadata-формы — [security-events.md](security-events.md). Типизация via Literal для mypy-проверяемости.
+
+## SIEM Service
+
+Отдельный FastAPI backend-сервис, работающий на порту 8001, с собственной PostgreSQL БД (siem-db). Назначение: сбор, хранение, корреляция security-событий, генерация алертов, REST API для мониторинга UI.
+
+**Architecture:**
+```
+Redis Stream (security.events)
+    ↓
+[Subscriber: XREADGROUP + Validation]
+    ↓
+[EventWriter: INSERT siem_events]
+    ↓
+[CorrelationEngine: polling, 10s]
+    ↓
+[Strategies: Threshold/Sequence/Aggregate] → [Deduper] → [AlertWriter: INSERT siem_alerts]
+    ↓
+[REST API: /security/events, /security/alerts, /security/rules] — admin-only via JWT is_admin claim
+```
+
+**Package structure:**
+- `packages/siem-service/` — monorepo workspace member
+- `packages/siem-service/siem_service/` — app package
+  - `main.py` — FastAPI app + lifespan (startup: subscriber + correlation engine tasks)
+  - `config.py` — Settings (DATABASE_URL, REDIS_URL, JWT_SECRET, poll intervals)
+  - `models.py` — ORM (SiemEvent, SiemAlert, CorrelationRule)
+  - `schemas.py` — Pydantic response + request DTOs
+  - `event_writer.py` — Single INSERT entry point
+  - `subscriber.py` — XREADGROUP consumer with at-least-once semantics
+  - `repositories.py` — Database queries (list, filters, pagination)
+  - `services.py` — Business logic (AlertService, RuleService)
+  - `auth.py` — JWT validation + `require_admin` dependency
+  - `meta_emitter.py` — Back-channel meta-event publication
+  - `correlation/` — Engine, strategies, deduper
+  - `api/routes.py` — REST endpoints
+  - `supervisor.py` — Exponential backoff restart wrapper
+
+**Database tables:**
+- `siem_events` — immutable event storage (event_id PK, JSONB identifiers/metadata, dual timestamps)
+- `siem_alerts` — alert instances from rules (status: new/acknowledged/resolved, open-alert policy dedup)
+- `correlation_rules` — rule definitions with JSONB config (Threshold/Sequence/Aggregate per rule_type)
+
+**REST Endpoints (all admin-only):**
+- `GET /security/events` — list events, filters (event_type, severity, timestamp range), pagination
+- `GET /security/alerts` — list alerts, filters (severity, status), pagination
+- `PATCH /security/alerts/:id` — update status (acknowledge/resolve) → emit meta-event
+- `GET /security/rules` — list rules
+- `POST /security/rules` — create rule → emit meta-event
+- `PATCH /security/rules/:id` — update rule → emit meta-event
+- `DELETE /security/rules/:id` — delete rule → emit meta-event
+
+**Deployment:** Docker (siem-service container), separate PostgreSQL instance (siem-db). Env vars: `SIEM_DATABASE_URL`, `SIEM_REDIS_URL`, `SIEM_JWT_SECRET` (shared with main app), `SIEM_FRONTEND_ORIGIN` (CORS).
+
+**Idempotency:** Event deduplication by `event_id` (UNIQUE constraint + ON CONFLICT DO NOTHING). Baseline correlation rules seeded idempotently.
+
+Подробнее: [ADR-018](adr/ADR-018-siem-service-topology.md) (topology), [ADR-019](adr/ADR-019-security-event-transport.md) (transport), [ADR-020](adr/ADR-020-security-event-contract.md) (contract), [ADR-021](adr/ADR-021-siem-correlation-engine.md) (correlation engine).
+
 ## Error Handling
 
 Основные сценарии покрываются фреймворками: ToolNode возвращает ошибку как ToolMessage (агент видит и решает сам в ReAct loop), FastAPI — стандартные HTTP-ошибки, SSE — терминальный `error` event. Детали (retry policy для LLM, поведение при disconnect, cancel semantics) — определяются при реализации.

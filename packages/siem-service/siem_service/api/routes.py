@@ -3,13 +3,12 @@
 from datetime import datetime
 from typing import Annotated
 
-import redis
+import redis.asyncio as redis
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from siem_service.auth import require_admin
-from siem_service.config import get_settings
 from siem_service.db import get_session
 from siem_service.meta_emitter import get_meta_emitter
 from siem_service.schemas import (
@@ -28,6 +27,16 @@ from siem_service.services import AlertService, EventService, RuleService
 logger = structlog.get_logger()
 
 router = APIRouter(prefix="/api/security", tags=["security"])
+
+
+async def get_redis_from_request(request: Request) -> redis.Redis:
+    """Get Redis client from app state.
+
+    This dependency retrieves the async Redis client initialized in lifespan.
+    """
+    if not hasattr(request.app.state, "redis"):
+        raise RuntimeError("Redis client not initialized in app state")
+    return request.app.state.redis
 
 
 @router.get("/events", response_model=PaginatedEventsResponse)
@@ -166,6 +175,7 @@ async def patch_alert(
     request: AlertPatchRequest,
     admin_payload: Annotated[dict, Depends(require_admin)],  # noqa: B008
     session: AsyncSession = Depends(get_session),  # noqa: B008
+    redis_client: redis.Redis = Depends(get_redis_from_request),  # noqa: B008
 ) -> AlertResponse:
     """Update alert status (admin-only).
 
@@ -174,6 +184,7 @@ async def patch_alert(
         request: Patch request (status: acknowledged | resolved)
         session: Database session
         admin_payload: Admin JWT payload (required)
+        redis_client: Async Redis client (injected from app state)
 
     Returns:
         Updated alert
@@ -190,8 +201,7 @@ async def patch_alert(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing 'sub' claim in token",
         )
-    settings = get_settings()
-    redis_client = redis.from_url(settings.redis_url)
+
     meta_emitter = get_meta_emitter(redis_client)
 
     service = AlertService(session, meta_emitter=meta_emitter)
@@ -276,6 +286,7 @@ async def create_rule(
     request: RuleCreateRequest,
     admin_payload: Annotated[dict, Depends(require_admin)],  # noqa: B008
     session: AsyncSession = Depends(get_session),  # noqa: B008
+    redis_client: redis.Redis = Depends(get_redis_from_request),  # noqa: B008
 ) -> RuleResponse:
     """Create a new correlation rule (admin-only).
 
@@ -283,6 +294,7 @@ async def create_rule(
         request: Rule creation request
         session: Database session
         admin_payload: Admin JWT payload (required)
+        redis_client: Async Redis client (injected from app state)
 
     Returns:
         Created rule
@@ -293,8 +305,7 @@ async def create_rule(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing 'sub' claim in token",
         )
-    settings = get_settings()
-    redis_client = redis.from_url(settings.redis_url)
+
     meta_emitter = get_meta_emitter(redis_client)
 
     service = RuleService(session, meta_emitter=meta_emitter)
@@ -324,6 +335,7 @@ async def update_rule(
     request: RuleUpdateRequest,
     admin_payload: Annotated[dict, Depends(require_admin)],  # noqa: B008
     session: AsyncSession = Depends(get_session),  # noqa: B008
+    redis_client: redis.Redis = Depends(get_redis_from_request),  # noqa: B008
 ) -> RuleResponse:
     """Update a correlation rule (admin-only).
 
@@ -332,6 +344,7 @@ async def update_rule(
         request: Rule update request
         session: Database session
         admin_payload: Admin JWT payload (required)
+        redis_client: Async Redis client (injected from app state)
 
     Returns:
         Updated rule
@@ -342,8 +355,7 @@ async def update_rule(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing 'sub' claim in token",
         )
-    settings = get_settings()
-    redis_client = redis.from_url(settings.redis_url)
+
     meta_emitter = get_meta_emitter(redis_client)
 
     service = RuleService(session, meta_emitter=meta_emitter)
@@ -373,6 +385,7 @@ async def delete_rule(
     rule_id: int,
     admin_payload: Annotated[dict, Depends(require_admin)],  # noqa: B008
     session: AsyncSession = Depends(get_session),  # noqa: B008
+    redis_client: redis.Redis = Depends(get_redis_from_request),  # noqa: B008
 ) -> None:
     """Delete a correlation rule (admin-only).
 
@@ -380,6 +393,7 @@ async def delete_rule(
         rule_id: Rule ID
         session: Database session
         admin_payload: Admin JWT payload (required)
+        redis_client: Async Redis client (injected from app state)
     """
     user_id = admin_payload.get("sub")
     if not user_id:
@@ -387,8 +401,7 @@ async def delete_rule(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing 'sub' claim in token",
         )
-    settings = get_settings()
-    redis_client = redis.from_url(settings.redis_url)
+
     meta_emitter = get_meta_emitter(redis_client)
 
     service = RuleService(session, meta_emitter=meta_emitter)

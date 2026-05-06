@@ -234,6 +234,8 @@ class RuleRepository:
             config=config,
         )
         self.session.add(rule)
+        await self.session.flush()
+        await self.session.refresh(rule)
         return rule
 
     async def update_rule(
@@ -252,6 +254,8 @@ class RuleRepository:
 
         rule.updated_at = datetime.utcnow()  # type: ignore[assignment] # SQLAlchemy Column type
         self.session.add(rule)
+        await self.session.flush()
+        await self.session.refresh(rule)
         return rule
 
     async def delete_rule(self, rule_id: int) -> bool:

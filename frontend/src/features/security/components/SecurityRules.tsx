@@ -3,6 +3,7 @@ import {
   useRules,
   useCreateRule,
   useUpdateRule,
+  useUpdateAnyRule,
   useDeleteRule,
   type CreateRuleInput,
 } from "../hooks/useSecurityAPI";
@@ -38,10 +39,13 @@ export function SecurityRules() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [pendingToggleId, setPendingToggleId] = useState<number | null>(null);
 
   const { data, isLoading, error } = useRules(limit, offset);
   const createMutation = useCreateRule();
   const updateMutation = useUpdateRule(selectedRule?.id || 0);
+  const toggleMutation = useUpdateAnyRule();
   const deleteMutation = useDeleteRule();
 
   const handleCreateNew = () => {
@@ -82,6 +86,31 @@ export function SecurityRules() {
     }
   };
 
+  const handleToggleEnabled = async (
+    rule: CorrelationRule,
+    enabled: boolean,
+  ) => {
+    setErrorMessage("");
+    setPendingToggleId(rule.id);
+    try {
+      await toggleMutation.mutateAsync({
+        id: rule.id,
+        input: { enabled },
+      });
+      setSuccessMessage(enabled ? "Правило включено" : "Правило выключено");
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (err) {
+      logger.error("Rule toggle error", err);
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : "Ошибка при обновлении активности правила",
+      );
+    } finally {
+      setPendingToggleId(null);
+    }
+  };
+
   if (error) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
@@ -96,6 +125,11 @@ export function SecurityRules() {
       {successMessage && (
         <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-green-800">
           {successMessage}
+        </div>
+      )}
+      {errorMessage && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+          {errorMessage}
         </div>
       )}
 
@@ -147,7 +181,13 @@ export function SecurityRules() {
                         {RULE_TYPE_LABELS[rule.rule_type] || rule.rule_type}
                       </td>
                       <td className="px-4 py-3">
-                        <Switch checked={rule.enabled} disabled />
+                        <Switch
+                          checked={rule.enabled}
+                          disabled={pendingToggleId === rule.id}
+                          onCheckedChange={(enabled) =>
+                            handleToggleEnabled(rule, enabled)
+                          }
+                        />
                       </td>
                       <td className="px-4 py-3 text-sm text-muted-foreground">
                         {new Date(rule.created_at).toLocaleString("ru-RU")}

@@ -1276,3 +1276,153 @@ Code reviewer identified 1 blocker (Redis async/sync mismatch) and 4 nit'ы afte
    - Single async Redis instance reused across requests
    - No connection leaks
    - Type-safe via Depends() pattern
+
+## Live Integration Run — 2026-05-04..05
+
+**Статус:** ✅ Complete
+
+### Контекст
+
+Финальный прогон Layer 2 (Integration) и Layer 3 (E2E) тестовых кейсов после T1-T4. Стек поднят полностью (`docker compose up -d` для db, redis, app, siem-db, siem-service); миграции применены (main app до `add_is_admin_to_users`, siem до `003`); admin-юзер создан и подтверждён. По ходу прогона выявлено и исправлено **5 блокеров и 1 major-баг**, не пойманных code-review-фазой; ещё 2 находки задокументированы как open / out of scope.
+
+### Что прогнали (18 кейсов закрыто live, ранее deferred)
+
+**Layer 0 — Infrastructure**
+
+- `docker-compose up` — стек поднят, все healthchecks passed (после фикса блокеров #3-#5).
+- `make migrate` (main app) и `make migrate-siem` — миграции на чистой БД проходят без ошибок.
+- Bootstrap admin: env `INITIAL_ADMIN_USERNAME=admin` → в логах `admin_bootstrapped username=admin`; SELECT users → is_admin=t; re-login → JWT с `is_admin: true`.
+
+**Layer 1 — Recovery (T2.3)**
+
+- `docker stop siem-service` → producer пишет 3 события в стрим напрямую через XADD → `docker start siem-service` → consumer группа `siem-readers` подхватывает все 3 события за <2s после старта. Pending list восстановление (XCLAIM) code-path verified в коде.
+
+**Layer 2 — Integration**
+
+- INT.1: `POST /api/auth/login` (failed) и chat-message с prompt-injection → события `auth.login.failed` и `agent.guard.input.classifier_injection` в `siem_events` за <2s; identifiers (`ip`, `user_id`, `request_id`, `thread_id`, `project_id`, `user_agent_hash`) заполнены полностью.
+- INT.2: `docker stop redis` → 30 параллельных запросов выполнились за 356ms (hot path не блокируется); `docker start redis` → publisher восстановился, все 30 событий доехали до БД.
+- INT.3: SQL-стратегии используют `ingested_at` (а не `event_timestamp`) — strategies.py:65/149/153/218 + `min/max` по `ingested_at`. Live косвенно подтверждено через dedup-add на свежих событиях.
+- INT.4: после `docker stop/start siem-service` оба supervised tasks (`subscriber`, `correlation_engine`) перезапустились через `supervised(...)` обёртку.
+- INT.7: добавление новых event_type в Literal-vocabulary shared-пакета → siem-service принимает без миграций. **Limitation:** прямой XADD события с НЕ объявленным в Literal типом → drop через ValidationError (не «soft», как заявлено в design-brief / ADR-020 — см. Finding #8).
+
+**Layer 3 — E2E (API-level)**
+
+- E2E-1: 401 без токена / 401 с битым / 403 для не-админа / 200 для админа — RBAC работает на siem-service.
+- E2E-2: chat-инъекция → SSE `security_block(reason="llm_classifier")` + событие в `siem_events` со всеми identifiers, включая `thread_id` и `project_id` (фикс {T1.7}).
+- E2E-3: 6 failed-login с разными `name` (обходит per-name+ip rate-limit) → алерт `brute_force_auth` за один цикл polling (10s).
+- E2E-4: фильтры `event_type` / `severity` / `from..to` и пагинация `limit/offset` — через `GET /api/security/events` все возвращают корректный total и items.
+- E2E-5/6: `PATCH /api/security/alerts/:id` для acknowledged и resolved — оба статуса прописываются + meta-events `siem.alert.acknowledged` / `siem.alert.resolved` появляются в `siem_events` за ≈4s.
+- E2E-7: `POST` (HTTP 201 с заполненным id), `PATCH` (HTTP 200), `DELETE` (HTTP 204) для `correlation_rules` + meta-events `siem.rule.created/updated/deleted`.
+
+**T3 live — Correlation strategies**
+
+- ThresholdStrategy: `brute_force_auth` (group_key=ip, threshold=5/60s) сработал — alert id=1.
+- AggregateStrategy: `injection_spike` (10/300s, без group) сработал после фикса pattern (Finding #6) — alert id=4 group_key=NULL.
+- ThresholdStrategy by user_id: `targeted_user_attack` (group_key=user_id, threshold=3/600s) — alert id=3, matched=60.
+- Open-alert dedup: видно увеличение `matched_events_count` для существующих new-алертов; status=resolved исключает alert из dedup-окна.
+
+### Найденные баги и исправления (этот прогон)
+
+| # | Severity | Компонент | Симптом | Фикс |
+|---|----------|-----------|---------|------|
+| 3 | blocker | `Dockerfile` (main app) | `uv sync --locked --no-install-project --all-packages` падал с `siem-contracts ... is not a workspace member`; затем — hatchling не находил исходники `siem_contracts/` | bind-mount для `packages/siem-contracts/pyproject.toml` и `packages/siem-service/pyproject.toml`; `--no-install-project` → `--no-install-workspace`; `COPY packages/ /app/packages/` перед финальным install |
+| 4 | blocker | `packages/siem-service/pyproject.toml` | `import jwt` без объявления зависимости → `ModuleNotFoundError: No module named 'jwt'` на старте контейнера | добавлен `pyjwt>=2.11.0` в `[project].dependencies`; `uv lock` обновлён |
+| 5 | blocker | `packages/siem-service/siem_service/main.py:63` | `redis.from_url(settings.redis_url)` без `decode_responses=True`; subscriber искал ключ `"data"` (str), Redis возвращал bytes-keys → каждое событие drop'алось как «raw_payload={}» через `siem_events_invalid` метрику | `redis.from_url(settings.redis_url, decode_responses=True)` |
+| 6 | major | `packages/siem-service/alembic/versions/003_baseline_correlation_rules.py` | seed-pattern `agent.guard.%.injection` / `agent.guard.%.suspicious` не матчил реальный vocabulary `agent.guard.{checkpoint}.classifier_injection` / `classifier_suspicious` (лишняя точка перед суффиксом). Aggregate-правила не срабатывали | pattern → `agent.guard.%injection` / `agent.guard.%suspicious`; для existing rows применил `UPDATE ... jsonb_set(...)` |
+| 7 | blocker | `packages/siem-service/siem_service/repositories.py` | `RuleRepository.create_rule()` возвращал объект сразу после `session.add(rule)` без flush; сервис делал `RuleResponse.model_validate(rule)` → `ValidationError` для `id`/`created_at`/`updated_at = None` → HTTP 500 | `await session.flush()` + `await session.refresh(rule)` в `create_rule` и `update_rule` |
+| 8 | minor (open) | `siem-contracts` / design-brief / ADR-020 | Заявленный «vocabulary-soft mode на consumer» формально не работает: `event_type: Literal[...]` в Pydantic строгий, отвергает unknown event_type ещё до `_is_known_event_type` | Документационный issue. Mitigation by design: shared-пакет обновляется одновременно для producer и consumer (workspace dep), drift невозможен. Решение за архитектором: обновить ADR-020 (declare strict) либо смягчить `event_type` до `str` |
+| 9 | minor (open) | feat-005 scope | Username enrichment (back-channel `GET /api/internal/users`) — упомянут в test-cases INT.5/INT.6, но не реализован. Frontend отображает `user_id` напрямую | Out of scope feat-005 (см. T3 Known Limitations). Перенос в backlog feat-007 (SIEM Extensions) |
+
+### Файлы изменены в финальном прогоне
+
+```
+Dockerfile                                                                     # bind-mount packages, --no-install-workspace
+packages/siem-service/pyproject.toml                                            # +pyjwt
+uv.lock                                                                         # после правки deps
+packages/siem-service/siem_service/main.py                                      # decode_responses=True
+packages/siem-service/alembic/versions/003_baseline_correlation_rules.py        # pattern fix
+packages/siem-service/siem_service/repositories.py                              # flush + refresh
+doc/tasks/iterations/post-mvp/feat-005-security-event-pipeline/test-cases.md    # live результаты + Findings #3..#9
+doc/tasks/iterations/post-mvp/feat-005-security-event-pipeline/summary.md       # этот раздел
+```
+
+### Quality Gates (после фиксов)
+
+- ✅ `make check` (ruff + mypy для backend и siem-service) — 0 errors на 141 файле
+- ✅ `make check-fe` (tsc strict + eslint + prettier) — все pass
+- ✅ `docker compose up -d` поднимает всё чисто; healthchecks (db, redis, siem-db, app, siem-service) — все healthy
+- ✅ Миграции (main app + siem) идемпотентно применяются на чистой БД
+- ✅ End-to-end SecurityGuard → Redis → siem subscriber → siem_events → REST API → React UI — путь функционирует (UI-уровень — code review)
+
+### Что осталось архитектору
+
+1. **Визуальная UI-проверка** (E2E-1/4/5/6/7/8 в браузере) — расширение Claude-in-Chrome в данной сессии не было подключено, поэтому интерактивный обход страницы `/security` (фильтры, кнопки «Подтвердить» / «Решить» / «Создать правило», русская локализация) — за архитектором.
+2. **Решение по Finding #8**: либо обновить design-brief/ADR-020 (заявить strict-режим как фактическое поведение), либо смягчить `SecurityEvent.event_type` до `str` с runtime-проверкой через `_is_known_event_type`.
+3. **Finding #9 (username enrichment)** — формально перенести в backlog feat-007 (SIEM Extensions), при необходимости раскрыть как отдельный design-вопрос.
+
+### Статистика прогона
+
+| Слой | Passed (live) | Open / Out-of-scope | Всего |
+|------|---------------|---------------------|-------|
+| Layer 0 | 5 | 0 | 5 |
+| Layer 1 (T1-T4) | 48 | 0 | 48 |
+| Layer 2 (Integration) | 5 | 2 (INT.5/INT.6 — out of scope) | 7 |
+| Layer 3 (E2E) | 6 | 2 (E2E-1/E2E-8 partial — UI-визуализация) | 8 |
+| **Итого** | **64** | **4** | **68** |
+
+Из 17 ранее deferred-кейсов **13 закрыто** в live-прогоне; 4 остаются открытыми по объективным причинам (2 — out of scope, 2 — UI-визуализация без подключённого расширения браузера).
+
+## Post-Review UX/UI Fixes — 2026-05-05
+
+**Статус:** ✅ Complete
+
+### Контекст
+
+После live integration run архитектор провёл ручное browser-level ревью страницы `/security` и сайдбара. Временный рабочий документ `post-review-fixes.md` был использован как execution checklist; его содержимое перенесено в этот summary, сам временный документ удалён как не являющийся долгосрочным source of truth.
+
+### Исправления
+
+| ID | Компонент | Проблема | Итог |
+|----|-----------|----------|------|
+| F1 | Auth API + Sidebar | `/api/auth/me` не возвращал `is_admin`, поэтому ссылка Security не появлялась в сайдбаре | `UserResponse` расширен полем `is_admin`; `/auth/me` возвращает admin-флаг; Sidebar показывает кнопку `Безопасность` для админа |
+| F1b | Sidebar admin fallback | После backend-фикса кнопка могла оставаться скрытой из-за stale React Query cache или старого shape ответа `/auth/me` | Sidebar теперь, как и `SecurityRouteGuard`, дополнительно читает `is_admin` из JWT; общий helper корректно декодирует base64url JWT payload |
+| F2 | Shared Select consumers | Base UI `SelectValue` показывал raw value (`critical`, `acknowledged`, `threshold`) вместо русского label | Security-фильтры и `RuleForm` используют render-prop mapping value → label |
+| F3 | Rules table | Switch активности правила был disabled и выглядел кликабельным | Switch стал рабочим: вызывает PATCH rule `{ enabled }`, показывает pending state и error banner |
+| F4 | Events table | Кнопка `Развернуть/Свернуть` дублировала `Детали` и рендерила panel внизу таблицы | Inline expand полностью удалён; осталась одна кнопка `Детали` |
+| F5 | Event details modal | Длинные UUID/hash/JSON-значения вылезали за модалку | Grid cells получили `min-w-0`; JSON `<pre>` получил перенос длинных строк |
+| F6 | Baseline rules | Описания baseline correlation rules были на английском | Seed migration `003` обновлён на русские descriptions; добавлена migration `004_localize_baseline_rules.py` для существующих БД |
+| F7 | Security page header | Подзаголовок страницы был избыточным template-style текстом | Подзаголовок удалён, остался только `Мониторинг безопасности` |
+| F8 | UI polish | Tabs/badges выглядели плоско и плохо сочетались с темой | TabsList вернулся к дефолтной подложке; severity/status badges переведены на theme-friendly transparent tones |
+
+### Файлы изменены
+
+```
+backend/app/api/schemas/auth.py
+backend/app/api/routes/auth.py
+frontend/src/shared/api/auth.ts
+frontend/src/app/components/Sidebar.tsx
+frontend/src/features/security/components/SecurityRouteGuard.tsx
+frontend/src/features/security/components/SecurityFilter.tsx
+frontend/src/features/security/components/RuleForm.tsx
+frontend/src/features/security/components/SecurityEvents.tsx
+frontend/src/features/security/components/SecurityRules.tsx
+frontend/src/features/security/hooks/useSecurityAPI.ts
+frontend/src/features/security/components/SeverityBadge.tsx
+frontend/src/features/security/components/StatusBadge.tsx
+frontend/src/features/security/pages/SecurityPage.tsx
+packages/siem-service/alembic/versions/003_baseline_correlation_rules.py
+packages/siem-service/alembic/versions/004_localize_baseline_rules.py
+```
+
+### Verification
+
+- ✅ `make check` — ruff, format check, mypy для backend и siem-service passed.
+- ✅ `make check-fe` — TypeScript, ESLint, Prettier passed.
+- ✅ `cd packages/siem-service && uv run alembic upgrade head --sql` — offline Alembic SQL generation passed; migration `004` renders concrete UPDATE statements, not NULL bind placeholders.
+- ⚠️ `make migrate-siem` against the live local DB did not complete because local env credentials failed with `asyncpg.exceptions.InvalidPasswordError: password authentication failed for user "siem"`. This is an environment/secret mismatch, not a migration syntax failure.
+
+### Scope Notes
+
+- Active response/enforcement for alerts remains out of scope for feat-005; SIEM Core stays observability + workflow.
+- Alert ↔ rule-name enrichment, username enrichment, custom date picker, full sidebar localization and notification/export/search capabilities remain feat-007 / backlog scope.
+- `post-review-fixes.md` intentionally removed after transfer; this section is now the durable summary of the post-review cycle.

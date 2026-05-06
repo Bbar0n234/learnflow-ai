@@ -117,6 +117,23 @@ export function useUpdateRule(id: number) {
   });
 }
 
+export function useUpdateAnyRule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      input,
+    }: {
+      id: number;
+      input: Partial<CreateRuleInput>;
+    }) => updateRule(id, input),
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["security", "rules"] });
+      queryClient.setQueryData(["security", "rule", variables.id], data);
+    },
+  });
+}
+
 export function useDeleteRule() {
   const queryClient = useQueryClient();
   return useMutation({

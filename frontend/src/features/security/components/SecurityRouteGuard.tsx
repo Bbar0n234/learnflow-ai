@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { Navigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { getMe } from "@/shared/api/auth";
+import { getIsAdminFromAccessToken, getMe } from "@/shared/api/auth";
 import { getAccessToken } from "@/shared/api/client";
 
 interface UserWithAdmin {
@@ -31,24 +31,8 @@ export function SecurityRouteGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  // Check JWT for is_admin claim as fallback
-  let isAdmin = false;
-  if (user?.is_admin) {
-    isAdmin = true;
-  } else if (token) {
-    try {
-      const parts = token.split(".");
-      if (parts.length === 3) {
-        const payloadEncoded = parts[1];
-        if (payloadEncoded) {
-          const payload = JSON.parse(atob(payloadEncoded));
-          isAdmin = payload.is_admin === true;
-        }
-      }
-    } catch {
-      // Ignore JWT parse errors
-    }
-  }
+  // Check JWT for is_admin claim as fallback.
+  const isAdmin = user?.is_admin === true || getIsAdminFromAccessToken(token);
 
   if (!isAdmin) {
     return <Navigate to="/" replace />;

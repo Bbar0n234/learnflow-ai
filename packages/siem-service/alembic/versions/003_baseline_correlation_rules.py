@@ -27,7 +27,7 @@ def upgrade() -> None:
     rules = [
         {
             "name": "brute_force_auth",
-            "description": "Multiple failed login attempts from same IP within 60 seconds",
+            "description": "Множественные неудачные попытки входа с одного IP за 60 секунд",
             "rule_type": "threshold",
             "enabled": True,
             "severity": "critical",
@@ -40,19 +40,19 @@ def upgrade() -> None:
         },
         {
             "name": "injection_spike",
-            "description": "High volume of injection attempts detected across any checkpoint",
+            "description": "Всплеск попыток инъекций — превышен порог детекций по всем чекпойнтам",
             "rule_type": "aggregate",
             "enabled": True,
             "severity": "critical",
             "config": {
-                "event_type_pattern": "agent.guard.%.injection",
+                "event_type_pattern": "agent.guard.%injection",
                 "threshold": 10,
                 "window_seconds": 300,
             },
         },
         {
             "name": "targeted_user_attack",
-            "description": "Multiple guard detections on single user within 10 minutes",
+            "description": "Атака на конкретного пользователя — несколько срабатываний guard за 10 минут",
             "rule_type": "threshold",
             "enabled": True,
             "severity": "warning",
@@ -65,12 +65,12 @@ def upgrade() -> None:
         },
         {
             "name": "mass_suspicious",
-            "description": "High volume of suspicious verdicts detected system-wide",
+            "description": "Массовые подозрительные вердикты по системе — превышен порог",
             "rule_type": "aggregate",
             "enabled": True,
             "severity": "critical",
             "config": {
-                "event_type_pattern": "agent.guard.%.suspicious",
+                "event_type_pattern": "agent.guard.%suspicious",
                 "threshold": 15,
                 "window_seconds": 600,
             },

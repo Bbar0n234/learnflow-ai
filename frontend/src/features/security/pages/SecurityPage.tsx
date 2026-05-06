@@ -14,17 +14,13 @@ export function SecurityPage() {
         <h1 className="text-2xl font-bold text-foreground">
           Мониторинг безопасности
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Просмотр и управление security-событиями, алертами и правилами
-          корреляции
-        </p>
       </div>
 
       {/* Tabs */}
       <div className="flex-1 overflow-hidden flex flex-col">
         <div className="border-b border-border bg-card px-6">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="bg-transparent">
+            <TabsList>
               <TabsTrigger value="events">События</TabsTrigger>
               <TabsTrigger value="alerts">Алерты</TabsTrigger>
               <TabsTrigger value="rules">Правила</TabsTrigger>

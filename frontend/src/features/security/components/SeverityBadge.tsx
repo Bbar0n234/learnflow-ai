@@ -11,15 +11,17 @@ const SEVERITY_CONFIG: Record<Severity, { label: string; className: string }> =
   {
     info: {
       label: "Информация",
-      className: "bg-blue-100 text-blue-800 border-blue-200",
+      className:
+        "bg-blue-500/15 text-blue-700 border-blue-500/30 dark:text-blue-400",
     },
     warning: {
       label: "Предупреждение",
-      className: "bg-yellow-100 text-yellow-800 border-yellow-200",
+      className:
+        "bg-yellow-500/15 text-yellow-700 border-yellow-500/30 dark:text-yellow-400",
     },
     critical: {
       label: "Критично",
-      className: "bg-red-100 text-red-800 border-red-200",
+      className: "bg-destructive/15 text-destructive border-destructive/30",
     },
   };
 

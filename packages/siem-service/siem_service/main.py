@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("database initialized")
 
     # Initialize Redis
-    _redis_client = await redis.from_url(settings.redis_url)
+    _redis_client = await redis.from_url(settings.redis_url, decode_responses=True)
     await _redis_client.ping()  # type: ignore[misc]  # redis-py asyncio stubs incomplete
     logger.info("redis connected")
 

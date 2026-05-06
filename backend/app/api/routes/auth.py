@@ -201,7 +201,11 @@ async def refresh(
 
 @router.get("/me", response_model=UserResponse)
 async def me(user: CurrentUser) -> UserResponse:
-    return UserResponse(id=str(user.id), name=user.name)
+    return UserResponse(
+        id=str(user.id),
+        name=user.name,
+        is_admin=bool(user.is_admin),
+    )
 
 
 @router.post("/logout", response_model=MessageResponse)

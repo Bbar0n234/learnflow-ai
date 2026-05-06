@@ -85,7 +85,12 @@ export function SecurityFilter({
             onValueChange={(v: string | null) => v !== null && setSeverity(v)}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Все" />
+              <SelectValue placeholder="Все">
+                {(value) =>
+                  SEVERITY_OPTIONS.find((opt) => opt.value === value)?.label ??
+                  "Все"
+                }
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="">Все</SelectItem>
@@ -108,7 +113,12 @@ export function SecurityFilter({
               onValueChange={(v: string | null) => v !== null && setStatus(v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Все" />
+                <SelectValue placeholder="Все">
+                  {(value) =>
+                    statusOptions.find((opt) => opt.value === value)?.label ??
+                    "Все"
+                  }
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">Все</SelectItem>

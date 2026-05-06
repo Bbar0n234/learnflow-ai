@@ -11,15 +11,18 @@ const STATUS_CONFIG: Record<AlertStatus, { label: string; className: string }> =
   {
     new: {
       label: "Новое",
-      className: "bg-blue-100 text-blue-800 border-blue-200",
+      className:
+        "bg-blue-500/15 text-blue-700 border-blue-500/30 dark:text-blue-400",
     },
     acknowledged: {
       label: "Подтверждено",
-      className: "bg-yellow-100 text-yellow-800 border-yellow-200",
+      className:
+        "bg-yellow-500/15 text-yellow-700 border-yellow-500/30 dark:text-yellow-400",
     },
     resolved: {
       label: "Решено",
-      className: "bg-green-100 text-green-800 border-green-200",
+      className:
+        "bg-green-500/15 text-green-700 border-green-500/30 dark:text-green-400",
     },
   };
 

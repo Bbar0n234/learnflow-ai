@@ -205,7 +205,12 @@ export function RuleForm({
                 onValueChange={(v) => setRuleType(v as RuleType)}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>
+                    {(value) =>
+                      RULE_TYPES.find((opt) => opt.value === value)?.label ??
+                      value
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {RULE_TYPES.map((opt) => (
@@ -267,7 +272,12 @@ export function RuleForm({
                   onValueChange={(v) => setSeverity(v as Severity)}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue>
+                      {(value) =>
+                        SEVERITY_OPTIONS.find((opt) => opt.value === value)
+                          ?.label ?? value
+                      }
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {SEVERITY_OPTIONS.map((opt) => (
@@ -323,7 +333,13 @@ export function RuleForm({
                   onValueChange={(v) => setGroupKey(v === "" ? null : v)}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue>
+                      {(value) =>
+                        GROUP_KEY_OPTIONS.find(
+                          (opt) => String(opt.value ?? "") === value,
+                        )?.label ?? value
+                      }
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {GROUP_KEY_OPTIONS.map((opt) => (
@@ -373,7 +389,13 @@ export function RuleForm({
                     onValueChange={(v) => setGroupKey(v === "" ? null : v)}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue>
+                        {(value) =>
+                          GROUP_KEY_OPTIONS.find(
+                            (opt) => String(opt.value ?? "") === value,
+                          )?.label ?? value
+                        }
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {GROUP_KEY_OPTIONS.map((opt) => (

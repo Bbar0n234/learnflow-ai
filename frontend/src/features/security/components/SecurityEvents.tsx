@@ -12,7 +12,6 @@ import {
   DialogTitle,
 } from "@/shared/ui/dialog";
 import { Button } from "@/shared/ui/button";
-import { ChevronDown, ChevronUp } from "lucide-react";
 
 interface EventsFilterState {
   event_type?: string;
@@ -28,7 +27,6 @@ export function SecurityEvents() {
   const [selectedEvent, setSelectedEvent] = useState<SecurityEvent | null>(
     null,
   );
-  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const { data, isLoading, error } = useEvents(limit, offset, filters);
 
@@ -108,27 +106,6 @@ export function SecurityEvents() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() =>
-                            setExpandedId(
-                              expandedId === event.id ? null : event.id,
-                            )
-                          }
-                        >
-                          {expandedId === event.id ? (
-                            <>
-                              <ChevronUp className="h-4 w-4 mr-1" />
-                              Свернуть
-                            </>
-                          ) : (
-                            <>
-                              <ChevronDown className="h-4 w-4 mr-1" />
-                              Развернуть
-                            </>
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
                           onClick={() => setSelectedEvent(event)}
                         >
                           Детали
@@ -139,22 +116,6 @@ export function SecurityEvents() {
                 </tbody>
               </table>
             </div>
-
-            {/* Expandable metadata rows */}
-            {data.items.map(
-              (event) =>
-                expandedId === event.id && (
-                  <div
-                    key={`${event.id}-expanded`}
-                    className="border-t border-border bg-muted/20 px-4 py-3"
-                  >
-                    <p className="text-sm font-semibold mb-2">Метаданные:</p>
-                    <pre className="text-xs bg-background p-3 rounded border border-border overflow-auto max-h-40">
-                      {JSON.stringify(event.metadata, null, 2)}
-                    </pre>
-                  </div>
-                ),
-            )}
           </div>
 
           <SecurityPagination
@@ -180,25 +141,25 @@ export function SecurityEvents() {
             </DialogHeader>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
+                <div className="min-w-0">
                   <span className="font-semibold">Event ID:</span>
                   <p className="text-muted-foreground font-mono text-xs break-all">
                     {selectedEvent.event_id}
                   </p>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <span className="font-semibold">Тип:</span>
                   <p className="text-muted-foreground">
                     {selectedEvent.event_type}
                   </p>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <span className="font-semibold">Серьезность:</span>
                   <p className="mt-1">
                     <SeverityBadge severity={selectedEvent.severity} />
                   </p>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <span className="font-semibold">Время события:</span>
                   <p className="text-muted-foreground">
                     {new Date(selectedEvent.event_timestamp).toLocaleString(
@@ -210,14 +171,14 @@ export function SecurityEvents() {
 
               <div>
                 <span className="font-semibold text-sm">Идентификаторы:</span>
-                <pre className="text-xs bg-muted p-3 rounded mt-2 overflow-auto max-h-40">
+                <pre className="text-xs bg-muted p-3 rounded mt-2 overflow-auto max-h-40 whitespace-pre-wrap break-all">
                   {JSON.stringify(selectedEvent.identifiers, null, 2)}
                 </pre>
               </div>
 
               <div>
                 <span className="font-semibold text-sm">Метаданные:</span>
-                <pre className="text-xs bg-muted p-3 rounded mt-2 overflow-auto max-h-40">
+                <pre className="text-xs bg-muted p-3 rounded mt-2 overflow-auto max-h-40 whitespace-pre-wrap break-all">
                   {JSON.stringify(selectedEvent.metadata, null, 2)}
                 </pre>
               </div>

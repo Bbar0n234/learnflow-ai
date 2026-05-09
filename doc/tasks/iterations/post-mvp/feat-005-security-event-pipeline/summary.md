@@ -1426,3 +1426,65 @@ packages/siem-service/alembic/versions/004_localize_baseline_rules.py
 - Active response/enforcement for alerts remains out of scope for feat-005; SIEM Core stays observability + workflow.
 - Alert ↔ rule-name enrichment, username enrichment, custom date picker, full sidebar localization and notification/export/search capabilities remain feat-007 / backlog scope.
 - `post-review-fixes.md` intentionally removed after transfer; this section is now the durable summary of the post-review cycle.
+
+## Codebase Hygiene Pass
+
+### Контекст
+
+Архитектор прошёлся по реализованному коду feat-005, оставил TODO-комментарии и обозначил вопросы по миграциям, импортам, интерфейсам, singleton'ам, env-переменным, расположению Dockerfile и структуре workspace. Снимок TODO зафиксирован в коммите `27aa9a7`. Системный разбор и правки — в коммите `a4a96b4` (основной refactor) и последующем env-cleanup.
+
+Цель прохода — не функциональные изменения, а закрепление конвенций и устранение точек, где код расходился с собственными правилами проекта. Поведение SIEM, корреляции, REST API, фронтенда не менялось.
+
+### Изменения
+
+| Область | Что было | Что стало |
+|---------|----------|-----------|
+| Conventions | `conventions.md` без правил по миграциям, импортам, Protocol vs ABC, singleton'ам и env. `CLAUDE.md` ссылался на `conventions.md` слабо | `CLAUDE.md` — секция `Hard Rules` + императив читать `conventions.md` перед нетривиальной правкой. `conventions.md` дополнен секциями: workspace layout, Dockerfile placement, imports, interfaces, module-level state, database migrations, env vs constants |
+| Линтинг | Ruff в dev-deps, без конфигурации | Корневой `pyproject.toml`: `[tool.ruff]` с правилами `E, F, I, UP, B, SIM, PLC0415`. `PLC0415` (`import-outside-toplevel`) включён осознанно — лазейка с локальными импортами теперь ловится автоматически |
+| Workspace | `packages/siem-service/` — самостоятельный сервис в директории shared library'ей | `services/siem-service/` (новая директория для standalone runtimes). `packages/` остаётся только для shared (`siem-contracts`). Главный Dockerfile переехал в `backend/Dockerfile` рядом с пакетом |
+| Структура siem-service | 13 файлов в корне `siem_service/` | Подпакеты `domain/` (models, schemas), `infra/` (db, auth), `pipeline/` (subscriber, event_writer, meta_emitter, supervisor). В корне — `main.py`, `config.py`, `repositories.py`, `services.py` |
+| Dockerfile siem-service | `uv:latest` (drift), `uv pip install -e` (без lock), без cache-mount | Pin `uv:0.10.2`, `uv sync --locked --all-packages` с cache-mount. Унифицирован с main Dockerfile |
+| Singleton transport | Модульный `_transport: RedisEventTransport \| None = None` + `get_transport`/`set_transport` (в `transport.py`) — единственный module-level singleton в репо | `EventTransportHolder` — обычный класс, экземпляр живёт в `app.state.security_transport_holder`. structlog processor получает holder через closure из фабрики `make_security_event_processor(holder)`. Никакой module-level state, тесты могут подставить свой holder без monkeypatch |
+| `main.py` импорты | 5 локальных импортов внутри `lifespan`, `_validate_builtin_mcp` и middleware (без circular-причины) | Все вынесены наверх. Локальные импорты теперь — нарушение `PLC0415`, требующее `# lazy:`/`# circular:` комментария |
+| `Strategy` | `class Strategy(ABC)` в `correlation/strategies.py`, без shared-реализации — единственный `ABC` на проект, в backend всюду `Protocol` | `class Strategy(Protocol)`. `ThresholdStrategy`/`SequenceStrategy`/`AggregateStrategy` больше не наследуют — структурное соответствие проверяет mypy |
+| `MAX_ALERT_AGE_SECONDS` | Hard-coded константа `86400` в `correlation/deduper.py` | `Settings.alert_open_window_seconds` (siem-service config). Operational knob — крутится через env без пересборки |
+| Bootstrap admin | `bootstrap_admin` на старте main app + env `INITIAL_ADMIN_USERNAME`. Хрупкий flow: первый запуск с чистой БД даёт warning, требуется регистрация + рестарт. Race window: захвативший username до настоящего админа автоматически становится админом при следующем рестарте | `bootstrap_admin` и env удалены. Промоут — целевое действие оператора через `make grant-admin USER=<name>` (script: `backend/scripts/grant_admin.py`). Никакой автоматики на старте |
+| Env-файлы | Параллельно жили `services/siem-service/.env.example` (никем не загружаемый) и корневой `.env.example` с одной SIEM-переменной. `docker-compose.yml` хардкодил часть значений в `environment` блоке. 5 SIEM-параметров были недоступны для override без правки compose | Сервисный `.env.example` удалён. Все SIEM-переменные собраны в корневом `.env.example` секцией `# SIEM service`. `docker-compose.yml` использует `${VAR:-default}` substitution для всех параметров. `.env.local.example` дополнен `SIEM_DATABASE_URL`/`SIEM_REDIS_URL` для запуска siem-service напрямую. Один источник правды |
+
+### Затронутые файлы
+
+```
+CLAUDE.md
+Makefile
+backend/Dockerfile (← Dockerfile, renamed)
+backend/alembic/versions/add_is_admin_to_users.py  (Manual migration header)
+backend/app/agent/security/guard.py
+backend/app/bootstrap.py  (deleted)
+backend/app/infra/logging.py
+backend/app/main.py
+backend/app/security_pipeline/processor.py
+backend/app/security_pipeline/transport.py
+backend/scripts/grant_admin.py  (new)
+.env.example
+.env.local.example
+docker-compose.yml
+doc/security/architecture.md
+doc/tech/adr/ADR-018-siem-service-topology.md
+doc/tech/backend.md
+doc/tech/conventions.md
+pyproject.toml  (ruff config)
+services/  (← packages/siem-service moved here, restructured)
+uv.lock
+```
+
+### Verification
+
+- ✅ `make check` — ruff check + ruff format check + mypy: 145 files, 0 errors.
+- ⏭ `make test` — 0 collected (MVP без тестов; не регрессия рефакторинга).
+- ⏭ Live container build/run — отдельный smoke-test в [test-cases-hygiene-pass.md](test-cases-hygiene-pass.md).
+
+### Follow-ups
+
+- **Регенерация миграций.** `add_is_admin_to_users.py` (main app) и `001_initial_siem_events.py`, `002_alerts_and_rules.py` (siem-service) — DDL, написаны вручную до конвенции «autogenerate-only». Должны быть пересозданы через `alembic revision --autogenerate` против поднятой БД. Шапка `add_is_admin_to_users.py` содержит `# Manual migration: ... scheduled for regeneration`. Миграции `003`, `004` siem-service — DML (data migrations), легитимно остаются ручными.
+- **Event vocabulary refactor.** Идея с разложением `event_type` на `source/action/outcome` + identifiers через `ContextVar` зафиксирована в backlog как кандидат на отдельную итерацию. В рамках hygiene pass обсуждена, отклонена для немедленной реализации: текущий плоский `Literal` — стабильный wire-key для SIEM correlation engine, refactor требует перепроектирования rule semantics.
+- **`auth.md`.** Прямых упоминаний `INITIAL_ADMIN_USERNAME` не найдено, но при следующем апдейте секции про admin-роли стоит свериться, что описание соответствует grant-admin flow.

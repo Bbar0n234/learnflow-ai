@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Protocol
 
 import structlog
@@ -99,10 +99,7 @@ class LangGraphSphereService:
         ns = self._namespace(project_id)
         items = await self._store.asearch(ns, limit=100)
         content = _format_full_sphere(list(items))
-        if items:
-            updated_at = max(i.updated_at for i in items)
-        else:
-            updated_at = datetime.now(timezone.utc)
+        updated_at = max(i.updated_at for i in items) if items else datetime.now(UTC)
         return SphereData(project_id=project_id, content=content, updated_at=updated_at)
 
     async def update(self, *, project_id: uuid.UUID, content: str) -> SphereData:

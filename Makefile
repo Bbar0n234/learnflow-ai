@@ -69,8 +69,8 @@ migrate-siem:  ## Run alembic upgrade head for SIEM service
 	$(LOAD_ENV) && cd services/siem-service && uv run alembic upgrade head
 
 grant-admin:  ## Grant admin to existing user. Usage: make grant-admin USER=<username>
-	@if [ -z "$(USER)" ]; then echo "Usage: make grant-admin USER=<username>"; exit 1; fi
-	$(LOAD_ENV) && uv run --package learnflow-backend python backend/scripts/grant_admin.py "$(USER)"
+	@if [ "$(origin USER)" != "command line" ]; then echo "Usage: make grant-admin USER=<username>"; exit 1; fi
+	$(LOAD_ENV) && cd backend && PYTHONPATH=. uv run --package learnflow-backend python scripts/grant_admin.py "$(USER)"
 
 downgrade:  ## Run alembic downgrade (one step)
 	$(LOAD_ENV) && uv run alembic -c backend/alembic.ini downgrade -1

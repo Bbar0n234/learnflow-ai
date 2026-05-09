@@ -9,6 +9,7 @@ import redis.asyncio as redis
 import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from siem_service.api.routes import router
 from siem_service.config import Settings
@@ -27,8 +28,6 @@ _redis_client: redis.Redis | None = None
 
 async def _subscriber_coro(redis_client: redis.Redis, settings: Settings) -> None:
     """Coroutine for subscriber task."""
-    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-
     # Create a separate engine for the subscriber to avoid connection pool issues
     engine = create_async_engine(settings.database_url, echo=False, future=True)
     async_session_maker = async_sessionmaker(engine, expire_on_commit=False)

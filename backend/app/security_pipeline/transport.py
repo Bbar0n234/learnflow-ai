@@ -84,7 +84,7 @@ class RedisEventTransport(EventTransport):
                         event_id=str(event.event_id),
                         exc_info=True,
                     )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Timeout is normal, allows graceful shutdown checks
                 continue
             except asyncio.CancelledError:

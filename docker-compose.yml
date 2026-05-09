@@ -75,6 +75,9 @@ services:
       POSTGRES_USER: ${SIEM_POSTGRES_USER:-siem}
       POSTGRES_PASSWORD: ${SIEM_POSTGRES_PASSWORD:-siem}
       POSTGRES_DB: ${SIEM_POSTGRES_DB:-siem}
+    ports:
+      # Loopback-only — needed for `make migrate-siem` and ad-hoc psql from host.
+      - "127.0.0.1:${SIEM_POSTGRES_PORT:-5434}:5432"
     volumes:
       - siem_pgdata:/var/lib/postgresql/data
     logging:

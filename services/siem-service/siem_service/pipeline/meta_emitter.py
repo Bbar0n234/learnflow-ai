@@ -1,6 +1,6 @@
 """Meta-event emitter for SIEM administrative actions."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import redis.asyncio as redis
@@ -28,7 +28,7 @@ class SecurityEvent(BaseModel):
     event_id: str = Field(default_factory=lambda: str(uuid4()))
     event_type: str
     severity: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     identifiers: SecurityIdentifiers
     metadata: dict = Field(default_factory=dict)
 

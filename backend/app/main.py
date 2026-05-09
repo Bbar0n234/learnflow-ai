@@ -3,9 +3,10 @@ import hashlib
 import json
 import os
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
-from typing import Any, AsyncIterator
+from typing import Any
 
 import structlog
 from fastapi import FastAPI, HTTPException, Request

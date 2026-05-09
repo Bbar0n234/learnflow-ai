@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -73,9 +73,9 @@ def make_security_event_processor(
                         timestamp_str.replace("Z", "+00:00")
                     )
                 except (ValueError, AttributeError):
-                    timestamp = datetime.now(timezone.utc)
+                    timestamp = datetime.now(UTC)
             else:
-                timestamp = datetime.now(timezone.utc)
+                timestamp = datetime.now(UTC)
 
             identifiers = SecurityEventIdentifiers(
                 ip=event_dict.get("ip"),

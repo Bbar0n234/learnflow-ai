@@ -1487,4 +1487,136 @@ uv.lock
 
 - **Регенерация миграций.** `add_is_admin_to_users.py` (main app) и `001_initial_siem_events.py`, `002_alerts_and_rules.py` (siem-service) — DDL, написаны вручную до конвенции «autogenerate-only». Должны быть пересозданы через `alembic revision --autogenerate` против поднятой БД. Шапка `add_is_admin_to_users.py` содержит `# Manual migration: ... scheduled for regeneration`. Миграции `003`, `004` siem-service — DML (data migrations), легитимно остаются ручными.
 - **Event vocabulary refactor.** Идея с разложением `event_type` на `source/action/outcome` + identifiers через `ContextVar` зафиксирована в backlog как кандидат на отдельную итерацию. В рамках hygiene pass обсуждена, отклонена для немедленной реализации: текущий плоский `Literal` — стабильный wire-key для SIEM correlation engine, refactor требует перепроектирования rule semantics.
+
+## Hygiene Pass — Test Run & Post-Test Fixes — 2026-05-09
+
+### Контекст
+
+Прогон [test-cases-hygiene-pass.md](test-cases-hygiene-pass.md) — узконаправленный smoke сразу после рефакторинга hygiene pass'а. Тестировались только области, потенциально затронутые рефакторингом: PLC0415 enforcement, переезд в `services/`, удалённые singleton'ы и bootstrap_admin, унификация env-файлов, сборка контейнеров, миграции. Полный регресс feat-005 не повторялся.
+
+В ходе прогона вскрыто 6 регрессий hygiene pass'а — намерения, которые были задекларированы в коммитах, но фактически не работали. Все починены в этом же прогоне (без отдельной итерации, из соображений экономии времени). Финал: все 9 групп TC PASS.
+
+### Регрессии и фиксы
+
+#### 1. PLC0415 не работал — `ruff.toml` затмевал `pyproject.toml`
+
+**Симптом:** TC-2 probe (in-function `import`) не падал — `make lint` зелёный.
+
+**Причина:** в корне репо лежит `ruff.toml` с `63d8941` (до hygiene pass). Hygiene pass добавил `[tool.ruff]` в `pyproject.toml` — но ruff читает `ruff.toml` приоритетнее и полностью игнорирует `[tool.ruff]` в pyproject. Все правила из pyproject (`PLC0415`, `UP`, `B008` ignore, alembic exclude) — мёртвый конфиг.
+
+**Фикс:** все правила из `[tool.ruff]` слиты в корневой `ruff.toml` как канонический источник. `[tool.ruff]` из `pyproject.toml` удалён, оставлен только хвостовой комментарий-указатель. Подход — единственный источник правды; `ruff.toml` оставлен каноническим, потому что менять его приоритет = менять `line-length` 88 → 100 = автоформат всего кодовой базы (deferred — отдельной задачей при желании).
+
+После фикса: `make lint` ловит 50 нарушений в существующем коде. Все разобраны:
+
+- Автофиксом: `UP017` (15), `UP037` (9), `UP035` (3), `UP041` (1), `UP045` (1) — всего 29 fixes.
+- Вручную: `UP007` (`Optional[X]` → `X | None`) в `siem-contracts/rules.py`, `SIM108` (`if/else` → ternary) в `services/sphere.py`.
+- Lift на top-level: `observer.py:57` (`from app.infra.llm import normalize_usage_for_langfuse`), `siem-service/main.py:30` (sqlalchemy), `config.py:57` (`json`), `graph.py:245` (`store_helpers.format_index as fmt_index`).
+- `# noqa: PLC0415  # lazy: <reason>` для langfuse-optional импортов: `runner.py` (5), `observer.py` (5), `feedback.py` (1), `infra/langfuse.py` (2). Каждый случай реально lazy — langfuse опциональная зависимость, импорт под `if langfuse_enabled` или try/except.
+- `UP042` (`class X(str, Enum)` → `class X(StrEnum)`) для `security/types.py` — отложено через per-file ignore. StrEnum меняет семантику `str(member)` в Python 3.12, эти enum'ы участвуют в сериализации security pipeline. Требуется аудит downstream `str()` — отдельная задача.
+
+#### 2. `siem-service` Dockerfile — два бага сборки/старта
+
+**Симптом 2a:** `docker compose build siem-service` падал с `The lockfile at uv.lock needs to be updated`.
+
+**Причина:** `uv sync --locked --all-packages` после `COPY` требует все workspace members на диске. Hygiene pass перевёл Dockerfile с `uv pip install -e` на `uv sync` (правильное решение), но не COPY'нул `backend/pyproject.toml` — uv видит workspace member `backend` в корневом `pyproject.toml`, не находит на диске и считает lock устаревшим.
+
+**Фикс:** добавлен `COPY backend/pyproject.toml /app/backend/pyproject.toml` (только `pyproject.toml`, без source — workspace resolver удовлетворён, образ не раздут).
+
+**Симптом 2b:** контейнер запускался, но падал с `ModuleNotFoundError: No module named 'siem_service'`.
+
+**Причина:** `CMD ["uvicorn", "siem_service.main:app", ...]` запускался без активации workspace package и без `--app-dir`. `siem-service` не имеет `[build-system]` (как и `backend` — workspace member, не устанавливаемый pip-пакет), поэтому в `.venv/site-packages/` его нет.
+
+**Фикс:** CMD приведён к паттерну backend: `uv run --package siem-service uvicorn ... --app-dir services/siem-service`. Совпадает с тем, как backend запускается через `uv run --package learnflow-backend uvicorn ... --app-dir backend`.
+
+#### 3. `siem-service` не катил миграции при старте — асимметрия с backend
+
+**Симптом:** свежеподнятый `siem-service` после `docker compose down -v && up -d` валился с `relation "correlation_rules" does not exist` до тех пор, пока вручную не выполнялся `make migrate-siem`.
+
+**Причина:** у `backend` есть `entrypoint.sh`, который катит миграции перед `uvicorn`. У `siem-service` такого entrypoint'а не было — стартовал «сразу в uvicorn», ожидая, что схема накачена снаружи.
+
+**Фикс:** создан `services/siem-service/entrypoint.sh`, симметричный `backend/entrypoint.sh`. Запускает `alembic upgrade head` перед `uv run uvicorn`. Dockerfile перешёл с `CMD` на `ENTRYPOINT ["/app/entrypoint.sh"]`. После фикса: `docker compose down -v && up -d` — siem-service самостоятельно мигрирует и стартует чисто, без ручных шагов.
+
+`make migrate-siem` оставлен как helper для редких host-сценариев (dev без Docker, ручной откат) — теперь не критичен для запуска.
+
+#### 4. `siem-db` не экспозила порт — `make migrate-siem` с хоста не работал
+
+**Симптом:** `make migrate-siem` падал с `password authentication failed for user "siem"` — на самом деле connection refused, маскированный asyncpg'ом.
+
+**Причина:** в `docker-compose.yml` у `siem-db` не было секции `ports:`. `Settings.database_url` дефолт — `localhost/siem`. Хост-сетевой alembic упирался в отсутствующий port mapping. До hygiene pass это никогда не работало; hygiene pass добавил `make migrate-siem` в Makefile, но не привёл инфру в соответствие.
+
+**Фикс:** в `docker-compose.yml` добавлен `127.0.0.1:${SIEM_POSTGRES_PORT:-5434}:5432`. В `.env.example` добавлен `SIEM_POSTGRES_PORT=5434` и `SIEM_DATABASE_URL=...localhost:5434...` для host-side override (default `5433` на машине разработчика занят соседним проектом — выбран свободный 5434).
+
+#### 5. `make grant-admin` — два бага
+
+**Симптом 5a:** `make grant-admin` без аргументов не показывал usage-сообщение, а пытался катить промоут на пользователя `bbaron` (текущий shell user).
+
+**Причина:** `[ -z "$(USER)" ]` в Makefile — `USER` подхватывался из shell environment как обычная переменная Make. Чтобы Make различал «передано через `make USER=...`» и «есть в env», нужен `$(origin USER)`.
+
+**Фикс:** `if [ "$(origin USER)" != "command line" ]` — реагирует только на explicit command-line override.
+
+**Симптом 5b:** при правильном вызове `make grant-admin USER=tester` падал с `ModuleNotFoundError: No module named 'app'`.
+
+**Причина:** `python backend/scripts/grant_admin.py` — Python добавляет в `sys.path` директорию скрипта (`backend/scripts/`), но не корень `backend/`. Импорт `from app.config import Settings` не находит `backend/app/`.
+
+**Фикс:** `cd backend && PYTHONPATH=. uv run --package learnflow-backend python scripts/grant_admin.py "$(USER)"`. После фикса все 4 сценария grant-admin (no-args, unknown user, valid promote, idempotent re-promote) PASS.
+
+#### 6. (Не регрессия, но всплыло в прогоне) — `migrate-siem` Makefile target — обоснование
+
+В ходе обсуждения вскрылось, что назначение `make migrate-siem` неочевидно. Команда `alembic upgrade head` для **отдельной БД siem-db** (siem-service имеет независимое alembic-дерево). После фикса 3 (auto-migration в entrypoint) target формально стал необязательным для основного flow. Оставлен как helper для host-side dev-сценариев — симметрично паре `backend/entrypoint.sh` + `make migrate`.
+
+### Test cases — финальный статус
+
+| TC | Статус | Комментарий |
+|----|--------|-------------|
+| TC-1 Static checks | PASS | `make check`: 145 files, 0 errors. |
+| TC-2 PLC0415 enforcement | PASS | После фикса №1. |
+| TC-3 Workspace structure | PASS | — |
+| TC-4 Container build & startup | PASS | После фиксов №2 и №3. Все 5 сервисов healthy. |
+| TC-5 Singleton removal runtime | PASS | Login → Redis stream → siem_events end-to-end. |
+| TC-6 Bootstrap admin removal | PASS | После фикса №5. |
+| TC-7 Env single source of truth | PASS (с оговоркой) | После фикса №4. TC-7.5 outside-window (>5 мин) не выполнялся — заменено code-walk: `Settings.alert_open_window_seconds` плумбится в `deduper.py:51`, within-window aggregation подтверждена через `matched_events_count > 1`. |
+| TC-8 Migrations | PASS | После фиксов №3 и №4. Head=004 на siem-db. |
+| TC-9 Conventions docs reachability | PASS | — |
+
+### Затронутые файлы
+
+```
+.env / .env.example / .env.local / .env.local.example
+Makefile                                                # grant-admin: $(origin USER), cd backend, PYTHONPATH=.
+backend/app/agent/graph.py                              # lift store_helpers import + UP* autofixes
+backend/app/agent/runner.py                             # langfuse lazy noqa + UP* autofixes
+backend/app/agent/security/observer.py                  # lift llm import + langfuse lazy noqa
+backend/app/api/routes/feedback.py                      # langfuse lazy noqa
+backend/app/config.py                                   # lift json import
+backend/app/infra/langfuse.py                           # langfuse.api lazy noqa
+backend/app/main.py                                     # UP* autofixes
+backend/app/models/*.py                                 # UP037 (unnecessary type-quote) autofixes
+backend/app/security_pipeline/{processor,transport}.py  # UP037 autofixes
+backend/app/services/sphere.py                          # SIM108 ternary
+docker-compose.yml                                      # siem-db port mapping
+packages/siem-contracts/siem_contracts/rules.py         # UP007 (Optional[X] → X | None)
+pyproject.toml                                          # удалён [tool.ruff] (мёртвый дубль)
+ruff.toml                                               # объединённый канонический конфиг + per-file UP042 для security/types.py
+services/siem-service/Dockerfile                        # COPY backend/pyproject + ENTRYPOINT
+services/siem-service/entrypoint.sh                     # NEW — auto-migrations + uvicorn (mirror backend)
+services/siem-service/siem_service/correlation/{deduper,strategies}.py  # UP* autofixes
+services/siem-service/siem_service/infra/db.py          # UP* autofixes
+services/siem-service/siem_service/main.py              # lift sqlalchemy import + UP* autofixes
+services/siem-service/siem_service/pipeline/{meta_emitter,supervisor}.py  # UP* autofixes
+tools/eval-sec/src/learnflow_eval_sec/runner.py         # UP017 autofixes
+```
+
+### Verification
+
+- ✅ `make check` — все 145 файлов, 0 ошибок, формат чист.
+- ✅ `docker compose down -v && up -d` — все 5 контейнеров healthy через ~25s, без ручных шагов; siem-service автомигрирует и стартует чисто.
+- ✅ `make migrate` / `make migrate-siem` — exit 0, head'ы накачены.
+- ✅ `make grant-admin` (4 сценария) — корректные exit codes и сообщения, БД меняется только в позитивном кейсе.
+- ✅ End-to-end live: failed login → `XLEN security.events > 0` → `siem_events.count > 0` → `siem_alerts` создаются с aggregation (`matched_events_count > 1`).
+
+### Follow-ups (накопленные)
+
+- **`UP042` StrEnum migration** для `security/types.py` (`Checkpoint`, `Direction`, `DetectionLayer`, `Verdict`). Сейчас suppressed через per-file ignore с TODO. Меняет `str(member)` поведение в Python 3.12 — нужен аудит сериализационных путей.
+- **`line-length` 88 vs 100.** В `ruff.toml` оставлено 88 (текущий формат); hygiene pass хотел 100. Переход = автоформат всего кода, отдельная задача.
+- **`uv:0.10.2` pin в Dockerfile'ах.** Lockfile генерится локально uv 0.11.6 (`revision = 3`). 0.10.2 справляется при наличии всех workspace pyproject'ов на диске, но pin отстаёт от хоста. Кандидат на bump до 0.11.x.
 - **`auth.md`.** Прямых упоминаний `INITIAL_ADMIN_USERNAME` не найдено, но при следующем апдейте секции про admin-роли стоит свериться, что описание соответствует grant-admin flow.

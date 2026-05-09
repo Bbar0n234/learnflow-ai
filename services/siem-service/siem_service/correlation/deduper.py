@@ -1,7 +1,6 @@
 """Alert deduplication logic with open-alert policy."""
 
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import structlog
@@ -40,14 +39,14 @@ class AlertDeduper:
     async def dedupe(
         candidate: AlertCandidate,
         session: AsyncSession,
-    ) -> Optional[SiemAlert]:
+    ) -> SiemAlert | None:
         """
         Apply open-alert policy: find existing new alert for (rule_id, group_key).
 
         Returns:
             SiemAlert instance if alert was found and updated, or newly created alert.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         age_threshold = now - timedelta(
             seconds=get_settings().alert_open_window_seconds
         )

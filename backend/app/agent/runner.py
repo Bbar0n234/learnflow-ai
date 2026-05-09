@@ -6,7 +6,7 @@ import uuid
 from collections.abc import AsyncIterator
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
@@ -61,10 +61,14 @@ def _langfuse_observation(
     thread_id: uuid.UUID,
     project_id: uuid.UUID,
 ) -> Any:
-    from langfuse import get_client, propagate_attributes
-    from langfuse.langchain import CallbackHandler
+    # lazy: langfuse is optional; resolve client only when observation is needed
+    from langfuse import (  # noqa: PLC0415
+        get_client,
+        propagate_attributes,
+    )
+    from langfuse.langchain import CallbackHandler  # noqa: PLC0415
 
-    from app.infra.langfuse import langfuse_enabled
+    from app.infra.langfuse import langfuse_enabled  # noqa: PLC0415
 
     span: Any = _NoOpSpan()
     handler = None
@@ -274,9 +278,7 @@ class LangGraphAgentRunner:
                 "messages": [
                     HumanMessage(
                         content=content,
-                        additional_kwargs={
-                            "created_at": datetime.now(timezone.utc).isoformat()
-                        },
+                        additional_kwargs={"created_at": datetime.now(UTC).isoformat()},
                     )
                 ]
             }
@@ -498,9 +500,10 @@ class LangGraphAgentRunner:
         layer/details, chunk counter).
         """
         try:
-            from langfuse import get_client
+            # lazy: langfuse is optional; only resolve when emitting observation
+            from langfuse import get_client  # noqa: PLC0415
 
-            from app.infra.langfuse import langfuse_enabled
+            from app.infra.langfuse import langfuse_enabled  # noqa: PLC0415
 
             if not langfuse_enabled:
                 return
@@ -558,7 +561,7 @@ class LangGraphAgentRunner:
                         if result.detection_layer
                         else DetectionLayer.LLM_CLASSIFIER.value
                     ),
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                 },
             )
             await graph.aupdate_state(config, {"messages": [redacted]}, as_node="agent")
@@ -597,7 +600,7 @@ class LangGraphAgentRunner:
         the user sees their original prompt and the placeholder when reopening the chat.
         """
         config: dict[str, Any] = {"configurable": {"thread_id": str(thread_id)}}
-        now_iso = datetime.now(timezone.utc).isoformat()
+        now_iso = datetime.now(UTC).isoformat()
         try:
             human = HumanMessage(
                 content=content,

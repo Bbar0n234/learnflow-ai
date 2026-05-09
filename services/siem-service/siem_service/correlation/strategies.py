@@ -1,6 +1,6 @@
 """Correlation rule evaluation strategies."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol, cast
 from uuid import UUID
 
@@ -50,7 +50,7 @@ class ThresholdStrategy:
             return []
 
         # Calculate window start time (use ingested_at for determinism)
-        window_start = datetime.now(timezone.utc) - timedelta(seconds=window_seconds)
+        window_start = datetime.now(UTC) - timedelta(seconds=window_seconds)
 
         # Build query for events matching pattern in window
         query = select(SiemEvent).where(
@@ -134,7 +134,7 @@ class SequenceStrategy:
             logger.warning("sequence_rule_missing_patterns", rule_id=rule.id)
             return []
 
-        window_start = datetime.now(timezone.utc) - timedelta(seconds=window_seconds)
+        window_start = datetime.now(UTC) - timedelta(seconds=window_seconds)
 
         # Fetch events matching patterns in window
         query_a = select(SiemEvent).where(
@@ -203,7 +203,7 @@ class AggregateStrategy:
             logger.warning("aggregate_rule_missing_pattern", rule_id=rule.id)
             return []
 
-        window_start = datetime.now(timezone.utc) - timedelta(seconds=window_seconds)
+        window_start = datetime.now(UTC) - timedelta(seconds=window_seconds)
 
         # Count events matching pattern in window
         query = select(SiemEvent).where(

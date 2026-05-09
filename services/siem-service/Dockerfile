@@ -21,6 +21,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY packages/ /app/packages/
 COPY services/ /app/services/
 COPY pyproject.toml uv.lock /app/
+# uv requires every workspace member declared in the root pyproject to exist
+# on disk; copy backend's pyproject only (no source) to satisfy the workspace
+# resolver without bloating the image with backend code.
+COPY backend/pyproject.toml /app/backend/pyproject.toml
 
 # Install project
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -30,4 +34,8 @@ ENV PYTHONUNBUFFERED=1
 ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8001
 
-CMD ["uvicorn", "siem_service.main:app", "--host", "0.0.0.0", "--port", "8001"]
+# Entrypoint: migrations + uvicorn (mirrors backend/entrypoint.sh)
+COPY services/siem-service/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+ENTRYPOINT ["/app/entrypoint.sh"]

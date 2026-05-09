@@ -45,5 +45,5 @@ class Artifact(Base):
     )
 
     # Relationships
-    project: Mapped["Project"] = relationship(back_populates="artifacts")
-    thread_view: Mapped["ThreadView | None"] = relationship(back_populates="artifacts")
+    project: Mapped[Project] = relationship(back_populates="artifacts")
+    thread_view: Mapped[ThreadView | None] = relationship(back_populates="artifacts")

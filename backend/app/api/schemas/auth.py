@@ -19,6 +19,7 @@ class TokenResponse(BaseModel):
 class UserResponse(BaseModel):
     id: str
     name: str
+    is_admin: bool = False
 
 
 class MessageResponse(BaseModel):

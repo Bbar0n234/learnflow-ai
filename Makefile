@@ -1,4 +1,4 @@
-.PHONY: docker-up docker-up-db docker-up-redis docker-down docker-build docker-logs lint format type-check check lint-fe check-fe format-fe dev dev-remote dev-fe test migrate migration downgrade sync-prompts
+.PHONY: docker-up docker-up-db docker-up-redis docker-down docker-build docker-logs lint format type-check check lint-fe check-fe format-fe dev dev-remote dev-fe test migrate migration downgrade migrate-siem sync-prompts
 
 # Load .env (base) then .env.local (overrides) into shell environment
 LOAD_ENV = set -a && [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; set +a
@@ -29,12 +29,12 @@ format:  ## Format Python code (auto-fix safe lint issues + format)
 	uv run ruff format .
 
 type-check:  ## Run mypy type checking
-	uv run --package learnflow-backend mypy backend/
+	uv run mypy backend/ services/siem-service/
 
 check:  ## Run all backend checks (CI gate)
 	uv run ruff check .
 	uv run ruff format --check .
-	uv run --package learnflow-backend mypy backend/
+	uv run mypy backend/ services/siem-service/
 
 lint-fe:  ## Run ESLint on frontend
 	cd frontend && npx eslint .
@@ -64,6 +64,13 @@ migrate:  ## Run alembic upgrade head
 
 migration:  ## Create new alembic migration (autogenerate). Usage: make migration msg="description"
 	$(LOAD_ENV) && uv run alembic -c backend/alembic.ini revision --autogenerate -m "$(msg)"
+
+migrate-siem:  ## Run alembic upgrade head for SIEM service
+	$(LOAD_ENV) && cd services/siem-service && uv run alembic upgrade head
+
+grant-admin:  ## Grant admin to existing user. Usage: make grant-admin USER=<username>
+	@if [ "$(origin USER)" != "command line" ]; then echo "Usage: make grant-admin USER=<username>"; exit 1; fi
+	$(LOAD_ENV) && cd backend && PYTHONPATH=. uv run --package learnflow-backend python scripts/grant_admin.py "$(USER)"
 
 downgrade:  ## Run alembic downgrade (one step)
 	$(LOAD_ENV) && uv run alembic -c backend/alembic.ini downgrade -1

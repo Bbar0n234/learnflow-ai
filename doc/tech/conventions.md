@@ -59,7 +59,39 @@ Merged ветки удаляются (GitHub auto-delete после merge PR). �
 
 ## Структура проекта
 
-uv workspace, monorepo.
+uv workspace, монорепо. Внутри workspace различаем два типа пакетов:
+
+| Тип | Где | Что туда кладём |
+|-----|-----|------------------|
+| Shared library | `packages/<name>/` | Код, который импортируется несколькими сервисами (контракты, общие схемы). Не имеет своего runtime. |
+| Standalone service | `services/<name>/` или `backend/` | Самостоятельный процесс с lifecycle, БД, API. Никем не импортируется как библиотека. |
+
+Решающий тест: «есть ли у пакета `from <name> import …` из другого пакета?». Если да — `packages/`, если нет — это сервис.
+
+`backend/` — historical placement главного сервиса; новые сервисы заводятся в `services/`.
+
+### Dockerfile
+
+Dockerfile живёт рядом с `pyproject.toml` пакета (`backend/Dockerfile`, `services/<name>/Dockerfile`). Build context — корень репо (workspace root): Dockerfile получает доступ к `uv.lock`, `pyproject.toml` workspace-уровня и любым другим членам workspace.
+
+Содержимое — единый шаблон:
+
+- Pinned uv image (`ghcr.io/astral-sh/uv:<version>`), без `latest`. Reproducibility важнее «свежести».
+- Установка через `uv sync --locked --all-packages` с cache-mount. Не `uv pip install -e` — это обходит lock-файл и ломает воспроизводимость.
+- Multi-stage build когда есть смысл (frontend bundle, dev-deps отделение).
+
+### Структура внутри сервиса
+
+Корень пакета держим тонким. Когда в директории больше 8–10 модулей, появляется time для разбиения по слоям. Типовая раскладка для backend-сервиса:
+
+| Слой | Назначение |
+|------|-----------|
+| `domain/` | SQLAlchemy-модели, Pydantic-схемы — описание сущностей |
+| `infra/` | Подключения к БД/Redis, JWT, конфигурация |
+| `api/` | FastAPI routes, dependency providers |
+| `pipeline/` или `services/` | Бизнес-логика, фоновые задачи, корреляция |
+
+Граница строгая: `domain/` не зависит от `infra/`, `api/` зависит от `services/` (не наоборот). Cycle import — сигнал, что что-то лежит не в том слое.
 
 ## Code Quality
 
@@ -95,6 +127,62 @@ uv workspace, monorepo.
 
 Конкретные правила и конфигурация — в соответствующих конфиг-файлах (ruff.toml, pyproject.toml).
 
+### Импорты
+
+Импорты живут на верхнем уровне модуля — рядом с другими импортами, отсортированные. Это правило, а не предпочтение: top-level импорты делают зависимости модуля видимыми с первой строки и не платят цену re-import на каждый вызов.
+
+Локальный импорт внутри функции допустим в трёх случаях:
+
+1. **Circular import.** Модули импортируют друг друга, и циркуляция разрешается только отложенным импортом.
+2. **Lazy load тяжёлой опциональной зависимости.** Зависимость подключается только по conditional path и стартап без неё допустим.
+3. **Optional package.** Extra/plugin, который может отсутствовать в инсталляции.
+
+В каждом из этих случаев — комментарий `# lazy: <reason>` или `# circular: <reason>` рядом с импортом. Без комментария — анти-паттерн.
+
+Правило `PLC0415` (`import-outside-toplevel`) включено в ruff и поднимает все локальные импорты как ошибки. Пометить отдельный случай как намеренный — через `# noqa: PLC0415  # <reason>`.
+
+### Интерфейсы
+
+Когда нужна точка вариативности (несколько реализаций одного контракта) — используем `typing.Protocol`. Структурная типизация позволяет тестам и альтернативным реализациям подходить под интерфейс без явного наследования; mypy проверяет совместимость.
+
+`abc.ABC` оправдан, когда у базового класса есть **общая реализация**, наследуемая всеми потомками (template method pattern). Без shared-кода `ABC` — это `Protocol` в более тяжёлой обёртке.
+
+В сомнении — `Protocol`. Переход на `ABC` требует обоснования: «вот этот метод реализуется в базе и не дублируется в потомках».
+
+### Module-level state
+
+Глобальное состояние на уровне модуля (`_singleton: X | None = None` + `get_x()` / `set_x()`) — запрещено. Причина: такой singleton инициализируется неявно, мешает тестам (нужно мокать модульную переменную, не зависимость), и создаёт скрытую связь между процессами в одном процессе Python.
+
+Состояние приложения живёт:
+
+- **в `app.state`** для FastAPI — заполняется в `lifespan`, читается через request scope;
+- **в closure** — когда state нужен callback'у/processor'у вне request lifecycle (структлог-процессор, signal handler), фабрика создаёт closure в lifespan и регистрирует его;
+- **в DI-контейнере** для тестов — фикстура создаёт новый instance, никаких глобальных мутаций.
+
+Если кажется, что без singleton не обойтись — это сигнал, что компонент пытается достать state из места, где у него нет доступа. Решение почти всегда в том, чтобы пробросить зависимость явно (closure, partial, dependency injection), а не закрепить её в модуле.
+
+## Database migrations
+
+Миграции — единственный способ изменения схемы БД. Канонический путь:
+
+1. Поднять локальную БД (`make docker-up-db` или `make docker-up-siem-db`).
+2. Накатить все существующие миграции (`make migrate` / `make migrate-siem`).
+3. Изменить SQLAlchemy-модели.
+4. Сгенерировать миграцию (`make migration msg="..."` / эквивалент для siem).
+5. Прочитать сгенерированный файл, при необходимости отредактировать (autogenerate не покрывает rename column, индексы по выражениям, сложные data migrations).
+6. Накатить локально и проверить.
+
+Ручное написание миграции с нуля — анти-паттерн. Источник правды о схеме — модели; миграция должна следовать из diff между моделями и БД, а не из памяти разработчика. Ручная миграция теряет attribute'ы, server defaults, comments, индексы — всё то, что autogenerate подхватывает автоматически.
+
+Допустимые исключения, требующие явного разрешения архитектора:
+
+- **DML / data migration** — миграция меняет данные, не схему (например, локализация baseline-правил, заполнение колонки на основе другой).
+- **DDL за пределами autogenerate** — partial unique index, CHECK constraint с выражением, RENAME колонки/таблицы (Alembic генерирует drop+add, теряя данные).
+
+В таких случаях шапка файла начинается с комментария `# Manual migration: <reason>`. Без обоснования — миграция отклоняется на ревью.
+
+«БД не запущена» — не обоснование. Поднимается БД, не пишется миграция руками.
+
 ## DB-сессии и commit
 
 Базовый паттерн — yield-dependency `get_db_session` (`backend/app/api/deps.py`): commit выполняется после `yield`, то есть **после** отправки response клиенту. Этого достаточно для read-only routes и для случаев, когда клиент не делает следующий запрос немедленно.
@@ -124,6 +212,24 @@ docker-compose для локальной разработки. Два режим
 | `.env.local.example` | Шаблон `.env.local` | Коммитится в репо |
 
 Переключение между режимами — другая команда, не редактирование файла.
+
+### Что попадает в env, а что в код
+
+Граница проходит по тому, насколько значение зависит от окружения и нужно ли его менять без релиза:
+
+| В env (Settings) | В коде (константы) |
+|-------------------|---------------------|
+| Различается между dev/staging/prod (URL'ы, размеры пулов) | Одинаково во всех окружениях |
+| Секреты (JWT, API keys) | Не несёт чувствительной информации |
+| Operational knob — может потребоваться поправить в проде без релиза (timeout, batch size, retention window) | Бизнес-инвариант — изменение требует ревью кода (правила корреляции, политика дедупликации, иерархия типов) |
+
+Если значение «условно operational» (раз в полгода кто-то захочет повернуть ручку) — лучше в env: цена `Settings`-поля минимальна, цена пересборки контейнера на проде — высока.
+
+**Технические правила.**
+
+- Все env-параметры сервиса декларируются в `Settings(BaseSettings)` с дефолтами для dev. Код читает значения через `Settings`, не через `os.getenv` напрямую (исключение — bootstrap до загрузки Settings).
+- Префикс env: `SIEM_` для siem-service, без префикса для main app (legacy, не меняется).
+- При добавлении env-переменной — одновременное обновление `.env.example`, `.env.local.example`, `docker-compose.yml` и `Settings`. Все четыре места — один atomic change.
 
 ## Makefile
 
@@ -261,6 +367,30 @@ summarization--production
 - INFO на входе/выходе каждой функции — шум, INFO только для бизнес-событий
 - WARNING для ожидаемого поведения ("пользователь не создал проект" — нормальный flow)
 - ERROR для клиентских ошибок (невалидный JSON → 422, не error в логах)
+
+### Security Event Logging
+
+Логирование security-событий для SIEM pipeline (feat-005). Используется флаг `security_event=True` и canonical `event_type` из shared vocabulary. Context (ip, user_id, thread_id, request_id и т.д.) вытягивается из contextvars автоматически.
+
+**Пример:**
+```python
+logger.warning(
+    "injection detected",
+    security_event=True,
+    event_type="agent.guard.input.classifier_injection",
+    severity="critical",
+    metadata={"checkpoint": "user_input", "detector": "llm_classifier", "verdict": "INJECTION"}
+)
+```
+
+**Vocabulary.** Event types организованы по доменам (auth, rate_limit, agent.guard, agent.runtime, siem) и зафиксированы в `packages/siem-contracts/siem_contracts/vocabulary.py`. Полный каталог — [security-events.md](security-events.md).
+
+**Processing.** `SecurityEventProcessor` в structlog цепи перехватывает лог-записи с `security_event=True`, собирает в `SecurityEvent`, публирует в Redis Stream. Downstream-логирование (renderer) видит полный контекст (identifiers из contextvars уже merged). Processor — pure side-effect sink, не мутирует event_dict.
+
+**Требования:**
+- `event_type` обязателен — из Literal vocabulary (mypy-проверяемо на call site)
+- `severity` обязателен — одно из: info, warning, critical
+- `metadata` опциональна — event-specific детали (не identifiers — они вытягиваются автоматически)
 
 ## Reasoning LLMs
 

@@ -14,7 +14,10 @@ dev = [
 ]
 
 [tool.uv.workspace]
-members = ["backend"]
+members = ["backend", "packages/siem-contracts", "services/siem-service"]
+
+# Ruff configuration lives in ./ruff.toml (single source of truth — ruff.toml
+# takes precedence over [tool.ruff] when both exist).
 
 [tool.mypy]
 python_version = "3.12"

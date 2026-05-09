@@ -38,5 +38,5 @@ class ThreadView(Base):
     )
 
     # Relationships
-    project: Mapped["Project"] = relationship(back_populates="thread_views")
-    artifacts: Mapped[list["Artifact"]] = relationship(back_populates="thread_view")
+    project: Mapped[Project] = relationship(back_populates="thread_views")
+    artifacts: Mapped[list[Artifact]] = relationship(back_populates="thread_view")

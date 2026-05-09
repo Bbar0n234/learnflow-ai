@@ -1,0 +1,148 @@
+"""SIEM service main FastAPI application."""
+
+import asyncio
+import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+import redis.asyncio as redis
+import structlog
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+from siem_service.api.routes import router
+from siem_service.config import Settings
+from siem_service.correlation.engine import get_correlation_engine
+from siem_service.infra.db import close_db, init_db
+from siem_service.pipeline.subscriber import Subscriber
+from siem_service.pipeline.supervisor import supervised
+
+logger = structlog.get_logger()
+
+# Global references to manage cleanup
+_subscriber_task: asyncio.Task[None] | None = None
+_engine_task: asyncio.Task[None] | None = None
+_redis_client: redis.Redis | None = None
+
+
+async def _subscriber_coro(redis_client: redis.Redis, settings: Settings) -> None:
+    """Coroutine for subscriber task."""
+    # Create a separate engine for the subscriber to avoid connection pool issues
+    engine = create_async_engine(settings.database_url, echo=False, future=True)
+    async_session_maker = async_sessionmaker(engine, expire_on_commit=False)
+
+    try:
+        subscriber = Subscriber(redis_client, async_session_maker, settings)
+        await subscriber.run()
+    finally:
+        await engine.dispose()
+
+
+async def _engine_coro(settings: Settings) -> None:
+    """Coroutine for correlation engine task."""
+    engine = get_correlation_engine(settings.poll_interval_seconds)
+    await engine.start()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Lifespan context manager for startup and shutdown."""
+    global _subscriber_task, _engine_task, _redis_client
+
+    # Startup
+    settings = Settings()
+    logger.info("siem service starting", database_url=settings.database_url)
+
+    # Initialize database
+    await init_db(settings)
+    logger.info("database initialized")
+
+    # Initialize Redis
+    _redis_client = await redis.from_url(settings.redis_url, decode_responses=True)
+    await _redis_client.ping()  # type: ignore[misc]  # redis-py asyncio stubs incomplete
+    logger.info("redis connected")
+
+    # Store Redis client in app state for dependency injection
+    app.state.redis = _redis_client
+
+    # Start subscriber task with supervision
+    if _redis_client is None:
+        raise RuntimeError("Redis client not initialized")
+
+    async def _make_subscriber_coro() -> None:
+        await _subscriber_coro(_redis_client, settings)
+
+    _subscriber_task = asyncio.create_task(
+        supervised("subscriber", _make_subscriber_coro)
+    )
+    logger.info("subscriber task started")
+
+    # Start correlation engine task with supervision
+    async def _make_engine_coro() -> None:
+        await _engine_coro(settings)
+
+    _engine_task = asyncio.create_task(
+        supervised("correlation_engine", _make_engine_coro)
+    )
+    logger.info("correlation engine task started")
+
+    yield
+
+    # Shutdown
+    logger.info("siem service shutting down")
+
+    # Cancel engine
+    if _engine_task:
+        _engine_task.cancel()
+        try:
+            await _engine_task
+        except asyncio.CancelledError:
+            logger.info("correlation engine task cancelled")
+
+    # Cancel subscriber
+    if _subscriber_task:
+        _subscriber_task.cancel()
+        try:
+            await _subscriber_task
+        except asyncio.CancelledError:
+            logger.info("subscriber task cancelled")
+
+    # Close Redis
+    if _redis_client:
+        await _redis_client.close()
+        logger.info("redis closed")
+
+    # Close database
+    await close_db()
+    logger.info("database closed")
+
+
+app = FastAPI(title="SIEM Service", version="0.1.0", lifespan=lifespan)
+
+# CORS middleware - allow frontend to access SIEM API
+# Default to localhost dev port if SIEM_FRONTEND_ORIGIN not set
+frontend_origin_env = os.environ.get("SIEM_FRONTEND_ORIGIN", "").strip()
+if frontend_origin_env:
+    # Split by comma and strip whitespace
+    frontend_origins = [origin.strip() for origin in frontend_origin_env.split(",")]
+else:
+    # Default: local Vite dev server (typical React dev port)
+    frontend_origins = ["http://localhost:5173"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=frontend_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include routes
+app.include_router(router)
+
+
+@app.get("/health")
+async def health_check() -> dict[str, str]:
+    """Health check endpoint."""
+    return {"status": "ok"}

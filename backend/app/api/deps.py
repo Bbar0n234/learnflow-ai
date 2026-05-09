@@ -5,6 +5,7 @@ from collections.abc import AsyncGenerator
 from typing import Annotated, Any
 
 import jwt
+import structlog
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -70,6 +71,10 @@ async def get_current_user(
     user = await UserRepository(session).get_by_id(user_id)
     if user is None:
         raise HTTPException(status_code=401, detail="User not found")
+
+    # Bind user context for security events
+    structlog.contextvars.bind_contextvars(user_id=str(user.id))
+
     return user
 
 

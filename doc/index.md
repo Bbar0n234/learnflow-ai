@@ -46,12 +46,17 @@ doc/
 - [tech/knowledge-sphere.md](tech/knowledge-sphere.md) — проектная память, storage model, fuzzy patch, REST API
 - [tech/user-memory.md](tech/user-memory.md) — custom instructions, agent memory, кросс-проектная персонализация
 - [tech/prompt-management.md](tech/prompt-management.md) — Langfuse prompts, dev/prod separation, seed/sync, fallback
-- [tech/observability.md](tech/observability.md) — Langfuse трейсинг, cost tracking, user feedback loop
-- [security/architecture.md](security/architecture.md) — Защита агента: семь I/O checkpoints, детекторы, trust boundaries, block mechanics
+- [tech/observability.md](tech/observability.md) — Langfuse трейсинг, cost tracking, user feedback loop, SIEM pipeline
+- [tech/security-events.md](tech/security-events.md) — Security Event Pipeline vocabulary: event_type каталог, identifiers, metadata per type
+- [security/architecture.md](security/architecture.md) — Защита агента: семь I/O checkpoints, детекторы, trust boundaries, block mechanics, SIEM observability
 
 **Соглашения и решения:**
 - [tech/conventions.md](tech/conventions.md) — git flow, code quality, naming, logging, Docker
 - [tech/adr/](tech/adr/) — архитектурные решения (формат: `ADR-NNN-название.md`)
+  - [ADR-018: SIEM Service Topology](tech/adr/ADR-018-siem-service-topology.md) — отдельный backend-сервис, isolation, identity
+  - [ADR-019: Security Event Transport](tech/adr/ADR-019-security-event-transport.md) — Redis Streams, at-least-once semantics, bounded queue
+  - [ADR-020: Security Event Contract](tech/adr/ADR-020-security-event-contract.md) — Pydantic SecurityEvent, vocabulary, identifiers, forward compatibility
+  - [ADR-021: SIEM Correlation Engine](tech/adr/ADR-021-siem-correlation-engine.md) — polling-based engine, three strategies, open-alert deduplication, 24h age limit
 
 ## Другие разделы
 

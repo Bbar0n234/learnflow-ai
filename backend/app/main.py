@@ -1,16 +1,19 @@
+import asyncio
 import hashlib
 import json
 import os
 import uuid
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
-from typing import Any, AsyncIterator
+from typing import Any
 
 import structlog
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from langfuse import get_client as get_langfuse_client
 from sqlalchemy import text
 
 from app.agent.config import (
@@ -35,8 +38,10 @@ from app.agent.security.detectors import (
     PairedToolIdentifierDetector,
     UnicodeDetector,
 )
+from app.agent.security.detectors.base import DeterministicDetector
 from app.agent.security.guard import SecurityGuard
 from app.agent.security.observer import GuardObserver
+from app.agent.security.types import Checkpoint, Verdict
 from app.agent.tools import (
     ks_tools,
     make_create_artifact_tool,
@@ -63,6 +68,7 @@ from app.infra.langfuse import (
     ensure_model_definitions,
     ensure_security_score_config,
     init_langfuse,
+    langfuse_enabled,
     shutdown_langfuse,
 )
 from app.infra.langgraph import create_checkpointer, create_store
@@ -71,8 +77,17 @@ from app.infra.logging import setup_logging
 from app.infra.mcp import create_mcp_client
 from app.infra.prompt_provider import PromptProvider
 from app.infra.redis import create_redis
+from app.security_pipeline.processor import make_security_event_processor
+from app.security_pipeline.transport import (
+    EventTransportHolder,
+    RedisEventTransport,
+)
 from app.services.encryption import EncryptionService
 from app.services.exceptions import EntityNotFoundError
+from app.services.mcp_server import (
+    fetch_remote_metadata,
+    serialize_mcp_meta_blob,
+)
 from app.services.mcp_tool_resolver import MCPToolResolver
 from app.services.model_config_resolver import ModelConfigResolver
 
@@ -95,12 +110,6 @@ async def _validate_builtin_mcp(
     metadata blob. Returns names of servers to disable (fetch failed OR
     guard fired INJECTION). ``stdio`` / disabled servers are skipped.
     """
-    from app.agent.security.types import Checkpoint, Verdict
-    from app.services.mcp_server import (
-        fetch_remote_metadata,
-        serialize_mcp_meta_blob,
-    )
-
     disabled: set[str] = set()
     for name, cfg in servers.items():
         if not cfg.enabled or cfg.transport == "stdio":
@@ -202,9 +211,15 @@ def _seed_prompts(
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = Settings()
 
+    # Holder is created up front so the structlog processor has something to
+    # bind to, then populated when Redis is available below.
+    transport_holder = EventTransportHolder()
+    app.state.security_transport_holder = transport_holder
+
     setup_logging(
         log_level=settings.log_level,
         config_path=Path(__file__).resolve().parents[2] / "configs" / "logging.yaml",
+        security_event_processor=make_security_event_processor(transport_holder),
         log_file=settings.log_file,
     )
 
@@ -252,15 +267,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     app.state.redis = await create_redis(settings)
 
+    if app.state.redis is not None:
+        event_transport = RedisEventTransport(
+            redis_client=app.state.redis,
+            queue_maxsize=1000,
+        )
+        transport_holder.set(event_transport)
+        publisher_task = asyncio.create_task(event_transport.publisher_loop())
+        app.state.security_publisher_task = publisher_task
+        logger.info("security event publisher started")
+
     # PromptProvider
     prompts_dir = Path(__file__).resolve().parents[2] / "configs" / "prompts"
     langfuse_client = None
-    from app.infra.langfuse import langfuse_enabled
-
     if langfuse_enabled:
-        from langfuse import get_client
-
-        langfuse_client = get_client()
+        langfuse_client = get_langfuse_client()
 
     prompt_provider = PromptProvider(
         langfuse=langfuse_client,
@@ -316,7 +337,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             internal_tools=internal_tools,
         )
         tool_registry = collect_tool_registry(internal_tools)
-        from app.agent.security.detectors.base import DeterministicDetector
 
         detectors: list[DeterministicDetector] = [
             CanaryDetector(),
@@ -446,6 +466,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         yield
 
+    # Graceful shutdown of security event publisher
+    if hasattr(app.state, "security_publisher_task"):
+        transport = app.state.security_transport_holder.get()
+        if transport is not None:
+            await transport.graceful_shutdown(timeout=5.0)
+        app.state.security_publisher_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await app.state.security_publisher_task
+        logger.info("security event publisher stopped")
+
     shutdown_langfuse()
     if app.state.redis:
         await app.state.redis.aclose()
@@ -465,12 +495,30 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Request ID middleware
+    # Request ID and security context middleware
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next: Any) -> Any:
         structlog.contextvars.clear_contextvars()
         request_id = str(uuid.uuid4())
-        structlog.contextvars.bind_contextvars(request_id=request_id)
+
+        # Extract client IP (handle X-Forwarded-For for proxies)
+        client_ip = "unknown"
+        if request.client:
+            client_ip = request.client.host
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            client_ip = forwarded.split(",")[0].strip()
+
+        # Extract User-Agent and hash it
+        user_agent = request.headers.get("User-Agent", "")
+        user_agent_hash = hashlib.sha256(user_agent.encode()).hexdigest()
+
+        # Bind security context
+        structlog.contextvars.bind_contextvars(
+            request_id=request_id,
+            ip=client_ip,
+            user_agent_hash=user_agent_hash,
+        )
         response = await call_next(request)
         return response
 

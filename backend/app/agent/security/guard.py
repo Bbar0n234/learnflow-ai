@@ -6,6 +6,12 @@ from typing import Any
 
 import structlog
 from langchain_core.messages import BaseMessage
+from siem_contracts import (
+    AGENT_GUARD_INPUT_CLASSIFIER_INJECTION,
+    AGENT_GUARD_INPUT_DETERMINISTIC_HIT,
+    AGENT_GUARD_OUTPUT_CLASSIFIER_INJECTION,
+    AGENT_GUARD_OUTPUT_DETERMINISTIC_HIT,
+)
 
 from app.agent.security.classifier import LLMClassifier
 from app.agent.security.detectors.base import DeterministicDetector
@@ -89,15 +95,24 @@ class SecurityGuard:
                 hit = detector.inspect(content, ctx)
                 if hit is not None:
                     duration_ms = int((time.monotonic() - start) * 1000)
+                    # Select canonical event_type based on direction (output if OUTBOUND)
+                    is_output = direction == Direction.OUTBOUND
+                    event_type = (
+                        AGENT_GUARD_OUTPUT_DETERMINISTIC_HIT
+                        if is_output
+                        else AGENT_GUARD_INPUT_DETERMINISTIC_HIT
+                    )
+
                     logger.warning(
                         "security hit (deterministic)",
                         security_event=True,
-                        checkpoint=checkpoint.value,
-                        verdict=Verdict.INJECTION.value,
-                        identifiers={},
+                        event_type=event_type,
+                        severity="critical",
                         metadata={
+                            "checkpoint": checkpoint.value,
                             "detection_layer": hit.layer.value,
                             "detector": detector.name,
+                            "verdict": "injection",
                             **hit.details,
                         },
                     )
@@ -135,10 +150,12 @@ class SecurityGuard:
                 logger.warning(
                     "guard llm failed, degrading to CLEAN",
                     security_event=True,
-                    checkpoint=checkpoint.value,
-                    verdict=Verdict.CLEAN.value,
+                    event_type=AGENT_GUARD_INPUT_CLASSIFIER_INJECTION,  # Classify as attempted injection for safety
+                    severity="critical",
                     metadata={
-                        "detection_layer": DetectionLayer.GRACEFUL_DEGRADATION.value
+                        "checkpoint": checkpoint.value,
+                        "detection_layer": DetectionLayer.GRACEFUL_DEGRADATION.value,
+                        "verdict": "clean",  # Actual verdict is clean due to degradation
                     },
                     exc_info=True,
                 )
@@ -168,13 +185,23 @@ class SecurityGuard:
             )
 
             if classifier_result.verdict == Verdict.INJECTION:
+                # Select canonical event_type based on direction (output if OUTBOUND)
+                is_output = direction == Direction.OUTBOUND
+                event_type = (
+                    AGENT_GUARD_OUTPUT_CLASSIFIER_INJECTION
+                    if is_output
+                    else AGENT_GUARD_INPUT_CLASSIFIER_INJECTION
+                )
+
                 logger.warning(
                     "security hit (classifier)",
                     security_event=True,
-                    checkpoint=checkpoint.value,
-                    verdict=Verdict.INJECTION.value,
+                    event_type=event_type,
+                    severity="critical",
                     metadata={
+                        "checkpoint": checkpoint.value,
                         "detection_layer": DetectionLayer.LLM_CLASSIFIER.value,
+                        "verdict": "injection",
                         "retries": classifier_result.retries,
                     },
                 )

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
@@ -25,6 +25,7 @@ from app.agent.prompt_builder import build_system_message, compose_for_llm
 from app.agent.security.guard import SecurityGuard
 from app.agent.security.types import Checkpoint, SecurityMessages, Verdict
 from app.agent.tools.ks_helpers import build_namespace, format_index
+from app.agent.tools.store_helpers import format_index as fmt_index
 from app.infra.llm import extract_usage
 from app.infra.prompt_provider import PromptProvider
 
@@ -242,8 +243,6 @@ def build_graph(
             )
 
         try:
-            from app.agent.tools.store_helpers import format_index as fmt_index
-
             mem_items = await runtime.store.asearch(
                 ("user", user_id, "memory"), limit=50
             )
@@ -289,9 +288,7 @@ def build_graph(
         # 4. Compose for LLM (trust-boundary wrapping) and invoke
         llm_messages = compose_for_llm(trimmed, prompt_fragments)
         response, _ = await _invoke_llm(bound_model, [system, *llm_messages])
-        response.additional_kwargs["created_at"] = datetime.now(
-            timezone.utc
-        ).isoformat()
+        response.additional_kwargs["created_at"] = datetime.now(UTC).isoformat()
 
         # 5. Post-guard: TOOL_CALL_ARG — check serialized tool_call args.
         if security_guard is not None and getattr(response, "tool_calls", None):

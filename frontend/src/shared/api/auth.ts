@@ -35,6 +35,27 @@ export async function refresh(): Promise<TokenResponse> {
 export interface UserInfo {
   id: string;
   name: string;
+  is_admin?: boolean;
+}
+
+export function getIsAdminFromAccessToken(token: string | null): boolean {
+  if (!token) return false;
+
+  try {
+    const parts = token.split(".");
+    const payloadEncoded = parts.length === 3 ? parts[1] : undefined;
+    if (!payloadEncoded) return false;
+
+    const base64 = payloadEncoded.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(
+      base64.length + ((4 - (base64.length % 4)) % 4),
+      "=",
+    );
+    const payload = JSON.parse(atob(padded));
+    return payload.is_admin === true;
+  } catch {
+    return false;
+  }
 }
 
 export async function getMe(): Promise<UserInfo> {

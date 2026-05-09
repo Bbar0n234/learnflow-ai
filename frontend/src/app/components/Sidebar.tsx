@@ -8,9 +8,10 @@ import {
   Plus,
   Settings,
   User,
+  Shield,
 } from "lucide-react";
-import { getMe, logout } from "@/shared/api/auth";
-import { clearAccessToken } from "@/shared/api/client";
+import { getIsAdminFromAccessToken, getMe, logout } from "@/shared/api/auth";
+import { clearAccessToken, getAccessToken } from "@/shared/api/client";
 import { Button } from "@/shared/ui/button";
 import { useUIStore } from "@/stores/ui-store";
 import { useRecentChats } from "@/features/chat/hooks/useRecentChats";
@@ -32,6 +33,8 @@ export function Sidebar() {
     queryFn: getMe,
     staleTime: Infinity,
   });
+  const token = getAccessToken();
+  const isAdmin = user?.is_admin === true || getIsAdminFromAccessToken(token);
 
   function handleLogout() {
     logout().catch(() => {});
@@ -82,6 +85,17 @@ export function Sidebar() {
           <Plus className="mr-2 h-4 w-4" />
           New Project
         </Button>
+        {isAdmin && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="justify-start"
+            onClick={() => navigate("/security")}
+          >
+            <Shield className="mr-2 h-4 w-4" />
+            Безопасность
+          </Button>
+        )}
       </div>
 
       {/* Projects */}

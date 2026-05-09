@@ -24,9 +24,8 @@ def _score_id(trace_id: str) -> str:
 async def submit_feedback(
     body: FeedbackRequest, user: CurrentUser, request: Request
 ) -> FeedbackResponse:
-    from langfuse import (
-        get_client,  # lazy: avoid import error when langfuse not configured
-    )
+    # lazy: avoid import error when langfuse is not configured
+    from langfuse import get_client  # noqa: PLC0415
 
     try:
         langfuse = get_client()

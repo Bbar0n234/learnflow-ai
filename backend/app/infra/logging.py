@@ -11,12 +11,21 @@ import structlog
 import yaml
 
 
-def setup_logging(log_level: str, config_path: Path, log_file: str = "") -> None:
+def setup_logging(
+    log_level: str,
+    config_path: Path,
+    security_event_processor: structlog.types.Processor,
+    log_file: str = "",
+) -> None:
     """Initialize structlog + stdlib logging.
 
     Args:
         log_level: Root log level (e.g. "info", "debug").
         config_path: Path to configs/logging.yaml.
+        security_event_processor: Processor produced by
+            `make_security_event_processor(holder)`. Injected so the SIEM
+            transport can be wired up later in lifespan without module-level
+            state.
         log_file: Optional file path for log output. Empty = stdout only.
     """
     cfg = _load_config(config_path)
@@ -37,7 +46,7 @@ def setup_logging(log_level: str, config_path: Path, log_file: str = "") -> None
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
         structlog.processors.TimeStamper(fmt="iso"),
-        _security_event_processor,
+        security_event_processor,
     ]
 
     structlog.configure(
@@ -107,53 +116,6 @@ def _build_handlers(log_file: str) -> dict[str, Any]:
             "formatter": "file",
         }
     return handlers
-
-
-_IDENTIFIER_KEYS: frozenset[str] = frozenset(
-    {"user_id", "thread_id", "project_id", "scope"}
-)
-_METADATA_KEYS: frozenset[str] = frozenset(
-    {"checkpoint", "verdict", "detection_layer", "retries", "tool", "detector"}
-)
-
-
-def _security_event_processor(
-    logger: Any,
-    method_name: str,
-    event_dict: structlog.types.EventDict,
-) -> structlog.types.EventDict:
-    """Normalize security-events so feat-005 SIEM can tail them off log stream.
-
-    Call sites write fields inline (``user_id=...``, ``verdict=...``). The
-    processor groups them into the canonical ``identifiers{}`` /
-    ``metadata{}`` sub-dicts so downstream processors (Phase 2:
-    ``security_events`` table) have a stable contract.
-    """
-    if not event_dict.get("security_event"):
-        return event_dict
-
-    level = str(event_dict.get("level") or method_name).upper()
-    event_dict.setdefault("severity", level)
-    if "security_event_type" not in event_dict and "event" in event_dict:
-        event_dict["security_event_type"] = event_dict["event"]
-
-    identifiers = event_dict.get("identifiers")
-    if not isinstance(identifiers, dict):
-        identifiers = {}
-    for key in _IDENTIFIER_KEYS:
-        if key in event_dict and key not in identifiers:
-            identifiers[key] = event_dict.pop(key)
-    event_dict["identifiers"] = identifiers
-
-    metadata = event_dict.get("metadata")
-    if not isinstance(metadata, dict):
-        metadata = {}
-    for key in _METADATA_KEYS:
-        if key in event_dict and key not in metadata:
-            metadata[key] = event_dict.pop(key)
-    event_dict["metadata"] = metadata
-
-    return event_dict
 
 
 def _load_config(path: Path) -> dict[str, Any]:

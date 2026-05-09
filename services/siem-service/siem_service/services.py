@@ -5,15 +5,15 @@ from typing import Any
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from siem_service.meta_emitter import MetaEmitter
-from siem_service.repositories import AlertRepository, EventRepository, RuleRepository
-from siem_service.schemas import (
+from siem_service.domain.schemas import (
     AlertResponse,
     EventFilterParams,
     EventResponse,
     RuleResponse,
     SecurityEventIdentifiersResponse,
 )
+from siem_service.pipeline.meta_emitter import MetaEmitter
+from siem_service.repositories import AlertRepository, EventRepository, RuleRepository
 
 logger = structlog.get_logger()
 

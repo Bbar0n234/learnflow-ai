@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     # Retention
     delete_after_days: int = 90
 
+    # Correlation
+    # Max age of an existing "new" alert before correlation creates a fresh one
+    # instead of appending. Operational knob — change without rebuild.
+    alert_open_window_seconds: int = 86400
+
     class Config:
         """Pydantic config."""
 

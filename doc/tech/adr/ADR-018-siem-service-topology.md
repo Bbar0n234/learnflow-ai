@@ -77,7 +77,7 @@ SIEM не имеет собственной таблицы `users` и не ду�
 
 RS256 позволяет верифицировать токен по public key без доступа к secret. Оправдан, когда в системе есть менее доверенные сервисы, которым нельзя давать signing key. SIEM — trusted-class сервис (shared host, trusted network, admin-only). HS256 достаточен. Переход на RS256 — отдельный ADR при появлении менее доверенных интеграций.
 
-**Admin bootstrap:** миграция добавляет `users.is_admin BOOLEAN` в основную БД. Env-переменная `INITIAL_ADMIN_USERNAME` — при старте main app, если пользователь с таким именем существует, ему выставляется `is_admin = true` (идемпотентно).
+**Admin promotion:** миграция добавляет `users.is_admin BOOLEAN` в основную БД. Промоут до админа — целевое действие оператора через `make grant-admin USER=<name>`, не автоматическая логика на старте. Это исключает race window «зарегистрироваться раньше настоящего администратора и получить роль автоматически» и снимает требования к порядку операций (registration ↔ restart).
 
 **Username enrichment (D22):** SIEM делает `GET /api/internal/users?ids=<csv>` в main app, forward'ит admin JWT текущего запроса. Кеш TTL 5 мин. При недоступности main app UI показывает `user_id` без имени (graceful degradation). Authoritative source (`users` table) доступен только через публичный контракт своего сервиса.
 

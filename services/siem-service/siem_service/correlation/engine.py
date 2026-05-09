@@ -8,8 +8,8 @@ from sqlalchemy.future import select
 
 from siem_service.correlation.deduper import AlertDeduper
 from siem_service.correlation.strategies import get_strategy
-from siem_service.db import get_async_session_maker
-from siem_service.models import CorrelationRule
+from siem_service.domain.models import CorrelationRule
+from siem_service.infra.db import get_async_session_maker
 
 logger = structlog.get_logger()
 

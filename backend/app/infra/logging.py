@@ -10,15 +10,22 @@ from typing import Any
 import structlog
 import yaml
 
-from app.security_pipeline.processor import security_event_processor
 
-
-def setup_logging(log_level: str, config_path: Path, log_file: str = "") -> None:
+def setup_logging(
+    log_level: str,
+    config_path: Path,
+    security_event_processor: structlog.types.Processor,
+    log_file: str = "",
+) -> None:
     """Initialize structlog + stdlib logging.
 
     Args:
         log_level: Root log level (e.g. "info", "debug").
         config_path: Path to configs/logging.yaml.
+        security_event_processor: Processor produced by
+            `make_security_event_processor(holder)`. Injected so the SIEM
+            transport can be wired up later in lifespan without module-level
+            state.
         log_file: Optional file path for log output. Empty = stdout only.
     """
     cfg = _load_config(config_path)

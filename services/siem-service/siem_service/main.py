@@ -13,9 +13,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from siem_service.api.routes import router
 from siem_service.config import Settings
 from siem_service.correlation.engine import get_correlation_engine
-from siem_service.db import close_db, init_db
-from siem_service.subscriber import Subscriber
-from siem_service.supervisor import supervised
+from siem_service.infra.db import close_db, init_db
+from siem_service.pipeline.subscriber import Subscriber
+from siem_service.pipeline.supervisor import supervised
 
 logger = structlog.get_logger()
 

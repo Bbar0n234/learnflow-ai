@@ -2129,7 +2129,7 @@ requires-dist = [{ name = "pydantic", specifier = ">=2.0" }]
 [[package]]
 name = "siem-service"
 version = "0.1.0"
-source = { virtual = "packages/siem-service" }
+source = { virtual = "services/siem-service" }
 dependencies = [
     { name = "alembic" },
     { name = "asyncpg" },

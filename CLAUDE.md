@@ -12,9 +12,22 @@ uv workspace monorepo — each package has its own `pyproject.toml` and dependen
 
 Python commands must run from the package directory (where the relevant `pyproject.toml` lives), not from the project root. Makefile targets handle this automatically.
 
+## Hard Rules
+
+These rules apply to every code change. The "why" behind each one is documented in `doc/tech/conventions.md`; here are the one-liners.
+
+- **DB migrations**: schema changes go through `alembic revision --autogenerate` against a running DB. Hand-written migrations are accepted only for DML/data migrations or DDL outside autogenerate's reach, with a `# Manual migration: <reason>` header and architect approval. "DB is not running" is not a reason to write one by hand — start the DB.
+- **Imports**: top-level only. A local import inside a function requires a `# lazy: <reason>` or `# circular: <reason>` comment. `PLC0415` is enforced by ruff.
+- **Interfaces**: `typing.Protocol` by default. `abc.ABC` only when there is shared implementation in the base class.
+- **Module-level state**: no module-level singletons. State lives in `app.state` (FastAPI), in closures (callbacks/processors outside request scope), or in DI for tests.
+- **Env vs constants**: per-environment values, secrets, and operational knobs go to `Settings(BaseSettings)`. Business invariants stay in code. Adding an env variable means updating `Settings`, `.env.example`, `.env.local.example`, and `docker-compose.yml` together.
+- **Workspace layout**: `packages/` for shared libraries (imported by other packages); `services/` (and historical `backend/`) for standalone runtimes. Dockerfile lives next to the package's `pyproject.toml`; build context is repo root.
+
 ## Documentation
 
 When exploring the codebase for a task, start from architectural documents in `doc/tech/`, not source code. Documents describe interfaces, contracts, and flows at the right abstraction level for design decisions. Code is an implementation detail — use it to verify specifics not covered by documentation.
+
+**Before editing code on a non-trivial task, open `doc/tech/conventions.md`.** The Hard Rules above are the short version; conventions.md is the source of truth for the rest (logging, naming, types, env workflow, migration workflow). Read the relevant section instead of guessing.
 
 When discussing architecture, visualize components, layers, and data flows so the architect can give quality feedback with the full picture in front of them. Don't wait to be asked. In chat — ASCII diagrams; when writing to documents — Mermaid.
 
@@ -59,6 +72,7 @@ Use Makefile targets — not raw shell commands.
 | `make docker-up` / `make docker-up-db` | Full stack / DB only |
 | `make migrate` | Alembic upgrade head |
 | `make migration msg="..."` | Create new Alembic migration |
+| `make grant-admin USER=<name>` | Promote an existing user to admin |
 
 ## Makefile Conventions
 

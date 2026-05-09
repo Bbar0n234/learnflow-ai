@@ -140,16 +140,21 @@ class RedisEventTransport(EventTransport):
         return dict(self._metrics)
 
 
-# Singleton instance (will be initialized in lifespan)
-_transport: RedisEventTransport | None = None # TODO: Опять же, есть ощущение, что в нашем репозитории синглтоны не очень приживаются. Все через lifespan должно быть. Соответственно, здесь вижу объявление Singleton Instance, не совсем понимаю, насколько это резонно, насколько это обосновано. И, может быть, стоит убрать вообще. Возможно, пересмотреть эту политику целиком и даже зафиксировать это куда-то в нашей conventions.md.
+class EventTransportHolder:
+    """Container for the active event transport.
 
+    The structlog processor needs to publish events but is configured before
+    the transport exists (logging starts during lifespan, Redis connects later).
+    The holder is created up front, passed into the processor factory, and
+    populated once the transport is ready. No module-level state, no singletons:
+    the holder is owned by app.state and captured by closure in the processor.
+    """
 
-def get_transport() -> RedisEventTransport | None:
-    """Get the global transport instance."""
-    return _transport
+    def __init__(self) -> None:
+        self._transport: RedisEventTransport | None = None
 
+    def set(self, transport: RedisEventTransport) -> None:
+        self._transport = transport
 
-def set_transport(transport: RedisEventTransport) -> None:
-    """Set the global transport instance."""
-    global _transport
-    _transport = transport
+    def get(self) -> RedisEventTransport | None:
+        return self._transport

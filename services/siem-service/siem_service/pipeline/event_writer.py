@@ -5,7 +5,7 @@ from siem_contracts import SecurityEvent
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from siem_service.models import SiemEvent
+from siem_service.domain.models import SiemEvent
 
 logger = structlog.get_logger()
 

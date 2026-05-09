@@ -12,6 +12,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from langfuse import get_client as get_langfuse_client
 from sqlalchemy import text
 
 from app.agent.config import (
@@ -36,8 +37,10 @@ from app.agent.security.detectors import (
     PairedToolIdentifierDetector,
     UnicodeDetector,
 )
+from app.agent.security.detectors.base import DeterministicDetector
 from app.agent.security.guard import SecurityGuard
 from app.agent.security.observer import GuardObserver
+from app.agent.security.types import Checkpoint, Verdict
 from app.agent.tools import (
     ks_tools,
     make_create_artifact_tool,
@@ -58,13 +61,13 @@ from app.api.routes import (
     user_memory,
 )
 from app.api.routes import settings as settings_routes
-from app.bootstrap import bootstrap_admin
 from app.config import Settings
 from app.infra.db import create_engine, create_session_factory
 from app.infra.langfuse import (
     ensure_model_definitions,
     ensure_security_score_config,
     init_langfuse,
+    langfuse_enabled,
     shutdown_langfuse,
 )
 from app.infra.langgraph import create_checkpointer, create_store
@@ -73,8 +76,17 @@ from app.infra.logging import setup_logging
 from app.infra.mcp import create_mcp_client
 from app.infra.prompt_provider import PromptProvider
 from app.infra.redis import create_redis
+from app.security_pipeline.processor import make_security_event_processor
+from app.security_pipeline.transport import (
+    EventTransportHolder,
+    RedisEventTransport,
+)
 from app.services.encryption import EncryptionService
 from app.services.exceptions import EntityNotFoundError
+from app.services.mcp_server import (
+    fetch_remote_metadata,
+    serialize_mcp_meta_blob,
+)
 from app.services.mcp_tool_resolver import MCPToolResolver
 from app.services.model_config_resolver import ModelConfigResolver
 
@@ -97,12 +109,6 @@ async def _validate_builtin_mcp(
     metadata blob. Returns names of servers to disable (fetch failed OR
     guard fired INJECTION). ``stdio`` / disabled servers are skipped.
     """
-    from app.agent.security.types import Checkpoint, Verdict
-    from app.services.mcp_server import (
-        fetch_remote_metadata,
-        serialize_mcp_meta_blob,
-    )
-
     disabled: set[str] = set()
     for name, cfg in servers.items():
         if not cfg.enabled or cfg.transport == "stdio":
@@ -204,9 +210,15 @@ def _seed_prompts(
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = Settings()
 
+    # Holder is created up front so the structlog processor has something to
+    # bind to, then populated when Redis is available below.
+    transport_holder = EventTransportHolder()
+    app.state.security_transport_holder = transport_holder
+
     setup_logging(
         log_level=settings.log_level,
         config_path=Path(__file__).resolve().parents[2] / "configs" / "logging.yaml",
+        security_event_processor=make_security_event_processor(transport_holder),
         log_file=settings.log_file,
     )
 
@@ -252,22 +264,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.engine = engine
     app.state.session_factory = create_session_factory(engine)
 
-    # Bootstrap admin user if configured
-    async with app.state.session_factory() as session:
-        await bootstrap_admin(session)
-
     app.state.redis = await create_redis(settings)
-
-    # Initialize security event transport
-    from app.security_pipeline.transport import RedisEventTransport, set_transport # TODO: Так, тоже, честно говоря, не уверен, что вложенные импорты — это правильная тема. Хотелось бы это рассмотреть со всех точек зрения: какие плюсы, минусы. Возможно, завести на это вот эти conventions, да, возможно, наши детерминированные проверщики настроить и так далее и тому подобное. Ну то есть разобраться с этим моментом.
 
     if app.state.redis is not None:
         event_transport = RedisEventTransport(
             redis_client=app.state.redis,
             queue_maxsize=1000,
         )
-        set_transport(event_transport)
-        # Start publisher loop in background
+        transport_holder.set(event_transport)
         publisher_task = asyncio.create_task(event_transport.publisher_loop())
         app.state.security_publisher_task = publisher_task
         logger.info("security event publisher started")
@@ -275,12 +279,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # PromptProvider
     prompts_dir = Path(__file__).resolve().parents[2] / "configs" / "prompts"
     langfuse_client = None
-    from app.infra.langfuse import langfuse_enabled
-
     if langfuse_enabled:
-        from langfuse import get_client
-
-        langfuse_client = get_client()
+        langfuse_client = get_langfuse_client()
 
     prompt_provider = PromptProvider(
         langfuse=langfuse_client,
@@ -336,7 +336,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             internal_tools=internal_tools,
         )
         tool_registry = collect_tool_registry(internal_tools)
-        from app.agent.security.detectors.base import DeterministicDetector
 
         detectors: list[DeterministicDetector] = [
             CanaryDetector(),
@@ -468,9 +467,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Graceful shutdown of security event publisher
     if hasattr(app.state, "security_publisher_task"):
-        from app.security_pipeline.transport import get_transport
-
-        transport = get_transport()
+        transport = app.state.security_transport_holder.get()
         if transport is not None:
             await transport.graceful_shutdown(timeout=5.0)
         app.state.security_publisher_task.cancel()
@@ -500,8 +497,6 @@ def create_app() -> FastAPI:
     # Request ID and security context middleware
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next: Any) -> Any:
-        import hashlib
-
         structlog.contextvars.clear_contextvars()
         request_id = str(uuid.uuid4())
 

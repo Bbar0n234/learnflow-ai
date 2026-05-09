@@ -8,14 +8,10 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from siem_service.models import SiemAlert
+from siem_service.config import get_settings
+from siem_service.domain.models import SiemAlert
 
 logger = structlog.get_logger()
-
-# Maximum alert age before forced new alert creation (24 hours)
-MAX_ALERT_AGE_SECONDS = 86400 # TODO: Вопрос, не должна ли эта константа жить в переменных окружения? Да, это, конечно, не супер частая штука, которая будет меняться, и тем не менее хотелось бы, наверное, её... хотелось бы иметь возможность её менять без пересборки контейнера, как я считаю.
-
-# TODO: Также накидаю свои мысли в целом, уже скорее не относящиеся к этому файлу, но куда-то их всё равно нужно закинуть. Во-первых, по поводу этого CM (SIEM)-сервиса. Непонятно, почему он сейчас внутри непосредственно директории packages. То есть я, конечно, могу путать, я могу ошибаться, но, по-моему, packages — это у нас директория для так называемых shared packages, для общего кода, который нужно импортировать в различные сервисы, правильно? И, например, package CM-контракты действительно должен быть, потому что его импортирует и бэкенд, и CM-сервис. А CM-сервис никто не импортирует, и как бы, мне кажется, он должен быть на уровень выше, хотя опять же, возможно, я заблуждаюсь. Также я вот смотрю, тут довольно много всяких файлов в корне, то есть не вынесенных по поддиректориям. И, на мой взгляд, стоит рассмотреть вариант с какой-то, может быть, не знаю, детерминированной проверкой. Чтобы, знаешь, на уровне форматера или линтера, чтобы наш агент, когда запускал всё, все инструменты через make. То есть, не знаю, какой-нибудь триггер тоже, который бы срабатывал, там, если условно там в одном репозитории больше десяти файлов, значит, это уже какой-то флаг, и, скорее всего, стоит как бы пофиксить, разбить ещё на поддиректории. Но это у меня такие мысли, опять же, могу быть неправым. Вот. Но опять же стоит рассмотреть, прикинуть такие варианты, плюсы-минусы и только потом решить там, делать или не делать. 
 
 
 class AlertCandidate:
@@ -52,7 +48,9 @@ class AlertDeduper:
             SiemAlert instance if alert was found and updated, or newly created alert.
         """
         now = datetime.now(timezone.utc)
-        age_threshold = now - timedelta(seconds=MAX_ALERT_AGE_SECONDS)
+        age_threshold = now - timedelta(
+            seconds=get_settings().alert_open_window_seconds
+        )
 
         # Find open alert (new status) for this rule and group_key, created within 24h
         query = select(SiemAlert).where(

@@ -6,8 +6,8 @@ from typing import Any
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from siem_service.models import CorrelationRule, SiemAlert, SiemEvent
-from siem_service.schemas import EventFilterParams
+from siem_service.domain.models import CorrelationRule, SiemAlert, SiemEvent
+from siem_service.domain.schemas import EventFilterParams
 
 
 class EventRepository:

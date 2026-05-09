@@ -8,10 +8,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from siem_service.auth import require_admin
-from siem_service.db import get_session
-from siem_service.meta_emitter import get_meta_emitter
-from siem_service.schemas import (
+from siem_service.domain.schemas import (
     AlertPatchRequest,
     AlertResponse,
     EventFilterParams,
@@ -22,6 +19,9 @@ from siem_service.schemas import (
     RuleResponse,
     RuleUpdateRequest,
 )
+from siem_service.infra.auth import require_admin
+from siem_service.infra.db import get_session
+from siem_service.pipeline.meta_emitter import get_meta_emitter
 from siem_service.services import AlertService, EventService, RuleService
 
 logger = structlog.get_logger()

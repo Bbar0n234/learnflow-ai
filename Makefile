@@ -29,12 +29,12 @@ format:  ## Format Python code (auto-fix safe lint issues + format)
 	uv run ruff format .
 
 type-check:  ## Run mypy type checking
-	uv run mypy backend/ packages/siem-service/
+	uv run mypy backend/ services/siem-service/
 
 check:  ## Run all backend checks (CI gate)
 	uv run ruff check .
 	uv run ruff format --check .
-	uv run mypy backend/ packages/siem-service/
+	uv run mypy backend/ services/siem-service/
 
 lint-fe:  ## Run ESLint on frontend
 	cd frontend && npx eslint .
@@ -66,7 +66,11 @@ migration:  ## Create new alembic migration (autogenerate). Usage: make migratio
 	$(LOAD_ENV) && uv run alembic -c backend/alembic.ini revision --autogenerate -m "$(msg)"
 
 migrate-siem:  ## Run alembic upgrade head for SIEM service
-	$(LOAD_ENV) && cd packages/siem-service && uv run alembic upgrade head
+	$(LOAD_ENV) && cd services/siem-service && uv run alembic upgrade head
+
+grant-admin:  ## Grant admin to existing user. Usage: make grant-admin USER=<username>
+	@if [ -z "$(USER)" ]; then echo "Usage: make grant-admin USER=<username>"; exit 1; fi
+	$(LOAD_ENV) && uv run --package learnflow-backend python backend/scripts/grant_admin.py "$(USER)"
 
 downgrade:  ## Run alembic downgrade (one step)
 	$(LOAD_ENV) && uv run alembic -c backend/alembic.ini downgrade -1

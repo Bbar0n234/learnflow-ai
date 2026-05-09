@@ -387,21 +387,22 @@ Redis Stream (security.events)
 ```
 
 **Package structure:**
-- `packages/siem-service/` — monorepo workspace member
-- `packages/siem-service/siem_service/` — app package
+- `services/siem-service/` — monorepo workspace member
+- `services/siem-service/siem_service/` — app package
   - `main.py` — FastAPI app + lifespan (startup: subscriber + correlation engine tasks)
   - `config.py` — Settings (DATABASE_URL, REDIS_URL, JWT_SECRET, poll intervals)
-  - `models.py` — ORM (SiemEvent, SiemAlert, CorrelationRule)
-  - `schemas.py` — Pydantic response + request DTOs
-  - `event_writer.py` — Single INSERT entry point
-  - `subscriber.py` — XREADGROUP consumer with at-least-once semantics
+  - `domain/models.py` — ORM (SiemEvent, SiemAlert, CorrelationRule)
+  - `domain/schemas.py` — Pydantic response + request DTOs
+  - `infra/db.py` — engine + session factory
+  - `infra/auth.py` — JWT validation + `require_admin` dependency
+  - `pipeline/event_writer.py` — Single INSERT entry point
+  - `pipeline/subscriber.py` — XREADGROUP consumer with at-least-once semantics
+  - `pipeline/meta_emitter.py` — Back-channel meta-event publication
+  - `pipeline/supervisor.py` — Exponential backoff restart wrapper
   - `repositories.py` — Database queries (list, filters, pagination)
   - `services.py` — Business logic (AlertService, RuleService)
-  - `auth.py` — JWT validation + `require_admin` dependency
-  - `meta_emitter.py` — Back-channel meta-event publication
   - `correlation/` — Engine, strategies, deduper
   - `api/routes.py` — REST endpoints
-  - `supervisor.py` — Exponential backoff restart wrapper
 
 **Database tables:**
 - `siem_events` — immutable event storage (event_id PK, JSONB identifiers/metadata, dual timestamps)

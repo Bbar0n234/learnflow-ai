@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from siem_contracts import SecurityEvent
 
 from siem_service.config import Settings
-from siem_service.event_writer import EventWriter
+from siem_service.pipeline.event_writer import EventWriter
 
 logger = structlog.get_logger()
 

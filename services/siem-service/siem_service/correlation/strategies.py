@@ -1,8 +1,7 @@
 """Correlation rule evaluation strategies."""
 
-from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
-from typing import Any, cast
+from typing import Any, Protocol, cast
 from uuid import UUID
 
 import structlog
@@ -10,33 +9,27 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from siem_service.correlation.deduper import AlertCandidate
-from siem_service.models import CorrelationRule, SiemEvent
+from siem_service.domain.models import CorrelationRule, SiemEvent
 
 logger = structlog.get_logger()
 
 
-class Strategy(ABC): # TODO: Тут используется ABC, абстрактный базовый класс. Он нужен для наследования, для интерфейсов, правильно? Как будто это интерфейс. Но если не путаю, у нас в бэкенде используется для подобного такой класс как Protocol в Python. И не нарушаем ли мы нашу консистентность в этой точке зрения? Хотелось бы тоже рассмотреть эту картину здесь и сейчас.
-    """Base strategy for correlation rule evaluation."""
+class Strategy(Protocol):
+    """Correlation rule evaluation contract.
 
-    @abstractmethod
+    Implementations are stateless and selected via `get_strategy(rule_type)`.
+    """
+
     async def evaluate(
         self,
         rule: CorrelationRule,
         session: AsyncSession,
     ) -> list[AlertCandidate]:
-        """
-        Evaluate rule against events in the window.
-
-        Args:
-            rule: Correlation rule to evaluate
-            session: Database session
-
-        Returns:
-            List of AlertCandidate objects
-        """
+        """Evaluate rule against events in the window, return alert candidates."""
+        ...
 
 
-class ThresholdStrategy(Strategy):
+class ThresholdStrategy:
     """Threshold strategy: COUNT >= N events of type LIKE pattern in window."""
 
     async def evaluate(
@@ -121,7 +114,7 @@ class ThresholdStrategy(Strategy):
         return candidates
 
 
-class SequenceStrategy(Strategy):
+class SequenceStrategy:
     """Sequence strategy: Event A followed by Event B within window."""
 
     async def evaluate(
@@ -191,7 +184,7 @@ class SequenceStrategy(Strategy):
         return candidates
 
 
-class AggregateStrategy(Strategy):
+class AggregateStrategy:
     """Aggregate strategy: COUNT >= N events matching pattern, no grouping."""
 
     async def evaluate(
@@ -239,7 +232,7 @@ class AggregateStrategy(Strategy):
 
 def get_strategy(rule_type: str) -> Strategy:
     """Get strategy for rule type."""
-    strategies = {
+    strategies: dict[str, Strategy] = {
         "threshold": ThresholdStrategy(),
         "sequence": SequenceStrategy(),
         "aggregate": AggregateStrategy(),

@@ -202,7 +202,7 @@ graph LR
 - All SIEM endpoints admin-only
 - JWT validation: shared `JWT_SECRET` with main app
 - Claim `is_admin: true` required → 403 Forbidden if false
-- Admin bootstrap via env `INITIAL_ADMIN_USERNAME` + migration `users.is_admin`
+- Admin promotion: deliberate operator action (`make grant-admin USER=<name>`) over the `users.is_admin` column added by migration. No automatic promotion at startup.
 
 **Forward Compatibility:**
 - Vocabulary-soft mode: unknown event_type accepted, logged as metric

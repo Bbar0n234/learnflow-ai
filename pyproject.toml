@@ -14,7 +14,35 @@ dev = [
 ]
 
 [tool.uv.workspace]
-members = ["backend", "packages/siem-contracts", "packages/siem-service"]
+members = ["backend", "packages/siem-contracts", "services/siem-service"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = [
+    "**/alembic/versions",
+    "**/__pycache__",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "I",      # isort
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "SIM",    # flake8-simplify
+    "PLC0415", # import-outside-toplevel
+]
+ignore = [
+    "E501",   # line-length handled by formatter
+    "B008",   # FastAPI relies on `Depends()` in defaults
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Bootstrap-time files may need lazy imports for circular-dep reasons; we still
+# document each case with `# lazy:` / `# circular:` comments per conventions.md.
+"backend/app/main.py" = []
 
 [tool.mypy]
 python_version = "3.12"

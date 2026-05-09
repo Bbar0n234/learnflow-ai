@@ -141,7 +141,7 @@ class RedisEventTransport(EventTransport):
 
 
 # Singleton instance (will be initialized in lifespan)
-_transport: RedisEventTransport | None = None
+_transport: RedisEventTransport | None = None # TODO: Опять же, есть ощущение, что в нашем репозитории синглтоны не очень приживаются. Все через lifespan должно быть. Соответственно, здесь вижу объявление Singleton Instance, не совсем понимаю, насколько это резонно, насколько это обосновано. И, может быть, стоит убрать вообще. Возможно, пересмотреть эту политику целиком и даже зафиксировать это куда-то в нашей conventions.md.
 
 
 def get_transport() -> RedisEventTransport | None:

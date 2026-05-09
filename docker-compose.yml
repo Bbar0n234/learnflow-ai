@@ -97,6 +97,7 @@ services:
       SIEM_DATABASE_URL: postgresql+asyncpg://${SIEM_POSTGRES_USER:-siem}:${SIEM_POSTGRES_PASSWORD:-siem}@siem-db/${SIEM_POSTGRES_DB:-siem}
       SIEM_REDIS_URL: redis://redis:6379
       SIEM_JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      SIEM_FRONTEND_ORIGIN: http://localhost:8000,http://localhost:5173
       PYTHONUNBUFFERED: "1"
     logging:
       driver: json-file

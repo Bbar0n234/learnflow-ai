@@ -21,3 +21,5 @@ EXPOSE 8001
 
 # Run uvicorn from the venv
 CMD ["uvicorn", "siem_service.main:app", "--host", "0.0.0.0", "--port", "8001"]
+
+# TODO: Опять же, в правильном ли месте сейчас этот Dockerfile? Консистентно ли с остальными сервисами этого репозитория?

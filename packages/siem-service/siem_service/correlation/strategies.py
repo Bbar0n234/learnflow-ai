@@ -15,7 +15,7 @@ from siem_service.models import CorrelationRule, SiemEvent
 logger = structlog.get_logger()
 
 
-class Strategy(ABC):
+class Strategy(ABC): # TODO: Тут используется ABC, абстрактный базовый класс. Он нужен для наследования, для интерфейсов, правильно? Как будто это интерфейс. Но если не путаю, у нас в бэкенде используется для подобного такой класс как Protocol в Python. И не нарушаем ли мы нашу консистентность в этой точке зрения? Хотелось бы тоже рассмотреть эту картину здесь и сейчас.
     """Base strategy for correlation rule evaluation."""
 
     @abstractmethod

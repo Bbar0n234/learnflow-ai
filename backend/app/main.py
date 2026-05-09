@@ -259,7 +259,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.redis = await create_redis(settings)
 
     # Initialize security event transport
-    from app.security_pipeline.transport import RedisEventTransport, set_transport
+    from app.security_pipeline.transport import RedisEventTransport, set_transport # TODO: Так, тоже, честно говоря, не уверен, что вложенные импорты — это правильная тема. Хотелось бы это рассмотреть со всех точек зрения: какие плюсы, минусы. Возможно, завести на это вот эти conventions, да, возможно, наши детерминированные проверщики настроить и так далее и тому подобное. Ну то есть разобраться с этим моментом.
 
     if app.state.redis is not None:
         event_transport = RedisEventTransport(

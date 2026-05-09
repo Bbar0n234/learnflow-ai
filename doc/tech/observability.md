@@ -101,9 +101,9 @@ sequenceDiagram
 
 **Удаление feedback:** при score = null — DELETE score в Langfuse API + DEL key в Redis.
 
-## Security Observability
+## Security Observability: Langfuse Tracing
 
-Мониторинг security incidents через Langfuse. Архитектура защиты — [architecture.md](../security/architecture.md).
+Мониторинг security incidents и detector-действий через Langfuse. Архитектура защиты — [architecture.md](../security/architecture.md).
 
 **Score:** `security_verdict` (CATEGORICAL: `CLEAN` / `SUSPICIOUS` / `INJECTION`) на уровне trace. Создаётся при старте через `ensure_security_score_config()`. Применяется и к agent-trace (runtime checkpoints), и к top-level traces `security.<checkpoint>` (add-time checkpoints в service-слое).
 
@@ -115,9 +115,65 @@ sequenceDiagram
 
 **Metadata на trace** (при INJECTION): `blocked`, `checkpoint`, `detection_layer`. **На guardrail observation:** модель classifier'а, raw verdict, reasoning, детали детекторов (например, найденные fragment-окна или paired tools).
 
-`detection_layer` принимает значения `canary`, `unicode`, `fragment`, `paired`, `llm_classifier`, `graceful_degradation` — стабильные машинно-читаемые идентификаторы для дашбордов и SIEM-pipeline'а ([architecture.md](../security/architecture.md)).
+`detection_layer` принимает значения `canary`, `unicode`, `fragment`, `paired`, `llm_classifier`, `graceful_degradation` — стабильные машинно-читаемые идентификаторы для дашбордов и SIEM-pipeline'а ([architecture.md](../security/architecture.md), [ADR-020](adr/ADR-020-security-event-contract.md)).
 
 Guard LLM generation регистрируется внутри guardrail-observation; cost tracking guard-модели изолирован от main LLM. Mid-stream проверки на стриме создают одну ретроспективную observation на инцидент, чтобы не плодить per-chunk шум в trace tree.
+
+## SIEM Observability: Security Event Pipeline
+
+Дополнительный слой наблюдаемости: структурированный сбор и корреляция security-событий из всех источников (SecurityGuard, auth, rate limiter, SIEM-администраторы). Отличается от Langfuse: SIEM наблюдает за самой системой безопасности, отловляет паттерны атак, генерирует алерты. Langfuse остаётся инструментом для трейсинга LLM и отладки логики.
+
+**Архитектура:** Producer-сторона → Redis Stream (`security.events`) → Consumer-сторона (SIEM-сервис). Подробнее: [design-brief](../tech/adr/ADR-018-siem-service-topology.md), [ADR-018..021](../tech/adr/).
+
+### Producer Side
+
+**Event Creation:** Генерирование security-событий через структурированный логгинг (structlog). Каждый checkpoint — event с canonical `event_type` из shared vocabulary ([security-events.md](security-events.md)), severity (info/warning/critical), identifiers (ip, user_id, thread_id, project_id, request_id и др.), metadata (checkpoint-специфичные детали).
+
+**Examples:**
+- SecurityGuard INPUT checkpoint → `agent.guard.input.classifier_injection` + severity=critical
+- Auth login failed → `auth.login.failed` + severity=warning  
+- Rate limiter triggered → `rate_limit.login.exceeded` + severity=warning
+- SIEM admin acknowledges alert → `siem.alert.acknowledged` + severity=info
+
+**Transport:** `RedisEventTransport` публирует events как JSON в Redis Stream `security.events` с MAXLEN для ограничения памяти. Наличие bounded queue upstream предотвращает backpressure на request-processing.
+
+**Context Binding:** Identifiers вытягиваются из contextvars (bind в HTTP middleware, auth dependency, chat route) автоматически `structlog.contextvars`. Processor-сторона не требует явной передачи context — это infrastructure concern.
+
+### Consumer Side
+
+**Subscriber:** SIEM-сервис читает stream через XREADGROUP (Consumer Group `siem-readers`, at-least-once semantics). Валидирует события через Pydantic (vocabulary-soft: неизвестные `event_type` логируются, но допускаются).
+
+**Event Storage:** Inserting в `siem_events` таблицу через EventWriter. Dual timestamps (event_timestamp от producer, ingested_at от consumer) для детерминистичных time-window правил. JSONB поля для extensibility.
+
+**Correlation Engine:** Polling loop (10-сек интервал) оценивает включённые rules (Threshold/Sequence/Aggregate strategies), генерирует candidates, применяет deduplication (open-alert policy с 24h age limit), пишет alerts в `siem_alerts` таблицу.
+
+**Meta-Events:** SIEM admin-действия (acknowledge/resolve alert, CRUD rule) эмитятся как `siem.*` события обратно в Redis Stream (через MetaEmitter singleton). Замыкают цикл: main app subscriber может читать их как наблюдаемые события.
+
+### Metrics
+
+| Метрика | Слой | Описание |
+|---------|------|---------|
+| `producer_drop_newest` | Producer | События, выброшенные из bounded queue при overflow |
+| `siem_events_ingested` | Consumer | Новые события, успешно inserted |
+| `siem_events_duplicate` | Consumer | Повторно-пришедшие события (на основе event_id дедупа) |
+| `siem_events_invalid` | Consumer | Validation failures (dropped, logged) |
+| `siem_unknown_event_type` | Consumer | События с неизвестным event_type (accepted, monitored) |
+| `siem_processing_errors` | Consumer | Ошибки при обработке (отправлены в retry) |
+| `alerts_created_total` | CorrelationEngine | Всего сгенерировано alerts |
+
+Метрики собираются в памяти (встроенные counters), возможен export в `/metrics` endpoint для Prometheus.
+
+### Difference from Langfuse Observability
+
+| Аспект | Langfuse | SIEM |
+|--------|----------|------|
+| **Что мониторит** | LLM calls, tokens, latency, reasoning | Security events, attack patterns, alerts |
+| **Когда создаётся** | Во время agent-выполнения | Непрерывно (любой момент, даже без agent) |
+| **Granularity** | Per-trace, per-generation | Per-event (детальнее) |
+| **State** | Traces, spans — доступны через dashboard | Events → alerts (состояние + история) |
+| **Audience** | Developers, product team | Security team, ops |
+
+SIEM не заменяет Langfuse; они ортогональны. Langfuse трейсит логику, SIEM наблюдает безопасность.
 
 ## Model Definitions & Cost Tracking
 

@@ -100,8 +100,11 @@ def ensure_model_definitions(models: list[ModelDefinitionConfig]) -> None:
     if not langfuse_enabled or not models:
         return
 
-    from langfuse.api import PricingTierInput
-    from langfuse.api.commons.errors.error import Error as LangfuseError
+    # lazy: heavy submodule, only needed when langfuse is actually enabled
+    from langfuse.api import PricingTierInput  # noqa: PLC0415
+    from langfuse.api.commons.errors.error import (  # noqa: PLC0415
+        Error as LangfuseError,
+    )
 
     langfuse = get_client()
     existing_by_name = _list_managed_models(langfuse, {m.name for m in models})

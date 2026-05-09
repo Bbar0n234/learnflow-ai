@@ -286,7 +286,7 @@ CRUD и каскадная видимость — [backend.md](backend.md).
 
 ## Security
 
-`SecurityGuard` проверяет данные на семи checkpoint'ах: четыре в runtime (user input до графа, tool result до LLM, tool call args после ответа, final output на стриме) и три на add-time write paths в service-слое (MCP-регистрация, custom instructions, KS write через REST). При INJECTION — `security_block` SSE event и блокировка thread'а в runtime, или HTTP 422 на add-time. Подробнее — [security/architecture.md](../security/architecture.md), обоснование — [ADR-017](adr/ADR-017-prompt-injection-defense.md).
+`SecurityGuard` проверяет данные на семи checkpoint'ах: четыре в runtime (user input до графа, tool result до LLM, tool call args после ответа, final output на стриме) и три на add-time write paths в service-слое (MCP-регистрация, custom instructions, KS write через REST). При INJECTION — `security_block` SSE event и блокировка thread'а в runtime, или HTTP 422 на add-time. Подробнее — [security/architecture.md](../security/architecture.md), обоснование — [ADR-017](adr/ADR-017-prompt-injection-defense.md), [ADR-022](adr/ADR-022-protected-disclosable-boundary.md), [ADR-023](adr/ADR-023-two-level-detection.md), [ADR-024](adr/ADR-024-streaming-security-guard.md).
 
 Топология графа из-за защиты не меняется: проверки inline в `agent_node` и в runner, `tools_condition` сохранён.
 

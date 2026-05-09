@@ -2,7 +2,7 @@
 
 Защита AI-агента от prompt injection и от утечки внутренней реализации в выходные данные. Семь точек проверки покрывают входы, выходы и точки записи: пользовательский ввод, результаты инструментов, аргументы tool-вызовов, финальный ответ, регистрация MCP-серверов, запись custom instructions, прямая запись Knowledge Sphere через REST.
 
-Логика защиты живёт в Agent Layer и в service-методах, выполняющих запись. API Layer пробрасывает события: `security_block` через SSE, HTTP 403 на заблокированном thread'е, HTTP 422 на отклонённой записи. Обоснование — [ADR-017](../tech/adr/ADR-017-prompt-injection-defense.md); модель угроз — [threat-model.md](threat-model.md).
+Логика защиты живёт в Agent Layer и в service-методах, выполняющих запись. API Layer пробрасывает события: `security_block` через SSE, HTTP 403 на заблокированном thread'е, HTTP 422 на отклонённой записи. Обоснование — [ADR-017](../tech/adr/ADR-017-prompt-injection-defense.md) (Sec 1.0: sync guard, fail-open), [ADR-022](../tech/adr/ADR-022-protected-disclosable-boundary.md) (confidentiality boundary), [ADR-023](../tech/adr/ADR-023-two-level-detection.md) (detection layers), [ADR-024](../tech/adr/ADR-024-streaming-security-guard.md) (streaming guard); модель угроз — [threat-model.md](threat-model.md).
 
 ## Принципы
 
@@ -137,7 +137,79 @@ Guard вызывается первым в service-методе, до endpoint-�
 
 На уровне trace — score `security_verdict` (CLEAN / SUSPICIOUS / INJECTION) и metadata (`blocked`, `checkpoint`, `detection_layer`). На guardrail observation — модель classifier'а, raw verdict, reasoning, детали детекторов. Подробнее — [observability.md](../tech/observability.md).
 
-structlog-processor помечает security-логи стабильным shape (`identifiers`, `metadata`) для будущего SIEM (feat-005).
+structlog-processor помечает security-логи стабильным shape (`identifiers`, `metadata`) для SIEM-pipeline (feat-005). SIEM потребляет events через Redis Streams, коррелирует и отображает в admin UI — [ADR-018](../tech/adr/ADR-018-siem-service-topology.md).
+
+## Security Observability: SIEM Pipeline
+
+Дополнительный слой мониторинга, ортогональный Langfuse. SIEM наблюдает за самой системой безопасности: собирает events из всех источников (SecurityGuard checkpoints, auth operations, rate limits, SIEM-администраторы), коррелирует их по правилам (Threshold/Sequence/Aggregate strategies), генерирует alerts, предоставляет REST API и admin UI.
+
+**Data Flow:**
+
+```mermaid
+graph LR
+    SG["SecurityGuard"] -->|security_event=True| LOGGER["structlog"]
+    AUTH["Auth service"] -->|security_event=True| LOGGER
+    RLS["Rate limiter"] -->|security_event=True| LOGGER
+    
+    LOGGER -->|SecurityEventProcessor| REDIS["Redis Stream<br/>security.events"]
+    
+    REDIS -->|XREADGROUP| SUB["Subscriber<br/>(siem-service)"]
+    SUB -->|validate| EW["EventWriter"]
+    EW -->|INSERT| SIEM_EVENTS["siem_events<br/>table"]
+    
+    SIEM_EVENTS -->|poll 10s| ENGINE["CorrelationEngine"]
+    ENGINE -->|evaluate rules| STRATEGIES["Threshold<br/>Sequence<br/>Aggregate"]
+    STRATEGIES -->|deduplicate| DEDUPER["AlertDeduper<br/>(open-alert policy)"]
+    DEDUPER -->|INSERT| SIEM_ALERTS["siem_alerts<br/>table"]
+    
+    SIEM_ALERTS -->|REST API| UI["Admin UI<br/>/security"]
+    
+    ADMIN_UI["Admin UI<br/>(acknowledge/resolve)"] -->|PATCH| API["REST API"]
+    API -->|emit meta-event| META["MetaEmitter"]
+    META -->|XADD| REDIS
+```
+
+**Producer-Side (Main App):**
+- Security checkpoints (user_input, tool_result, tool_call_arg, final_output) → log с `security_event=True` и canonical `event_type`
+- Context binding (ip, user_id, thread_id, project_id и т.д.) вытягивается из contextvars
+- `SecurityEventProcessor` нормализует в `SecurityEvent`, публирует в Redis Stream
+- Event contract — shared Pydantic models в `packages/siem-contracts/` (vocabulary, SecurityEvent, AlertDTO, RuleConfig)
+
+**Consumer-Side (SIEM Service):**
+- `Subscriber` читает Redis Stream (XREADGROUP), валидирует, deduplicate по event_id
+- `EventWriter` записывает в `siem_events` (immutable, JSONB identifiers + metadata, dual timestamps)
+- `CorrelationEngine` polls включённые rules каждые 10 сек:
+  - Per-rule: выбрать events за window, apply strategy, check threshold
+  - Threshold: COUNT(event_type LIKE pattern) >= threshold, optional group_key
+  - Sequence: Event A THEN Event B within window
+  - Aggregate: COUNT without grouping (no group_key)
+- `AlertDeduper` применяет open-alert policy: один alert per (rule_id, group_key) за 24h
+- Alerts пишутся в `siem_alerts` с status='new'
+
+**Admin Operations (SIEM REST API):**
+- GET `/security/events` — список всех events с фильтрами и пагинацией
+- GET `/security/alerts` — список alerts (фильтры: severity, status)
+- PATCH `/security/alerts/:id` — change status (new → acknowledged → resolved) → emit `siem.alert.acknowledged` / `siem.alert.resolved` event
+- GET/POST/PATCH/DELETE `/security/rules` — CRUD rules → emit `siem.rule.*` meta-events
+
+**Baseline Rules:**
+1. `brute_force_auth`: 5+ auth.login.failed in 60s, group by ip, severity=critical
+2. `injection_spike`: 10+ agent.guard.%.injection in 300s, severity=critical
+3. `targeted_user_attack`: 3+ agent.guard.% in 600s, group by user_id, severity=warning
+4. `mass_suspicious`: 15+ agent.guard.%.suspicious in 600s, severity=critical
+
+**Role-Based Access Control:**
+- All SIEM endpoints admin-only
+- JWT validation: shared `JWT_SECRET` with main app
+- Claim `is_admin: true` required → 403 Forbidden if false
+- Admin promotion: deliberate operator action (`make grant-admin USER=<name>`) over the `users.is_admin` column added by migration. No automatic promotion at startup.
+
+**Forward Compatibility:**
+- Vocabulary-soft mode: unknown event_type accepted, logged as metric
+- Adding new event_type requires no SIEM migrations
+- Rule config stored as JSONB (no schema lock per rule_type)
+
+Подробнее: [ADR-018](../tech/adr/ADR-018-siem-service-topology.md) (topology), [ADR-019](../tech/adr/ADR-019-security-event-transport.md) (transport), [ADR-020](../tech/adr/ADR-020-security-event-contract.md) (contract), [ADR-021](../tech/adr/ADR-021-siem-correlation-engine.md) (correlation), [security-events.md](../tech/security-events.md) (vocabulary).
 
 ## Конфигурация
 
@@ -157,7 +229,12 @@ structlog-processor помечает security-логи стабильным shap
 ## Связанные документы
 
 - [threat-model.md](threat-model.md) — модель угроз
-- [ADR-017](../tech/adr/ADR-017-prompt-injection-defense.md) — основные архитектурные решения защиты
+- [ADR-017](../tech/adr/ADR-017-prompt-injection-defense.md) — Sec 1.0: sync guard, fail-open, hardening wrapper
+- [ADR-022](../tech/adr/ADR-022-protected-disclosable-boundary.md) — PROTECTED / DISCLOSABLE boundary, MCP trust hierarchy
+- [ADR-023](../tech/adr/ADR-023-two-level-detection.md) — deterministic detectors + LLM classifier, composite prompt
+- [ADR-024](../tech/adr/ADR-024-streaming-security-guard.md) — streaming guard, block mechanics, replace-by-id
+- [ADR-018](../tech/adr/ADR-018-siem-service-topology.md) — SIEM topology: separate service, identity, data isolation
+- [ADR-020](../tech/adr/ADR-020-security-event-contract.md) — event contract: vocabulary, identifiers, strictness
 - [agent-runtime.md](../tech/agent-runtime.md) — ReAct-граф, system message, MCP integration
 - [observability.md](../tech/observability.md) — Langfuse traces и scores
 - [streaming.md](../tech/streaming.md) — SSE-протокол, terminal events

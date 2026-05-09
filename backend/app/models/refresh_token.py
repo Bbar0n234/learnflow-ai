@@ -33,4 +33,4 @@ class RefreshToken(Base):
         DateTime(timezone=True), nullable=True
     )
 
-    user: Mapped["User"] = relationship()
+    user: Mapped[User] = relationship()

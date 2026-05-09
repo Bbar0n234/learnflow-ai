@@ -36,10 +36,10 @@ class Project(Base):
     )
 
     # Relationships
-    user: Mapped["User"] = relationship(back_populates="projects")
-    thread_views: Mapped[list["ThreadView"]] = relationship(
+    user: Mapped[User] = relationship(back_populates="projects")
+    thread_views: Mapped[list[ThreadView]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
-    artifacts: Mapped[list["Artifact"]] = relationship(
+    artifacts: Mapped[list[Artifact]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )

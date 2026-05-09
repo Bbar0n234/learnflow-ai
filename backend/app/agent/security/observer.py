@@ -8,6 +8,7 @@ from typing import Any
 import structlog
 
 from app.agent.security.types import VERDICT_TO_LEVEL, Checkpoint, GuardResult
+from app.infra.llm import normalize_usage_for_langfuse
 
 logger = structlog.get_logger()
 
@@ -32,7 +33,8 @@ class ObservationHandle:
         params: dict[str, Any],
     ) -> None:
         try:
-            from langfuse import get_client
+            # lazy: langfuse is optional; tolerate missing import at runtime
+            from langfuse import get_client  # noqa: PLC0415
 
             self._gen_cm = get_client().start_as_current_observation(
                 as_type="generation",
@@ -54,7 +56,6 @@ class ObservationHandle:
     ) -> None:
         if self._gen_obs is None:
             return
-        from app.infra.llm import normalize_usage_for_langfuse
 
         with contextlib.suppress(Exception):
             kwargs: dict[str, Any] = {"output": raw_output}
@@ -155,14 +156,15 @@ class GuardObserver:
         get_client: Any = None
         propagate_attributes: Any = None
         try:
-            from langfuse import (
+            # lazy: langfuse is optional; observe block degrades gracefully
+            from langfuse import (  # noqa: PLC0415
                 get_client as _get_client,
             )
-            from langfuse import (
+            from langfuse import (  # noqa: PLC0415
                 propagate_attributes as _propagate_attributes,
             )
 
-            from app.infra.langfuse import langfuse_enabled
+            from app.infra.langfuse import langfuse_enabled  # noqa: PLC0415
 
             get_client = _get_client
             propagate_attributes = _propagate_attributes

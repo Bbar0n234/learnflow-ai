@@ -275,7 +275,7 @@ app/
 
 LangGraph-граф с ReAct-паттерном, context engineering, tools, skills, MCP-интеграция, security. Детальное описание — [agent-runtime.md](agent-runtime.md). Связанные концепты: [knowledge-sphere.md](knowledge-sphere.md), [user-memory.md](user-memory.md), [prompt-management.md](prompt-management.md), [observability.md](observability.md), [architecture.md](../security/architecture.md).
 
-Ключевые ADR: [ADR-001](adr/ADR-001-general-agent.md) (General Agent), [ADR-002](adr/ADR-002-skills-system.md) (Skills), [ADR-003](adr/ADR-003-knowledge-sphere.md) (KS), [ADR-004](adr/ADR-004-progressive-disclosure.md) (Progressive Disclosure), [ADR-005](adr/ADR-005-ks-update-mechanism.md) (KS Updates), [ADR-006](adr/ADR-006-custom-stategraph.md) (Custom StateGraph), [ADR-007](adr/ADR-007-mcp-external-tools.md) (MCP), [ADR-013](adr/ADR-013-per-scope-settings-storage.md) (Settings Storage), [ADR-014](adr/ADR-014-dynamic-model-resolution.md) (Graph Factory), [ADR-015](adr/ADR-015-langgraph-store-unified-memory.md) (Store Memory), [ADR-016](adr/ADR-016-per-scope-mcp-servers.md) (MCP Servers), [ADR-017](adr/ADR-017-prompt-injection-defense.md) (Security).
+Ключевые ADR: [ADR-001](adr/ADR-001-general-agent.md) (General Agent), [ADR-002](adr/ADR-002-skills-system.md) (Skills), [ADR-003](adr/ADR-003-knowledge-sphere.md) (KS), [ADR-004](adr/ADR-004-progressive-disclosure.md) (Progressive Disclosure), [ADR-005](adr/ADR-005-ks-update-mechanism.md) (KS Updates), [ADR-006](adr/ADR-006-custom-stategraph.md) (Custom StateGraph), [ADR-007](adr/ADR-007-mcp-external-tools.md) (MCP), [ADR-013](adr/ADR-013-per-scope-settings-storage.md) (Settings Storage), [ADR-014](adr/ADR-014-dynamic-model-resolution.md) (Graph Factory), [ADR-015](adr/ADR-015-langgraph-store-unified-memory.md) (Store Memory), [ADR-016](adr/ADR-016-per-scope-mcp-servers.md) (MCP Servers), [ADR-017](adr/ADR-017-prompt-injection-defense.md) (Sec 1.0), [ADR-018](adr/ADR-018-siem-service-topology.md) (SIEM Topology), [ADR-020](adr/ADR-020-security-event-contract.md) (Event Contract), [ADR-022](adr/ADR-022-protected-disclosable-boundary.md) (Confidentiality Boundary), [ADR-023](adr/ADR-023-two-level-detection.md) (Detection Layers), [ADR-024](adr/ADR-024-streaming-security-guard.md) (Streaming Guard).
 
 ## Persistence
 
@@ -348,6 +348,81 @@ Artifact.thread_id → ThreadView.thread_id (артефакт создаётся
 ### Request ID
 
 FastAPI middleware генерирует UUID для каждого HTTP-запроса → `structlog.contextvars`. Все лог-записи в контексте запроса автоматически содержат `request_id`.
+
+### Security Event Logging Convention
+
+Структурированное логирование security-событий для SIEM pipeline. Логирование вызывается с флагом `security_event=True` и canonical `event_type` из vocabulary:
+
+```python
+logger.warning(
+    "injection detected",
+    security_event=True,
+    event_type="agent.guard.input.classifier_injection",
+    severity="critical",
+    metadata={"checkpoint": "user_input", "detector": "llm_classifier"}
+)
+```
+
+**Обработка:** `SecurityEventProcessor` перехватывает лог-записи с `security_event=True`, нормализует в `SecurityEvent`, пубирует в Redis Stream. Context binding (ip, user_id, request_id, thread_id и т.д.) вытягивается из contextvars автоматически.
+
+**Vocabulary:** Полный набор `event_type` и их metadata-формы — [security-events.md](security-events.md). Типизация via Literal для mypy-проверяемости.
+
+## SIEM Service
+
+Отдельный FastAPI backend-сервис, работающий на порту 8001, с собственной PostgreSQL БД (siem-db). Назначение: сбор, хранение, корреляция security-событий, генерация алертов, REST API для мониторинга UI.
+
+**Architecture:**
+```
+Redis Stream (security.events)
+    ↓
+[Subscriber: XREADGROUP + Validation]
+    ↓
+[EventWriter: INSERT siem_events]
+    ↓
+[CorrelationEngine: polling, 10s]
+    ↓
+[Strategies: Threshold/Sequence/Aggregate] → [Deduper] → [AlertWriter: INSERT siem_alerts]
+    ↓
+[REST API: /security/events, /security/alerts, /security/rules] — admin-only via JWT is_admin claim
+```
+
+**Package structure:**
+- `services/siem-service/` — monorepo workspace member
+- `services/siem-service/siem_service/` — app package
+  - `main.py` — FastAPI app + lifespan (startup: subscriber + correlation engine tasks)
+  - `config.py` — Settings (DATABASE_URL, REDIS_URL, JWT_SECRET, poll intervals)
+  - `domain/models.py` — ORM (SiemEvent, SiemAlert, CorrelationRule)
+  - `domain/schemas.py` — Pydantic response + request DTOs
+  - `infra/db.py` — engine + session factory
+  - `infra/auth.py` — JWT validation + `require_admin` dependency
+  - `pipeline/event_writer.py` — Single INSERT entry point
+  - `pipeline/subscriber.py` — XREADGROUP consumer with at-least-once semantics
+  - `pipeline/meta_emitter.py` — Back-channel meta-event publication
+  - `pipeline/supervisor.py` — Exponential backoff restart wrapper
+  - `repositories.py` — Database queries (list, filters, pagination)
+  - `services.py` — Business logic (AlertService, RuleService)
+  - `correlation/` — Engine, strategies, deduper
+  - `api/routes.py` — REST endpoints
+
+**Database tables:**
+- `siem_events` — immutable event storage (event_id PK, JSONB identifiers/metadata, dual timestamps)
+- `siem_alerts` — alert instances from rules (status: new/acknowledged/resolved, open-alert policy dedup)
+- `correlation_rules` — rule definitions with JSONB config (Threshold/Sequence/Aggregate per rule_type)
+
+**REST Endpoints (all admin-only):**
+- `GET /security/events` — list events, filters (event_type, severity, timestamp range), pagination
+- `GET /security/alerts` — list alerts, filters (severity, status), pagination
+- `PATCH /security/alerts/:id` — update status (acknowledge/resolve) → emit meta-event
+- `GET /security/rules` — list rules
+- `POST /security/rules` — create rule → emit meta-event
+- `PATCH /security/rules/:id` — update rule → emit meta-event
+- `DELETE /security/rules/:id` — delete rule → emit meta-event
+
+**Deployment:** Docker (siem-service container), separate PostgreSQL instance (siem-db). Env vars: `SIEM_DATABASE_URL`, `SIEM_REDIS_URL`, `SIEM_JWT_SECRET` (shared with main app), `SIEM_FRONTEND_ORIGIN` (CORS).
+
+**Idempotency:** Event deduplication by `event_id` (UNIQUE constraint + ON CONFLICT DO NOTHING). Baseline correlation rules seeded idempotently.
+
+Подробнее: [ADR-018](adr/ADR-018-siem-service-topology.md) (topology), [ADR-019](adr/ADR-019-security-event-transport.md) (transport), [ADR-020](adr/ADR-020-security-event-contract.md) (contract), [ADR-021](adr/ADR-021-siem-correlation-engine.md) (correlation engine).
 
 ## Error Handling
 

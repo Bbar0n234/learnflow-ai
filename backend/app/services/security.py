@@ -23,12 +23,18 @@ def verify_password(password_hash: str, password: str) -> bool:
         return False
 
 
-def create_access_token(user_id: uuid.UUID, secret: str, expire_minutes: int) -> str:
+def create_access_token(
+    user_id: uuid.UUID,
+    secret: str,
+    expire_minutes: int,
+    is_admin: bool = False,
+) -> str:
     now = datetime.now(UTC)
     payload = {
         "sub": str(user_id),
         "iat": now,
         "exp": now + timedelta(minutes=expire_minutes),
+        "is_admin": is_admin,
     }
     return jwt.encode(payload, secret, algorithm="HS256")
 

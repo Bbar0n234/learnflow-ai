@@ -13,7 +13,7 @@ import os
 import sys
 import uuid
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from time import monotonic
 
@@ -94,7 +94,7 @@ async def _run_one_case(
         kind=case.kind,
         source_trace_ids=list(case.source_trace_ids),
         outcome="PENDING",
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
     )
     started = monotonic()
     blocked = False
@@ -226,7 +226,7 @@ async def _amain(args: argparse.Namespace) -> int:
 
     token_guard = TokenGuard()
     client = EvalHttpClient(base_url, token_guard)
-    started_at = datetime.now(timezone.utc)
+    started_at = datetime.now(UTC)
     run_id = started_at.strftime("%Y-%m-%d-%H%M")
 
     try:
@@ -263,7 +263,7 @@ async def _amain(args: argparse.Namespace) -> int:
                 )
             )
 
-        finished_at = datetime.now(timezone.utc)
+        finished_at = datetime.now(UTC)
         report = _build_report(
             run_id=run_id,
             backend_base_url=base_url,

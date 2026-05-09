@@ -40,7 +40,7 @@ class AuthService:
         user = User(name=name, password_hash=hash_password(password))
         await self._user_repo.create(user)
 
-        access_token = self._create_access(user.id)
+        access_token = self._create_access(user)
         refresh_raw = await self._create_refresh(user.id)
         return user, access_token, refresh_raw
 
@@ -49,7 +49,7 @@ class AuthService:
         if user is None or not verify_password(user.password_hash, password):
             raise InvalidCredentialsError
 
-        access_token = self._create_access(user.id)
+        access_token = self._create_access(user)
         refresh_raw = await self._create_refresh(user.id)
         return user, access_token, refresh_raw
 
@@ -69,7 +69,12 @@ class AuthService:
 
         await self._token_repo.revoke(stored.id)
 
-        access_token = self._create_access(stored.user_id)
+        # Fetch user to get is_admin status
+        user = await self._user_repo.get_by_id(stored.user_id)
+        if user is None:
+            raise InvalidTokenError
+
+        access_token = self._create_access(user)
         refresh_raw = await self._create_refresh(stored.user_id)
         return access_token, refresh_raw
 
@@ -79,11 +84,13 @@ class AuthService:
         if stored is not None:
             await self._token_repo.revoke(stored.id)
 
-    def _create_access(self, user_id: uuid.UUID) -> str:
+    def _create_access(self, user: User) -> str:
+        is_admin = getattr(user, "is_admin", False)
         return create_access_token(
-            user_id,
+            user.id,
             self._settings.jwt_secret,
             self._settings.access_token_expire_minutes,
+            is_admin=is_admin,
         )
 
     async def _create_refresh(self, user_id: uuid.UUID) -> str:

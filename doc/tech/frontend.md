@@ -40,6 +40,7 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 | `/projects/:id/artifacts` | Список артефактов проекта |
 | `/projects/:id/artifacts/:aid` | Просмотр артефакта + скачивание (md/pdf) |
 | `/projects/:id/settings` | Настройки проекта: model override, MCP серверы |
+| `/security` | Мониторинг безопасности (admin-only, RBAC guard): Events / Alerts / Rules |
 
 ### Экраны
 
@@ -96,6 +97,14 @@ Feature-based: компоненты группируются по фичам, н
 **artifacts** — артефакты проекта.
 - Список артефактов (название, тип, дата)
 - Просмотр артефакта (Markdown render + кнопки скачивания md/pdf)
+
+**security** — admin-only мониторинг SIEM-подсистемы. Подробнее о backend-стороне — [backend.md](backend.md#siem-service), [observability.md](observability.md#siem-observability-security-event-pipeline).
+- SecurityPage (`/security`) — три таба: Events, Alerts, Rules
+- SecurityRouteGuard — guard на `is_admin` claim из JWT (читает `/auth/me` с fallback на декодирование токена); non-admin → редирект
+- SecurityEvents — таблица событий с фильтрами (event_type, severity, time range), пагинация, диалог Details
+- SecurityAlerts — таблица алертов с фильтрами (severity, status), действия `Acknowledge` / `Resolve`
+- SecurityRules — таблица rules с CRUD через RuleForm (Threshold / Sequence / Aggregate), toggle `enabled`
+- Сейчас отображает `user_id` напрямую (username enrichment отложен в feat-007)
 
 ### Shared
 
@@ -219,6 +228,7 @@ features/sphere/     → useSphere, useUpdateSphere
 features/artifacts/  → useArtifacts, useArtifact
 features/settings/   → useModels, useSettings, useUpdateSettings, useInstructions, useUpdateInstructions,
                        useMemories, useDeleteMemory, useMCPServers, useMCPServerCRUD, useTestConnection
+features/security/   → useSecurityAPI (events, alerts, rules — list, mutate)
 ```
 
 Компоненты вызывают хуки, не API-функции напрямую.
@@ -296,9 +306,15 @@ frontend/
 │   │   ├── sphere/
 │   │   │   ├── components/        — SphereView, SphereViewer, SphereEditor
 │   │   │   └── hooks/             — useSphere, useUpdateSphere
-│   │   └── artifacts/
-│   │       ├── components/        — ArtifactList, ArtifactView
-│   │       └── hooks/             — useArtifacts, useArtifact
+│   │   ├── artifacts/
+│   │   │   ├── components/        — ArtifactList, ArtifactView
+│   │   │   └── hooks/             — useArtifacts, useArtifact
+│   │   └── security/              — admin-only SIEM monitoring
+│   │       ├── components/        — SecurityPage, SecurityRouteGuard, SecurityEvents,
+│   │       │                        SecurityAlerts, SecurityRules, RuleForm,
+│   │       │                        SecurityFilter, SecurityPagination,
+│   │       │                        SeverityBadge, StatusBadge
+│   │       └── hooks/             — useSecurityAPI
 │   │
 │   ├── shared/
 │   │   ├── api/                   — HTTP-слой
@@ -311,7 +327,8 @@ frontend/
 │   │   │   ├── models.ts
 │   │   │   ├── settings.ts
 │   │   │   ├── user-memory.ts
-│   │   │   └── mcp-servers.ts
+│   │   │   ├── mcp-servers.ts
+│   │   │   └── security.ts        — events, alerts, rules (siem-service API)
 │   │   ├── ui/                    — shadcn/ui компоненты
 │   │   └── components/            — MarkdownRenderer и другие shared-компоненты
 │   │

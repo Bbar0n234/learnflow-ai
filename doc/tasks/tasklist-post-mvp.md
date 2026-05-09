@@ -259,7 +259,7 @@ KS Write Guard, LLM Output Classifier, SUSPICIOUS → ограничения, To
 - [x] Alert deduper: open-alert policy с возрастным лимитом 24h
 - [x] Полный REST API: `GET /security/alerts`, `PATCH /security/alerts/:id` (acknowledge / resolve), CRUD `correlation_rules`
 - [x] Identity: JWT HS256 общий с main app, claim `is_admin`; admin-only зависимость на всех security-endpoints
-- [x] Bootstrap админа: миграция `users.is_admin` + env `INITIAL_ADMIN_USERNAME` в main app; идемпотентный seed
+- [x] Промоут админа: миграция `users.is_admin` в main app + helper-скрипт `make grant-admin USER=<name>` (целевое действие оператора, без автоматического seed на старте)
 - [x] Meta-log: PATCH alerts эмитит `siem.alert.acknowledged` / `siem.alert.resolved` через тот же producer-pipeline
 
 **T4 — Frontend + Integration + ADRs:**

@@ -139,8 +139,8 @@ HTTP Request → HTTP Middleware (bind ip, request_id, user_agent_hash)
 ## Contract Stability
 
 - **Producer side**: `event_type` is `Literal[...]` (mypy-checked). Opaque field values (e.g., `metadata`) are flexible.
-- **Consumer side**: Pydantic validates schema strictly; unknown `event_type` values are accepted (with metric) to allow forward compatibility.
-- **Adding new types**: New `event_type` values are added to `packages/siem-contracts/siem_contracts/vocabulary.py` and picked up automatically by both producer and consumer.
+- **Consumer side**: Pydantic validates schema strictly; `event_type` is `Literal[...]` from the same shared package, so unknown values are rejected (counted in `siem_events_invalid`). Drift невозможен в monorepo: producer и consumer импортируют контракт из одного источника. Полная мотивация — [ADR-020 §5](adr/ADR-020-security-event-contract.md).
+- **Adding new types**: New `event_type` values are added to `packages/siem-contracts/siem_contracts/vocabulary.py` и подхватываются producer'ом и consumer'ом одновременно.
 
 ## Example Events
 

@@ -16,7 +16,7 @@ feat-005 добавляет SIEM-подсистему: сбор, хранени�
 
 ### 1. SIEM — отдельный backend-сервис (D1)
 
-SIEM запускается как собственный FastAPI-процесс в собственном Docker-контейнере. Main app и SIEM-сервис — два процесса, связанных через Redis Streams (transport) и HTTP (username enrichment).
+SIEM запускается как собственный FastAPI-процесс в собственном Docker-контейнере. Main app и SIEM-сервис — два процесса, связанных через Redis Streams (transport). HTTP back-channel для username enrichment спроектирован, но реализация отложена в feat-007 (см. D22 ниже).
 
 **Альтернатива: модуль в main app** (`app/siem/`)
 
@@ -79,7 +79,9 @@ RS256 позволяет верифицировать токен по public key
 
 **Admin promotion:** миграция добавляет `users.is_admin BOOLEAN` в основную БД. Промоут до админа — целевое действие оператора через `make grant-admin USER=<name>`, не автоматическая логика на старте. Это исключает race window «зарегистрироваться раньше настоящего администратора и получить роль автоматически» и снимает требования к порядку операций (registration ↔ restart).
 
-**Username enrichment (D22):** SIEM делает `GET /api/internal/users?ids=<csv>` в main app, forward'ит admin JWT текущего запроса. Кеш TTL 5 мин. При недоступности main app UI показывает `user_id` без имени (graceful degradation). Authoritative source (`users` table) доступен только через публичный контракт своего сервиса.
+**Username enrichment (D22) — спроектировано, реализация отложена в feat-007.** Целевой контракт: SIEM делает `GET /api/internal/users?ids=<csv>` в main app, forward'ит admin JWT текущего запроса. Кеш TTL 5 мин. При недоступности main app UI показывает `user_id` без имени (graceful degradation). Authoritative source (`users` table) доступен только через публичный контракт своего сервиса.
+
+**Текущее состояние (feat-005):** endpoint `/api/internal/users` в main app не реализован, кеш в SIEM не заведён. Frontend Security UI отображает `user_id` напрямую. Решение принято осознанно: enrichment не блокирует core-функционал SIEM (events/alerts/rules), а фрагментарная реализация без feat-007 (extended search, dashboard) даёт ограниченную ценность. Перенос зафиксирован в `tasklist-post-mvp.md` (feat-007 SIEM Extensions) и в `summary.md` feat-005 (Finding #9).
 
 ### 6. Сетевая модель — trusted network (D23)
 
@@ -100,7 +102,7 @@ Main app, SIEM, Redis, PostgreSQL — один host. Порты не выста�
 
 - Операционный overhead: два контейнера, два набора env, два health check
 - Cross-service identity через shared secret — при появлении третьего сервиса потребуется пересмотр (RS256 / gateway)
-- Username resolution через HTTP — дополнительная зависимость SIEM от доступности main app (митигирована graceful degradation)
+- Username resolution через HTTP — дополнительная зависимость SIEM от доступности main app при будущей реализации (митигирована graceful degradation; в feat-005 не реализована)
 
 **Риски:**
 

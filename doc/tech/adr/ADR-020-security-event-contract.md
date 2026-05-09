@@ -85,17 +85,15 @@ JSONB-индексы на metadata дают эффективный доступ 
 
 ### 5. Двухслойная strictness (C4, C13)
 
-Три уровня контроля, каждый решает свою задачу:
+Два уровня контроля, каждый решает свою задачу:
 
 **Producer-side, vocabulary: строго.** `event_type` типизирован как `Literal[...]` из централизованного vocabulary в shared-пакете. Опечатка не пройдёт mypy. Это первый рубеж — неверное имя события не попадает в транспорт.
 
-**Consumer-side, schema: строго.** Pydantic-валидация `SecurityEvent` обязательна. Битый `severity`, отсутствующий `event_id` — событие отбрасывается. На validation error: метрика `siem_events_invalid`, warning-лог с raw payload, XACK (предотвращает зацикливание передоставки в Redis Stream). Consumer защищён от некорректных сообщений.
+**Consumer-side, schema + vocabulary: строго.** Pydantic-валидация `SecurityEvent` обязательна. `event_type` объявлен как `Literal[...]` из того же shared-пакета — Pydantic отвергает неизвестные значения наравне с битым `severity` или отсутствующим `event_id`. На validation error: метрика `siem_events_invalid`, warning-лог с raw payload, XACK (предотвращает зацикливание передоставки в Redis Stream). Consumer защищён от некорректных и unknown-сообщений симметрично.
 
-**Consumer-side, vocabulary: мягко.** Неизвестный `event_type` принимается, пишется в БД, инкрементируется метрика `unknown_event_type`. Это позволяет добавлять новых producer'ов без блокирующей синхронизации SIEM: новый event_type проходит через транспорт и сохраняется, но даёт наблюдаемый сигнал «vocabulary дрейфует, пора актуализировать Literal».
+**Почему strict, а не soft-on-vocabulary.** Soft-режим (приём unknown event_type с метрикой `unknown_event_type`) рассматривался как способ позволить producer'ам добавлять новые типы без блокирующей синхронизации SIEM. В monorepo с workspace-зависимостью этот сценарий не реализуется: producer и consumer импортируют контракт из одного источника, drift невозможен по построению. Активирующие soft-режим сценарии — rolling deploy или polyrepo-split — на текущем deployment-профиле не наступают; вводить лишнюю поверхность ради них не оправдано.
 
-Зачем мягкость на consumer-side, если в monorepo drift невозможен? Два сценария:
-1. Producer обновился раньше consumer'а при rolling deploy — временный drift в рамках деплоя
-2. Выход в polyrepo — drift становится возможным, паттерн уже заложен
+**Эволюционный путь.** При разделении сервисов на отдельные репозитории (или ослаблении synchronizing constraint) `event_type` ослабляется до `str` + runtime-проверка через `_is_known_event_type`, метрика `siem_unknown_event_type` активируется. Сигнальная инфраструктура (метрика, лог-канал) уже заложена — переключение режима будет точечным изменением одного типа.
 
 ### 6. Открытая схема БД (D9)
 

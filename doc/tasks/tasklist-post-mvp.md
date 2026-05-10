@@ -27,12 +27,13 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 | feat-005 | ✅ Done | cross-cutting | Security Event Pipeline (SIEM Core): collection, correlation, alerting, monitoring UI |
 | feat-006 | ✅ Done | agent | Security 2.0: Universal I/O Guard + Boundary Enforcement |
 | feat-007 | 📋 Planned | cross-cutting | SIEM Extensions: dashboard, basic response actions, search, notifications, export |
+| feat-008 | 📋 Planned | security tooling | Promptfoo Red Team Scan: app-level LLM vulnerability scan через локальный Python provider |
 
 ## Параллелизация
 
 ```
 feat-003 (Agent Config: 3 tracks) ── feat-004 (Security) ─┬─ feat-005 (SIEM Core) ── feat-007 (SIEM Extensions)
-                                                          └─ feat-006 (Security 2.0) ─────────────────────────
+                                                          └─ feat-006 (Security 2.0) ── feat-008 (Promptfoo Red Team)
 feat-001 (Chat UX) ── когда будет время ─────────────────────────────────────────────────────────────────────
 ```
 
@@ -41,6 +42,7 @@ feat-001 (Chat UX) ── когда будет время ───────
 - **feat-005** — после feat-004 (строится поверх security-событий Security 1.0; forward compatible с Security 2.0)
 - **feat-006** — после feat-004, параллельно с feat-005, не блокирует и не блокируется (разные scope: SIEM = aggregation/correlation events, Security 2.0 = расширение защиты на новые I/O границы графа)
 - **feat-007** — после feat-005; продуктовые улучшения поверх SIEM Core (dashboard, basic ban, search, notifications, export)
+- **feat-008** — после feat-006; scanner/tooling итерация поверх уже реализованного security perimeter. Не меняет production API, проверяет существующий backend contour через Promptfoo + local Python provider
 - **feat-001** — отложена, не блокирует реальное использование
 
 ## Итерации
@@ -377,3 +379,57 @@ Response actions расширяют ответственность SIEM с чи�
 #### Документация
 
 На этапе tasklist содержательный design-brief не пишется; создаётся при старте итерации.
+
+---
+
+### feat-008: Promptfoo Red Team Scan
+
+**Цель:** добавить воспроизводимый app-level LLM vulnerability scan для LearnFlowAI через Promptfoo и локальный Python provider, без добавления scanner-only endpoints в production API.
+
+**Статус:** 📋 Planned
+**Scope:** security tooling
+**After:** feat-006
+
+#### Triggered by
+
+- Academic requirement: запустить LLM-specific vulnerability scanner для проекта и предоставить результаты.
+- Scanner research: Garak подходит как baseline-концепт, но для LearnFlowAI требует отдельной обвязки из-за auth/project/chat/SSE lifecycle.
+- Promptfoo выбран как более простой app-level scanner: Python provider, redteam plugins/strategies, OWASP mappings, HTML/JSON reports.
+
+#### Scope
+
+**MVP — Chat Runtime Scan:**
+- `tools/security-scan/` с `promptfooconfig.yaml`, `learnflow_provider.py`, `.env.example`, `README.md`, `reports/`
+- Python provider реализует lifecycle: login/register eval-user → create project → create chat per test → send message → read SSE → normalize output
+- Promptfoo target указывает на `file://./learnflow_provider.py`
+- Baseline plugins: `prompt-injection`, `indirect-prompt-injection`, `ascii-smuggling`, `hijacking`, `data-exfil`
+- Baseline strategies: `basic`, один jailbreak strategy, один encoding strategy; тяжелые multi-turn strategies не входят в baseline
+- Reports сохраняются в `tools/security-scan/reports/<run-id>/`: `report.html`, `results.json`, `provider-events.jsonl`, `summary.md`
+
+**Optional — Add-Time Endpoints:**
+- `custom_instructions_write`, `ks_write_rest`, `mcp_metadata` покрываются в первой итерации только если это реализуется без сложной orchestration и без изменений production API
+- Если требуется fake malicious MCP server или сложный fixture state — выносится в future work
+
+#### Definition of Done
+
+- [ ] `npx promptfoo@latest validate config` проходит в `tools/security-scan`
+- [ ] Provider standalone smoke отправляет benign prompt через существующий backend API и получает normal output
+- [ ] Provider standalone attack smoke получает или корректно фиксирует `security_block`
+- [ ] Small Promptfoo redteam run завершается без infrastructure errors
+- [ ] `provider-events.jsonl` содержит `run_id`, Promptfoo metadata, `project_id`, `chat_id`, `blocked`, `block_reason`, latency
+- [ ] `report.html` и `results.json` сохранены в `reports/<run-id>/`
+- [ ] `summary.md` написан вручную: commit hash, Promptfoo version, plugins/strategies, totals, blocked/errors, findings, limitations
+- [ ] Raw reports проходят ручной review на секреты и коммитятся как audit evidence, если получены на dedicated eval-user и не содержат real user data
+- [ ] Production backend API не содержит `/scan` или других scanner-only endpoints
+
+#### Сознательно deferred
+
+- Garak integration через REST adapter / custom generator
+- Reactivation archived `tools/eval-sec` как regression harness
+- CI/nightly security scan
+- Hydra / GOAT / Crescendo multi-turn strategies
+- Dedicated malicious MCP fixture для robust `mcp_metadata` / `tool_result` indirect injection tests
+
+#### Документация
+
+- [design-brief.md](iterations/post-mvp/feat-008-promptfoo-redteam/design-brief.md) — Context, goals/non-goals, Promptfoo + Python provider decision, repository layout, provider contract, reporting policy, add-time endpoint boundary

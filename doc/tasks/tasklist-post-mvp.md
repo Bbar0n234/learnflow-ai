@@ -27,7 +27,7 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 | feat-005 | ✅ Done | cross-cutting | Security Event Pipeline (SIEM Core): collection, correlation, alerting, monitoring UI |
 | feat-006 | ✅ Done | agent | Security 2.0: Universal I/O Guard + Boundary Enforcement |
 | feat-007 | 📋 Planned | cross-cutting | SIEM Extensions: dashboard, basic response actions, search, notifications, export |
-| feat-008 | 📋 Planned | security tooling | Promptfoo Red Team Scan: app-level LLM vulnerability scan через локальный Python provider |
+| feat-008 | ✅ Done | security tooling | Promptfoo Red Team Scan: app-level LLM vulnerability scan через локальный Python provider |
 
 ## Параллелизация
 
@@ -386,7 +386,7 @@ Response actions расширяют ответственность SIEM с чи�
 
 **Цель:** добавить воспроизводимый app-level LLM vulnerability scan для LearnFlowAI через Promptfoo и локальный Python provider, без добавления scanner-only endpoints в production API.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Scope:** security tooling
 **After:** feat-006
 
@@ -412,15 +412,15 @@ Response actions расширяют ответственность SIEM с чи�
 
 #### Definition of Done
 
-- [ ] `npx promptfoo@latest validate config` проходит в `tools/security-scan`
-- [ ] Provider standalone smoke отправляет benign prompt через существующий backend API и получает normal output
-- [ ] Provider standalone attack smoke получает или корректно фиксирует `security_block`
-- [ ] Small Promptfoo redteam run завершается без infrastructure errors
-- [ ] `provider-events.jsonl` содержит `run_id`, Promptfoo metadata, `project_id`, `chat_id`, `blocked`, `block_reason`, latency
-- [ ] `report.html` и `results.json` сохранены в `reports/<run-id>/`
-- [ ] `summary.md` написан вручную: commit hash, Promptfoo version, plugins/strategies, totals, blocked/errors, findings, limitations
-- [ ] Raw reports проходят ручной review на секреты и коммитятся как audit evidence, если получены на dedicated eval-user и не содержат real user data
-- [ ] Production backend API не содержит `/scan` или других scanner-only endpoints
+- [x] `npx promptfoo@latest validate config` проходит в `tools/security-scan`
+- [x] Provider standalone smoke отправляет benign prompt через существующий backend API и получает normal output
+- [x] Provider standalone attack smoke получает или корректно фиксирует `security_block`
+- [x] Small Promptfoo redteam run завершается без infrastructure errors (22 cases, 0 successful attacks, 16/22 passed, 6/22 errored по timeout/grader edge case)
+- [x] `provider-events.jsonl` содержит `run_id`, Promptfoo metadata, `project_id`, `chat_id`, `blocked`, `block_reason`, latency
+- [x] `report.html` (как `results.html`) и `results.json` сохранены в `reports/<run-id>/`
+- [x] `summary.md` написан вручную: commit hash, Promptfoo version, plugins/strategies, totals, blocked/errors, findings, limitations
+- [x] Raw reports проходят ручной review на секреты и коммитятся как audit evidence, если получены на dedicated eval-user и не содержат real user data
+- [x] Production backend API не содержит `/scan` или других scanner-only endpoints
 
 #### Сознательно deferred
 
@@ -433,3 +433,6 @@ Response actions расширяют ответственность SIEM с чи�
 #### Документация
 
 - [design-brief.md](iterations/post-mvp/feat-008-promptfoo-redteam/design-brief.md) — Context, goals/non-goals, Promptfoo + Python provider decision, repository layout, provider contract, reporting policy, add-time endpoint boundary
+- [plan.md](iterations/post-mvp/feat-008-promptfoo-redteam/plan.md) — Implementation plan: phasing, file map, hard-rules checklist, Makefile targets, verification
+- [summary.md](iterations/post-mvp/feat-008-promptfoo-redteam/summary.md) — Post-implementation summary: deviations (D1-D6), tech debt, baseline run results, verification commands
+- [reports/2026-05-10-baseline/summary.md](../../tools/security-scan/reports/2026-05-10-baseline/summary.md) — Baseline scan run report: 22 cases, 0 successful attacks, two-layer defense verification

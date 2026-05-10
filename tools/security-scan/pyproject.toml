@@ -1,0 +1,13 @@
+[project]
+name = "learnflow-security-scan"
+version = "0.1.0"
+description = "Promptfoo Python provider for LearnFlowAI red team scan"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx[http2]>=0.28",
+    "pydantic>=2.0",
+]
+
+# This package is a runner, not a library. It does not get installed as a
+# distributable; uv treats it as a workspace member and resolves its deps into
+# the shared lockfile. Provider entrypoint is `tools/security-scan/learnflow_provider.py`.

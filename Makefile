@@ -1,4 +1,4 @@
-.PHONY: docker-up docker-up-db docker-up-redis docker-down docker-build docker-logs lint format type-check check lint-fe check-fe format-fe dev dev-remote dev-fe test migrate migration downgrade migrate-siem sync-prompts
+.PHONY: docker-up docker-up-db docker-up-redis docker-down docker-build docker-logs lint format type-check check lint-fe check-fe format-fe dev dev-remote dev-fe test migrate migration downgrade migrate-siem sync-prompts security-scan-validate security-scan-redteam security-scan-report
 
 # Load .env (base) then .env.local (overrides) into shell environment
 LOAD_ENV = set -a && [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; set +a
@@ -29,12 +29,12 @@ format:  ## Format Python code (auto-fix safe lint issues + format)
 	uv run ruff format .
 
 type-check:  ## Run mypy type checking
-	uv run mypy backend/ services/siem-service/
+	uv run mypy backend/ services/siem-service/ tools/security-scan/
 
 check:  ## Run all backend checks (CI gate)
 	uv run ruff check .
 	uv run ruff format --check .
-	uv run mypy backend/ services/siem-service/
+	uv run mypy backend/ services/siem-service/ tools/security-scan/
 
 lint-fe:  ## Run ESLint on frontend
 	cd frontend && npx eslint .
@@ -77,3 +77,16 @@ downgrade:  ## Run alembic downgrade (one step)
 
 sync-prompts:  ## Sync prompts from Langfuse to local files
 	$(LOAD_ENV) && uv run python backend/scripts/sync_prompts.py --label production
+
+security-scan-validate:  ## Validate Promptfoo config for tools/security-scan
+	cd tools/security-scan && npx promptfoo@latest validate
+
+security-scan-redteam:  ## Run baseline redteam scan. Usage: make security-scan-redteam RUN_ID=<id>
+	@if [ "$(origin RUN_ID)" != "command line" ]; then echo "Usage: make security-scan-redteam RUN_ID=<id>"; exit 1; fi
+	$(LOAD_ENV) && cd tools/security-scan && \
+	  LEARNFLOW_SCAN_RUN_ID=$(RUN_ID) \
+	  npx promptfoo@latest redteam run \
+	    --output reports/$(RUN_ID)/results.json
+
+security-scan-report:  ## View latest Promptfoo report (no auto-open)
+	cd tools/security-scan && npx promptfoo@latest view --no-browser

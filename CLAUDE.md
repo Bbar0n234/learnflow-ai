@@ -31,6 +31,8 @@ When exploring the codebase for a task, start from architectural documents in `d
 
 **В облачных сессиях (Claude Code on the web и аналоги)** действует отдельная merge-policy: агент доводит фичу до feature-ветки, push + PR в `develop`, merge — за архитектором локально. См. `doc/tech/conventions.md` § Cloud sessions.
 
+**Агентам в OpenAI Codex Cloud** дополнительно подгрузить skill `codex-cloud-bootstrap` (Python 3.12 policy + docker-less путь).
+
 When discussing architecture, visualize components, layers, and data flows so the architect can give quality feedback with the full picture in front of them. Don't wait to be asked. In chat — ASCII diagrams; when writing to documents — Mermaid.
 
 Start from [doc/index.md](doc/index.md). Key entry points by concern:

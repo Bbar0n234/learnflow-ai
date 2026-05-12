@@ -39,7 +39,15 @@ user-invocable: true
 
 `plan.md` может отсутствовать — его создаёт первая фаза конвейера. Если `plan.md` уже есть — оркестратор использует его без перезаписи.
 
-При работе в облачной сессии (Claude Code on the web и аналоги) дополнительно действует cloud merge-policy: коммит и push в feature-ветку, PR в `develop`, **merge выполняет архитектор локально** (см. `conventions.md` § Cloud sessions).
+## Платформа
+
+Skill написан с примерами Claude Code (`Agent` tool, `subagent_type`, имена моделей Opus / Sonnet / Haiku). В OpenAI Codex Cloud sub-agent delegation идёт через встроенный механизм Codex; имена моделей в таблице тиров маппятся на capability-уровни:
+
+- **Opus** → highest reasoning (используется для критичных решений: planner, code-reviewer, tester)
+- **Sonnet** → balanced default (implementer на первом проходе, docs-updater)
+- **Haiku** → fast / cheap (если нужны лёгкие проверки)
+
+Логика фаз, escalation policy и acceptance gates — идентичны для обеих платформ. Если на текущей платформе нет аналога `Agent` tool — используй штатный sub-agent / sub-task механизм платформы; контракт по входам/выходам тот же.
 
 ## Ментальная модель
 

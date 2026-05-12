@@ -29,6 +29,8 @@ When exploring the codebase for a task, start from architectural documents in `d
 
 **Before editing code on a non-trivial task, open `doc/tech/conventions.md`.** The Hard Rules above are the short version; conventions.md is the source of truth for the rest (logging, naming, types, env workflow, migration workflow). Read the relevant section instead of guessing.
 
+**В облачных сессиях (Claude Code on the web и аналоги)** действует отдельная merge-policy: агент доводит фичу до feature-ветки, push + PR в `develop`, merge — за архитектором локально. См. `doc/tech/conventions.md` § Cloud sessions.
+
 When discussing architecture, visualize components, layers, and data flows so the architect can give quality feedback with the full picture in front of them. Don't wait to be asked. In chat — ASCII diagrams; when writing to documents — Mermaid.
 
 Start from [doc/index.md](doc/index.md). Key entry points by concern:

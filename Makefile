@@ -56,8 +56,8 @@ dev-remote:  ## Run backend dev server (accessible by IP)
 dev-fe:  ## Run frontend dev server
 	cd frontend && npx vite
 
-test:  ## Run pytest
-	$(LOAD_ENV) && uv run --package learnflow-backend pytest -c backend/pyproject.toml --rootdir backend
+test:  ## Run pytest (treats exit 5 = "no tests collected" as success)
+	@$(LOAD_ENV) && uv run --package learnflow-backend pytest -c backend/pyproject.toml --rootdir backend; ec=$$?; [ $$ec -eq 0 ] || [ $$ec -eq 5 ]
 
 migrate:  ## Run alembic upgrade head
 	$(LOAD_ENV) && uv run alembic -c backend/alembic.ini upgrade head

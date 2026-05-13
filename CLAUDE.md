@@ -31,7 +31,7 @@ When exploring the codebase for a task, start from architectural documents in `d
 
 **В облачных сессиях (Claude Code on the web и аналоги)** действует отдельная merge-policy: агент доводит фичу до feature-ветки, push + PR в `develop`, merge — за архитектором локально. См. `doc/tech/conventions.md` § Cloud sessions.
 
-**Агентам в OpenAI Codex Cloud** дополнительно подгрузить skill `codex-cloud-bootstrap` (Python 3.12 policy + docker-less путь).
+**Агентам в OpenAI Codex Cloud** дополнительно подгрузить skill `codex-cloud-bootstrap` (runtime policy: Python 3.12, docker-less путь, localhost services). Настройка Codex Environment UI для человека: `doc/tech/setup/codex-cloud.md`.
 
 When discussing architecture, visualize components, layers, and data flows so the architect can give quality feedback with the full picture in front of them. Don't wait to be asked. In chat — ASCII diagrams; when writing to documents — Mermaid.
 
@@ -53,6 +53,7 @@ doc/
 │   ├── prompt-management.md # Langfuse prompts, dev/prod, seed/sync
 │   ├── observability.md     # Langfuse tracing, cost tracking, feedback loop
 │   ├── conventions.md       # Git flow, naming, code quality, documentation
+│   ├── setup/               # Dev/cloud environment setup manuals
 │   └── adr/                 # Architecture Decision Records
 ├── research/            # Technology research, deep-dives, approach analysis
 ├── reference/           # Reference materials: patterns, domain handbooks

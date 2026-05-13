@@ -1,22 +1,21 @@
 ---
 name: codex-cloud-bootstrap
 description: >
-  Bootstrap, runtime policy и cloud merge-policy для агента в OpenAI
-  Codex Cloud sandbox на LearnFlow AI. Python 3.12 setup, docker-less
-  путь (Postgres + Redis процессами), Codex Environment UI (Setup
-  script / Maintenance script / env vars).
+  Runtime policy и cloud merge-policy для агента в OpenAI Codex Cloud
+  sandbox на LearnFlow AI. Python 3.12, docker-less путь, Postgres и
+  Redis как localhost-процессы.
   Используй когда: ты агент в Codex Cloud (codex-universal sandbox),
-  AGENTS.md, async workflow, bootstrap в облаке, Python 3.14 vs 3.12,
-  docker not found, Codex Environment, codex-universal.
+  AGENTS.md, async workflow, Python 3.14 vs 3.12, docker not found,
+  codex-universal.
 ---
 
-# Codex Cloud bootstrap
+# Codex Cloud runtime policy
 
 ## Старт сессии
 
 1. Прочитай `CLAUDE.md` (на него же указывает корневой `AGENTS.md` — это symlink). Там единые правила проекта: конвенции, hard rules, AIDD, Makefile interface.
 2. Прочитай `doc/tech/conventions.md` § Cloud sessions — там зафиксирована cloud merge-policy.
-3. Если задача связана с настройкой Codex Environment UI (Setup script / Maintenance script / env vars) — открой `runbook.md` в этой же директории.
+3. Если окружение не соответствует policy ниже, проверь `doc/tech/setup/codex-cloud.md` и сообщи, какой шаг setup / maintenance / env vars выглядит сломанным.
 
 ## Runtime policy
 
@@ -27,13 +26,55 @@ uv python install 3.12
 uv sync --all-packages --python 3.12
 ```
 
-Все `make`-таргеты используют активную venv, поэтому достаточно зафиксировать 3.12 в начале сессии.
+Если окружение уже подготовлено Codex Environment setup script, не переустанавливай зависимости без причины. Все `make`-таргеты используют активную venv.
 
 ## Docker-less путь
 
-Docker внутри codex-universal sandbox **архитектурно отсутствует** (`docker: command not found`). Все `make docker-*` таргеты непригодны. Backend поднимается процессом (`make dev`), Postgres и Redis — через apt (детали bootstrap'а — в `runbook.md`).
+Docker внутри codex-universal sandbox **архитектурно отсутствует** (`docker: command not found`). Все `make docker-*` таргеты непригодны.
+
+Backend и frontend запускаются процессами:
+
+```bash
+make dev
+make dev-fe
+```
+
+Postgres и Redis ожидаются уже запущенными локальными процессами внутри Codex container.
 
 `DATABASE_URL` и `REDIS_URL` в env должны указывать на `host=localhost`, а не `host=db` / `host=redis` как в локальном `.env` — потому что backend в Codex запускается процессом, не контейнером в docker-сети.
+
+Setup / maintenance scripts для Codex Environment UI живут в `doc/tech/setup/codex-cloud.md`. Это human-facing инструкция, а не регулярный agent context.
+
+## HTTP smoke в Codex Cloud
+
+Codex Cloud command invocations могут не разделять localhost/network namespace для долгоживущих background-процессов. Dev-server, запущенный в одной команде, может оставаться видимым через `ps`, но `curl localhost:<port>` из следующей команды может не видеть его socket.
+
+Не трактуй failed cross-invocation `curl` как доказательство, что backend/frontend сломан.
+
+Надёжный паттерн для HTTP smoke: запусти server, дождись HTTP-ответа и останови server **внутри одной shell invocation**. Обязательно используй cleanup через `trap`.
+
+Пример для backend:
+
+```bash
+set -euo pipefail
+
+make dev >/tmp/learnflow-backend.log 2>&1 &
+pid=$!
+cleanup() { kill "$pid" 2>/dev/null || true; }
+trap cleanup EXIT
+
+for _ in $(seq 1 60); do
+  curl -fsS http://127.0.0.1:8000/health && exit 0
+  sleep 1
+done
+
+tail -120 /tmp/learnflow-backend.log
+exit 1
+```
+
+Для frontend используй тот же паттерн с `make dev-fe` и `http://127.0.0.1:5173/`.
+
+Если TCP-path не принципиален, backend endpoints можно проверять in-process через FastAPI app + `httpx.ASGITransport` / `TestClient`.
 
 ## Cloud merge-policy
 

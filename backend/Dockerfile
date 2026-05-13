@@ -24,12 +24,14 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=backend/pyproject.toml,target=backend/pyproject.toml \
     --mount=type=bind,source=packages/siem-contracts/pyproject.toml,target=packages/siem-contracts/pyproject.toml \
     --mount=type=bind,source=services/siem-service/pyproject.toml,target=services/siem-service/pyproject.toml \
+    --mount=type=bind,source=tools/security-scan/pyproject.toml,target=tools/security-scan/pyproject.toml \
     uv sync --locked --no-install-workspace --all-packages
 
 # Copy project source
 COPY backend/ /app/backend/
 COPY packages/ /app/packages/
 COPY services/ /app/services/
+COPY tools/security-scan/pyproject.toml /app/tools/security-scan/pyproject.toml
 COPY configs/ /app/configs/
 COPY skills/ /app/skills/
 COPY pyproject.toml uv.lock /app/

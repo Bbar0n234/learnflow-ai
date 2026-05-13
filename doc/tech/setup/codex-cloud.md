@@ -152,7 +152,9 @@ Codex Cloud **Secrets** доступны только setup phase и удаля�
 
 ## Verification
 
-После сохранения environment запусти новую Codex task на нужной ветке и попроси агента выполнить проверку без изменений в коде:
+После сохранения environment запусти новую Codex task на нужной ветке и попроси агента выполнить проверку без изменений в коде.
+
+Baseline checks:
 
 ```text
 Проверь Codex Cloud environment для learnflow-ai. Ничего не меняй в коде.
@@ -164,12 +166,10 @@ Codex Cloud **Secrets** доступны только setup phase и удаля�
 5. make migrate
 6. make check
 7. make check-fe
-8. запусти make dev, проверь /health, останови сервер
-9. запусти make dev-fe, проверь что localhost:5173 отдаёт HTML, останови сервер
 Верни краткий отчёт: что прошло, что упало, какие env vars видны без печати секретов.
 ```
 
-Ожидаемый результат:
+Ожидаемый baseline результат:
 
 ```text
 Python 3.12 используется в uv environment
@@ -178,16 +178,75 @@ redis-cli ping -> PONG
 make migrate OK
 make check OK
 make check-fe OK
-make dev поднимает backend
-GET /health -> {"status":"ok"}
-make dev-fe поднимает frontend
-curl localhost:5173 возвращает HTML
 ```
+
+### HTTP smoke в Codex Cloud
+
+Codex Cloud может проверять backend/frontend через localhost, но dev-server и HTTP probe должны выполняться внутри одной shell invocation. Ненадёжный паттерн:
+
+```text
+command 1: make dev
+command 2: curl http://127.0.0.1:8000/health
+```
+
+В такой схеме процесс может продолжать жить, но socket не будет виден следующей command invocation из-за sandbox/network isolation. Failed cross-invocation `curl` не доказывает, что backend или frontend сломан.
+
+Надёжный паттерн: launch + poll + teardown в одной shell-команде.
+
+Backend HTTP smoke:
+
+```bash
+set -euo pipefail
+
+make dev >/tmp/learnflow-backend.log 2>&1 &
+pid=$!
+cleanup() { kill "$pid" 2>/dev/null || true; }
+trap cleanup EXIT
+
+for _ in $(seq 1 60); do
+  if curl -fsS http://127.0.0.1:8000/health; then
+    echo "backend-health-ok"
+    exit 0
+  fi
+  sleep 1
+done
+
+echo "backend-health-failed"
+tail -120 /tmp/learnflow-backend.log
+exit 1
+```
+
+Frontend HTTP smoke:
+
+```bash
+set -euo pipefail
+
+make dev-fe >/tmp/learnflow-frontend.log 2>&1 &
+pid=$!
+cleanup() { kill "$pid" 2>/dev/null || true; }
+trap cleanup EXIT
+
+for _ in $(seq 1 60); do
+  if curl -fsS http://127.0.0.1:5173/ >/tmp/learnflow-frontend.html; then
+    echo "frontend-html-ok"
+    head -20 /tmp/learnflow-frontend.html
+    exit 0
+  fi
+  sleep 1
+done
+
+echo "frontend-html-failed"
+tail -120 /tmp/learnflow-frontend.log
+exit 1
+```
+
+Backend route checks без TCP можно делать in-process через FastAPI app и `httpx.ASGITransport` / `TestClient`. Это устойчивый fallback, когда HTTP listener не является предметом проверки.
 
 ## Known limitations
 
 - Docker / docker-compose в Codex Cloud недоступны. Не используй `make docker-*` в cloud-сессиях.
 - Postgres и Redis запускаются локальными процессами внутри Codex container.
+- Long-running dev-server между отдельными command invocations ненадёжен для localhost HTTP checks. Используй launch + poll + teardown в одной shell invocation.
 - Агент не мержит PR в `develop`: cloud merge-policy описана в [conventions.md](../conventions.md#cloud-sessions-async-workflow).
 - UI/integration validation остаётся за архитектором локально после pull feature-ветки.
 

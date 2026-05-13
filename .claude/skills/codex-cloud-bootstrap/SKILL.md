@@ -45,6 +45,37 @@ Postgres и Redis ожидаются уже запущенными локаль�
 
 Setup / maintenance scripts для Codex Environment UI живут в `doc/tech/setup/codex-cloud.md`. Это human-facing инструкция, а не регулярный agent context.
 
+## HTTP smoke в Codex Cloud
+
+Codex Cloud command invocations могут не разделять localhost/network namespace для долгоживущих background-процессов. Dev-server, запущенный в одной команде, может оставаться видимым через `ps`, но `curl localhost:<port>` из следующей команды может не видеть его socket.
+
+Не трактуй failed cross-invocation `curl` как доказательство, что backend/frontend сломан.
+
+Надёжный паттерн для HTTP smoke: запусти server, дождись HTTP-ответа и останови server **внутри одной shell invocation**. Обязательно используй cleanup через `trap`.
+
+Пример для backend:
+
+```bash
+set -euo pipefail
+
+make dev >/tmp/learnflow-backend.log 2>&1 &
+pid=$!
+cleanup() { kill "$pid" 2>/dev/null || true; }
+trap cleanup EXIT
+
+for _ in $(seq 1 60); do
+  curl -fsS http://127.0.0.1:8000/health && exit 0
+  sleep 1
+done
+
+tail -120 /tmp/learnflow-backend.log
+exit 1
+```
+
+Для frontend используй тот же паттерн с `make dev-fe` и `http://127.0.0.1:5173/`.
+
+Если TCP-path не принципиален, backend endpoints можно проверять in-process через FastAPI app + `httpx.ASGITransport` / `TestClient`.
+
 ## Cloud merge-policy
 
 Ты доводишь итерацию **только до feature-ветки**:

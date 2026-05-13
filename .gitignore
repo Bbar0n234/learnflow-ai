@@ -131,6 +131,9 @@ celerybeat.pid
 .env
 .env.local
 .env.eval
+
+# Local cloud setup notes — contain real secrets, never commit
+cloud-env-setup.md
 .venv
 env/
 venv/

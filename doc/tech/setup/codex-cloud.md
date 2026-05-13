@@ -43,9 +43,28 @@ sudo apt-get install -y postgresql-16 redis-server
 
 uv python install 3.12
 uv sync --all-packages --python 3.12
+
+cd frontend
+npm ci
+cd ..
+
+sudo pg_ctlcluster 16 main start || true
+redis-server --daemonize yes || true
+
+sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='learnflow'" | grep -q 1 || \
+  sudo -u postgres psql -c "CREATE ROLE learnflow LOGIN PASSWORD 'learnflow';"
+
+sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='learnflow'" | grep -q 1 || \
+  sudo -u postgres psql -c "CREATE DATABASE learnflow OWNER learnflow;"
+
+sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='siem'" | grep -q 1 || \
+  sudo -u postgres psql -c "CREATE ROLE siem LOGIN PASSWORD 'siem';"
+
+sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='siem'" | grep -q 1 || \
+  sudo -u postgres psql -c "CREATE DATABASE siem OWNER siem;"
 ```
 
-Setup script выполняет тяжёлую подготовку: системные пакеты, Python 3.12 и зависимости uv workspace.
+Setup script выполняет initial bootstrap: системные пакеты, Python 3.12, Python/frontend зависимости и создание локальных PostgreSQL databases. Блок запуска Postgres/Redis и создания role/database намеренно дублируется в Maintenance script: setup нужен для fresh container, maintenance — для resume cached container.
 
 Не задавай runtime env через `export` внутри setup script: setup script запускается в отдельной Bash-сессии, поэтому такие значения не переходят в agent phase. Runtime env задаётся через Environment variables в UI.
 

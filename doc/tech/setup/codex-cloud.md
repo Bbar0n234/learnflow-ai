@@ -64,9 +64,15 @@ sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='learnflow'" | g
 
 sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='learnflow'" | grep -q 1 || \
   sudo -u postgres psql -c "CREATE DATABASE learnflow OWNER learnflow;"
+
+sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='siem'" | grep -q 1 || \
+  sudo -u postgres psql -c "CREATE ROLE siem LOGIN PASSWORD 'siem';"
+
+sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='siem'" | grep -q 1 || \
+  sudo -u postgres psql -c "CREATE DATABASE siem OWNER siem;"
 ```
 
-Maintenance script выполняет лёгкую runtime-подготовку при resume cached container: стартует Postgres/Redis и гарантирует наличие role/database.
+Maintenance script выполняет лёгкую runtime-подготовку при resume cached container: стартует Postgres/Redis и гарантирует наличие role/database для main backend и SIEM service.
 
 ## Environment variables
 
@@ -75,24 +81,53 @@ Maintenance script выполняет лёгкую runtime-подготовку 
 Минимально:
 
 ```text
+POSTGRES_USER=learnflow
+POSTGRES_PASSWORD=learnflow
+POSTGRES_DB=learnflow
+POSTGRES_PORT=5432
 DATABASE_URL=postgresql+psycopg://learnflow:learnflow@localhost:5432/learnflow
 REDIS_URL=redis://localhost:6379/0
+REDIS_PORT=6379
 JWT_SECRET=<dev-secret-at-least-32-characters>
 ```
 
-Опционально для полной проверки agent/observability/web-фич:
+Для SIEM service:
 
 ```text
+SIEM_POSTGRES_USER=siem
+SIEM_POSTGRES_PASSWORD=siem
+SIEM_POSTGRES_DB=siem
+SIEM_POSTGRES_PORT=5432
+SIEM_DATABASE_URL=postgresql+asyncpg://siem:siem@localhost:5432/siem
+SIEM_REDIS_URL=redis://localhost:6379/0
+SIEM_JWT_SECRET=<same-as-JWT_SECRET>
+SIEM_FRONTEND_ORIGIN=http://localhost:8000,http://localhost:5173
+SIEM_XREAD_BATCH_SIZE=100
+SIEM_XREAD_BLOCK_MS=1000
+SIEM_POLL_INTERVAL_SECONDS=10
+SIEM_DELETE_AFTER_DAYS=90
+SIEM_ALERT_OPEN_WINDOW_SECONDS=86400
+```
+
+Для полной проверки agent/observability/web-фич:
+
+```text
+LLM_API_KEY=...
+LLM_BASE_URL=...
 LANGFUSE_PUBLIC_KEY=...
 LANGFUSE_SECRET_KEY=...
 LANGFUSE_BASE_URL=...
+LANGFUSE_TRACING_ENVIRONMENT=development
+LANGFUSE_RELEASE=...
+LANGFUSE_PROMPT_LABEL=latest
+LANGFUSE_PROMPT_CACHE_TTL=300
 CANARY_SECRET=...
 MCP_ENCRYPTION_KEY=...
 FIRECRAWL_API_KEY=...
 TAVILY_API_KEY=...
 ```
 
-`DATABASE_URL` и `REDIS_URL` используют `localhost`, а не `db` / `redis`: backend в Codex Cloud запускается процессом, не контейнером внутри docker-сети.
+`DATABASE_URL`, `SIEM_DATABASE_URL`, `REDIS_URL` и `SIEM_REDIS_URL` используют `localhost`, а не `db` / `redis` / `siem-db`: сервисы в Codex Cloud запускаются процессами, не контейнерами внутри docker-сети.
 
 Codex Cloud **Secrets** доступны только setup phase и удаляются до agent phase. Значения, которые нужны backend/agent во время работы, должны быть Environment variables. Используй только dev-ключи с ограниченными правами.
 

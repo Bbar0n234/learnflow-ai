@@ -20,6 +20,7 @@ doc/
 │   ├── prompt-management.md # Prompt Management: Langfuse, dev/prod, seed/sync
 │   ├── observability.md # Observability: Langfuse, трейсинг, feedback
 │   ├── conventions.md   # Git, code quality, naming, logging, documentation
+│   ├── setup/            # Инструкции настройки dev/cloud окружений
 │   └── adr/             # Architecture Decision Records
 ├── research/        # Исследования: технологические ресёрчи, анализ подходов
 ├── reference/       # Референс-материалы: паттерны, справочники по доменам
@@ -57,6 +58,9 @@ doc/
   - [ADR-019: Security Event Transport](tech/adr/ADR-019-security-event-transport.md) — Redis Streams, at-least-once semantics, bounded queue
   - [ADR-020: Security Event Contract](tech/adr/ADR-020-security-event-contract.md) — Pydantic SecurityEvent, vocabulary, identifiers, forward compatibility
   - [ADR-021: SIEM Correlation Engine](tech/adr/ADR-021-siem-correlation-engine.md) — polling-based engine, three strategies, open-alert deduplication, 24h age limit
+
+**Setup manuals:**
+- [tech/setup/codex-cloud.md](tech/setup/codex-cloud.md) — настройка ChatGPT Codex Environment для cloud-сессий
 
 ## Другие разделы
 

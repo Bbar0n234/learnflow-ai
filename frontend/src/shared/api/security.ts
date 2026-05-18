@@ -8,8 +8,7 @@ import {
   RuleConfig,
 } from "@/types/security";
 
-const VITE_SIEM_API_URL =
-  import.meta.env.VITE_SIEM_API_URL ?? "/siem/api";
+const VITE_SIEM_API_URL = import.meta.env.VITE_SIEM_API_URL ?? "/siem/api";
 
 // Create a separate axios instance for SIEM API
 // It will share the same token interceptor as the main app

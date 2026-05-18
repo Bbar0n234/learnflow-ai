@@ -131,6 +131,9 @@ celerybeat.pid
 .env
 .env.local
 .env.eval
+
+# Local cloud setup notes — contain real secrets, never commit
+cloud-env-setup.md
 .venv
 env/
 venv/
@@ -216,6 +219,12 @@ render_prompts.py
 
 # eval-sec run artifacts
 tools/eval-sec/reports/
+
+# security-scan: .env and Promptfoo cache. Reports are committed after manual
+# secret review (see tools/security-scan/reports/README.md).
+tools/security-scan/.env
+tools/security-scan/.promptfoo/
+tools/security-scan/promptfoo.cache/
 
 # Obsidian source (symlink)
 doc/.obsidian-source

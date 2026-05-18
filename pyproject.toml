@@ -14,7 +14,12 @@ dev = [
 ]
 
 [tool.uv.workspace]
-members = ["backend", "packages/siem-contracts", "services/siem-service"]
+members = [
+    "backend",
+    "packages/siem-contracts",
+    "services/siem-service",
+    "tools/security-scan",
+]
 
 # Ruff configuration lives in ./ruff.toml (single source of truth — ruff.toml
 # takes precedence over [tool.ruff] when both exist).

@@ -57,6 +57,23 @@ be/fix-002-sse-reconnect  ──→ develop ──→ main
 
 Merged ветки удаляются (GitHub auto-delete после merge PR). Локальные tracking-ветки — периодическая очистка.
 
+### Cloud sessions (async workflow)
+
+Когда итерация выполняется в облачной сессии (Claude Code on the web и аналоги), агент доводит фичу только до feature-ветки: commit + push + создание PR в `develop` через GitHub MCP. **Merge в `develop` агент не выполняет.**
+
+Финальный shape итерации:
+
+```
+[cloud session] feat-XXX branch → push → PR open
+                                          │
+                                          ▼
+[архитектор локально] pull feat-XXX → ручная проверка UI / интеграции → merge через стандартный flow
+```
+
+Причина: UI-валидация в облаке технически ограничена — Anthropic proxy не пропускает HTTP CONNECT, headless-браузеры к HTTPS не работают ([issue #11791](https://github.com/anthropics/claude-code/issues/11791)). Архитектор остаётся финальным ревьюером визуального и интеграционного слоя.
+
+Применимо ко всем cloud-сессиям, не только async. В локальных сессиях правило не действует — там разработка идёт обычным flow.
+
 ## Структура проекта
 
 uv workspace, монорепо. Внутри workspace различаем два типа пакетов:

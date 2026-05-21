@@ -20,6 +20,10 @@
 - **P2** Model whitelist expansion — расширить whitelist моделей в `agent.yaml` минимум до 5 основных (текущий: GLM-5, Gemini 1.5 Pro). Добавить минимум GLM-5.1, остальной список основных моделей — на этапе реализации. Включить pricing initialization в Langfuse через lifespan для всех новых моделей (включая текущую guard model — её стоимость сейчас не видна в Langfuse). Связано с существующим P2 "Guard LLM observability" в Security *(Agent)*
 - **P3** Proactive KS maintenance — отдельный canvas для обсуждения актуализации Knowledge Sphere с агентом (параллельно с основной работой) *(cross: Frontend)*
 - **P3** Message compaction: trim_messages выполняется безусловно, должен — только при превышении порога и неудачной суммаризации
+- **P1** Cost-optimal модель для массового использования — текущий прод гоняет на фронтир-моделях (Gemini 3 Pro Preview и т.п.): отличное качество, но дорого по токенам и не масштабируется на массу пользователей. Нужен оптимум качество/стоимость — модель, дающая ~70% фронтир-качества при ~10× более дешёвых токенах. Кандидаты: китайские opensource-модели (по подписке / usage-based планам), usage-based API-планы. Fireworks Firepass проверен — single-user, для общей демки не подходит. Перспективный вариант на будущее — бартер доступа к моделям с хостерами железа за пиар. Связано с P2 «Model whitelist expansion». Предусловие Фазы 6 *(Agent, cross: Infra)*
+- **P3** Генерация слайдов — скилл или MCP, превращающий подготовленный материал в слайды/презентацию. Кандидат в обязательный bundle скиллов; всплывает в ходе dogfooding (Фаза 5). Перенесено из устаревшего roadmap *(Agent)*
+- **P3** Audio Overviews — генерация аудио-обзора (подкаста) из подготовленного материала. Мини-фича, выходной артефакт наряду с markdown и слайдами. Перенесено из устаревшего roadmap *(cross: Backend)*
+- **P3** Продвинутый context engineering — оптимизация работы с контекстом и токенами наполненного агента (когда агент реально нагружен реальным использованием). Параллельный трек-оптимизация, не привязан к вехе. Перенесено из устаревшего roadmap *(Agent)*
 
 ## Backend
 
@@ -44,6 +48,7 @@
 - **P3** User MCP attack probe в eval-наборе — добавить attack probe для пункта «User MCP → единая строгость» при возврате eval-инфраструктуры из parked-режима *(Agent)*
 - **P3** Глобальный refactor паттерна `get_db_session` commit — активируется при повторном проявлении 404-симптома в других routes (сейчас покрыт точечным фиксом в ChatService, конвенция — в conventions.md) *(Backend)*
 - **P3** Guard observations иерархия в Langfuse UI — guards рендерятся как siblings root span, не вложены в позицию между iter'ами agent node. Не блокирует observability; ремедиация требует синхронизации CallbackHandler vs OTel scope, low value *(Agent)*
+- **P1** Fundamental red-team eval — объективная метрика защиты — feat-008 дал baseline: инструмент Promptfoo + первый поверхностный прогон (22 кейса, 0 успешных атак, 6/22 errored по timeout / grader edge case). Нужен фундаментальный, более полный прогон: глубже разобраться в Promptfoo (plugins / strategies / frameworks) и/или подключить более жёсткие red-team наборы, выбить измеримую объективную метрику качества защиты. Цель — не быть голословным во флагманской статье о многослойной защите (см. `doc/content/security-article-draft.md`). Фундамент — `doc/security/`. Закрывает Фазу 4 / Трек A1 *(Agent, Security)*
 
 ## Cross-cutting
 

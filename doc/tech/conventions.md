@@ -57,6 +57,8 @@ be/fix-002-sse-reconnect  ──→ develop ──→ main
 
 Merged ветки удаляются (GitHub auto-delete после merge PR). Локальные tracking-ветки — периодическая очистка.
 
+**Исключение — прямой commit в `develop`.** Допустимо для изменений, не затрагивающих рантайм-код и инфраструктуру: верхнеуровневое планирование (`backlog.md`, `tasklist-*.md`, `roadmap.md`), проектная документация (`doc/idea.md`, `doc/vision.md`, `doc/tech/*.md`, ADR), спецификации, README. Такие правки не требуют отдельной feature-ветки и PR — pull request избыточен для документной работы, где нет кода под ревью. Любое изменение, затрагивающее код или конфиги сервисов, идёт стандартным flow через feature-ветку и PR.
+
 ### Cloud sessions (async workflow)
 
 Когда итерация выполняется в облачной сессии (Claude Code on the web и аналоги), агент доводит фичу только до feature-ветки: commit + push + создание PR в `develop` через GitHub MCP. **Merge в `develop` агент не выполняет.**

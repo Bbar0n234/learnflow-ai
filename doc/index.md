@@ -22,6 +22,7 @@ doc/
 │   ├── conventions.md   # Git, code quality, naming, logging, documentation
 │   ├── setup/            # Инструкции настройки dev/cloud окружений
 │   └── adr/             # Architecture Decision Records
+├── content/         # Черновики технического контента: статьи, доклады
 ├── research/        # Исследования: технологические ресёрчи, анализ подходов
 ├── reference/       # Референс-материалы: паттерны, справочники по доменам
 ├── security/        # Модель угроз и архитектура защиты
@@ -32,6 +33,7 @@ doc/
 
 - [idea.md](idea.md) — проблема, ICP, JTBD, конкурентное преимущество, границы продукта
 - [vision.md](vision.md) — принципы, системная архитектура, стек, MVP-критерии
+- [product/roadmap.md](product/roadmap.md) — фазы и треки развития проекта, что сделано и что впереди
 - [backlog.md](backlog.md) — входящий поток задач из опытной эксплуатации
 
 ## Техническая документация
@@ -64,7 +66,8 @@ doc/
 
 ## Другие разделы
 
-- [product/](product/) — сценарии использования, scope по версиям
+- [product/](product/) — roadmap (фазы и треки), сценарии использования
+- [content/](content/) — черновики технического контента: статьи, доклады (work-in-progress, не проектная документация)
 - [research/](research/) — технологические ресёрчи, deep-dives, анализ подходов (информируют будущие фичи)
 - [reference/](reference/) — референс-материалы: паттерны и справочники по доменам
 - [security/](security/) — threat model и архитектура защиты ([architecture.md](security/architecture.md))

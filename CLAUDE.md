@@ -35,7 +35,7 @@ When exploring the codebase for a task, start from architectural documents in `d
 
 **Агентам в OpenAI Codex Cloud** дополнительно подгрузить skill `codex-cloud-bootstrap` (runtime policy: Python 3.12, docker-less путь, localhost services). Настройка Codex Environment UI для человека: `doc/tech/setup/codex-cloud.md`.
 
-When discussing architecture, visualize components, layers, and data flows so the architect can give quality feedback with the full picture in front of them. Don't wait to be asked. In chat — ASCII diagrams; when writing to documents — Mermaid.
+When discussing architecture, visualize components, layers, and data flows so the architect can give quality feedback with the full picture in front of them. Don't wait to be asked. In chat — ASCII diagrams; when writing to documents — Mermaid. Diagram pattern (layers as translucent overlays, project palette, verifying edges against code via grep/subagent, dark-theme render check) — see conventions.md § Mermaid Styling.
 
 Start from [doc/index.md](doc/index.md). Key entry points by concern:
 

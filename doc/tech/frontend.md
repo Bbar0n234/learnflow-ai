@@ -271,6 +271,28 @@ Frontend различает две точки взаимодействия с с
 
 ## Module Structure
 
+Слои и направления зависимостей (as-is, июнь 2026):
+
+```mermaid
+graph TD
+    MAIN["main.tsx / App.tsx<br>entry point, AuthGate, роутер"]
+    APP["app/ — shell<br>layouts/, components/, providers/, router.tsx"]
+    FEAT["features/<br>projects · chat · settings · sphere · artifacts · security"]
+    STORES["stores/ — Zustand<br>ui-store, stream-store"]
+    SHARED["shared/<br>api/ (HTTP-слой) · ui/ (shadcn) · components/ · lib/"]
+    TYPES["types/<br>security.ts"]
+
+    MAIN --> APP
+    APP --> FEAT
+    APP --> SHARED
+    FEAT --> SHARED
+    FEAT --> STORES
+    FEAT --> TYPES
+    FEAT -. "известные cross-imports:<br>chat → settings, chat → projects" .-> FEAT
+```
+
+Структура не полностью канонична FSD (нет `pages/`, stores и types на верхнем уровне, нет public API у слайсов, есть cross-imports между features) — документируется как есть; приведение к целевой структуре — предмет frontend-slice'а Codebase Maturity (feat-006).
+
 ```
 frontend/
 ├── index.html
@@ -330,11 +352,14 @@ frontend/
 │   │   │   ├── mcp-servers.ts
 │   │   │   └── security.ts        — events, alerts, rules (siem-service API)
 │   │   ├── ui/                    — shadcn/ui компоненты
-│   │   └── components/            — MarkdownRenderer и другие shared-компоненты
+│   │   ├── components/            — MarkdownRenderer и другие shared-компоненты
+│   │   └── lib/                   — утилиты (logger, utils)
 │   │
-│   └── stores/                    — Zustand stores
-│       ├── ui-store.ts
-│       └── stream-store.ts
+│   ├── stores/                    — Zustand stores
+│   │   ├── ui-store.ts
+│   │   └── stream-store.ts
+│   │
+│   └── types/                     — TS-типы вне shared/api (security.ts)
 ```
 
 **Принципы:** features/ изолированы друг от друга. shared/ — то, что нужно нескольким фичам. app/ — shell (layouts, providers, router), не бизнес-логика. stores/ отдельно от features, т.к. stream store используется cross-feature. Pages не выделены — при 6 маршрутах роутер рендерит layout + feature-компонент напрямую.

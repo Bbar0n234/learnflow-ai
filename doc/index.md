@@ -11,6 +11,7 @@ doc/
 ├── product/         # Продуктовая документация
 ├── tech/            # Техническая документация
 │   ├── backend.md       # Бэкенд: слои, API, persistence
+│   ├── siem-service.md  # SIEM-сервис: pipeline, корреляция, alerts API
 │   ├── frontend.md      # Фронтенд: экраны, компоненты, state
 │   ├── auth.md          # Аутентификация (кросс-сервисная)
 │   ├── streaming.md     # SSE-стриминг (кросс-сервисный)
@@ -41,6 +42,7 @@ doc/
 
 **Сервисы:**
 - [tech/backend.md](tech/backend.md) — слоистая архитектура, API endpoints, schemas, persistence, configuration
+- [tech/siem-service.md](tech/siem-service.md) — SIEM-сервис: топология, event pipeline, correlation engine, alerts REST API
 - [tech/frontend.md](tech/frontend.md) — экраны, компоненты, state management, API-интеграция
 
 **Кросс-сервисные концепты:**

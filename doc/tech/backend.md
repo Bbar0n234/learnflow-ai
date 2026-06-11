@@ -8,19 +8,28 @@
 
 ```mermaid
 graph TD
-    API["API Layer — FastAPI routes, schemas, SSE transport"]
-    SVC["Service Layer — оркестрация, бизнес-правила"]
-    AGT["Agent Layer — LangGraph граф, GraphFactory, tools, skills, context, memory"]
-    REPO["Repository Layer"]
-    INFRA["Infra — DB engine/sessions, LLM client, MCP client, PromptProvider, EncryptionService"]
+    API["API Layer — app/api/<br>routes/, schemas/, deps.py (DI)"]
+    SVC["Service Layer — app/services/"]
+    AGT["Agent Layer — app/agent/<br>graph, runner, tools, security"]
+    REPO["Repository Layer — app/repositories/"]
+    MODELS["ORM Models — app/models/"]
+    INFRA["Infra — app/infra/<br>DB engine/sessions, LLM client, MCP client, PromptProvider, EncryptionService"]
+    SECPIPE["Security Pipeline — app/security_pipeline/<br>SecurityEvent → Redis Stream"]
 
     API --> SVC
     SVC --> AGT
     SVC --> REPO
     AGT --> REPO
+    REPO --> MODELS
+    SVC --> MODELS
     REPO --> INFRA
     AGT --> INFRA
+    SVC --> INFRA
+    API -. "structlog (security_event=True)" .-> SECPIPE
+    AGT -. "structlog (security_event=True)" .-> SECPIPE
 ```
+
+Composition root — `app/main.py`: lifespan инициализирует синглтоны (engine, AgentRunner, guard и т.д.) в `app.state`; `app/api/deps.py` — per-request фабрики поверх `app.state`.
 
 - **API Layer** — HTTP/SSE-интерфейс, Pydantic-валидация, маршрутизация. Не содержит бизнес-логики.
 - **Service Layer** — CRUD-сервисы (ProjectService, ArtifactService, UserMemoryService, MCPServerService, SphereService) + thin ChatService для chat-операций. ChatService оркестрирует взаимодействие с AgentRunner (маппинг chat_id → thread_id, model resolution, обновление thread_views, формирование config). Write-методы для persistent storage (MCP-серверы, custom instructions, KS write через REST) первыми вызывают security guard — INJECTION → HTTP 422, до endpoint-специфичных валидаций ([security/architecture.md](../security/architecture.md)). ModelConfigResolver — каскадное разрешение модели per-request.
@@ -41,6 +50,8 @@ graph TD
 | Repository → Service | ❌ |
 | API → Repository | ❌ |
 | API → Agent Layer | ❌ (только через Service) |
+
+Известное локализованное исключение (сверка импортов, 2026-06): `services/mcp_server.py` импортирует схему из `api/schemas/mcp_servers.py` — против направления, без цикла. Кандидат на чистку в slice-аудитах Codebase Maturity.
 
 ## API Layer
 
@@ -254,7 +265,9 @@ app/
 │
 ├── models/              # SQLAlchemy ORM-модели (app-managed таблицы)
 │
-└── infra/               # Клиенты внешних сервисов, DB engine/sessions
+├── infra/               # Клиенты внешних сервисов, DB engine/sessions
+│
+└── security_pipeline/   # SecurityEventProcessor + Redis-транспорт (→ siem-service.md)
 ```
 
 **api/** — HTTP/SSE-интерфейс. Роутеры сгруппированы по ресурсам, каждый вызывает соответствующий сервис. Schemas — Pydantic-контракт с фронтендом. deps.py — FastAPI dependencies для инъекции зависимостей в роутеры.
@@ -369,60 +382,9 @@ logger.warning(
 
 ## SIEM Service
 
-Отдельный FastAPI backend-сервис, работающий на порту 8001, с собственной PostgreSQL БД (siem-db). Назначение: сбор, хранение, корреляция security-событий, генерация алертов, REST API для мониторинга UI.
+Отдельный FastAPI backend-сервис (порт 8001, собственная PostgreSQL siem-db): потребляет security-события из Redis Stream, коррелирует, генерирует алерты, отдаёт admin-only REST API для мониторинга. Main app — producer событий (см. Security Event Logging Convention выше); процессная изоляция и blast radius — [ADR-018](adr/ADR-018-siem-service-topology.md).
 
-**Architecture:**
-```
-Redis Stream (security.events)
-    ↓
-[Subscriber: XREADGROUP + Validation]
-    ↓
-[EventWriter: INSERT siem_events]
-    ↓
-[CorrelationEngine: polling, 10s]
-    ↓
-[Strategies: Threshold/Sequence/Aggregate] → [Deduper] → [AlertWriter: INSERT siem_alerts]
-    ↓
-[REST API: /security/events, /security/alerts, /security/rules] — admin-only via JWT is_admin claim
-```
-
-**Package structure:**
-- `services/siem-service/` — monorepo workspace member
-- `services/siem-service/siem_service/` — app package
-  - `main.py` — FastAPI app + lifespan (startup: subscriber + correlation engine tasks)
-  - `config.py` — Settings (DATABASE_URL, REDIS_URL, JWT_SECRET, poll intervals)
-  - `domain/models.py` — ORM (SiemEvent, SiemAlert, CorrelationRule)
-  - `domain/schemas.py` — Pydantic response + request DTOs
-  - `infra/db.py` — engine + session factory
-  - `infra/auth.py` — JWT validation + `require_admin` dependency
-  - `pipeline/event_writer.py` — Single INSERT entry point
-  - `pipeline/subscriber.py` — XREADGROUP consumer with at-least-once semantics
-  - `pipeline/meta_emitter.py` — Back-channel meta-event publication
-  - `pipeline/supervisor.py` — Exponential backoff restart wrapper
-  - `repositories.py` — Database queries (list, filters, pagination)
-  - `services.py` — Business logic (AlertService, RuleService)
-  - `correlation/` — Engine, strategies, deduper
-  - `api/routes.py` — REST endpoints
-
-**Database tables:**
-- `siem_events` — immutable event storage (event_id PK, JSONB identifiers/metadata, dual timestamps)
-- `siem_alerts` — alert instances from rules (status: new/acknowledged/resolved, open-alert policy dedup)
-- `correlation_rules` — rule definitions with JSONB config (Threshold/Sequence/Aggregate per rule_type)
-
-**REST Endpoints (all admin-only):**
-- `GET /security/events` — list events, filters (event_type, severity, timestamp range), pagination
-- `GET /security/alerts` — list alerts, filters (severity, status), pagination
-- `PATCH /security/alerts/:id` — update status (acknowledge/resolve) → emit meta-event
-- `GET /security/rules` — list rules
-- `POST /security/rules` — create rule → emit meta-event
-- `PATCH /security/rules/:id` — update rule → emit meta-event
-- `DELETE /security/rules/:id` — delete rule → emit meta-event
-
-**Deployment:** Docker (siem-service container), separate PostgreSQL instance (siem-db). Env vars: `SIEM_DATABASE_URL`, `SIEM_REDIS_URL`, `SIEM_JWT_SECRET` (shared with main app), `SIEM_FRONTEND_ORIGIN` (CORS).
-
-**Idempotency:** Event deduplication by `event_id` (UNIQUE constraint + ON CONFLICT DO NOTHING). Baseline correlation rules seeded idempotently.
-
-Подробнее: [ADR-018](adr/ADR-018-siem-service-topology.md) (topology), [ADR-019](adr/ADR-019-security-event-transport.md) (transport), [ADR-020](adr/ADR-020-security-event-contract.md) (contract), [ADR-021](adr/ADR-021-siem-correlation-engine.md) (correlation engine).
+Полное описание сервиса (слои, pipeline, correlation engine, persistence, API, конфигурация) — [siem-service.md](siem-service.md).
 
 ## Error Handling
 

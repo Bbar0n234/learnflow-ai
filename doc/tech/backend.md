@@ -6,7 +6,7 @@
 
 ### Слои
 
-Слои показаны цветными подложками поверх компонентов и их связей:
+Слои показаны цветными подложками поверх компонентов и их связей; внизу — внешние системы:
 
 ```mermaid
 graph TD
@@ -24,7 +24,8 @@ graph TD
     subgraph SVCL["Service Layer — app/services/"]
         CHATSVC["ChatService — thread mapping,<br>делегирование в AgentRunner"]
         CRUD["CRUD-сервисы — Project, Artifact,<br>Sphere, UserMemory, MCPServer"]
-        RESOLVER["ModelConfigResolver"]
+        RESOLVER["ModelConfigResolver ·<br>MCPToolResolver"]
+        ENC["EncryptionService — Fernet"]
     end
 
     subgraph AGTL["Agent Layer — app/agent/"]
@@ -37,16 +38,17 @@ graph TD
     end
 
     subgraph DATAL["Data Layer"]
-        REPOS["repositories/ —<br>по репозиторию на сущность"]
+        REPOS["repositories/ — по репозиторию<br>на сущность · TraceStore"]
         MODELS["models/ — SQLAlchemy ORM"]
     end
 
     subgraph INFRAL["Infra — app/infra/"]
-        DBE["DB engine / sessions"]
-        LLM["LLM client"]
-        MCPC["MCP client + MCPToolResolver"]
-        PP["PromptProvider — Langfuse"]
-        ENC["EncryptionService — Fernet"]
+        DBE["db.py — engine/sessions"]
+        LG["langgraph.py —<br>Checkpointer + Store"]
+        LLM["llm.py — LLM-клиенты"]
+        MCPC["mcp.py — MultiServerMCPClient"]
+        PP["PromptProvider"]
+        RL["rate_limit.py"]
     end
 
     subgraph SECPL["Security Pipeline — app/security_pipeline/"]
@@ -54,31 +56,45 @@ graph TD
         TRANS["RedisEventTransport"]
     end
 
-    REDIS[("Redis — stream<br>security.events")]
+    PG[("PostgreSQL learnflow")]
+    REDIS[("Redis")]
+    LLMAPI["LLM API —<br>OpenAI-compatible"]
+    LF["Langfuse"]
+    MCPEXT["Внешние MCP-серверы"]
 
     MAIN -. "синглтоны через app.state" .-> DEPS
     CONFIG --- MAIN
     ROUTES --> SCHEMAS
     ROUTES --> DEPS
+    ROUTES --> RL
     DEPS --> CHATSVC
     DEPS --> CRUD
-    CHATSVC --> RESOLVER
     CHATSVC --> RUNNER
     CHATSVC --> REPOS
     CRUD --> REPOS
     CRUD --> GUARD
     CRUD --> ENC
+    RUNNER --> RESOLVER
+    RESOLVER --> MCPC
     RUNNER --> FACTORY
     FACTORY --> GRAPH
     FACTORY --> LLM
+    FACTORY --> LG
     GRAPH --> TOOLS
     GRAPH --> GUARD
-    GRAPH --> MCPC
     GRAPH --> PB
+    GUARD --> LLM
     PB --> PP
     TOOLS --> REPOS
     REPOS --> MODELS
     REPOS --> DBE
+    REPOS -->|TraceStore| REDIS
+    DBE --> PG
+    LG --> PG
+    LLM --> LLMAPI
+    PP --> LF
+    MCPC --> MCPEXT
+    RUNNER -. "tracing — CallbackHandler" .-> LF
     ROUTES -. "structlog: auth, rate limit" .-> PROC
     GUARD -. "structlog: guard verdicts" .-> PROC
     PROC --> TRANS
@@ -355,7 +371,7 @@ app/
 
 **api/** — HTTP/SSE-интерфейс. Роутеры сгруппированы по ресурсам, каждый вызывает соответствующий сервис. Schemas — Pydantic-контракт с фронтендом. deps.py — FastAPI dependencies для инъекции зависимостей в роутеры.
 
-**services/** — Оркестрация и бизнес-правила. CRUD-сервисы (Project, Artifact, UserMemory, MCPServer) + thin ChatService для chat-операций (маппинг chat_id → thread_id, model resolution, делегирование в AgentRunner, управление ThreadView). ModelConfigResolver — каскадное разрешение модели. Зависимости (repositories, AgentRunner) — через конструктор, wiring в deps.py.
+**services/** — Оркестрация и бизнес-правила. CRUD-сервисы (Project, Artifact, UserMemory, MCPServer) + thin ChatService для chat-операций (маппинг chat_id → thread_id, model resolution, делегирование в AgentRunner, управление ThreadView). ModelConfigResolver — каскадное разрешение модели; MCPToolResolver — резолв MCP-инструментов per-request (оба инжектятся в AgentRunner). EncryptionService (Fernet) — шифрование API-ключей user MCP-серверов. Зависимости (repositories, AgentRunner) — через конструктор, wiring в deps.py.
 
 **agent/** — LangGraph-граф, GraphFactory (per-request build+compile), tools, context engineering, промпт. Публичный интерфейс — AgentRunner (stream, get_history, cancel). LangGraph-типы не выходят за пределы этого пакета. tools/ — суб-пакет с внутренней группировкой (KS, artifacts, user memory, skills).
 
@@ -365,7 +381,7 @@ app/
 
 **models/** — SQLAlchemy ORM-модели для app-managed таблиц (User, Project, ThreadView, Artifact).
 
-**infra/** — Сконфигурированные клиенты и сервисы: DB engine/session factory, LLM client, MCP client (`MultiServerMCPClient`), MCPToolResolver, PromptProvider (Langfuse SDK wrapper), EncryptionService (Fernet), HTTP client. Импортируется из Repository Layer и Agent Layer.
+**infra/** — Сконфигурированные клиенты внешних сервисов: DB engine/session factory, Checkpointer + Store (`langgraph.py`), LLM-клиенты, MCP client (`MultiServerMCPClient`), PromptProvider (Langfuse SDK wrapper), rate limiting, Redis client. Импортируется из Repository Layer, Service Layer и Agent Layer. MCPToolResolver и EncryptionService живут в `services/`, не здесь.
 
 ## Agent Runtime
 

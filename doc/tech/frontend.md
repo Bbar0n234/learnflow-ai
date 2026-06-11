@@ -104,7 +104,7 @@ Feature-based: компоненты группируются по фичам, н
 - SecurityEvents — таблица событий с фильтрами (event_type, severity, time range), пагинация, диалог Details
 - SecurityAlerts — таблица алертов с фильтрами (severity, status), действия `Acknowledge` / `Resolve`
 - SecurityRules — таблица rules с CRUD через RuleForm (Threshold / Sequence / Aggregate), toggle `enabled`
-- Сейчас отображает `user_id` напрямую (username enrichment отложен в feat-007)
+- Сейчас отображает `user_id` напрямую, без username enrichment
 
 ### Shared
 
@@ -271,7 +271,7 @@ Frontend различает две точки взаимодействия с с
 
 ## Module Structure
 
-Слои и направления зависимостей (as-is, июнь 2026):
+Слои и направления зависимостей:
 
 ```mermaid
 graph TD
@@ -291,7 +291,7 @@ graph TD
     FEAT -. "известные cross-imports:<br>chat → settings, chat → projects" .-> FEAT
 ```
 
-Структура не полностью канонична FSD (нет `pages/`, stores и types на верхнем уровне, нет public API у слайсов, есть cross-imports между features) — документируется как есть; приведение к целевой структуре — предмет frontend-slice'а Codebase Maturity (feat-006).
+Структура отступает от канонического FSD: нет `pages/`, stores и types на верхнем уровне, нет public API у слайсов, есть cross-imports между features.
 
 ```
 frontend/

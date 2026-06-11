@@ -51,7 +51,7 @@ Composition root — `app/main.py`: lifespan инициализирует син
 | API → Repository | ❌ |
 | API → Agent Layer | ❌ (только через Service) |
 
-Известное локализованное исключение (сверка импортов, 2026-06): `services/mcp_server.py` импортирует схему из `api/schemas/mcp_servers.py` — против направления, без цикла. Кандидат на чистку в slice-аудитах Codebase Maturity.
+Известное локализованное исключение: `services/mcp_server.py` импортирует схему из `api/schemas/mcp_servers.py` — против направления, без цикла.
 
 ## API Layer
 

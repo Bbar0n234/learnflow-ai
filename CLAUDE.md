@@ -29,6 +29,8 @@ When exploring the codebase for a task, start from architectural documents in `d
 
 **Before editing code on a non-trivial task, open `doc/tech/conventions.md`.** The Hard Rules above are the short version; conventions.md is the source of truth for the rest (logging, naming, types, env workflow, migration workflow). Read the relevant section instead of guessing.
 
+**Documentation describes the current state — no temporal meta-notes.** Never leave iteration/history markers in architectural docs: "реализовано в feat-XXX", "будет переделано в feat-YYY", "отложено в feat-ZZZ", "(as-is, июнь 2026)". Plans live in tasklists, history lives in iteration artifacts; in docs such notes rot (iteration numbers shift, dates stale) and create a second place to keep in sync. State facts plainly ("структура отступает от FSD: ...") without promising future work. Exception: the architect explicitly instructs to leave such a marker.
+
 **В облачных сессиях (Claude Code on the web и аналоги)** действует отдельная merge-policy: агент доводит фичу до feature-ветки, push + PR в `develop`, merge — за архитектором локально. См. `doc/tech/conventions.md` § Cloud sessions.
 
 **Агентам в OpenAI Codex Cloud** дополнительно подгрузить skill `codex-cloud-bootstrap` (runtime policy: Python 3.12, docker-less путь, localhost services). Настройка Codex Environment UI для человека: `doc/tech/setup/codex-cloud.md`.

@@ -31,7 +31,7 @@
 
 | Итерация | Статус | Scope | Закрывает |
 |----------|--------|-------|-----------|
-| feat-001 | 🔄 In Progress | foundation | Skill Discovery + Layers & Abstractions Diagram (discovery завершён, диаграммы в работе) |
+| feat-001 | ✅ Done | foundation | Skill Discovery + Layers & Abstractions Diagram |
 | feat-002 | 📋 Planned | backend / REST | REST API slice: api-design-principles skill + поглощение REST API cleanup (8 пунктов аудита 2026-04-04) |
 | feat-003 | 📋 Planned | db | DB slice: postgresql skill, индексы, constraints, типы, паттерны миграций |
 | feat-004 | 📋 Planned | backend / fastapi | Backend/FastAPI slice: fastapi skill + поглощение точечных техдолгов (SIEM MetaEmitter, дубль SecurityEvent, CORS_ORIGINS, SIEM follow-ups) |
@@ -74,7 +74,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** подготовить каркас для slice-аудитов: подобрать релевантные skill'ы и зафиксировать карту слоёв.
 
-**Статус:** 🔄 In Progress (DoD выполнен полностью: skill discovery финализирован, диаграммы готовы; на финальном ревью архитектора)
+**Статус:** ✅ Done — итоги в [summary.md](iterations/codebase-maturity/feat-001-foundation/summary.md)
 **Scope:** foundation
 **Зависимости:** —
 

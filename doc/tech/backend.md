@@ -436,7 +436,10 @@ graph LR
 
 ```
 User
-├── id, name, created_at
+├── id, name, password_hash, is_admin, created_at
+
+RefreshToken
+├── id (UUID PK), user_id (FK CASCADE), token_hash (indexed), expires_at, created_at, revoked_at
 
 Project
 ├── id, user_id, name, created_at, updated_at

@@ -31,6 +31,8 @@ When exploring the codebase for a task, start from architectural documents in `d
 
 **Documentation describes the current state — no temporal meta-notes.** Never leave iteration/history markers in architectural docs: "реализовано в feat-XXX", "будет переделано в feat-YYY", "отложено в feat-ZZZ", "(as-is, июнь 2026)". Plans live in tasklists, history lives in iteration artifacts; in docs such notes rot (iteration numbers shift, dates stale) and create a second place to keep in sync. State facts plainly ("структура отступает от FSD: ...") without promising future work. Exception: the architect explicitly instructs to leave such a marker.
 
+**Fix drift on sight.** If, while working on any task, you notice an incorrectness nearby — doc contradicting code (wrong module location, missing table, nonexistent file/class), inconsistent naming, diagram style violations — fix it as part of your change, don't walk past. Precondition: be 100% sure the fix is correct — verify against code (grep, subagent for context), and when certainty is unreachable, surface it to the architect instead of guessing. Fixes go into the same commit or a separate one, but always get mentioned in your report.
+
 **В облачных сессиях (Claude Code on the web и аналоги)** действует отдельная merge-policy: агент доводит фичу до feature-ветки, push + PR в `develop`, merge — за архитектором локально. См. `doc/tech/conventions.md` § Cloud sessions.
 
 **Агентам в OpenAI Codex Cloud** дополнительно подгрузить skill `codex-cloud-bootstrap` (runtime policy: Python 3.12, docker-less путь, localhost services). Настройка Codex Environment UI для человека: `doc/tech/setup/codex-cloud.md`.

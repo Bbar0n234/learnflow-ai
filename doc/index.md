@@ -20,6 +20,7 @@ doc/
 │   ├── prompt-management.md # Prompt Management: Langfuse, dev/prod, seed/sync
 │   ├── observability.md # Observability: Langfuse, трейсинг, feedback
 │   ├── conventions.md   # Git, code quality, naming, logging, documentation
+│   ├── skill-map.md     # Карта скиллов: принципы, роли, отклонённые, пробелы
 │   ├── setup/            # Инструкции настройки dev/cloud окружений
 │   └── adr/             # Architecture Decision Records
 ├── content/         # Черновики технического контента: статьи, доклады
@@ -55,6 +56,7 @@ doc/
 
 **Соглашения и решения:**
 - [tech/conventions.md](tech/conventions.md) — git flow, code quality, naming, logging, Docker
+- [tech/skill-map.md](tech/skill-map.md) — карта скиллов: принципы отбора, роли, отклонённые, пробелы, отложенные кандидаты
 - [tech/adr/](tech/adr/) — архитектурные решения (формат: `ADR-NNN-название.md`)
   - [ADR-018: SIEM Service Topology](tech/adr/ADR-018-siem-service-topology.md) — отдельный backend-сервис, isolation, identity
   - [ADR-019: Security Event Transport](tech/adr/ADR-019-security-event-transport.md) — Redis Streams, at-least-once semantics, bounded queue

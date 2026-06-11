@@ -117,14 +117,21 @@ Use installed skills when the task matches their domain. Skills carry up-to-date
 | Skill | When to use |
 |-------|-------------|
 | `aidd-methodology` | Documentation structure, tasklists, workflow, ADRs |
+| `api-design-principles` | Designing or reviewing REST API contracts, endpoints, pagination, status codes |
+| `fastapi` | FastAPI handlers, Depends, Pydantic models, async-vs-sync, streaming responses |
+| `feature-sliced-design` | Frontend structure: where code belongs, layers, public APIs, imports |
 | `firecrawl` | Web/docs fetching, research, URL reading |
+| `frontend-design` | Visual/UI polish only, on explicit request — mode policy in skill-map |
 | `langfuse` | Observability, tracing, Langfuse API and docs |
 | `langgraph-patterns` | LangGraph API, StateGraph, Command, HITL, streaming |
+| `postgresql` | Schema design, column types, indexes, constraints, migrations review |
 | `prompt-engineering` | Writing or reviewing system prompts for LLM |
 | `schema-guided-reasoning` | Structured output, Pydantic models, JSON schema |
 | `uv-package-manager` | Dependencies, pyproject.toml, workspace, venv |
 
 When uncertain whether a skill covers your current task — check available skills before proceeding.
+
+Skill selection policy, roles, rejected skills, and pending candidates — see [doc/tech/skill-map.md](doc/tech/skill-map.md).
 
 ## Logging Conventions
 

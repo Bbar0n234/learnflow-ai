@@ -31,11 +31,11 @@
 
 | Итерация | Статус | Scope | Закрывает |
 |----------|--------|-------|-----------|
-| feat-001 | 📋 Planned | foundation | Skill Discovery + Layers & Abstractions Diagram |
+| feat-001 | 🔄 In Progress | foundation | Skill Discovery + Layers & Abstractions Diagram (discovery завершён, диаграммы в работе) |
 | feat-002 | 📋 Planned | backend / REST | REST API slice: api-design-principles skill + поглощение REST API cleanup (8 пунктов аудита 2026-04-04) |
 | feat-003 | 📋 Planned | db | DB slice: postgresql skill, индексы, constraints, типы, паттерны миграций |
 | feat-004 | 📋 Planned | backend / fastapi | Backend/FastAPI slice: fastapi skill + поглощение точечных техдолгов (SIEM MetaEmitter, дубль SecurityEvent, CORS_ORIGINS, SIEM follow-ups) |
-| feat-005 | 📋 Planned | agent | Agent runtime slice: langchain-architecture + langgraph-patterns skills + поглощение Reasoning ChatOpenAI everywhere |
+| feat-005 | 📋 Planned | agent | Agent runtime slice: langgraph-patterns (авторский) + кандидаты langgraph-* от langchain-ai + поглощение Reasoning ChatOpenAI everywhere (langchain-architecture отклонён в feat-001) |
 | feat-006 | 📋 Planned | frontend | Frontend slice: skill discovery for frontend, ручной slice если skill отсутствует |
 | feat-007 | 📋 Planned | cross-cutting | Кросс-резрезные конвенции: error return types + error handling philosophy (graceful degradation vs fail-fast) |
 | feat-008 | 📋 Planned | enforcement | Arch-checker (детерминированные проверки) + Reviewer-промпты (logging, error returns, doc-first) |
@@ -74,7 +74,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** подготовить каркас для slice-аудитов: подобрать релевантные skill'ы и зафиксировать карту слоёв.
 
-**Статус:** 📋 Planned
+**Статус:** 🔄 In Progress (skill discovery завершён и финализирован; Part B — диаграммы — в работе)
 **Scope:** foundation
 **Зависимости:** —
 
@@ -99,10 +99,13 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 #### Definition of Done
 
-- [ ] Документ со списком skill'ов по доменам — какие применимы, что покрывают, в какой slice идут.
+- [x] Skill discovery проведён: установленные скиллы + внешняя охота по каталогам, решения по каждому домену зафиксированы (артефакт итерации: `skill-discovery-draft.md`, заморожен).
+- [x] `doc/tech/skill-map.md` создан — постоянная карта скиллов: принципы, роли, отклонённые, пробелы, отложенные кандидаты.
+- [x] Таблица скиллов в `CLAUDE.md` дополнена принятыми скиллами + ссылка на skill-map.
+- [x] Принятые скиллы лежат в `.claude/skills/` репозитория.
 - [ ] Layers & abstractions diagram в `doc/tech/` — Mermaid, тёмная тема, без `fill:`.
 - [ ] Диаграмма ссылается на конкретные директории/модули кодовой базы (не абстрактные «слой A → слой B»).
-- [ ] В `doc/index.md` добавлена ссылка на диаграмму.
+- [ ] В `doc/index.md` добавлены ссылки на диаграмму и skill-map.
 
 ---
 
@@ -224,7 +227,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 ### feat-005: Agent Runtime Slice
 
-**Цель:** аудит agent runtime через `langchain-architecture` + `langgraph-patterns` skills, миграция на единые паттерны.
+**Цель:** аудит agent runtime через `langgraph-patterns` skill (+ официальные кандидаты `langgraph-*` от langchain-ai — подтверждение при заходе), миграция на единые паттерны. `langchain-architecture` отклонён в feat-001 (LangChain-обёртки при raw LangGraph), см. `doc/tech/skill-map.md`.
 
 **Статус:** 📋 Planned
 **Scope:** agent
@@ -232,12 +235,12 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 #### Из backlog
 
-- **P2** LangGraph / LangChain audit via langchain-architecture skill *(перенесено из Tech Debt & Competency)*.
+- **P2** LangGraph / LangChain audit via agent-скиллы (изначально langchain-architecture — отклонён в feat-001, заменён на `langgraph-patterns` + кандидаты от langchain-ai) *(перенесено из Tech Debt & Competency)*.
 - **P2** Reasoning ChatOpenAI everywhere — convention + migration. Все модели проекта используют `ReasoningChatOpenAI`, не plain `ChatOpenAI`. Добить summarizer, guard на `ReasoningChatOpenAI`; зафиксировать convention в `conventions.md` *(перенесено из Agent)*.
 
 #### Скоуп работы
 
-- Изучение skill `langchain-architecture` (общие LLM-app паттерны) + `langgraph-patterns` (raw LangGraph: StateGraph, Command, HITL, streaming, checkpointing).
+- Скилл `langgraph-patterns` (raw LangGraph: StateGraph, Command, HITL, streaming, checkpointing) + подтверждение кандидатов `langgraph-*` (langchain-ai/langchain-skills) — сверить на дубль с авторским.
 - Аудит agent runtime: ноды графа, tools, skills layer, context engineering, checkpointer, streaming protocol.
 - Миграция summarizer и guard на `ReasoningChatOpenAI`.
 - Обновление `doc/tech/conventions.md` — LangGraph-конвенции + reasoning convention.

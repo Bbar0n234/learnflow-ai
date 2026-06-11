@@ -115,6 +115,39 @@ Feature-based: компоненты группируются по фичам, н
 
 Серверные данные не дублируются в клиентский store. Активный таб, текущий проект/чат — derived from URL (React Router `useParams`), store не нужен.
 
+Две оси состояния и путь данных к компонентам:
+
+```mermaid
+flowchart LR
+    COMP["Компоненты features/"]
+
+    subgraph SRV["Серверный state — TanStack Query"]
+        HOOKS["hooks фич — useProjects,<br>useChats, useArtifacts, ..."]
+        CACHE["Query cache —<br>инвалидация по queryKey"]
+    end
+
+    subgraph CLI["Клиентский state — Zustand"]
+        STST["stream-store —<br>текущий SSE-стрим"]
+        UIST["ui-store — UI-флаги"]
+    end
+
+    APIM["shared/api — axios"]
+    BE["Main Backend"]
+
+    COMP --> HOOKS
+    HOOKS --> CACHE
+    CACHE --> COMP
+    HOOKS --> APIM
+    APIM -->|HTTP| BE
+    BE -->|"SSE (fetch stream)"| UAS["useAgentStream"]
+    UAS --> STST
+    STST --> COMP
+    UIST --> COMP
+
+    style SRV fill:#3fb9501a,stroke:#3fb950,color:#3fb950
+    style CLI fill:#bc8cff1a,stroke:#bc8cff,color:#bc8cff
+```
+
 ### TanStack Query — серверный state
 
 Кеширование, рефетч, loading/error — автоматически. Query keys иерархические, для точечной инвалидации.
@@ -271,24 +304,66 @@ Frontend различает две точки взаимодействия с с
 
 ## Module Structure
 
-Слои и направления зависимостей:
+Слои показаны цветными подложками поверх компонентов и их связей:
 
 ```mermaid
 graph TD
-    MAIN["main.tsx / App.tsx<br>entry point, AuthGate, роутер"]
-    APP["app/ — shell<br>layouts/, components/, providers/, router.tsx"]
-    FEAT["features/<br>projects · chat · settings · sphere · artifacts · security"]
-    STORES["stores/ — Zustand<br>ui-store, stream-store"]
-    SHARED["shared/<br>api/ (HTTP-слой) · ui/ (shadcn) · components/ · lib/"]
-    TYPES["types/<br>security.ts"]
+    BE["Main Backend :8000"]
+    SIEMS["SIEM Service :8001"]
 
-    MAIN --> APP
-    APP --> FEAT
-    APP --> SHARED
-    FEAT --> SHARED
-    FEAT --> STORES
-    FEAT --> TYPES
-    FEAT -. "известные cross-imports:<br>chat → settings, chat → projects" .-> FEAT
+    subgraph ENTRY["Entry"]
+        MAINX["main.tsx — React root"]
+        APPX["App.tsx — AuthGate"]
+    end
+
+    subgraph SHELL["app/ — application shell"]
+        ROUTERX["router.tsx"]
+        LAY["layouts/ — AppLayout, ProjectLayout"]
+        PROVX["providers/ — QueryClientProvider"]
+        ACOMP["components/ — WelcomePage и др."]
+    end
+
+    subgraph FEATS["features/ — в каждой: components/ + hooks/ (TanStack Query)"]
+        CHATF["chat"]
+        PROJF["projects"]
+        SETF["settings"]
+        SPHF["sphere"]
+        ARTF["artifacts"]
+        SECFX["security — admin"]
+    end
+
+    subgraph CLST["stores/ — клиентский state, Zustand"]
+        UIST["ui-store"]
+        STST["stream-store — SSE"]
+    end
+
+    subgraph SHRD["shared/"]
+        APIX["api/ — axios client,<br>модули по ресурсам"]
+        UIX["ui/ — shadcn"]
+        SCOMP["components/"]
+        LIBX["lib/ — logger, utils"]
+    end
+
+    TYPESX["types/ — security.ts"]
+
+    MAINX --> APPX
+    APPX --> ROUTERX
+    ROUTERX --> LAY
+    LAY --> FEATS
+    FEATS --> SHRD
+    CHATF --> STST
+    SECFX --> TYPESX
+    CHATF -. "cross-imports" .-> SETF
+    CHATF -. "cross-imports" .-> PROJF
+    APIX -->|HTTP| BE
+    APIX -->|HTTP| SIEMS
+    CHATF -->|"SSE fetch"| BE
+
+    style ENTRY fill:#8b949e1a,stroke:#8b949e,color:#8b949e
+    style SHELL fill:#58a6ff1a,stroke:#58a6ff,color:#58a6ff
+    style FEATS fill:#3fb9501a,stroke:#3fb950,color:#3fb950
+    style CLST fill:#bc8cff1a,stroke:#bc8cff,color:#bc8cff
+    style SHRD fill:#d299221a,stroke:#d29922,color:#d29922
 ```
 
 Структура отступает от канонического FSD: нет `pages/`, stores и types на верхнем уровне, нет public API у слайсов, есть cross-imports между features.

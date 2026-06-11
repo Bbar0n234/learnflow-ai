@@ -6,27 +6,91 @@
 
 ### Слои
 
+Слои показаны цветными подложками поверх компонентов и их связей:
+
 ```mermaid
 graph TD
-    API["API Layer — app/api/<br>routes/, schemas/, deps.py (DI)"]
-    SVC["Service Layer — app/services/"]
-    AGT["Agent Layer — app/agent/<br>graph, runner, tools, security"]
-    REPO["Repository Layer — app/repositories/"]
-    MODELS["ORM Models — app/models/"]
-    INFRA["Infra — app/infra/<br>DB engine/sessions, LLM client, MCP client, PromptProvider, EncryptionService"]
-    SECPIPE["Security Pipeline — app/security_pipeline/<br>SecurityEvent → Redis Stream"]
+    subgraph COMP["Composition Root"]
+        MAIN["main.py — lifespan,<br>синглтоны в app.state"]
+        CONFIG["config.py — Settings"]
+    end
 
-    API --> SVC
-    SVC --> AGT
-    SVC --> REPO
-    AGT --> REPO
-    REPO --> MODELS
-    SVC --> MODELS
-    REPO --> INFRA
-    AGT --> INFRA
-    SVC --> INFRA
-    API -. "structlog (security_event=True)" .-> SECPIPE
-    AGT -. "structlog (security_event=True)" .-> SECPIPE
+    subgraph APIL["API Layer — app/api/"]
+        ROUTES["routes/ — роутеры по ресурсам"]
+        SCHEMAS["schemas/ — Pydantic-контракты"]
+        DEPS["deps.py — DI-фабрики per-request"]
+    end
+
+    subgraph SVCL["Service Layer — app/services/"]
+        CHATSVC["ChatService — thread mapping,<br>делегирование в AgentRunner"]
+        CRUD["CRUD-сервисы — Project, Artifact,<br>Sphere, UserMemory, MCPServer"]
+        RESOLVER["ModelConfigResolver"]
+    end
+
+    subgraph AGTL["Agent Layer — app/agent/"]
+        RUNNER["AgentRunner — runner.py"]
+        FACTORY["GraphFactory — graph_factory.py"]
+        GRAPH["StateGraph — graph.py"]
+        TOOLS["tools/ — KS, artifacts,<br>user memory, skills"]
+        GUARD["security/ — SecurityGuard:<br>detectors + LLM classifier"]
+        PB["prompt_builder.py"]
+    end
+
+    subgraph DATAL["Data Layer"]
+        REPOS["repositories/ —<br>по репозиторию на сущность"]
+        MODELS["models/ — SQLAlchemy ORM"]
+    end
+
+    subgraph INFRAL["Infra — app/infra/"]
+        DBE["DB engine / sessions"]
+        LLM["LLM client"]
+        MCPC["MCP client + MCPToolResolver"]
+        PP["PromptProvider — Langfuse"]
+        ENC["EncryptionService — Fernet"]
+    end
+
+    subgraph SECPL["Security Pipeline — app/security_pipeline/"]
+        PROC["SecurityEventProcessor — structlog"]
+        TRANS["RedisEventTransport"]
+    end
+
+    REDIS[("Redis — stream<br>security.events")]
+
+    MAIN -. "синглтоны через app.state" .-> DEPS
+    CONFIG --- MAIN
+    ROUTES --> SCHEMAS
+    ROUTES --> DEPS
+    DEPS --> CHATSVC
+    DEPS --> CRUD
+    CHATSVC --> RESOLVER
+    CHATSVC --> RUNNER
+    CHATSVC --> REPOS
+    CRUD --> REPOS
+    CRUD --> GUARD
+    CRUD --> ENC
+    RUNNER --> FACTORY
+    FACTORY --> GRAPH
+    FACTORY --> LLM
+    GRAPH --> TOOLS
+    GRAPH --> GUARD
+    GRAPH --> MCPC
+    GRAPH --> PB
+    PB --> PP
+    TOOLS --> REPOS
+    REPOS --> MODELS
+    REPOS --> DBE
+    ROUTES -. "structlog: auth, rate limit" .-> PROC
+    GUARD -. "structlog: guard verdicts" .-> PROC
+    PROC --> TRANS
+    TRANS -->|XADD| REDIS
+
+    style COMP fill:#8b949e1a,stroke:#8b949e,color:#8b949e
+    style APIL fill:#58a6ff1a,stroke:#58a6ff,color:#58a6ff
+    style SVCL fill:#3fb9501a,stroke:#3fb950,color:#3fb950
+    style AGTL fill:#bc8cff1a,stroke:#bc8cff,color:#bc8cff
+    style DATAL fill:#d299221a,stroke:#d29922,color:#d29922
+    style INFRAL fill:#39c5cf1a,stroke:#39c5cf,color:#39c5cf
+    style SECPL fill:#f851491a,stroke:#f85149,color:#f85149
 ```
 
 Composition root — `app/main.py`: lifespan инициализирует синглтоны (engine, AgentRunner, guard и т.д.) в `app.state`; `app/api/deps.py` — per-request фабрики поверх `app.state`.
@@ -52,6 +116,25 @@ Composition root — `app/main.py`: lifespan инициализирует син
 | API → Agent Layer | ❌ (только через Service) |
 
 Известное локализованное исключение: `services/mcp_server.py` импортирует схему из `api/schemas/mcp_servers.py` — против направления, без цикла.
+
+### Сквозной поток: сообщение в чат
+
+Главный сценарий системы через все слои. Протокол SSE и lifecycle стрима — [streaming.md](streaming.md), внутренности графа — [agent-runtime.md](agent-runtime.md).
+
+```mermaid
+flowchart TD
+    FE["Frontend"] -->|"POST /chats/{chat_id}/messages"| RT["api/routes/messages.py"]
+    RT --> CS["ChatService<br>chat_id → thread_id · ModelConfigResolver · config"]
+    CS --> TV["ThreadView — обновление метаданных чата"]
+    CS --> AR["AgentRunner.stream()"]
+    AR --> GF["GraphFactory — build + compile per-request"]
+    GF --> G["StateGraph: agent ⇄ tools (ReAct)<br>+ inline security checkpoints"]
+    G <--> TOOLS["tools/ — KS, artifacts, memory, skills, MCP"]
+    G --> CKPT[("Checkpointer<br>полный state + история")]
+    G -->|"события графа"| AR
+    AR -->|"SSE events"| RT
+    RT -->|"StreamingResponse"| FE
+```
 
 ## API Layer
 
@@ -293,6 +376,35 @@ LangGraph-граф с ReAct-паттерном, context engineering, tools, skil
 ## Persistence
 
 Одна PostgreSQL база, два механизма управления: LangGraph-managed и app-managed. Миграции app-managed таблиц — через Alembic (async engine).
+
+```mermaid
+graph LR
+    AGENT["Agent Layer —<br>Checkpointer + Store, нативно LangGraph"]
+    REPOS["repositories/ —<br>SQLAlchemy async"]
+
+    subgraph PG["PostgreSQL learnflow"]
+        subgraph LGM["LangGraph-managed — схема создаётся фреймворком"]
+            CPT["checkpoints · checkpoint_blobs<br>checkpoint_writes · checkpoint_migrations"]
+            STORET["store — KS per-project,<br>User Memory per-user"]
+        end
+        subgraph APPM["App-managed — миграции Alembic"]
+            CORE["User · Project · ThreadView · Artifact · RefreshToken"]
+            SETT["UserSettings · ProjectSettings · ThreadSettings"]
+            MCPS["User/Project/ThreadMCPServer · MCPServerDisable"]
+        end
+    end
+
+    AGENT --> CPT
+    AGENT --> STORET
+    REPOS --> CORE
+    REPOS --> SETT
+    REPOS --> MCPS
+    CORE -. "ThreadView.thread_id = str(UUID) →<br>LangGraph thread_id" .- CPT
+
+    style PG fill:#8b949e12,stroke:#8b949e,color:#8b949e
+    style LGM fill:#bc8cff1a,stroke:#bc8cff,color:#bc8cff
+    style APPM fill:#d299221a,stroke:#d29922,color:#d29922
+```
 
 ### LangGraph-managed
 

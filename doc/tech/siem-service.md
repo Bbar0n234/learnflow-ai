@@ -17,28 +17,58 @@ Producer-сторона (нормализация событий, vocabulary, st
 
 ## Layered Architecture
 
+Слои показаны цветными подложками; внешняя рамка — граница сервиса, всё снаружи — внешние системы:
+
 ```mermaid
 graph TD
-    SUB["Pipeline — siem_service/pipeline/<br>subscriber, event_writer, meta_emitter, supervisor"]
-    COR["Correlation — siem_service/correlation/<br>engine, strategies, deduper"]
-    APIL["API Layer — siem_service/api/<br>routes.py"]
-    SVC["Services — siem_service/services.py<br>AlertService, RuleService"]
-    REPO["Repositories — siem_service/repositories.py"]
-    DOM["Domain — siem_service/domain/<br>models.py (ORM), schemas.py (DTO)"]
-    INFRA["Infra — siem_service/infra/<br>db.py (engine/sessions), auth.py (JWT, require_admin)"]
+    FRONT["Frontend — /security, admin"]
+    PROD["Main Backend — producer<br>app/security_pipeline/"]
     REDIS[("Redis Stream<br>security.events")]
-    DB[("PostgreSQL siem<br>siem_events, siem_alerts, correlation_rules")]
+    SIEMDB[("PostgreSQL siem<br>siem_events · siem_alerts · correlation_rules")]
 
+    subgraph BOUND["services/siem-service/siem_service/"]
+        subgraph PRES["Presentation"]
+            ROUTES["api/routes.py — REST"]
+        end
+        subgraph APPL["Application"]
+            SVCS["services.py — AlertService, RuleService"]
+        end
+        subgraph BGW["Background workers — lifespan + supervisor"]
+            SUB["pipeline/ — subscriber → event_writer"]
+            META["pipeline/meta_emitter.py"]
+            CORR["correlation/ — engine → strategies → deduper"]
+        end
+        subgraph DATA["Domain & Data"]
+            REPO["repositories.py"]
+            DOM["domain/ — models.py (ORM), schemas.py (DTO)"]
+        end
+        subgraph INFR["Infrastructure"]
+            DBI["infra/db.py — engine/sessions"]
+            AUTH["infra/auth.py — JWT, require_admin"]
+        end
+    end
+
+    PROD -->|XADD| REDIS
     REDIS -->|XREADGROUP| SUB
+    FRONT -->|HTTP| ROUTES
+    ROUTES --> AUTH
+    ROUTES --> SVCS
+    SVCS --> REPO
+    SVCS -.->|"meta-события CRUD"| META
+    META -->|XADD| REDIS
     SUB --> DOM
-    SUB --> DB
-    COR --> DB
-    APIL --> SVC
-    SVC --> REPO
+    CORR --> SIEMDB
     REPO --> DOM
-    REPO --> DB
-    APIL --> INFRA
-    SVC -.->|meta-события CRUD| SUB
+    REPO --> DBI
+    DBI --> SIEMDB
+    SUB --> SIEMDB
+
+    style BOUND fill:#8b949e0d,stroke:#8b949e,color:#8b949e
+    style PRES fill:#58a6ff1a,stroke:#58a6ff,color:#58a6ff
+    style APPL fill:#3fb9501a,stroke:#3fb950,color:#3fb950
+    style BGW fill:#bc8cff1a,stroke:#bc8cff,color:#bc8cff
+    style DATA fill:#d299221a,stroke:#d29922,color:#d29922
+    style INFR fill:#39c5cf1a,stroke:#39c5cf,color:#39c5cf
 ```
 
 Composition root — `siem_service/main.py`: lifespan инициализирует по порядку Settings → DB engine/session factory → Redis client → background-задачи subscriber и correlation engine (обе под supervisor).
@@ -76,7 +106,18 @@ Asyncio background-задача, polling каждые `SIEM_POLL_INTERVAL_SECOND
 
 **Дедупликация алертов** (`correlation/deduper.py`) — open-alert policy с возрастным лимитом: открытый (status `new`) алерт с тем же `(rule_id, group_key)` младше 24h получает append (инкремент счётчика, обновление `latest_event_id`); иначе создаётся новый алерт. Лимит не даёт многодневной атаке схлопнуться в один бесконечный алерт.
 
-**Status workflow:** `new` → `acknowledged` → `resolved`. Acknowledged продолжает получать append; resolved закрыт — следующее срабатывание создаёт новый алерт. Повторный resolve идемпотентен (не ошибка).
+**Lifecycle алерта:**
+
+```mermaid
+stateDiagram-v2
+    [*] --> new : кандидат от стратегии, открытого алерта нет<br>(или открытый старше 24h)
+    new --> new : повторное срабатывание — append<br>(matched_events_count++, latest_event_id)
+    new --> acknowledged : PATCH acknowledge (admin)
+    acknowledged --> acknowledged : append продолжается
+    acknowledged --> resolved : PATCH resolve (admin)
+    resolved --> resolved : повторный resolve — идемпотентен
+    resolved --> [*] : следующее срабатывание<br>создаёт новый алерт
+```
 
 **Baseline-правила** засеяны идемпотентной миграцией: `brute_force_auth` (5 × `auth.login.failed` / 60s по ip), `injection_spike` (10 × `agent.guard.%.injection` / 300s), `targeted_user_attack` (3 × `agent.guard.%` / 600s по user_id), `mass_suspicious` (15 × `agent.guard.%.suspicious` / 600s).
 

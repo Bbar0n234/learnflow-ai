@@ -1,25 +1,39 @@
 """SQLAlchemy ORM models for SIEM service."""
 
+import uuid
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
-    TIMESTAMP,
     BigInteger,
-    Boolean,
-    Column,
+    CheckConstraint,
+    DateTime,
     ForeignKey,
     Index,
     Integer,
-    String,
+    MetaData,
     Text,
+    func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import DeclarativeBase, relationship
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+# Convention из доки Alembic: стабильные имена constraints/индексов,
+# чтобы autogenerate мог адресовать их в drop/alter без угадывания.
+NAMING_CONVENTION = {
+    "ix": "ix_%(column_0_label)s",
+    "uq": "uq_%(table_name)s_%(column_0_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s",
+}
 
 
 class Base(DeclarativeBase):
     """SQLAlchemy base model."""
 
+    metadata = MetaData(naming_convention=NAMING_CONVENTION)
     type_annotation_map = {dict[str, Any]: JSONB}
 
 
@@ -28,58 +42,57 @@ class SiemEvent(Base):
 
     __tablename__ = "siem_events"
 
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    event_id = Column(
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    event_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        nullable=False,
         unique=True,
         comment="UUID for idempotency (at-least-once semantics)",
     )
-    event_type = Column(
-        String(255),
-        nullable=False,
+    event_type: Mapped[str] = mapped_column(
+        Text,
+        index=True,
         comment="Event type string (e.g., 'auth.login.failed')",
     )
-    severity = Column(
-        String(20),
-        nullable=False,
+    severity: Mapped[str] = mapped_column(
+        Text,
         comment="Severity: info | warning | critical",
     )
-    event_timestamp = Column(
-        TIMESTAMP(timezone=True),
-        nullable=False,
+    event_timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        index=True,
         comment="UTC timestamp from producer",
     )
-    ingested_at = Column(
-        TIMESTAMP(timezone=True),
-        nullable=False,
-        server_default="now()",
+    ingested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        index=True,
         comment="Consumer-side ingestion timestamp",
     )
-    identifiers = Column(
+    identifiers: Mapped[dict[str, Any]] = mapped_column(
         JSONB,
-        nullable=False,
-        server_default="'{}'::jsonb",
+        server_default=text("'{}'::jsonb"),
         comment="Event identifiers: ip, user_id, request_id, etc.",
     )
-    event_metadata = Column(
+    event_metadata: Mapped[dict[str, Any]] = mapped_column(
         JSONB,
-        nullable=False,
-        server_default="'{}'::jsonb",
+        server_default=text("'{}'::jsonb"),
         comment="Event-specific metadata dict (note: column name differs from Pydantic field 'metadata')",
     )
-    created_at = Column(
-        TIMESTAMP(timezone=True),
-        nullable=False,
-        server_default="now()",
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
     )
 
     __table_args__ = (
-        Index("idx_siem_events_event_type", "event_type"),
-        Index("idx_siem_events_severity", "severity"),
-        Index("idx_siem_events_ingested_at", "ingested_at"),
-        Index("idx_siem_events_event_timestamp", "event_timestamp"),
-        Index("idx_siem_events_identifiers_gin", "identifiers", postgresql_using="gin"),
+        CheckConstraint(
+            "severity IN ('info', 'warning', 'critical')",
+            name="severity",
+        ),
+        Index(
+            "ix_siem_events_identifiers_gin",
+            "identifiers",
+            postgresql_using="gin",
+        ),
     )
 
 
@@ -88,60 +101,61 @@ class CorrelationRule(Base):
 
     __tablename__ = "correlation_rules"
 
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    name = Column(
-        String(255),
-        nullable=False,
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    name: Mapped[str] = mapped_column(
+        Text,
         unique=True,
         comment="Rule name (unique)",
     )
-    description = Column(
+    description: Mapped[str | None] = mapped_column(
         Text,
-        nullable=True,
         comment="Rule description",
     )
-    rule_type = Column(
-        String(50),
-        nullable=False,
+    rule_type: Mapped[str] = mapped_column(
+        Text,
         comment="Rule type: threshold | sequence | aggregate",
     )
-    enabled = Column(
-        Boolean,
-        nullable=False,
-        server_default="true",
+    enabled: Mapped[bool] = mapped_column(
+        server_default=text("true"),
+        index=True,
         comment="Rule enabled status",
     )
-    severity = Column(
-        String(20),
-        nullable=False,
-        server_default="'warning'",
+    severity: Mapped[str] = mapped_column(
+        Text,
+        server_default=text("'warning'"),
         comment="Alert severity for this rule",
     )
-    config = Column(
+    config: Mapped[dict[str, Any]] = mapped_column(
         JSONB,
-        nullable=False,
-        server_default="'{}'::jsonb",
+        server_default=text("'{}'::jsonb"),
         comment="Rule configuration (per rule_type)",
     )
-    created_at = Column(
-        TIMESTAMP(timezone=True),
-        nullable=False,
-        server_default="now()",
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
     )
-    updated_at = Column(
-        TIMESTAMP(timezone=True),
-        nullable=False,
-        server_default="now()",
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
     )
 
     # Relationships
-    alerts = relationship(
-        "SiemAlert",
+    alerts: Mapped[list["SiemAlert"]] = relationship(
         back_populates="rule",
         cascade="all, delete-orphan",
     )
 
-    __table_args__ = (Index("idx_correlation_rules_enabled", "enabled"),)
+    __table_args__ = (
+        CheckConstraint(
+            "rule_type IN ('threshold', 'sequence', 'aggregate')",
+            name="rule_type",
+        ),
+        CheckConstraint(
+            "severity IN ('info', 'warning', 'critical')",
+            name="severity",
+        ),
+    )
 
 
 class SiemAlert(Base):
@@ -149,93 +163,90 @@ class SiemAlert(Base):
 
     __tablename__ = "siem_alerts"
 
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    rule_id = Column(
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    rule_id: Mapped[int] = mapped_column(
         BigInteger,
         ForeignKey("correlation_rules.id", ondelete="RESTRICT"),
-        nullable=False,
+        index=True,
         comment="FK to correlation_rules",
     )
-    severity = Column(
-        String(20),
-        nullable=False,
+    severity: Mapped[str] = mapped_column(
+        Text,
         comment="Alert severity (info | warning | critical)",
     )
-    status = Column(
-        String(20),
-        nullable=False,
-        server_default="'new'",
-        comment="Alert status: new | acknowledged | resolved",
+    status: Mapped[str] = mapped_column(
+        Text,
+        server_default=text("'new'"),
+        index=True,
+        comment="Alert status: new | acknowledged | resolved | expired",
     )
-    group_key = Column(
-        String(255),
-        nullable=True,
+    group_key: Mapped[str | None] = mapped_column(
+        Text,
         comment="Grouping key (ip, user_id, etc.) or NULL for no grouping",
     )
-    matched_events_count = Column(
+    matched_events_count: Mapped[int] = mapped_column(
         Integer,
-        nullable=False,
-        server_default="1",
-        comment="Number of events matched for this alert",
+        server_default=text("1"),
+        comment="Number of correlation firings folded into this alert",
     )
-    first_event_id = Column(
+    first_event_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("siem_events.event_id", ondelete="RESTRICT"),
-        nullable=False,
         comment="FK to siem_events (first matched event)",
     )
-    latest_event_id = Column(
+    latest_event_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("siem_events.event_id", ondelete="RESTRICT"),
-        nullable=False,
         comment="FK to siem_events (latest matched event)",
     )
-    created_at = Column(
-        TIMESTAMP(timezone=True),
-        nullable=False,
-        server_default="now()",
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        index=True,
     )
-    updated_at = Column(
-        TIMESTAMP(timezone=True),
-        nullable=False,
-        server_default="now()",
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
     )
-    acknowledged_at = Column(
-        TIMESTAMP(timezone=True),
-        nullable=True,
+    acknowledged_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
         comment="Timestamp when alert was acknowledged",
     )
-    acknowledged_by = Column(
-        String(255),
-        nullable=True,
+    acknowledged_by: Mapped[str | None] = mapped_column(
+        Text,
         comment="User ID who acknowledged the alert",
     )
-    resolved_at = Column(
-        TIMESTAMP(timezone=True),
-        nullable=True,
+    resolved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
         comment="Timestamp when alert was resolved",
     )
-    resolved_by = Column(
-        String(255),
-        nullable=True,
+    resolved_by: Mapped[str | None] = mapped_column(
+        Text,
         comment="User ID who resolved the alert",
     )
 
     # Relationships
-    rule = relationship(
-        "CorrelationRule",
-        back_populates="alerts",
-    )
+    rule: Mapped[CorrelationRule] = relationship(back_populates="alerts")
 
     __table_args__ = (
-        Index("idx_siem_alerts_rule_id", "rule_id"),
-        Index("idx_siem_alerts_status", "status"),
-        Index("idx_siem_alerts_created_at", "created_at"),
+        CheckConstraint(
+            "severity IN ('info', 'warning', 'critical')",
+            name="severity",
+        ),
+        CheckConstraint(
+            "status IN ('new', 'acknowledged', 'resolved', 'expired')",
+            name="status",
+        ),
+        # Инвариант open-alert политики: не больше одного открытого алерта на
+        # (rule_id, group_key); NULLS NOT DISTINCT — NULL-группа тоже единственна.
+        # Опора атомарного upsert'а в AlertDeduper (ON CONFLICT).
         Index(
-            "idx_siem_alerts_open_alert_lookup",
+            "uq_siem_alerts_open_alert",
             "rule_id",
             "group_key",
-            "status",
-            postgresql_where="status = 'new'",
+            unique=True,
+            postgresql_where=text("status = 'new'"),
+            postgresql_nulls_not_distinct=True,
         ),
     )

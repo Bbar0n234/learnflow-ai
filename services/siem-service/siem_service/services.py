@@ -44,23 +44,23 @@ class EventService:
         events, total = await self.repository.list_events(filters)
         responses = []
         for event in events:
-            identifiers_data = event.identifiers or {}  # type: ignore[var-annotated]  # SQLAlchemy Column type
+            identifiers_data = event.identifiers or {}
             if isinstance(identifiers_data, dict):
                 identifiers_obj = SecurityEventIdentifiersResponse(**identifiers_data)
             else:
                 identifiers_obj = SecurityEventIdentifiersResponse()
 
-            metadata = event.event_metadata or {}  # type: ignore[var-annotated]  # SQLAlchemy Column type
+            metadata = event.event_metadata or {}
 
             # Pydantic model with from_attributes=True will extract these values from the ORM instance
             response = EventResponse(
-                event_id=event.event_id,  # type: ignore[arg-type]  # SQLAlchemy instrumented attribute
-                event_type=event.event_type,  # type: ignore[arg-type]  # SQLAlchemy instrumented attribute
-                severity=event.severity,  # type: ignore[arg-type]  # SQLAlchemy instrumented attribute
-                event_timestamp=event.event_timestamp,  # type: ignore[arg-type]  # SQLAlchemy instrumented attribute
-                ingested_at=event.ingested_at,  # type: ignore[arg-type]  # SQLAlchemy instrumented attribute
+                event_id=event.event_id,
+                event_type=event.event_type,
+                severity=event.severity,
+                event_timestamp=event.event_timestamp,
+                ingested_at=event.ingested_at,
                 identifiers=identifiers_obj,
-                metadata=metadata,  # type: ignore[arg-type]  # SQLAlchemy Column[Any] type narrowing
+                metadata=metadata,
             )
             responses.append(response)
         return responses, total

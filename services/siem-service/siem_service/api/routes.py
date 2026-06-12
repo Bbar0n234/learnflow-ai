@@ -117,7 +117,7 @@ async def list_alerts(
 
     Args:
         severity: Filter by severity (info, warning, critical)
-        status: Filter by status (new, acknowledged, resolved)
+        status: Filter by status (new, acknowledged, resolved, expired)
         limit: Items per page (max 200)
         offset: Page offset
         session: Database session

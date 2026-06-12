@@ -10,8 +10,9 @@
 
 - **P1** Voice input — голосовой ввод сообщений агенту (STT) *(cross: Backend)*
 - **P2** Design system — проработка дизайн-системы, визуальная идентичность, референсы
-- **P3** Generative UI — агент решает, какой UI-компонент отрисовать. Гибрид: pre-built React-компоненты + конфигурируемые свойства (размер, цвет, расположение) через schema. Ориентир протокола — Google A2UI. Ресерч завершён (`doc/research/generative-ui-research-report.md`) *(cross: Agent, Backend)*
-- **P3** Rich Material Export — экспорт интерактивных UI-материалов с сохранением визуального качества (не markdown-дамп). Форматы: static HTML bundle, PDF, или оба. Зависит от Generative UI *(cross: Backend)*
+- **P3** Rich Artifact UI — специализированные viewer/editor-компоненты для разных типов артефактов (аудио, графики, презентации и др.) вместо универсального markdown-viewer. Это обычный типизированный UI, не Generative UI; конкретные сценарии и приоритет уточняются через dogfooding *(cross: Backend)*
+- **P3** Generative UI — агент сам выбирает или компонует UI-компоненты. Для текущего продукта подтверждённого сценария нет; вернуться при развитии LearnFlowAI в платформу для студентов, где потребуются адаптивные учебные интерфейсы. Ресерч завершён (`doc/research/generative-ui-research-report.md`) *(cross: Agent, Backend)*
+- **P3** Rich Material Export — экспорт rich-артефактов с сохранением визуального качества (не markdown-дамп). Форматы и требования определяются после появления реальных типов rich-артефактов; Generative UI не является обязательной зависимостью *(cross: Backend)*
 
 ## Agent
 
@@ -28,7 +29,7 @@
 
 ## Product / Distribution
 
-- **P3** Public Material Sharing — публичные ссылки на материалы (Notion-style share-to-web). Преподаватель публикует → получает URL → студенты видят материал без регистрации. Потенциальный pivot от "инструмент подготовки" к "подготовка + дистрибуция". Зависит от Generative UI + Rich Export *(cross: Frontend, Backend, Infra)*
+- **P3** Public Material Sharing — публичные ссылки на материалы (Notion-style share-to-web). Преподаватель публикует → получает URL → студенты видят материал без регистрации. Потенциальный pivot от "инструмент подготовки" к "подготовка + дистрибуция". Для rich-артефактов зависит от подходящего формата публикации / экспорта, но не требует Generative UI *(cross: Frontend, Backend, Infra)*
 
 ## Infra
 

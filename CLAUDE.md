@@ -1,167 +1,173 @@
 # CLAUDE.md
 
-## Project Context
+## Язык документации
 
-LearnFlowAI — AI-powered learning platform. Core stack: LangGraph agent, FastAPI backend, React/TypeScript frontend, PostgreSQL.
+CLAUDE.md и вся внутренняя документация ведутся на русском языке. Технические термины, идентификаторы кода, названия инструментов и команд остаются в оригинале. При добавлении новых разделов не смешивать языки — пишем по-русски.
 
-This project follows AIDD (AI-Driven Development): the developer acts as architect defining contracts and architecture; the LLM agent implements based on prepared documentation context. All docs live in `doc/` — read them before making assumptions.
+## Контекст проекта
 
-## Project Structure
+LearnFlowAI — образовательная платформа на базе AI. Основной стек: LangGraph-агент, FastAPI backend, React/TypeScript frontend, PostgreSQL.
 
-uv workspace monorepo — each package has its own `pyproject.toml` and dependencies. Root `pyproject.toml` is the workspace root, not a runnable package.
+Проект следует AIDD (AI-Driven Development): разработчик выступает архитектором — определяет контракты и архитектуру; LLM-агент реализует на основе подготовленного документационного контекста. Вся документация живёт в `doc/` — читай её, прежде чем делать предположения.
 
-Python commands must run from the package directory (where the relevant `pyproject.toml` lives), not from the project root. Makefile targets handle this automatically.
+## Структура проекта
 
-## Hard Rules
+uv workspace monorepo — у каждого пакета свой `pyproject.toml` и свои зависимости. Корневой `pyproject.toml` — это workspace root, а не запускаемый пакет.
 
-These rules apply to every code change. The "why" behind each one is documented in `doc/tech/conventions.md`; here are the one-liners.
+Python-команды запускаются из директории пакета (там, где лежит соответствующий `pyproject.toml`), а не из корня проекта. Цели Makefile делают это автоматически.
 
-- **DB migrations**: schema changes go through `alembic revision --autogenerate` against a running DB. Hand-written migrations are accepted only for DML/data migrations or DDL outside autogenerate's reach, with a `# Manual migration: <reason>` header and architect approval. "DB is not running" is not a reason to write one by hand — start the DB.
-- **Imports**: top-level only. A local import inside a function requires a `# lazy: <reason>` or `# circular: <reason>` comment. `PLC0415` is enforced by ruff.
-- **Interfaces**: `typing.Protocol` by default. `abc.ABC` only when there is shared implementation in the base class.
-- **Module-level state**: no module-level singletons. State lives in `app.state` (FastAPI), in closures (callbacks/processors outside request scope), or in DI for tests.
-- **Env vs constants**: per-environment values, secrets, and operational knobs go to `Settings(BaseSettings)`. Business invariants stay in code. Adding an env variable means updating `Settings`, `.env.example`, `.env.local.example`, and `docker-compose.yml` together.
-- **Workspace layout**: `packages/` for shared libraries (imported by other packages); `services/` (and historical `backend/`) for standalone runtimes. Dockerfile lives next to the package's `pyproject.toml`; build context is repo root.
+## Жёсткие правила
 
-## Documentation
+Эти правила действуют для каждого изменения кода. Обоснование («почему») каждого правила задокументировано в `doc/tech/conventions.md`; здесь — краткие формулировки.
 
-When exploring the codebase for a task, start from architectural documents in `doc/tech/`, not source code. Documents describe interfaces, contracts, and flows at the right abstraction level for design decisions. Code is an implementation detail — use it to verify specifics not covered by documentation.
+- **Миграции БД**: изменения схемы проходят через `alembic revision --autogenerate` против запущенной БД. Миграции, написанные вручную, допускаются только для DML/data-миграций или DDL, недоступного autogenerate, — с заголовком `# Manual migration: <reason>` и одобрением архитектора. «БД не запущена» — не причина писать миграцию руками: запусти БД.
+- **Импорты**: только на верхнем уровне. Локальный импорт внутри функции требует комментария `# lazy: <reason>` или `# circular: <reason>`. Правило `PLC0415` контролируется ruff.
+- **Интерфейсы**: по умолчанию `typing.Protocol`. `abc.ABC` — только когда в базовом классе есть общая реализация.
+- **Состояние на уровне модуля**: никаких module-level синглтонов. Состояние живёт в `app.state` (FastAPI), в замыканиях (callbacks/processors вне request scope) или в DI для тестов.
+- **Env vs константы**: значения, зависящие от окружения, секреты и операционные настройки — в `Settings(BaseSettings)`. Бизнес-инварианты остаются в коде. Добавление env-переменной означает одновременное обновление `Settings`, `.env.example`, `.env.local.example` и `docker-compose.yml`.
+- **Раскладка workspace**: `packages/` — для общих библиотек (импортируются другими пакетами); `services/` (и исторический `backend/`) — для самостоятельных runtime'ов. Dockerfile лежит рядом с `pyproject.toml` пакета; build context — корень репозитория.
 
-**Before editing code on a non-trivial task, open `doc/tech/conventions.md`.** The Hard Rules above are the short version; conventions.md is the source of truth for the rest (logging, naming, types, env workflow, migration workflow). Read the relevant section instead of guessing.
+## Документация
 
-**Documentation describes the current state — no temporal meta-notes.** Never leave iteration/history markers in architectural docs: "реализовано в feat-XXX", "будет переделано в feat-YYY", "отложено в feat-ZZZ", "(as-is, июнь 2026)". Plans live in tasklists, history lives in iteration artifacts; in docs such notes rot (iteration numbers shift, dates stale) and create a second place to keep in sync. State facts plainly ("структура отступает от FSD: ...") without promising future work. Exception: the architect explicitly instructs to leave such a marker.
+Исследуя кодовую базу под задачу, начинай с архитектурных документов в `doc/tech/`, а не с исходного кода. Документы описывают интерфейсы, контракты и потоки на правильном уровне абстракции для проектных решений. Код — деталь реализации: используй его, чтобы проверить частности, не покрытые документацией.
 
-**Fix drift on sight.** If, while working on any task, you notice an incorrectness nearby — doc contradicting code (wrong module location, missing table, nonexistent file/class), inconsistent naming, diagram style violations — fix it as part of your change, don't walk past. Precondition: be 100% sure the fix is correct — verify against code (grep, subagent for context), and when certainty is unreachable, surface it to the architect instead of guessing. Fixes go into the same commit or a separate one, but always get mentioned in your report.
+**Перед правкой кода в нетривиальной задаче открой `doc/tech/conventions.md`.** Жёсткие правила выше — краткая версия; conventions.md — источник истины по остальному (логирование, нейминг, типы, env-workflow, workflow миграций). Прочитай нужный раздел вместо того, чтобы гадать.
+
+**Документация описывает текущее состояние — без временных метапометок.** Никогда не оставляй в архитектурных документах маркеры итераций и истории: «реализовано в feat-XXX», «будет переделано в feat-YYY», «отложено в feat-ZZZ», «(as-is, июнь 2026)». Планы живут в тасклистах, история — в артефактах итераций; в документах такие пометки гниют (номера итераций сдвигаются, даты устаревают) и создают второе место, которое надо синхронизировать. Констатируй факты прямо («структура отступает от FSD: ...»), не обещая будущих работ. Исключение: архитектор явно поручил оставить такую пометку.
+
+**Исправляй дрейф на месте.** Если, работая над любой задачей, замечаешь рядом некорректность — документ противоречит коду (неверное расположение модуля, отсутствующая таблица, несуществующий файл/класс), неконсистентный нейминг, нарушение стиля диаграмм — исправь её в рамках своего изменения, не проходи мимо. Предусловие: стопроцентная уверенность, что исправляешь на правильное, — сверься с кодом (grep, сабагент для контекста), а когда уверенность недостижима, вынеси вопрос архитектору вместо догадки. Исправления идут тем же коммитом или отдельным, но всегда упоминаются в отчёте.
 
 **В облачных сессиях (Claude Code on the web и аналоги)** действует отдельная merge-policy: агент доводит фичу до feature-ветки, push + PR в `develop`, merge — за архитектором локально. См. `doc/tech/conventions.md` § Cloud sessions.
 
 **Агентам в OpenAI Codex Cloud** дополнительно подгрузить skill `codex-cloud-bootstrap` (runtime policy: Python 3.12, docker-less путь, localhost services). Настройка Codex Environment UI для человека: `doc/tech/setup/codex-cloud.md`.
 
-When discussing architecture, visualize components, layers, and data flows so the architect can give quality feedback with the full picture in front of them. Don't wait to be asked. In chat — ASCII diagrams; when writing to documents — Mermaid. Diagram pattern (layers as translucent overlays, project palette, verifying edges against code via grep/subagent, dark-theme render check) — see conventions.md § Mermaid Styling.
+Обсуждая архитектуру, визуализируй компоненты, слои и потоки данных, чтобы архитектор мог дать качественную обратную связь, видя полную картину. Не жди, пока попросят. В чате — ASCII-диаграммы; в документах — Mermaid. Паттерн диаграмм (слои как полупрозрачные подложки, палитра проекта, верификация связей по коду через grep/сабагента, проверка рендера на тёмной теме) — см. conventions.md § Mermaid Styling.
 
-Start from [doc/index.md](doc/index.md). Key entry points by concern:
+Начинай с [doc/index.md](doc/index.md). Ключевые точки входа по темам:
 
 ```
 doc/
-├── idea.md              # Problem, ICP, JTBD, product boundaries
-├── vision.md            # System architecture, stack, MVP criteria
-├── product/             # Use cases, roadmap, versioned scope
+├── idea.md              # Проблема, ICP, JTBD, границы продукта
+├── vision.md            # Архитектура системы, стек, критерии MVP
+├── product/             # Use cases, roadmap, scope по версиям
 ├── tech/
-│   ├── backend.md           # Layers, API, persistence, configuration
-│   ├── frontend.md          # Screens, components, state, API integration
-│   ├── auth.md              # JWT + refresh tokens, rate limiting, interceptor
-│   ├── streaming.md         # SSE protocol, events, cancellation
-│   ├── agent-runtime.md     # LangGraph graph, tools, skills, context, MCP
-│   ├── knowledge-sphere.md  # Project memory, storage, fuzzy patch, REST API
-│   ├── user-memory.md       # Custom instructions, agent memory, personalization
-│   ├── prompt-management.md # Langfuse prompts, dev/prod, seed/sync
-│   ├── observability.md     # Langfuse tracing, cost tracking, feedback loop
-│   ├── conventions.md       # Git flow, naming, code quality, documentation
-│   ├── setup/               # Dev/cloud environment setup manuals
+│   ├── backend.md           # Слои, API, персистентность, конфигурация
+│   ├── frontend.md          # Экраны, компоненты, state, интеграция с API
+│   ├── auth.md              # JWT + refresh-токены, rate limiting, interceptor
+│   ├── streaming.md         # Протокол SSE, события, отмена
+│   ├── agent-runtime.md     # Граф LangGraph, tools, skills, контекст, MCP
+│   ├── knowledge-sphere.md  # Память проекта, хранилище, fuzzy patch, REST API
+│   ├── user-memory.md       # Custom instructions, память агента, персонализация
+│   ├── prompt-management.md # Langfuse-промпты, dev/prod, seed/sync
+│   ├── observability.md     # Langfuse-трейсинг, учёт затрат, feedback loop
+│   ├── conventions.md       # Git flow, нейминг, качество кода, документация
+│   ├── setup/               # Мануалы настройки dev/cloud-окружений
 │   └── adr/                 # Architecture Decision Records
-├── research/            # Technology research, deep-dives, approach analysis
-├── reference/           # Reference materials: patterns, domain handbooks
-├── security/            # Threat model + defense architecture (architecture.md)
-└── tasks/               # Task lists and iterations
+├── research/            # Исследования технологий, deep-dive, анализ подходов
+├── reference/           # Справочные материалы: паттерны, доменные справочники
+├── security/            # Модель угроз + архитектура защиты (architecture.md)
+└── tasks/               # Тасклисты и итерации
 ```
 
-## Key Commands
+## Ключевые команды
 
-Use Makefile targets — not raw shell commands.
+Используй цели Makefile — не сырые shell-команды.
 
-| Target | Purpose |
+| Цель | Назначение |
 |--------|---------|
-| `make check` | All backend checks: ruff + mypy (CI gate) |
-| `make check-fe` | All frontend checks: ESLint + Prettier --check (CI gate) |
-| `make lint` / `make format` | Ruff linter / formatter |
+| `make check` | Все backend-проверки: ruff + mypy (CI gate) |
+| `make check-fe` | Все frontend-проверки: ESLint + Prettier --check (CI gate) |
+| `make lint` / `make format` | Линтер / форматтер Ruff |
 | `make type-check` | mypy |
 | `make lint-fe` / `make format-fe` | ESLint / Prettier |
 | `make test` | pytest |
-| `make dev` / `make dev-fe` | Backend / frontend dev server |
-| `make docker-up` / `make docker-up-db` | Full stack / DB only |
+| `make dev` / `make dev-fe` | Dev-сервер backend / frontend |
+| `make docker-up` / `make docker-up-db` | Полный стек / только БД |
 | `make migrate` | Alembic upgrade head |
-| `make migration msg="..."` | Create new Alembic migration |
-| `make grant-admin USER=<name>` | Promote an existing user to admin |
+| `make migration msg="..."` | Создать новую Alembic-миграцию |
+| `make grant-admin USER=<name>` | Выдать существующему пользователю права админа |
 
-## Makefile Conventions
+## Конвенции Makefile
 
-Makefile is the canonical interface to the project. Prefer `make <target>` over typing raw commands.
+Makefile — канонический интерфейс к проекту. Предпочитай `make <target>` набору сырых команд.
 
-If a target is missing or inconvenient — improve the Makefile rather than running raw commands repeatedly. Obvious fixes (typos, wrong flags) can be applied directly. Non-obvious changes (new targets, workflow modifications) require architect approval.
+Если цели не хватает или она неудобна — улучшай Makefile, а не гоняй сырые команды раз за разом. Очевидные исправления (опечатки, неверные флаги) можно вносить сразу. Неочевидные изменения (новые цели, модификации workflow) требуют одобрения архитектора.
 
-One-off commands that won't be reused are fine to run directly.
+Разовые команды, которые не будут переиспользоваться, можно запускать напрямую.
 
-## Code Quality Tools
+## Инструменты качества кода
 
-Linters and formatters are the project's quality gate — work with them, not around them.
+Линтеры и форматтеры — quality gate проекта: работай с ними, а не в обход них.
 
-When a check fails:
-- **Understand the root cause** — determine whether it's a genuine code issue or a tooling false positive.
-- **Genuine issue** — fix in code.
-- **False positive or missing rule** — discuss with the architect to decide whether to adjust the rule configuration.
-- Never add blind suppressions (`# noqa`, `# type: ignore`) without clear justification. Suppressing real issues defeats the purpose of the tooling.
+Когда проверка падает:
+- **Разберись в первопричине** — определи, это реальная проблема в коде или ложное срабатывание инструмента.
+- **Реальная проблема** — исправь в коде.
+- **Ложное срабатывание или недостающее правило** — обсуди с архитектором, нужно ли корректировать конфигурацию правил.
+- Никогда не добавляй слепых подавлений (`# noqa`, `# type: ignore`) без ясного обоснования. Подавление реальных проблем сводит на нет смысл инструментов.
 
-Rule changes (enabling, disabling, configuring) always go through the architect.
+Изменения правил (включение, отключение, настройка) всегда идут через архитектора.
 
-## Tool & Library Freshness
+## Актуальность инструментов и библиотек
 
-Do not rely on training data for fast-moving tools. Verify against these sources (in priority order):
+Не полагайся на training data для быстро развивающихся инструментов. Проверяй по этим источникам (в порядке приоритета):
 
-1. **Installed packages** — Python inspect, docstrings, signatures
-2. **Skills** — langgraph-patterns, uv-package-manager, etc.
-3. **MCP** — docs-langchain for up-to-date LangGraph docs
-4. **firecrawl** — official documentation, PyPI, GitHub
+1. **Установленные пакеты** — Python inspect, docstrings, сигнатуры
+2. **Skills** — langgraph-patterns, uv-package-manager и т.д.
+3. **MCP** — docs-langchain для актуальной документации LangGraph
+4. **firecrawl** — официальная документация, PyPI, GitHub
 
-This project uses **raw LangGraph** (not LangChain wrappers). Always verify LangGraph API through the sources above.
+Проект использует **чистый LangGraph** (без LangChain-обёрток). Всегда проверяй API LangGraph через источники выше.
 
 ## Skills
 
-Use installed skills when the task matches their domain. Skills carry up-to-date, specialized knowledge beyond training data.
+Используй установленные skills, когда задача попадает в их домен. Skills несут актуальные специализированные знания за пределами training data.
 
-| Skill | When to use |
+| Skill | Когда использовать |
 |-------|-------------|
-| `aidd-methodology` | Documentation structure, tasklists, workflow, ADRs |
-| `api-design-principles` | Designing or reviewing REST API contracts, endpoints, pagination, status codes |
-| `fastapi` | FastAPI handlers, Depends, Pydantic models, async-vs-sync, streaming responses |
-| `feature-sliced-design` | Frontend structure: where code belongs, layers, public APIs, imports |
-| `firecrawl` | Web/docs fetching, research, URL reading |
-| `frontend-design` | Visual/UI polish only, on explicit request — mode policy in skill-map |
-| `langfuse` | Observability, tracing, Langfuse API and docs |
-| `langgraph-patterns` | LangGraph API, StateGraph, Command, HITL, streaming |
-| `postgresql` | Schema design, column types, indexes, constraints, migrations review |
-| `prompt-engineering` | Writing or reviewing system prompts for LLM |
-| `schema-guided-reasoning` | Structured output, Pydantic models, JSON schema |
-| `uv-package-manager` | Dependencies, pyproject.toml, workspace, venv |
+| `aidd-methodology` | Структура документации, тасклисты, workflow, ADR |
+| `api-design-principles` | Проектирование и ревью REST API: контракты, endpoints, pagination, status codes |
+| `fastapi` | FastAPI-handlers, Depends, Pydantic-модели, async-vs-sync, streaming responses |
+| `feature-sliced-design` | Структура фронтенда: где лежит код, слои, public API, импорты |
+| `firecrawl` | Загрузка веба/доков, исследования, чтение URL |
+| `frontend-design` | Только визуальная полировка UI, по явному запросу — режимная политика в skill-map |
+| `langfuse` | Observability, трейсинг, API и документация Langfuse |
+| `langgraph-patterns` | API LangGraph, StateGraph, Command, HITL, streaming |
+| `postgresql` | Проектирование схемы, типы колонок, индексы, constraints, ревью миграций |
+| `prompt-engineering` | Написание и ревью системных промптов для LLM |
+| `schema-guided-reasoning` | Structured output, Pydantic-модели, JSON schema |
+| `uv-package-manager` | Зависимости, pyproject.toml, workspace, venv |
 
-When uncertain whether a skill covers your current task — check available skills before proceeding.
+Если не уверен, покрывает ли skill текущую задачу, — проверь доступные skills, прежде чем продолжать.
 
-Skill selection policy, roles, rejected skills, and pending candidates — see [doc/tech/skill-map.md](doc/tech/skill-map.md).
+Политика выбора skills, роли, отклонённые skills и отложенные кандидаты — см. [doc/tech/skill-map.md](doc/tech/skill-map.md).
 
-## Logging Conventions
+## Конвенции логирования
 
-Backend: `structlog.get_logger()`, keyword-args style: `logger.info("event", key=value)`. Never `logging.getLogger(__name__)`.
+Backend: `structlog.get_logger()`, стиль keyword-args: `logger.info("event", key=value)`. Никогда `logging.getLogger(__name__)`.
 
-Frontend: `import { logger } from "@/shared/lib/logger"` instead of `console.*`.
+Frontend: `import { logger } from "@/shared/lib/logger"` вместо `console.*`.
 
-Level semantics, style, anti-patterns — see [conventions.md](doc/tech/conventions.md#logging-conventions).
+Семантика уровней, стиль, антипаттерны — см. [conventions.md](doc/tech/conventions.md#logging-conventions).
 
-## Sandbox & Network
+## Sandbox и сеть
 
-Sandbox isolates network per bash command (`--unshare-net`). Commands inside sandbox cannot connect to localhost services (Docker ports, dev servers, databases). This is expected — not a Docker or networking issue.
+Sandbox изолирует сеть для каждой bash-команды (`--unshare-net`). Команды внутри sandbox не могут подключаться к localhost-сервисам (порты Docker, dev-серверы, базы данных). Это ожидаемое поведение — не проблема Docker или сети.
 
-Use Makefile targets for anything that needs network access to local services — they run outside sandbox via `excludedCommands`. For one-off diagnostics (psql, curl), sandbox escape hatch will trigger automatically.
+Для всего, что требует сетевого доступа к локальным сервисам, используй цели Makefile — они выполняются вне sandbox через `excludedCommands`. Для разовой диагностики (psql, curl) автоматически сработает sandbox escape hatch.
 
-## Agent Boundaries
+## Границы агента
 
-The agent does not make architectural decisions independently. Architecture, new components, interfaces, technology choices — only after explicit approval from the architect.
+Агент не принимает архитектурные решения самостоятельно. Архитектура, новые компоненты, интерфейсы, выбор технологий — только после явного одобрения архитектора.
 
-When a decision obviously follows from existing documentation — proceed. When there is any doubt — ask first. An unnecessary question is cheap; an unauthorized architectural decision is expensive.
+Когда решение очевидно следует из существующей документации — действуй. Когда есть хоть какое-то сомнение — сначала спроси. Лишний вопрос стоит дёшево; несанкционированное архитектурное решение — дорого.
 
-## Parallel Development
+## Параллельная разработка
 
-Multiple agents may work on different features simultaneously in separate worktrees. They have no communication channel with each other.
+Несколько агентов могут одновременно работать над разными фичами в отдельных worktree. Канала связи между собой у них нет.
 
-If you observe unexpected behavior — port already in use, services restarting on their own, files changing outside your edits — **stop and escalate to the architect**. Do not attempt to resolve infrastructure conflicts yourself. The architect coordinates between agents.
+**Размещение worktree**: создавай worktree как соседнюю директорию основного репозитория, никогда — внутри него. Схема именования: `../learnflow-ai-wt-<feature_name>` (а не `.claude/worktrees/...`). Worktree, вложенный в репозиторий, слишком легко приводит к тому, что агент правит файлы в основном checkout вместо своего.
+
+Если наблюдаешь неожиданное поведение — занятый порт, самопроизвольно перезапускающиеся сервисы, файлы, меняющиеся вне твоих правок, — **остановись и эскалируй архитектору**. Не пытайся разруливать инфраструктурные конфликты самостоятельно. Координацию между агентами ведёт архитектор.
 
 ## Как объяснять
 

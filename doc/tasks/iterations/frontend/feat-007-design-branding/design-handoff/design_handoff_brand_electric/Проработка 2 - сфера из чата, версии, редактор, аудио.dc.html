@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400..700&family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    body { margin: 0; background: #E9E6E0; }
+  </style>
+</helmet>
+
+<div style="min-height: 100vh; background: #E9E6E0; font-family: 'Instrument Sans', sans-serif; color: #2A2722; padding: 56px 40px 80px; display: flex; flex-direction: column; align-items: center; gap: 56px;">
+
+  <!-- ============ INTRO ============ -->
+  <div data-screen-label="Интро — проработка 2" style="width: 100%; max-width: 1400px; display: flex; flex-direction: column; gap: 20px;">
+    <div style="font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: #8B857A;">LearnFlowAI · feat-007 · «Электрик» · проработка по фидбэку</div>
+    <h1 style="margin: 0; font-size: 40px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1;">Wordmark v2 · сфера из чата · версии · редактор · типы артефактов</h1>
+    <div style="background: #FFFFFF; border-radius: 14px; padding: 24px 28px; font-size: 14.5px; line-height: 1.6; color: #4A463E; display: flex; flex-direction: column; gap: 10px;">
+      <div><strong style="color: #2A2722;">Принято по wordmark:</strong> только CamelCase (LearnFlow / LearnFlowAI), «AI» обязательно в полной форме, курсив убран. Идею кастомной буквы развиваю аккуратнее — метафоры берём из проекта: сфера знаний (ядро), поток (flow — знание течёт из мыслей в материалы), орбита (агент вокруг знания).</div>
+      <div><strong style="color: #2A2722;">Может ли wordmark меняться?</strong> Нормальная практика — одна система, три формы: <strong>полная</strong> «LearnFlowAI» (welcome, лендинг, README), <strong>короткая</strong> «LearnFlow» (sidebar, тесные места), <strong>знак</strong> (favicon, аватар агента). Принцип и начертание одни, меняется только форма под поверхность.</div>
+    </div>
+  </div>
+
+  <!-- ============ WORDMARK V2 ============ -->
+  <div data-screen-label="Wordmark v2" style="width: 100%; max-width: 1400px; display: flex; flex-direction: column; gap: 16px;">
+    <div style="display: flex; align-items: baseline; gap: 14px;">
+      <h2 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.01em;">Wordmark v2 — семь вариантов</h2>
+      <span style="font-size: 14px; color: #8B857A;">от тихих к кастомным</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+
+      <!-- A -->
+      <div style="background: #FFFFFF; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="font-size: 15px; font-weight: 700;">A · Монолит</div>
+        <div style="font-size: 13px; line-height: 1.5; color: #4A463E;">Всё имя одним цветом и весом. Самый тихий — выделение делает знак-сфера рядом, не типографика.</div>
+        <div style="background: #FAF7F1; border: 1px solid #E2DCD0; border-radius: 11px; padding: 22px; display: flex; align-items: center; gap: 10px;">
+          <span style="width: 24px; height: 24px; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #A47CFA 0%, #7434F4 62%, #4C16B8 100%);"></span>
+          <span style="font-family: 'Source Serif 4', serif; font-size: 25px; font-weight: 600; letter-spacing: -0.01em; color: #2E2A24;">LearnFlowAI</span>
+        </div>
+        <div style="background: #181420; border: 1px solid #2C2538; border-radius: 11px; padding: 22px; display: flex; align-items: center; gap: 10px;">
+          <span style="width: 24px; height: 24px; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #D0BAFF 0%, #9D6FFF 55%, #5520C8 100%); box-shadow: 0 0 12px rgba(177, 148, 255, 0.4);"></span>
+          <span style="font-family: 'Source Serif 4', serif; font-size: 25px; font-weight: 600; letter-spacing: -0.01em; color: #EDE8E2;">LearnFlowAI</span>
+        </div>
+      </div>
+
+      <!-- B -->
+      <div style="background: #FFFFFF; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="font-size: 15px; font-weight: 700;">B · Цветное AI</div>
+        <div style="font-size: 13px; line-height: 1.5; color: #4A463E;">«AI» тем же шрифтом и весом, без курсива — выделено только цветом. Спокойно и однозначно.</div>
+        <div style="background: #FAF7F1; border: 1px solid #E2DCD0; border-radius: 11px; padding: 22px; display: flex; align-items: center; gap: 10px;">
+          <span style="width: 24px; height: 24px; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #A47CFA 0%, #7434F4 62%, #4C16B8 100%);"></span>
+          <span style="font-family: 'Source Serif 4', serif; font-size: 25px; font-weight: 600; letter-spacing: -0.01em; color: #2E2A24;">LearnFlow<span style="color: #7434F4;">AI</span></span>
+        </div>
+        <div style="background: #181420; border: 1px solid #2C2538; border-radius: 11px; padding: 22px; display: flex; align-items: center; gap: 10px;">
+          <span style="width: 24px; height: 24px; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #D0BAFF 0%, #9D6FFF 55%, #5520C8 100%); box-shadow: 0 0 12px rgba(177, 148, 255, 0.4);"></span>
+          <span style="font-family: 'Source Serif 4', serif; font-size: 25px; font-weight: 600; letter-spacing: -0.01em; color: #EDE8E2;">LearnFlow<span style="color: #B194FF;">AI</span></span>
+        </div>
+      </div>
+
+      <!-- C -->
+      <div style="background: #FFFFFF; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="font-size: 15px; font-weight: 700;">C · AI-капсула</div>
+        <div style="font-size: 13px; line-height: 1.5; color: #4A463E;">«AI» в маленькой капсуле — читается как технологический бейдж продукта. Хорошо масштабируется: в тесных местах капсула отпадает сама.</div>
+        <div style="background: #FAF7F1; border: 1px solid #E2DCD0; border-radius: 11px; padding: 22px; display: flex; align-items: center; gap: 10px;">
+          <span style="width: 24px; height: 24px; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #A47CFA 0%, #7434F4 62%, #4C16B8 100%);"></span>
+          <span style="font-family: 'Source Serif 4', serif; font-size: 25px; font-weight: 600; letter-spacing: -0.01em; color: #2E2A24;">LearnFlow</span>
+          <span style="font-size: 13px; font-weight: 700; letter-spacing: 0.04em; color: #5B21CE; background: #EFE7FE; border: 1px solid #D8CCF2; border-radius: 7px; padding: 3px 8px; transform: translateY(-6px);">AI</span>
+        </div>
+        <div style="background: #181420; border: 1px solid #2C2538; border-radius: 11px; padding: 22px; display: flex; align-items: center; gap: 10px;">
+          <span style="width: 24px; height: 24px; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #D0BAFF 0%, #9D6FFF 55%, #5520C8 100%); box-shadow: 0 0 12px rgba(177, 148, 255, 0.4);"></span>
+          <span style="font-family: 'Source Serif 4', serif; font-size: 25px; font-weight: 600; letter-spacing: -0.01em; color: #EDE8E2;">LearnFlow</span>
+          <span style="font-size: 13px; font-weight: 700; letter-spacing: 0.04em; color: #CDB6FF; background: rgba(177, 148, 255, 0.15); border: 1px solid #3A3150; border-radius: 7px; padding: 3px 8px; transform: translateY(-6px);">AI</span>
+        </div>
+      </div>
+
+      <!-- D -->
+      <div style="background: #FFFFFF; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="font-size: 15px; font-weight: 700;">D · Поток в F</div>
+        <div style="font-size: 13px; line-height: 1.5; color: #4A463E;">Кастомная F: её перекладины — потоки, вытекающие в слово и тающие. Метафора flow прямо в букве; стем остаётся чернильным, слово читается.</div>
+        <div style="background: #FAF7F1; border: 1px solid #E2DCD0; border-radius: 11px; padding: 22px; display: flex; align-items: center; gap: 10px;">
+          <span style="width: 24px; height: 24px; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #A47CFA 0%, #7434F4 62%, #4C16B8 100%);"></span>
+          <span style="font-size: 25px; font-weight: 700; letter-spacing: -0.015em; color: #2E2A24; display: inline-flex; align-items: baseline;">Learn<span style="position: relative; display: inline-block; width: 17px; height: 19px; margin: 0 2px 0 3px; transform: translateY(1px);"><span style="position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 2px; background: #2E2A24;"></span><span style="position: absolute; left: 0; top: 0; height: 4px; width: 17px; border-radius: 2px; background: linear-gradient(90deg, #7434F4 0%, #A47CFA 55%, rgba(164, 124, 250, 0) 100%);"></span><span style="position: absolute; left: 0; top: 8px; height: 4px; width: 13px; border-radius: 2px; background: linear-gradient(90deg, #7434F4 0%, #A47CFA 55%, rgba(164, 124, 250, 0) 100%);"></span></span>lowAI</span>
+        </div>
+        <div style="background: #181420; border: 1px solid #2C2538; border-radius: 11px; padding: 22px; display: flex; align-items: center; gap: 10px;">
+          <span style="width: 24px; height: 24px; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #D0BAFF 0%, #9D6FFF 55%, #5520C8 100%); box-shadow: 0 0 12px rgba(177, 148, 255, 0.4);"></span>
+          <span style="font-size: 25px; font-weight: 700; letter-spacing: -0.015em; color: #EDE8E2; display: inline-flex; align-items: baseline;">Learn<span style="position: relative; display: inline-block; width: 17px; height: 19px; margin: 0 2px 0 3px; transform: translateY(1px);"><span style="position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 2px; background: #EDE8E2;"></span><span style="position: absolute; left: 0; top: 0; height: 4px; width: 17px; border-radius: 2px; background: linear-gradient(90deg, #B194FF 0%, #8E6FF0 55%, rgba(142, 111, 240, 0) 100%);"></span><span style="position: absolute; left: 0; top: 8px; height: 4px; width: 13px; border-radius: 2px; background: linear-gradient(90deg, #B194FF 0%, #8E6FF0 55%, rgba(142, 111, 240, 0) 100%);"></span></span>lowAI</span>
+        </div>
+      </div>
+
+      <!-- E -->
+      <div style="background: #FFFFFF; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="font-size: 15px; font-weight: 700;">E · Сфера-o, дубль два</div>
+        <div style="font-size: 13px; line-height: 1.5; color: #4A463E;">Та же идея, но проработанная: сфера с орбитальным кольцом и искрой, выровнена по x-высоте, sans-набор плотнее держит форму. «Ядро знания» вместо буквы.</div>
+        <div style="background: #FAF7F1; border: 1px solid #E2DCD0; border-radius: 11px; padding: 22px; display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 25px; font-weight: 700; letter-spacing: -0.015em; color: #2E2A24; display: inline-flex; align-items: center;">LearnFl<span style="position: relative; display: inline-block; width: 20px; height: 20px; margin: 0 2px; transform: translateY(2px);"><span style="position: absolute; inset: 1px; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #A47CFA 0%, #7434F4 58%, #4C16B8 100%);"></span><span style="position: absolute; left: -5px; right: -5px; top: 6px; height: 9px; border: 1.5px solid rgba(116, 52, 244, 0.65); border-radius: 50%; transform: rotate(-18deg);"></span><span style="position: absolute; top: -3px; right: -2px; width: 5px; height: 5px; background: #C5A9F9; transform: rotate(45deg);"></span></span>wAI</span>
+        </div>
+        <div style="background: #181420; border: 1px solid #2C2538; border-radius: 11px; padding: 22px; display: flex; align-items: center;">
+          <span style="font-size: 25px; font-weight: 700; letter-spacing: -0.015em; color: #EDE8E2; display: inline-flex; align-items: center;">LearnFl<span style="position: relative; display: inline-block; width: 20px; height: 20px; margin: 0 2px; transform: translateY(2px);"><span style="position: absolute; inset: 1px; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #D0BAFF 0%, #9D6FFF 52%, #5520C8 100%); box-shadow: 0 0 10px rgba(177, 148, 255, 0.45);"></span><span style="position: absolute; left: -5px; right: -5px; top: 6px; height: 9px; border: 1.5px solid rgba(177, 148, 255, 0.65); border-radius: 50%; transform: rotate(-18deg);"></span><span style="position: absolute; top: -3px; right: -2px; width: 5px; height: 5px; background: #B194FF; transform: rotate(45deg);"></span></span>wAI</span>
+        </div>
+      </div>
+
+      <!-- F -->
+      <div style="background: #FFFFFF; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="font-size: 15px; font-weight: 700;">F · Орбита вокруг AI</div>
+        <div style="font-size: 13px; line-height: 1.5; color: #4A463E;">«AI» — ядро в тонкой орбите со спутником: агент, вращающийся вокруг знания. Слово остаётся нетронутым, кастом — только в суффиксе.</div>
+        <div style="background: #FAF7F1; border: 1px solid #E2DCD0; border-radius: 11px; padding: 22px; display: flex; align-items: center; gap: 10px;">
+          <span style="font-family: 'Source Serif 4', serif; font-size: 25px; font-weight: 600; letter-spacing: -0.01em; color: #2E2A24;">LearnFlow</span>
+          <span style="position: relative; display: inline-block; padding: 1px 7px;"><span style="font-family: 'Source Serif 4', serif; font-size: 25px; font-weight: 600; color: #7434F4;">AI</span><span style="position: absolute; inset: -3px -5px; border: 1.5px solid rgba(116, 52, 244, 0.5); border-radius: 50%; transform: rotate(-14deg);"></span><span style="position: absolute; top: -5px; right: -2px; width: 6px; height: 6px; border-radius: 50%; background: #7434F4;"></span></span>
+        </div>
+        <div style="background: #181420; border: 1px solid #2C2538; border-radius: 11px; padding: 22px; display: flex; align-items: center; gap: 10px;">
+          <span style="font-family: 'Source Serif 4', serif; font-size: 25px; font-weight: 600; letter-spacing: -0.01em; color: #EDE8E2;">LearnFlow</span>
+          <span style="position: relative; display: inline-block; padding: 1px 7px;"><span style="font-family: 'Source Serif 4', serif; font-size: 25px; font-weight: 600; color: #B194FF;">AI</span><span style="position: absolute; inset: -3px -5px; border: 1.5px solid rgba(177, 148, 255, 0.5); border-radius: 50%; transform: rotate(-14deg);"></span><span style="position: absolute; top: -5px; right: -2px; width: 6px; height: 6px; border-radius: 50%; background: #B194FF;"></span></span>
+        </div>
+      </div>
+
+      <!-- G -->
+      <div style="background: #FFFFFF; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="font-size: 15px; font-weight: 700;">G · Цветной Flow</div>
+        <div style="font-size: 13px; line-height: 1.5; color: #4A463E;">Цветом выделена сердцевина имени — Flow, процесс превращения мыслей в материал. AI остаётся чернильным, без спецэффектов.</div>
+        <div style="background: #FAF7F1; border: 1px solid #E2DCD0; border-radius: 11px; padding: 22px; display: flex; align-items: center; gap: 10px;">
+          <span style="width: 24px; height: 24px; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #A47CFA 0%, #7434F4 62%, #4C16B8 100%);"></span>
+          <span style="font-family: 'Source Serif 4', serif; font-size: 25px; font-weight: 600; letter-spacing: -0.01em; color: #2E2A24;">Learn<span style="color: #7434F4;">Flow</span>AI</span>
+        </div>
+        <div style="background: #181420; border: 1px solid #2C2538; border-radius: 11px; padding: 22px; display: flex; align-items: center; gap: 10px;">
+          <span style="width: 24px; height: 24px; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #D0BAFF 0%, #9D6FFF 55%, #5520C8 100%); box-shadow: 0 0 12px rgba(177, 148, 255, 0.4);"></span>
+          <span style="font-family: 'Source Serif 4', serif; font-size: 25px; font-weight: 600; letter-spacing: -0.01em; color: #EDE8E2;">Learn<span style="color: #B194FF;">Flow</span>AI</span>
+        </div>
+      </div>
+
+      <!-- usage -->
+      <div style="background: #FFFFFF; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="font-size: 15px; font-weight: 700;">Как формы живут вместе</div>
+        <div style="font-size: 13px; line-height: 1.5; color: #4A463E;">Пример на варианте B: полная форма — внешние поверхности, короткая — sidebar, знак — favicon и аватар. Любой вариант A–G раскладывается так же.</div>
+        <div style="background: #FAF7F1; border: 1px solid #E2DCD0; border-radius: 11px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; align-items: center; justify-content: space-between;"><span style="font-family: 'Source Serif 4', serif; font-size: 19px; font-weight: 600; color: #2E2A24;">LearnFlow<span style="color: #7434F4;">AI</span></span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: #9D9582;">welcome · лендинг · README</span></div>
+          <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #ECE6D8; padding-top: 12px;"><span style="display: inline-flex; align-items: center; gap: 8px;"><span style="width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #A47CFA 0%, #7434F4 62%, #4C16B8 100%);"></span><span style="font-family: 'Source Serif 4', serif; font-size: 17px; font-weight: 600; color: #2E2A24;">LearnFlow</span></span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: #9D9582;">sidebar · шапки</span></div>
+          <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #ECE6D8; padding-top: 12px;"><span style="display: inline-flex; gap: 10px; align-items: center;"><span style="position: relative; width: 20px; height: 20px;"><span style="position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #A47CFA 0%, #7434F4 62%, #4C16B8 100%);"></span><span style="position: absolute; top: -2px; right: -2px; width: 6px; height: 6px; background: #C5A9F9; transform: rotate(45deg);"></span></span><span style="width: 16px; height: 16px; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #A47CFA 0%, #7434F4 62%, #4C16B8 100%);"></span></span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: #9D9582;">favicon · аватар агента</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SPHERE ACCESS ============ -->
+  <div data-screen-label="Сфера из чата — варианты" style="width: 100%; max-width: 1400px; display: flex; flex-direction: column; gap: 16px;">
+    <div style="display: flex; align-items: baseline; gap: 14px;">
+      <h2 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.01em;">Сфера из чата — три способа, не уходя со страницы</h2>
+    </div>
+    <div style="background: #FFFFFF; border-radius: 14px; padding: 20px 28px; font-size: 14.5px; line-height: 1.6; color: #4A463E;">Вкладка «Сфера» в проекте остаётся как «дом» документа. Но во время работы в чате сфера должна быть на расстоянии одного клика: <strong>S1</strong> — закреплённая панель справа (чат сжимается, можно работать параллельно), <strong>S2</strong> — оверлей-линза (быстро глянуть и закрыть, чат остаётся под ним), <strong>S3</strong> — peek прямо в ленте (агент записал в сферу → фрагмент разворачивается на месте, с откатом). Это не конкурирующие варианты — S3 сочетается с S1 или S2; вопрос в том, что делаем основным жестом.</div>
+
+    <!-- S1 -->
+    <div style="display: flex; align-items: baseline; gap: 14px; margin-top: 8px;">
+      <span style="font-size: 13px; font-weight: 600; letter-spacing: 0.1em; color: #7434F4;">S1</span>
+      <h3 style="margin: 0; font-size: 20px; font-weight: 700;">Закреплённая панель</h3>
+      <span style="font-size: 14px; color: #8B857A;">сфера и чат бок о бок · для длинной параллельной работы</span>
+    </div>
+    <div style="background: #FFFFFF; border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 20px; overflow-x: auto;">
+      <div data-screen-label="Макет S1 — закреплённая панель" style="display: flex; width: 1352px; min-width: 1352px; height: 832px; background: #FAF7F1; border: 1px solid #E2DCD0; border-radius: 14px; overflow: hidden; font-family: 'Instrument Sans', sans-serif; color: #2E2A24;">
+        <div style="width: 252px; flex-shrink: 0; background: #F1EDE3; border-right: 1px solid #E2DCD0; display: flex; flex-direction: column; padding: 18px 14px 14px; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 9px; padding: 0 6px;">
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #A47CFA 0%, #7434F4 62%, #4C16B8 100%);"></span>
+            <span style="font-family: 'Source Serif 4', serif; font-size: 19px; font-weight: 600; letter-spacing: -0.01em;">LearnFlow</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; align-items: center; justify-content: center; height: 38px; border-radius: 10px; background: #7434F4; color: #F6F1FF; font-size: 14px; font-weight: 600; cursor: pointer;">+ Новый чат</div>
+            <div style="display: flex; align-items: center; justify-content: center; height: 36px; border-radius: 10px; border: 1px solid #D8D1C2; color: #5A5446; font-size: 13.5px; font-weight: 500; cursor: pointer;">Новый проект</div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 0;">
+            <div style="font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: #9D9582; padding: 0 8px 4px;">Проекты</div>
+            <div style="display: flex; align-items: center; gap: 8px; padding: 8px 8px; border-radius: 9px; background: #FAF7F1; border: 1px solid #E2DCD0; font-size: 13.5px; font-weight: 600;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #7434F4;"></span>Event-Driven доклад</div>
+            <div style="display: flex; align-items: center; gap: 8px; padding: 8px 8px; border-radius: 9px; font-size: 13.5px; color: #5A5446;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #C5A9F9;"></span>Курс: Go для джунов</div>
+            <div style="display: flex; align-items: center; gap: 8px; padding: 8px 8px; border-radius: 9px; font-size: 13.5px; color: #5A5446;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #C8C0AE;"></span>База: System Design</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 8px 0; border-top: 1px solid #E2DCD0;">
+            <span style="width: 28px; height: 28px; border-radius: 50%; background: #D8D1C2; color: #5A5446; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600;">АК</span>
+            <span style="font-size: 13.5px; font-weight: 500;">Алексей К.</span>
+          </div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+          <div style="height: 58px; flex-shrink: 0; display: flex; align-items: center; gap: 14px; padding: 0 22px; border-bottom: 1px solid #ECE6D8;">
+            <span style="font-size: 13.5px; color: #8B8370; cursor: pointer;">← Event-Driven доклад</span>
+            <span style="font-family: 'Source Serif 4', serif; font-size: 17px; font-weight: 600;">Структура доклада</span>
+            <span style="flex: 1;"></span>
+            <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; color: #5B21CE; background: #EFE7FE; border: 1px solid #D8CCF2; border-radius: 999px; padding: 5px 12px; cursor: pointer;"><span style="width: 10px; height: 10px; border-radius: 50%; background: radial-gradient(circle at 38% 32%, #A47CFA 0%, #7434F4 60%, #4C16B8 100%);"></span>Сфера открыта</span>
+          </div>
+          <div style="flex: 1; min-height: 0; overflow: hidden; display: flex; justify-content: center; padding: 24px 26px 0;">
+            <div style="width: 100%; max-width: 520px; display: flex; flex-direction: column; gap: 18px;">
+              <div style="align-self: flex-end; max-width: 86%; background: #EDE7DA; border-radius: 14px 14px 4px 14px; padding: 12px 15px; font-size: 14px; line-height: 1.55;">Добавь в раздел про идемпотентность наш кейс с дедупликацией в биллинге.</div>
+              <div style="display: flex; flex-direction: column; gap: 11px;">
+                <span style="display: inline-flex; align-self: flex-start; align-items: center; gap: 7px; font-size: 12.5px; color: #5B21CE; background: #EFE7FE; border-radius: 999px; padding: 5px 12px;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #7434F4;"></span>Сфера знаний — обновлена · v2.4.1</span>
+                <div style="font-size: 14px; line-height: 1.6; color: #3C362C;">Записал кейс в «Решения и договорённости» — он уже подсвечен в панели справа. Заодно связал его с разделом про outbox-паттерн: на слайде они работают как одна история.</div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                  <span style="font-size: 12.5px; color: #9D9582; border: 1px solid #E2DCD0; border-radius: 999px; padding: 4px 11px; cursor: pointer;">Полезно</span>
+                  <span style="font-size: 12.5px; color: #9D9582; border: 1px solid #E2DCD0; border-radius: 999px; padding: 4px 11px; cursor: pointer;">Не то</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="flex-shrink: 0; padding: 14px 26px 20px; display: flex; justify-content: center;">
+            <div style="width: 100%; max-width: 520px; background: #FFFEFA; border: 1px solid #DCD5C6; border-radius: 14px; padding: 13px 15px; display: flex; align-items: center; gap: 12px;">
+              <span style="flex: 1; font-size: 14px; color: #9D9582;">Спросите агента…</span>
+              <span style="width: 32px; height: 32px; border-radius: 50%; background: #7434F4; color: #F6F1FF; display: flex; align-items: center; justify-content: center; font-size: 15px; cursor: pointer;">↑</span>
+            </div>
+          </div>
+        </div>
+        <div style="width: 470px; flex-shrink: 0; background: #FFFEFA; border-left: 1px solid #E2DCD0; display: flex; flex-direction: column; overflow: hidden;">
+          <div style="height: 58px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 20px; border-bottom: 1px solid #ECE6D8; background: #F4F1E9;">
+            <span style="width: 16px; height: 16px; border-radius: 50%; background: radial-gradient(circle at 38% 32%, #A47CFA 0%, #7434F4 60%, #4C16B8 100%);"></span>
+            <span style="font-family: 'Source Serif 4', serif; font-size: 16px; font-weight: 600;">Сфера знаний</span>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #5B21CE; background: #EFE7FE; border-radius: 6px; padding: 2px 7px;">v2.4.1</span>
+            <span style="flex: 1;"></span>
+            <span style="font-size: 12.5px; font-weight: 600; color: #7434F4; cursor: pointer;">Редактировать</span>
+            <span style="font-size: 14px; color: #9D9582; cursor: pointer; padding: 0 2px;">✕</span>
+          </div>
+          <div style="flex: 1; min-height: 0; overflow: hidden; padding: 20px 22px; font-size: 13.5px; line-height: 1.65; color: #3C362C; display: flex; flex-direction: column; gap: 13px;">
+            <div><span style="font-family: 'Source Serif 4', serif; font-size: 15.5px; font-weight: 600; display: block; margin-bottom: 4px;">Ядро темы</span>Доклад строится вокруг тезиса «события — это контракт между командами». Подача через боль синхронных интеграций.</div>
+            <div><span style="font-family: 'Source Serif 4', serif; font-size: 15.5px; font-weight: 600; display: block; margin-bottom: 4px;">Решения и договорённости</span>
+              <div style="display: flex; flex-direction: column; gap: 5px;">
+                <div style="display: flex; gap: 8px;"><span style="color: #7434F4;">—</span>Сага только в хореографии; оркестрация — анти-паттерн для нашего кейса.</div>
+                <div style="display: flex; gap: 8px;"><span style="color: #7434F4;">—</span>Live-demo на Kafka, 8 минут, записанный фолбэк.</div>
+                <div style="display: flex; gap: 8px; background: #EFE7FE; border-radius: 8px; padding: 7px 9px; margin-left: -9px;"><span style="color: #7434F4;">—</span><span>Кейс дедупликации в биллинге: идемпотентность по ключу события, связан с outbox-паттерном. <span style="font-size: 11.5px; color: #5B21CE; background: #FFFFFF; border-radius: 999px; padding: 1px 8px; white-space: nowrap;">только что · агент</span></span></div>
+              </div>
+            </div>
+            <div><span style="font-family: 'Source Serif 4', serif; font-size: 15.5px; font-weight: 600; display: block; margin-bottom: 4px;">Открытые вопросы</span>
+              <div style="display: flex; flex-direction: column; gap: 5px;">
+                <div style="display: flex; gap: 8px;"><span style="color: #9D9582;">?</span>Эволюция схем — отдельный блок или врезка?</div>
+                <div style="display: flex; gap: 8px;"><span style="color: #9D9582;">?</span>Нужен ли слайд про exactly-once?</div>
+              </div>
+            </div>
+          </div>
+          <div style="flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-top: 1px solid #ECE6D8; font-size: 12px; color: #9D9582;">
+            <span>142 записи · 38 связей</span><span style="flex: 1;"></span><span style="color: #7434F4; font-weight: 600; cursor: pointer;">Открыть вкладку сферы →</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- S2 -->
+    <div style="display: flex; align-items: baseline; gap: 14px; margin-top: 8px;">
+      <span style="font-size: 13px; font-weight: 600; letter-spacing: 0.1em; color: #7434F4;">S2</span>
+      <h3 style="margin: 0; font-size: 20px; font-weight: 700;">Оверлей-линза</h3>
+      <span style="font-size: 14px; color: #8B857A;">быстро глянуть и закрыть · чат остаётся под линзой · Esc</span>
+    </div>
+    <div style="background: #FFFFFF; border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 20px; overflow-x: auto;">
+      <div data-screen-label="Макет S2 — оверлей" style="position: relative; display: flex; width: 1352px; min-width: 1352px; height: 832px; background: #FAF7F1; border: 1px solid #E2DCD0; border-radius: 14px; overflow: hidden; font-family: 'Instrument Sans', sans-serif; color: #2E2A24;">
+        <div style="width: 252px; flex-shrink: 0; background: #F1EDE3; border-right: 1px solid #E2DCD0; display: flex; flex-direction: column; padding: 18px 14px; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 9px; padding: 0 6px;">
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #A47CFA 0%, #7434F4 62%, #4C16B8 100%);"></span>
+            <span style="font-family: 'Source Serif 4', serif; font-size: 19px; font-weight: 600;">LearnFlow</span>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: center; height: 38px; border-radius: 10px; background: #7434F4; color: #F6F1FF; font-size: 14px; font-weight: 600;">+ Новый чат</div>
+          <div style="flex: 1;"></div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+          <div style="height: 58px; flex-shrink: 0; display: flex; align-items: center; gap: 14px; padding: 0 24px; border-bottom: 1px solid #ECE6D8;">
+            <span style="font-size: 13.5px; color: #8B8370;">← Event-Driven доклад</span>
+            <span style="font-family: 'Source Serif 4', serif; font-size: 17px; font-weight: 600;">Структура доклада</span>
+            <span style="flex: 1;"></span>
+            <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; color: #5B21CE; background: #EFE7FE; border: 1px solid #D8CCF2; border-radius: 999px; padding: 5px 12px;"><span style="width: 10px; height: 10px; border-radius: 50%; background: radial-gradient(circle at 38% 32%, #A47CFA 0%, #7434F4 60%, #4C16B8 100%);"></span>Сфера</span>
+          </div>
+          <div style="flex: 1; min-height: 0; overflow: hidden; display: flex; justify-content: center; padding: 26px 32px 0;">
+            <div style="width: 100%; max-width: 680px; display: flex; flex-direction: column; gap: 20px;">
+              <div style="align-self: flex-end; max-width: 78%; background: #EDE7DA; border-radius: 14px 14px 4px 14px; padding: 13px 16px; font-size: 14.5px; line-height: 1.55;">Напомни, что мы решили по саге — хочу сверить со слайдом.</div>
+              <div style="font-size: 14.5px; line-height: 1.65; color: #3C362C;">Решение зафиксировано в сфере: сага показывается только в хореографии, оркестрация упоминается как анти-паттерн. Открыл нужный раздел — смотрите линзу.</div>
+            </div>
+          </div>
+        </div>
+        <div style="position: absolute; inset: 0; background: rgba(24, 16, 36, 0.45);"></div>
+        <div style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 920px; height: 620px; background: #FFFEFA; border-radius: 18px; box-shadow: 0 24px 80px rgba(24, 16, 36, 0.35); display: flex; flex-direction: column; overflow: hidden;">
+          <div style="height: 60px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 24px; border-bottom: 1px solid #ECE6D8; background: #F4F1E9;">
+            <span style="width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle at 38% 32%, #A47CFA 0%, #7434F4 60%, #4C16B8 100%);"></span>
+            <span style="font-family: 'Source Serif 4', serif; font-size: 17px; font-weight: 600;">Сфера знаний — Event-Driven доклад</span>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #5B21CE; background: #EFE7FE; border-radius: 6px; padding: 2px 7px;">v2.4.1</span>
+            <span style="flex: 1;"></span>
+            <span style="font-size: 12.5px; font-weight: 600; color: #7434F4; cursor: pointer;">Редактировать</span>
+            <span style="font-size: 12.5px; color: #9D9582; cursor: pointer;">Открыть вкладку</span>
+            <span style="font-size: 12px; color: #9D9582; border: 1px solid #E2DCD0; border-radius: 6px; padding: 2px 7px;">Esc</span>
+          </div>
+          <div style="flex: 1; min-height: 0; display: flex; overflow: hidden;">
+            <div style="flex: 1; min-width: 0; padding: 22px 28px; font-size: 14px; line-height: 1.7; color: #3C362C; display: flex; flex-direction: column; gap: 14px; overflow: hidden;">
+              <div><span style="font-family: 'Source Serif 4', serif; font-size: 16.5px; font-weight: 600; display: block; margin-bottom: 5px;">Решения и договорённости</span>
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                  <div style="display: flex; gap: 9px; background: #EFE7FE; border-radius: 8px; padding: 8px 10px; margin-left: -10px;"><span style="color: #7434F4;">—</span><span>Сага показывается только в хореографии; оркестрацию упоминаем как анти-паттерн для нашего кейса. <span style="font-size: 11.5px; color: #5B21CE; background: #FFFFFF; border-radius: 999px; padding: 1px 8px; white-space: nowrap;">найдено по запросу</span></span></div>
+                  <div style="display: flex; gap: 9px;"><span style="color: #7434F4;">—</span>Live-demo на Kafka, 8 минут, заранее записанный фолбэк.</div>
+                  <div style="display: flex; gap: 9px;"><span style="color: #7434F4;">—</span>Кейс дедупликации в биллинге: идемпотентность по ключу события.</div>
+                </div>
+              </div>
+              <div><span style="font-family: 'Source Serif 4', serif; font-size: 16.5px; font-weight: 600; display: block; margin-bottom: 5px;">Ядро темы</span>Доклад строится вокруг тезиса «события — это контракт между командами»; подача через боль синхронных интеграций.</div>
+            </div>
+            <div style="width: 252px; flex-shrink: 0; border-left: 1px solid #ECE6D8; background: #F4F1E9; padding: 20px 18px; display: flex; flex-direction: column; gap: 10px;">
+              <div style="font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: #9D9582;">История версий</div>
+              <div style="display: flex; gap: 9px; align-items: flex-start;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: #5B21CE; background: #EFE7FE; border-radius: 5px; padding: 2px 6px; white-space: nowrap;">2.4.1</span><div style="display: flex; flex-direction: column;"><span style="font-size: 12.5px; line-height: 1.45;">Кейс дедупликации в биллинге</span><span style="font-size: 11px; color: #9D9582;">патч · агент · только что</span></div></div>
+              <div style="display: flex; gap: 9px; align-items: flex-start;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: #5B21CE; background: #EFE7FE; border-radius: 5px; padding: 2px 6px; white-space: nowrap;">2.4.0</span><div style="display: flex; flex-direction: column;"><span style="font-size: 12.5px; line-height: 1.45;">Раздел «Открытые вопросы»</span><span style="font-size: 11px; color: #9D9582;">минорная · агент · вчера</span></div></div>
+              <div style="display: flex; gap: 9px; align-items: flex-start;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: #F6F1FF; background: #7434F4; border-radius: 5px; padding: 2px 6px; white-space: nowrap;">2.0.0</span><div style="display: flex; flex-direction: column;"><span style="font-size: 12.5px; line-height: 1.45;">Реструктуризация под тезис-контракт</span><span style="font-size: 11px; color: #9D9582;">мажорная · вы · неделю назад</span></div></div>
+              <div style="flex: 1;"></div>
+              <div style="display: flex; align-items: center; justify-content: center; height: 32px; border-radius: 9px; border: 1px solid #D8D1C2; font-size: 12.5px; font-weight: 600; color: #5A5446; cursor: pointer;">Вся история</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- S3 -->
+    <div style="display: flex; align-items: baseline; gap: 14px; margin-top: 8px;">
+      <span style="font-size: 13px; font-weight: 600; letter-spacing: 0.1em; color: #7434F4;">S3</span>
+      <h3 style="margin: 0; font-size: 20px; font-weight: 700;">Peek в ленте</h3>
+      <span style="font-size: 14px; color: #8B857A;">запись агента в сферу разворачивается прямо в чате · с откатом</span>
+    </div>
+    <div style="background: #FFFFFF; border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 20px; overflow-x: auto;">
+      <div data-screen-label="Макет S3 — peek в ленте" style="display: flex; width: 1352px; min-width: 1352px; height: 832px; background: #FAF7F1; border: 1px solid #E2DCD0; border-radius: 14px; overflow: hidden; font-family: 'Instrument Sans', sans-serif; color: #2E2A24;">
+        <div style="width: 252px; flex-shrink: 0; background: #F1EDE3; border-right: 1px solid #E2DCD0; display: flex; flex-direction: column; padding: 18px 14px 14px; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 9px; padding: 0 6px;">
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #A47CFA 0%, #7434F4 62%, #4C16B8 100%);"></span>
+            <span style="font-family: 'Source Serif 4', serif; font-size: 19px; font-weight: 600;">LearnFlow</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; align-items: center; justify-content: center; height: 38px; border-radius: 10px; background: #7434F4; color: #F6F1FF; font-size: 14px; font-weight: 600;">+ Новый чат</div>
+            <div style="display: flex; align-items: center; justify-content: center; height: 36px; border-radius: 10px; border: 1px solid #D8D1C2; color: #5A5446; font-size: 13.5px; font-weight: 500;">Новый проект</div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 0;">
+            <div style="font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: #9D9582; padding: 0 8px 4px;">Проекты</div>
+            <div style="display: flex; align-items: center; gap: 8px; padding: 8px 8px; border-radius: 9px; background: #FAF7F1; border: 1px solid #E2DCD0; font-size: 13.5px; font-weight: 600;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #7434F4;"></span>Event-Driven доклад</div>
+            <div style="display: flex; align-items: center; gap: 8px; padding: 8px 8px; border-radius: 9px; font-size: 13.5px; color: #5A5446;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #C5A9F9;"></span>Курс: Go для джунов</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 8px 0; border-top: 1px solid #E2DCD0;">
+            <span style="width: 28px; height: 28px; border-radius: 50%; background: #D8D1C2; color: #5A5446; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600;">АК</span>
+            <span style="font-size: 13.5px; font-weight: 500;">Алексей К.</span>
+          </div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+          <div style="height: 58px; flex-shrink: 0; display: flex; align-items: center; gap: 14px; padding: 0 24px; border-bottom: 1px solid #ECE6D8;">
+            <span style="font-size: 13.5px; color: #8B8370;">← Event-Driven доклад</span>
+            <span style="font-family: 'Source Serif 4', serif; font-size: 17px; font-weight: 600;">Структура доклада</span>
+            <span style="flex: 1;"></span>
+            <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: #5A5446; border: 1px solid #D8D1C2; border-radius: 999px; padding: 5px 12px; cursor: pointer;"><span style="width: 10px; height: 10px; border-radius: 50%; background: radial-gradient(circle at 38% 32%, #A47CFA 0%, #7434F4 60%, #4C16B8 100%);"></span>Сфера</span>
+          </div>
+          <div style="flex: 1; min-height: 0; overflow: hidden; display: flex; justify-content: center; padding: 28px 32px 0;">
+            <div style="width: 100%; max-width: 680px; display: flex; flex-direction: column; gap: 20px;">
+              <div style="align-self: flex-end; max-width: 78%; background: #EDE7DA; border-radius: 14px 14px 4px 14px; padding: 13px 16px; font-size: 14.5px; line-height: 1.55;">Добавь в раздел про идемпотентность наш кейс с дедупликацией в биллинге.</div>
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="font-size: 14.5px; line-height: 1.65; color: #3C362C;">Записал и связал с outbox-паттерном — вот что появилось в сфере:</div>
+                <div style="border: 1px solid #D8CCF2; border-radius: 13px; overflow: hidden;">
+                  <div style="display: flex; align-items: center; gap: 9px; padding: 11px 15px; background: #EFE7FE;">
+                    <span style="width: 13px; height: 13px; border-radius: 50%; background: radial-gradient(circle at 38% 32%, #A47CFA 0%, #7434F4 60%, #4C16B8 100%);"></span>
+                    <span style="font-size: 12.5px; font-weight: 700; color: #5B21CE;">Записано в сферу → Решения и договорённости</span>
+                    <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: #5B21CE; background: #FFFFFF; border-radius: 5px; padding: 2px 6px;">v2.4.0 → v2.4.1 · патч</span>
+                    <span style="flex: 1;"></span>
+                    <span style="font-size: 12px; color: #5B21CE; cursor: pointer;">Свернуть ▴</span>
+                  </div>
+                  <div style="padding: 14px 16px; background: #FFFEFA; font-size: 13.5px; line-height: 1.6; color: #3C362C; display: flex; flex-direction: column; gap: 10px;">
+                    <div style="display: flex; gap: 9px;"><span style="color: #7434F4;">+</span><span>Кейс дедупликации в биллинге: идемпотентность через ключ события (`event_id` + потребитель). Связан с outbox-паттерном — на слайде подаются как одна история.</span></div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                      <span style="font-size: 12.5px; font-weight: 600; color: #7434F4; cursor: pointer;">Открыть в сфере</span>
+                      <span style="font-size: 12.5px; color: #9D9582; cursor: pointer;">Подправить</span>
+                      <span style="font-size: 12.5px; color: #B0573F; cursor: pointer;">Откатить</span>
+                    </div>
+                  </div>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                  <span style="font-size: 12.5px; color: #9D9582; border: 1px solid #E2DCD0; border-radius: 999px; padding: 4px 11px; cursor: pointer;">Полезно</span>
+                  <span style="font-size: 12.5px; color: #9D9582; border: 1px solid #E2DCD0; border-radius: 999px; padding: 4px 11px; cursor: pointer;">Не то</span>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: #8B8370;">
+                <span style="width: 8px; height: 16px; background: #7434F4; border-radius: 2px;"></span>
+                Проверяю, не противоречит ли кейс разделу про exactly-once…
+              </div>
+            </div>
+          </div>
+          <div style="flex-shrink: 0; padding: 16px 32px 22px; display: flex; justify-content: center;">
+            <div style="width: 100%; max-width: 680px; background: #FFFEFA; border: 1px solid #DCD5C6; border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 12px;">
+              <span style="flex: 1; font-size: 14.5px; color: #9D9582;">Спросите агента…</span>
+              <span style="width: 34px; height: 34px; border-radius: 50%; background: #7434F4; color: #F6F1FF; display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer;">↑</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SPHERE EDITOR + SEMVER ============ -->
+  <div data-screen-label="Редактор сферы и версии" style="width: 100%; max-width: 1400px; display: flex; flex-direction: column; gap: 16px;">
+    <div style="display: flex; align-items: baseline; gap: 14px;">
+      <h2 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.01em;">Редактор сферы + версии «мажор.минор.патч»</h2>
+      <span style="font-size: 14px; color: #8B857A;">полноценный markdown-редактор · агент предлагает уровень версии, человек решает</span>
+    </div>
+    <div style="background: #FFFFFF; border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 20px; overflow-x: auto;">
+      <div data-screen-label="Макет — редактор сферы" style="display: flex; width: 1352px; min-width: 1352px; height: 832px; background: #FAF7F1; border: 1px solid #E2DCD0; border-radius: 14px; overflow: hidden; font-family: 'Instrument Sans', sans-serif; color: #2E2A24;">
+        <div style="width: 252px; flex-shrink: 0; background: #F1EDE3; border-right: 1px solid #E2DCD0; display: flex; flex-direction: column; padding: 18px 14px 14px; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 9px; padding: 0 6px;">
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #A47CFA 0%, #7434F4 62%, #4C16B8 100%);"></span>
+            <span style="font-family: 'Source Serif 4', serif; font-size: 19px; font-weight: 600;">LearnFlow</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; align-items: center; justify-content: center; height: 38px; border-radius: 10px; background: #7434F4; color: #F6F1FF; font-size: 14px; font-weight: 600;">+ Новый чат</div>
+            <div style="display: flex; align-items: center; justify-content: center; height: 36px; border-radius: 10px; border: 1px solid #D8D1C2; color: #5A5446; font-size: 13.5px; font-weight: 500;">Новый проект</div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 0;">
+            <div style="font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: #9D9582; padding: 0 8px 4px;">Проекты</div>
+            <div style="display: flex; align-items: center; gap: 8px; padding: 8px 8px; border-radius: 9px; background: #FAF7F1; border: 1px solid #E2DCD0; font-size: 13.5px; font-weight: 600;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #7434F4;"></span>Event-Driven доклад</div>
+            <div style="display: flex; align-items: center; gap: 8px; padding: 8px 8px; border-radius: 9px; font-size: 13.5px; color: #5A5446;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #C5A9F9;"></span>Курс: Go для джунов</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 8px 0; border-top: 1px solid #E2DCD0;">
+            <span style="width: 28px; height: 28px; border-radius: 50%; background: #D8D1C2; color: #5A5446; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600;">АК</span>
+            <span style="font-size: 13.5px; font-weight: 500;">Алексей К.</span>
+          </div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+          <div style="height: 58px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 24px; border-bottom: 1px solid #ECE6D8;">
+            <span style="font-size: 13.5px; color: #8B8370; cursor: pointer;">← Сфера</span>
+            <span style="font-family: 'Source Serif 4', serif; font-size: 17px; font-weight: 600;">Редактирование сферы</span>
+            <span style="font-size: 12px; color: #9D9582;">черновик сохранён · 12:41</span>
+            <span style="flex: 1;"></span>
+            <span style="font-size: 13px; color: #5A5446; border: 1px solid #D8D1C2; border-radius: 9px; padding: 7px 14px; cursor: pointer;">Отменить</span>
+            <span style="position: relative;">
+              <span style="display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 16px; border-radius: 9px; background: #7434F4; color: #F6F1FF; font-size: 13px; font-weight: 600; cursor: pointer;">Сохранить версию ▾</span>
+              <span style="position: absolute; top: 40px; right: 0; width: 318px; background: #FFFEFA; border: 1px solid #E2DCD0; border-radius: 13px; box-shadow: 0 14px 44px rgba(60, 45, 25, 0.16); padding: 8px; display: flex; flex-direction: column; gap: 2px; z-index: 5;">
+                <span style="display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px; border-radius: 9px; background: #EFE7FE; cursor: pointer;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #5B21CE; background: #FFFFFF; border-radius: 5px; padding: 2px 7px; white-space: nowrap;">2.4.2</span><span style="display: flex; flex-direction: column; gap: 1px;"><span style="font-size: 13px; font-weight: 600; color: #2E2A24;">Патч — уточнение</span><span style="font-size: 11.5px; color: #8B8370;">правки внутри существующих записей · предложение агента</span></span></span>
+                <span style="display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px; border-radius: 9px; cursor: pointer;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #5B21CE; background: #EFE7FE; border-radius: 5px; padding: 2px 7px; white-space: nowrap;">2.5.0</span><span style="display: flex; flex-direction: column; gap: 1px;"><span style="font-size: 13px; font-weight: 600; color: #2E2A24;">Минорная — новый материал</span><span style="font-size: 11.5px; color: #8B8370;">новые записи или раздел</span></span></span>
+                <span style="display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px; border-radius: 9px; cursor: pointer;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #F6F1FF; background: #7434F4; border-radius: 5px; padding: 2px 7px; white-space: nowrap;">3.0.0</span><span style="display: flex; flex-direction: column; gap: 1px;"><span style="font-size: 13px; font-weight: 600; color: #2E2A24;">Мажорная — реструктуризация</span><span style="font-size: 11.5px; color: #8B8370;">смена структуры или ключевых тезисов</span></span></span>
+              </span>
+            </span>
+          </div>
+          <div style="flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 10px 24px; border-bottom: 1px solid #ECE6D8; background: #F7F3EA;">
+            <span style="font-size: 13px; color: #5A5446; border: 1px solid #D8D1C2; border-radius: 7px; padding: 4px 11px; cursor: pointer;">Абзац ▾</span>
+            <span style="width: 1px; height: 18px; background: #E2DCD0; margin: 0 6px;"></span>
+            <span style="font-size: 13px; font-weight: 700; color: #2E2A24; padding: 4px 9px; border-radius: 7px; cursor: pointer;">B</span>
+            <span style="font-family: 'Source Serif 4', serif; font-style: italic; font-size: 13px; color: #2E2A24; padding: 4px 9px; border-radius: 7px; cursor: pointer;">I</span>
+            <span style="font-size: 13px; color: #2E2A24; padding: 4px 9px; border-radius: 7px; cursor: pointer; text-decoration: line-through;">S</span>
+            <span style="width: 1px; height: 18px; background: #E2DCD0; margin: 0 6px;"></span>
+            <span style="font-size: 13px; color: #2E2A24; padding: 4px 9px; border-radius: 7px; cursor: pointer;">H2</span>
+            <span style="font-size: 13px; color: #2E2A24; padding: 4px 9px; border-radius: 7px; cursor: pointer;">H3</span>
+            <span style="font-size: 13px; color: #2E2A24; padding: 4px 9px; border-radius: 7px; cursor: pointer;">• Список</span>
+            <span style="font-size: 13px; color: #2E2A24; padding: 4px 9px; border-radius: 7px; cursor: pointer;">❝ Цитата</span>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #2E2A24; padding: 4px 9px; border-radius: 7px; cursor: pointer;">{ } Код</span>
+            <span style="font-size: 13px; color: #2E2A24; padding: 4px 9px; border-radius: 7px; cursor: pointer;">⌁ Ссылка</span>
+            <span style="flex: 1;"></span>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: #9D9582; cursor: pointer;">Markdown-режим</span>
+          </div>
+          <div style="flex: 1; min-height: 0; display: flex; overflow: hidden;">
+            <div style="flex: 1; min-width: 0; overflow: hidden; padding: 26px 36px 0; display: flex; justify-content: center;">
+              <div style="width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 14px; font-size: 14.5px; line-height: 1.7; color: #3C362C;">
+                <span style="font-family: 'Source Serif 4', serif; font-size: 24px; font-weight: 700;">Сфера знаний</span>
+                <div><span style="font-family: 'Source Serif 4', serif; font-size: 17px; font-weight: 600; display: block; margin-bottom: 5px;">Ядро темы</span>Доклад строится вокруг тезиса «события — это контракт между командами». Подача через боль синхронных интеграций: каскадные деградации, связность релизов.</div>
+                <div><span style="font-family: 'Source Serif 4', serif; font-size: 17px; font-weight: 600; display: block; margin-bottom: 5px;">Решения и договорённости</span>
+                  <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <div style="display: flex; gap: 9px;"><span style="color: #7434F4;">—</span>Сага только в хореографии; оркестрация — анти-паттерн для нашего кейса.</div>
+                    <div style="position: relative; display: flex; gap: 9px; background: #EFE7FE; border-radius: 8px; padding: 8px 10px; margin-left: -10px; box-shadow: inset 2.5px 0 0 #7434F4;"><span style="color: #7434F4;">—</span><span>Кейс дедупликации в биллинге: идемпотентность через ключ события<span style="display: inline-block; width: 2px; height: 16px; background: #7434F4; margin-left: 2px; transform: translateY(3px);"></span></span></div>
+                    <div style="display: flex; gap: 9px;"><span style="color: #7434F4;">—</span>Live-demo на Kafka, 8 минут, записанный фолбэк.</div>
+                  </div>
+                </div>
+                <div><span style="font-family: 'Source Serif 4', serif; font-size: 17px; font-weight: 600; display: block; margin-bottom: 5px;">Открытые вопросы</span>
+                  <div style="display: flex; gap: 9px;"><span style="color: #9D9582;">?</span>Эволюция схем — отдельный блок или врезка в паттерны?</div>
+                </div>
+              </div>
+            </div>
+            <div style="width: 286px; flex-shrink: 0; background: #F4F1E9; border-left: 1px solid #E2DCD0; padding: 22px 18px; display: flex; flex-direction: column; gap: 11px; overflow: hidden;">
+              <div style="font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: #9D9582;">История версий</div>
+              <div style="display: flex; gap: 9px; align-items: flex-start;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: #5B21CE; background: #EFE7FE; border-radius: 5px; padding: 2px 6px; white-space: nowrap;">2.4.1</span><div style="display: flex; flex-direction: column;"><span style="font-size: 12.5px; line-height: 1.45;">Кейс дедупликации в биллинге</span><span style="font-size: 11px; color: #9D9582;">патч · агент · 10 мин назад</span></div></div>
+              <div style="display: flex; gap: 9px; align-items: flex-start;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: #5B21CE; background: #EFE7FE; border-radius: 5px; padding: 2px 6px; white-space: nowrap;">2.4.0</span><div style="display: flex; flex-direction: column;"><span style="font-size: 12.5px; line-height: 1.45;">Раздел «Открытые вопросы»</span><span style="font-size: 11px; color: #9D9582;">минорная · агент · вчера</span></div></div>
+              <div style="display: flex; gap: 9px; align-items: flex-start;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: #5B21CE; background: #EFE7FE; border-radius: 5px; padding: 2px 6px; white-space: nowrap;">2.3.0</span><div style="display: flex; flex-direction: column;"><span style="font-size: 12.5px; line-height: 1.45;">Хронометраж блоков</span><span style="font-size: 11px; color: #9D9582;">минорная · вы · 3 дня назад</span></div></div>
+              <div style="display: flex; gap: 9px; align-items: flex-start;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: #F6F1FF; background: #7434F4; border-radius: 5px; padding: 2px 6px; white-space: nowrap;">2.0.0</span><div style="display: flex; flex-direction: column;"><span style="font-size: 12.5px; line-height: 1.45;">Реструктуризация под тезис-контракт</span><span style="font-size: 11px; color: #9D9582;">мажорная · вы · неделю назад</span></div></div>
+              <div style="flex: 1;"></div>
+              <div style="font-size: 12px; line-height: 1.55; color: #8B8370; border-top: 1px solid #E2DCD0; padding-top: 12px;">Уровень версии предлагает агент по размеру правки; финальное слово — за вами при сохранении.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ ARTIFACT TYPES ============ -->
+  <div data-screen-label="Артефакты — типы материалов" style="width: 100%; max-width: 1400px; display: flex; flex-direction: column; gap: 16px;">
+    <div style="display: flex; align-items: baseline; gap: 14px;">
+      <h2 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.01em;">Артефакты — типы материалов</h2>
+      <span style="font-size: 14px; color: #8B857A;">markdown · слайды · изображения · аудио с транскриптом и саммари</span>
+    </div>
+    <div style="background: #FFFFFF; border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 20px; overflow-x: auto;">
+      <div data-screen-label="Макет — типы артефактов" style="display: flex; width: 1352px; min-width: 1352px; height: 832px; background: #FAF7F1; border: 1px solid #E2DCD0; border-radius: 14px; overflow: hidden; font-family: 'Instrument Sans', sans-serif; color: #2E2A24;">
+        <div style="width: 252px; flex-shrink: 0; background: #F1EDE3; border-right: 1px solid #E2DCD0; display: flex; flex-direction: column; padding: 18px 14px 14px; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 9px; padding: 0 6px;">
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #A47CFA 0%, #7434F4 62%, #4C16B8 100%);"></span>
+            <span style="font-family: 'Source Serif 4', serif; font-size: 19px; font-weight: 600;">LearnFlow</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; align-items: center; justify-content: center; height: 38px; border-radius: 10px; background: #7434F4; color: #F6F1FF; font-size: 14px; font-weight: 600;">+ Новый чат</div>
+            <div style="display: flex; align-items: center; justify-content: center; height: 36px; border-radius: 10px; border: 1px solid #D8D1C2; color: #5A5446; font-size: 13.5px; font-weight: 500;">Новый проект</div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 0;">
+            <div style="font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: #9D9582; padding: 0 8px 4px;">Проекты</div>
+            <div style="display: flex; align-items: center; gap: 8px; padding: 8px 8px; border-radius: 9px; background: #FAF7F1; border: 1px solid #E2DCD0; font-size: 13.5px; font-weight: 600;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #7434F4;"></span>Event-Driven доклад</div>
+            <div style="display: flex; align-items: center; gap: 8px; padding: 8px 8px; border-radius: 9px; font-size: 13.5px; color: #5A5446;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #C5A9F9;"></span>Курс: Go для джунов</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 8px 0; border-top: 1px solid #E2DCD0;">
+            <span style="width: 28px; height: 28px; border-radius: 50%; background: #D8D1C2; color: #5A5446; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600;">АК</span>
+            <span style="font-size: 13.5px; font-weight: 500;">Алексей К.</span>
+          </div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+          <div style="flex-shrink: 0; display: flex; flex-direction: column; padding: 18px 28px 0; border-bottom: 1px solid #ECE6D8; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="font-family: 'Source Serif 4', serif; font-size: 22px; font-weight: 600;">Event-Driven доклад</span>
+              <span style="flex: 1;"></span>
+              <span style="font-size: 12.5px; color: #5A5446; border: 1px solid #D8D1C2; border-radius: 999px; padding: 5px 12px;">Настройки проекта</span>
+            </div>
+            <div style="display: flex; gap: 22px; font-size: 13.5px;">
+              <span style="padding-bottom: 10px; color: #8B8370; cursor: pointer;">Чаты · 6</span>
+              <span style="padding-bottom: 10px; color: #8B8370; cursor: pointer;">Сфера</span>
+              <span style="padding-bottom: 10px; font-weight: 600; color: #7434F4; box-shadow: inset 0 -2px 0 #7434F4;">Артефакты · 5</span>
+              <span style="padding-bottom: 10px; color: #8B8370; cursor: pointer;">Настройки</span>
+            </div>
+          </div>
+          <div style="flex: 1; min-height: 0; display: flex; overflow: hidden;">
+            <div style="width: 318px; flex-shrink: 0; border-right: 1px solid #ECE6D8; padding: 20px 16px; display: flex; flex-direction: column; gap: 8px; overflow: hidden;">
+              <div style="display: flex; align-items: center; gap: 13px; background: #FFFEFA; border: 1px solid #E6E0D2; border-radius: 12px; padding: 12px 14px; cursor: pointer;">
+                <span style="width: 36px; height: 36px; border-radius: 9px; background: #F1EDE3; color: #8B8370; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0;">MD</span>
+                <span style="display: flex; flex-direction: column; gap: 1px; min-width: 0;"><span style="font-family: 'Source Serif 4', serif; font-size: 14px; font-weight: 500;">Структура доклада — v1</span><span style="font-size: 11.5px; color: #9D9582;">Markdown · сегодня</span></span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 13px; background: #FFFEFA; border: 1px solid #E6E0D2; border-radius: 12px; padding: 12px 14px; cursor: pointer;">
+                <span style="width: 36px; height: 36px; border-radius: 9px; background: #F1EDE3; display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 7px; box-sizing: border-box; flex-shrink: 0;"><span style="background: #B6AD97; border-radius: 2px;"></span><span style="background: #D3CBB6; border-radius: 2px;"></span><span style="background: #D3CBB6; border-radius: 2px;"></span><span style="background: #B6AD97; border-radius: 2px;"></span></span>
+                <span style="display: flex; flex-direction: column; gap: 1px; min-width: 0;"><span style="font-family: 'Source Serif 4', serif; font-size: 14px; font-weight: 500;">Слайды доклада — драфт</span><span style="font-size: 11.5px; color: #9D9582;">Презентация · 18 слайдов · вчера</span></span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 13px; background: #FFFEFA; border: 1px solid #E6E0D2; border-radius: 12px; padding: 12px 14px; cursor: pointer;">
+                <span style="width: 36px; height: 36px; border-radius: 9px; background: repeating-linear-gradient(45deg, #EDE7DA 0 6px, #E2D9C6 6px 12px); flex-shrink: 0;"></span>
+                <span style="display: flex; flex-direction: column; gap: 1px; min-width: 0;"><span style="font-family: 'Source Serif 4', serif; font-size: 14px; font-weight: 500;">Диаграмма потоков событий</span><span style="font-size: 11.5px; color: #9D9582;">Изображение · PNG · 2 дня назад</span></span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 13px; background: #FFFEFA; border: 1px solid #D8CCF2; border-radius: 12px; padding: 12px 14px; border-left: 3px solid #7434F4; cursor: pointer;">
+                <span style="width: 36px; height: 36px; border-radius: 9px; background: #EFE7FE; display: flex; align-items: center; justify-content: center; gap: 2.5px; flex-shrink: 0;"><span style="width: 3px; height: 10px; border-radius: 2px; background: #7434F4;"></span><span style="width: 3px; height: 17px; border-radius: 2px; background: #7434F4;"></span><span style="width: 3px; height: 8px; border-radius: 2px; background: #A47CFA;"></span><span style="width: 3px; height: 13px; border-radius: 2px; background: #7434F4;"></span></span>
+                <span style="display: flex; flex-direction: column; gap: 1px; min-width: 0;"><span style="font-family: 'Source Serif 4', serif; font-size: 14px; font-weight: 600;">Прогон доклада — запись</span><span style="font-size: 11.5px; color: #9D9582;">Аудио · 38 мин · сегодня</span></span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 13px; background: #FFFEFA; border: 1px solid #E6E0D2; border-radius: 12px; padding: 12px 14px; cursor: pointer;">
+                <span style="width: 36px; height: 36px; border-radius: 9px; background: #F1EDE3; color: #8B8370; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0;">MD</span>
+                <span style="display: flex; flex-direction: column; gap: 1px; min-width: 0;"><span style="font-family: 'Source Serif 4', serif; font-size: 14px; font-weight: 500;">Тезисы — черновик</span><span style="font-size: 11.5px; color: #9D9582;">Markdown · 3 дня назад</span></span>
+              </div>
+            </div>
+            <div style="flex: 1; min-width: 0; overflow: hidden; padding: 26px 36px 0; display: flex; justify-content: center;">
+              <div style="width: 100%; max-width: 620px; display: flex; flex-direction: column; gap: 16px;">
+                <div style="display: flex; align-items: flex-start; gap: 12px;">
+                  <div style="display: flex; flex-direction: column; gap: 4px; flex: 1;">
+                    <span style="font-family: 'Source Serif 4', serif; font-size: 26px; font-weight: 700; letter-spacing: -0.01em;">Прогон доклада — запись</span>
+                    <span style="font-size: 12.5px; color: #8B8370;">Аудио · 38 мин · загружено вами · транскрипт и саммари — агент</span>
+                  </div>
+                  <span style="display: inline-flex; align-items: center; height: 34px; padding: 0 16px; border-radius: 9px; background: #7434F4; color: #F6F1FF; font-size: 13px; font-weight: 600; cursor: pointer;">Скачать .mp3</span>
+                  <span style="display: inline-flex; align-items: center; height: 34px; padding: 0 16px; border-radius: 9px; border: 1px solid #D8D1C2; color: #5A5446; font-size: 13px; font-weight: 500; cursor: pointer;">транскрипт .md</span>
+                </div>
+                <div style="background: #FFFEFA; border: 1px solid #E6E0D2; border-radius: 14px; padding: 16px 20px; display: flex; align-items: center; gap: 14px;">
+                  <span style="width: 40px; height: 40px; border-radius: 50%; background: #7434F4; color: #F6F1FF; display: flex; align-items: center; justify-content: center; font-size: 15px; cursor: pointer; flex-shrink: 0;">▶</span>
+                  <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                    <div style="position: relative; height: 5px; border-radius: 3px; background: #EDE7DA;"><span style="position: absolute; left: 0; top: 0; bottom: 0; width: 34%; border-radius: 3px; background: #7434F4;"></span><span style="position: absolute; left: 34%; top: -3.5px; width: 12px; height: 12px; border-radius: 50%; background: #7434F4; transform: translateX(-6px);"></span></div>
+                    <div style="display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #9D9582;"><span>13:02</span><span>38:14</span></div>
+                  </div>
+                  <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: #5A5446; border: 1px solid #D8D1C2; border-radius: 6px; padding: 3px 8px; cursor: pointer;">1.5×</span>
+                </div>
+                <div style="display: flex; gap: 18px; font-size: 13.5px; border-bottom: 1px solid #ECE6D8;">
+                  <span style="padding-bottom: 9px; font-weight: 600; color: #7434F4; box-shadow: inset 0 -2px 0 #7434F4;">Саммари</span>
+                  <span style="padding-bottom: 9px; color: #8B8370; cursor: pointer;">Транскрипт</span>
+                  <span style="padding-bottom: 9px; color: #8B8370; cursor: pointer;">Заметки агента</span>
+                </div>
+                <div style="font-size: 14px; line-height: 1.65; color: #3C362C; display: flex; flex-direction: column; gap: 10px;">
+                  <div>Прогон уложился в 38 минут из 40. Сильные места — мотивация через инцидент и блок паттернов. Провисание: переход к эволюции схем занял 4 минуты вместо двух.</div>
+                  <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <div style="display: flex; gap: 10px; align-items: baseline;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #5B21CE; background: #EFE7FE; border-radius: 5px; padding: 1px 7px; cursor: pointer; white-space: nowrap;">06:12</span><span>История таймаута — лучший фрагмент, оставить как есть.</span></div>
+                    <div style="display: flex; gap: 10px; align-items: baseline;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #5B21CE; background: #EFE7FE; border-radius: 5px; padding: 1px 7px; cursor: pointer; white-space: nowrap;">19:40</span><span>Переход к эволюции схем затянут — сократить подводку.</span></div>
+                    <div style="display: flex; gap: 10px; align-items: baseline;"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #5B21CE; background: #EFE7FE; border-radius: 5px; padding: 1px 7px; cursor: pointer; white-space: nowrap;">31:05</span><span>Демо: пауза перед фолбэком — отрепетировать переключение.</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ NEXT STEPS ============ -->
+  <div style="width: 100%; max-width: 1400px; background: #FFFFFF; border-radius: 14px; padding: 22px 28px; font-size: 14.5px; line-height: 1.6; color: #4A463E;">
+    <div style="font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #8B857A; margin-bottom: 8px;">Следующие шаги</div>
+    Жду решений: (1) wordmark A–G — можно «основа + что докрутить»; (2) основной жест доступа к сфере из чата — S1, S2 или S3+S1/S2; (3) ок ли семвер-версии и редактор; (4) что добавить в типы артефактов. После этого — handoff bundle для Claude Code: финальные OKLch-токены light+dark, шрифты, паттерны компонентов и поведение сферы.
+  </div>
+</div></div>
+</x-dc>
+</body>
+</html>

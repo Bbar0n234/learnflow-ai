@@ -104,7 +104,7 @@ Feature-based: компоненты группируются по фичам, н
 - SecurityEvents — таблица событий с фильтрами (event_type, severity, time range), пагинация, диалог Details
 - SecurityAlerts — таблица алертов с фильтрами (severity, status), действия `Acknowledge` / `Resolve`
 - SecurityRules — таблица rules с CRUD через RuleForm (Threshold / Sequence / Aggregate), toggle `enabled`
-- Сейчас отображает `user_id` напрямую (username enrichment отложен в feat-007)
+- Сейчас отображает `user_id` напрямую, без username enrichment
 
 ### Shared
 
@@ -114,6 +114,39 @@ Feature-based: компоненты группируются по фичам, н
 ## State Management
 
 Серверные данные не дублируются в клиентский store. Активный таб, текущий проект/чат — derived from URL (React Router `useParams`), store не нужен.
+
+Две оси состояния и путь данных к компонентам:
+
+```mermaid
+flowchart LR
+    COMP["Компоненты features/"]
+
+    subgraph SRV["Серверный state — TanStack Query"]
+        HOOKS["hooks фич — useProjects,<br>useChats, useArtifacts, ..."]
+        CACHE["Query cache —<br>инвалидация по queryKey"]
+    end
+
+    subgraph CLI["Клиентский state — Zustand"]
+        STST["stream-store —<br>текущий SSE-стрим"]
+        UIST["ui-store — UI-флаги"]
+    end
+
+    APIM["shared/api — axios"]
+    BE["Main Backend"]
+
+    COMP --> HOOKS
+    HOOKS --> CACHE
+    CACHE --> COMP
+    HOOKS --> APIM
+    APIM -->|HTTP| BE
+    BE -->|"SSE (fetch stream)"| UAS["useAgentStream"]
+    UAS --> STST
+    STST --> COMP
+    UIST --> COMP
+
+    style SRV fill:#3fb9501a,stroke:#3fb950,color:#3fb950
+    style CLI fill:#bc8cff1a,stroke:#bc8cff,color:#bc8cff
+```
 
 ### TanStack Query — серверный state
 
@@ -271,6 +304,70 @@ Frontend различает две точки взаимодействия с с
 
 ## Module Structure
 
+Слои показаны цветными подложками поверх компонентов и их связей:
+
+```mermaid
+graph TD
+    BE["Main Backend :8000"]
+    SIEMS["SIEM Service :8001"]
+
+    subgraph ENTRY["Entry"]
+        MAINX["main.tsx — React root"]
+        APPX["App.tsx — AuthGate"]
+    end
+
+    subgraph SHELL["app/ — application shell"]
+        ROUTERX["router.tsx"]
+        LAY["layouts/ — AppLayout, ProjectLayout"]
+        PROVX["providers/ — QueryClientProvider"]
+        ACOMP["components/ — WelcomePage и др."]
+    end
+
+    subgraph FEATS["features/ — в каждой: components/ + hooks/ (TanStack Query)"]
+        CHATF["chat"]
+        PROJF["projects"]
+        SETF["settings"]
+        SPHF["sphere"]
+        ARTF["artifacts"]
+        SECFX["security — admin"]
+    end
+
+    subgraph CLST["stores/ — клиентский state, Zustand"]
+        UIST["ui-store"]
+        STST["stream-store — SSE"]
+    end
+
+    subgraph SHRD["shared/"]
+        APIX["api/ — axios client,<br>модули по ресурсам"]
+        UIX["ui/ — shadcn"]
+        SCOMP["components/"]
+        LIBX["lib/ — logger, utils"]
+    end
+
+    TYPESX["types/ — security.ts"]
+
+    MAINX --> APPX
+    APPX --> ROUTERX
+    ROUTERX --> LAY
+    LAY --> FEATS
+    FEATS --> SHRD
+    CHATF --> STST
+    SECFX --> TYPESX
+    CHATF -. "cross-imports" .-> SETF
+    CHATF -. "cross-imports" .-> PROJF
+    APIX -->|HTTP| BE
+    APIX -->|HTTP| SIEMS
+    CHATF -->|"SSE fetch"| BE
+
+    style ENTRY fill:#8b949e1a,stroke:#8b949e,color:#8b949e
+    style SHELL fill:#58a6ff1a,stroke:#58a6ff,color:#58a6ff
+    style FEATS fill:#3fb9501a,stroke:#3fb950,color:#3fb950
+    style CLST fill:#bc8cff1a,stroke:#bc8cff,color:#bc8cff
+    style SHRD fill:#d299221a,stroke:#d29922,color:#d29922
+```
+
+Структура отступает от канонического FSD: нет `pages/`, stores и types на верхнем уровне, нет public API у слайсов, есть cross-imports между features.
+
 ```
 frontend/
 ├── index.html
@@ -330,11 +427,14 @@ frontend/
 │   │   │   ├── mcp-servers.ts
 │   │   │   └── security.ts        — events, alerts, rules (siem-service API)
 │   │   ├── ui/                    — shadcn/ui компоненты
-│   │   └── components/            — MarkdownRenderer и другие shared-компоненты
+│   │   ├── components/            — MarkdownRenderer и другие shared-компоненты
+│   │   └── lib/                   — утилиты (logger, utils)
 │   │
-│   └── stores/                    — Zustand stores
-│       ├── ui-store.ts
-│       └── stream-store.ts
+│   ├── stores/                    — Zustand stores
+│   │   ├── ui-store.ts
+│   │   └── stream-store.ts
+│   │
+│   └── types/                     — TS-типы вне shared/api (security.ts)
 ```
 
 **Принципы:** features/ изолированы друг от друга. shared/ — то, что нужно нескольким фичам. app/ — shell (layouts, providers, router), не бизнес-логика. stores/ отдельно от features, т.к. stream store используется cross-feature. Pages не выделены — при 6 маршрутах роутер рендерит layout + feature-компонент напрямую.

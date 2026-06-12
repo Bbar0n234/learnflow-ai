@@ -18,30 +18,52 @@
 
 ```mermaid
 graph TD
-    Frontend["Frontend (React)"] -->|HTTP/SSE| API["API Layer (FastAPI)"]
-    API --> Runtime["Agent Runtime (LangGraph)"]
+    Frontend["Frontend — React SPA<br>frontend/"]
 
-    subgraph Runtime
-        Agent["Main Agent (ReAct loop + Tools)"]
-        Agent --> Skills["Skills Repo"]
-        Agent --> Memory["Memory System"]
-        Agent --> Tools["Tools"]
+    subgraph Backend["Main Backend — FastAPI :8000 — backend/app/"]
+        API["API Layer<br>app/api/"]
+        Runtime["Agent Runtime — LangGraph<br>app/agent/"]
+        SecPipe["Security Pipeline<br>app/security_pipeline/"]
     end
 
-    Skills --> Files["Files (MVP)"]
-    Memory --> DB["Database (PostgreSQL)"]
-    Tools --> External["External APIs"]
+    subgraph SIEM["SIEM Service — FastAPI :8001 — services/siem-service/"]
+        SiemAPI["REST API<br>siem_service/api/"]
+        Correlation["Correlation Engine<br>siem_service/correlation/"]
+    end
+
+    Contracts["siem-contracts<br>packages/siem-contracts/"]
+    MainDB[("PostgreSQL learnflow<br>:5432")]
+    SiemDB[("PostgreSQL siem<br>:5434")]
+    Redis[("Redis :6379<br>stream security.events")]
+    External["LLM APIs · MCP · Langfuse"]
+    SkillsDir["Skills Repo<br>skills/"]
+
+    Frontend -->|HTTP + SSE| API
+    Frontend -->|"HTTP, admin-only (/security)"| SiemAPI
+    API --> Runtime
+    API --> MainDB
+    Runtime --> MainDB
+    Runtime --> External
+    Runtime --> SkillsDir
+    SecPipe -->|XADD| Redis
+    Redis -->|XREADGROUP| SIEM
+    Correlation --> SiemDB
+    SiemAPI --> SiemDB
+    Contracts -.->|Pydantic-контракты событий| SecPipe
+    Contracts -.-> SIEM
 ```
 
-**Frontend** — React UI, минимальный chat-интерфейс. Основной клиент на MVP.
+**Frontend** — React SPA, chat-интерфейс + admin-страница SIEM-мониторинга. Основной клиент на MVP.
 
-**API Layer** — FastAPI. Async, типизация, OpenAPI. Принимает запросы, управляет сессиями, стримит ответы через SSE.
+**Main Backend** — FastAPI. Async, типизация, OpenAPI. Принимает запросы, управляет сессиями, стримит ответы через SSE. Внутри — Agent Runtime (LangGraph: General Agent с ReAct loop, skills, memory, tools) и Security Pipeline (нормализация security-событий → Redis Stream).
 
-**Agent Runtime** — LangGraph. General Agent с ReAct loop, подключаемыми skills, memory system и tools.
+**SIEM Service** — отдельный FastAPI-сервис: потребляет security-события из Redis Stream, коррелирует, генерирует алерты, отдаёт REST API для мониторинга. Изолированный blast radius и собственная БД.
 
-**Database** — PostgreSQL. Хранение checkpoints (LangGraph), Knowledge Sphere, истории диалогов, артефактов.
+**siem-contracts** — shared-пакет workspace: Pydantic-контракты security-событий, общие для producer (backend) и consumer (siem-service).
 
-Детальное описание компонентов — в технической документации (`doc/tech/`).
+**Databases** — две PostgreSQL: основная (checkpoints LangGraph, Knowledge Sphere, история диалогов, артефакты) и изолированная SIEM (события, алерты, правила корреляции). Redis — транспорт событий (Streams) и кэш.
+
+Детальное описание компонентов — в технической документации (`doc/tech/`): слои каждого сервиса — в его документе ([backend.md](tech/backend.md), [frontend.md](tech/frontend.md), [siem-service.md](tech/siem-service.md)).
 
 ### Data Flow (типичный сценарий)
 

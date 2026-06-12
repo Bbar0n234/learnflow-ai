@@ -25,17 +25,18 @@
 - **Точки остановки на теорию.** На любом шаге slice'а можно (и нужно) остановиться, чтобы архитектор разобрался в теории. Это не отвлечение от задачи — это часть задачи. Мини-подпункты «здесь стоит разобраться в теории» явно отмечены в DoD каждой итерации.
 - **Интерактивный формат.** Агент изучает кусочек кодовой базы автономно; архитектор спрашивает, уточняет, обучается, направляет.
 - **Конвенции — continuous.** Каждый slice добавляет в `doc/tech/conventions.md` по факту найденного. Финализирующий pass (feat-007) не первая запись, а сборка/уточнение накопленного.
-- **Тесты — естественное завершение.** Понимаем код → понимаем, что и как тестировать.
+- **Тесты — естественное завершение.** Понимаем код → понимаем, что и как тестировать. Системная тестовая философия и инфраструктура — feat-009.
+- **Рефакторинг со страховкой.** Ручные тест-кейсы — норма slice'а: перед правками составляется список кейсов на затронутые участки, после правок — прогон (руками, curl'ом, через UI). Точечные автотесты до feat-009 допустимы, когда правка трогает критичный путь (auth, security guard, SIEM pipeline); позже они вливаются в общую рамку feat-009.
 
 ## Overview
 
 | Итерация | Статус | Scope | Закрывает |
 |----------|--------|-------|-----------|
-| feat-001 | 📋 Planned | foundation | Skill Discovery + Layers & Abstractions Diagram |
+| feat-001 | ✅ Done | foundation | Skill Discovery + Layers & Abstractions Diagram |
 | feat-002 | 📋 Planned | backend / REST | REST API slice: api-design-principles skill + поглощение REST API cleanup (8 пунктов аудита 2026-04-04) |
 | feat-003 | 📋 Planned | db | DB slice: postgresql skill, индексы, constraints, типы, паттерны миграций |
 | feat-004 | 📋 Planned | backend / fastapi | Backend/FastAPI slice: fastapi skill + поглощение точечных техдолгов (SIEM MetaEmitter, дубль SecurityEvent, CORS_ORIGINS, SIEM follow-ups) |
-| feat-005 | 📋 Planned | agent | Agent runtime slice: langchain-architecture + langgraph-patterns skills + поглощение Reasoning ChatOpenAI everywhere |
+| feat-005 | 📋 Planned | agent | Agent runtime slice: langgraph-patterns (авторский) + кандидаты langgraph-* от langchain-ai + поглощение Reasoning ChatOpenAI everywhere (langchain-architecture отклонён в feat-001) |
 | feat-006 | 📋 Planned | frontend | Frontend slice: skill discovery for frontend, ручной slice если skill отсутствует |
 | feat-007 | 📋 Planned | cross-cutting | Кросс-резрезные конвенции: error return types + error handling philosophy (graceful degradation vs fail-fast) |
 | feat-008 | 📋 Planned | enforcement | Arch-checker (детерминированные проверки) + Reviewer-промпты (logging, error returns, doc-first) |
@@ -74,7 +75,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** подготовить каркас для slice-аудитов: подобрать релевантные skill'ы и зафиксировать карту слоёв.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done — итоги в [summary.md](iterations/codebase-maturity/feat-001-foundation/summary.md)
 **Scope:** foundation
 **Зависимости:** —
 
@@ -99,10 +100,13 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 #### Definition of Done
 
-- [ ] Документ со списком skill'ов по доменам — какие применимы, что покрывают, в какой slice идут.
-- [ ] Layers & abstractions diagram в `doc/tech/` — Mermaid, тёмная тема, без `fill:`.
-- [ ] Диаграмма ссылается на конкретные директории/модули кодовой базы (не абстрактные «слой A → слой B»).
-- [ ] В `doc/index.md` добавлена ссылка на диаграмму.
+- [x] Skill discovery проведён: установленные скиллы + внешняя охота по каталогам, решения по каждому домену зафиксированы (артефакт итерации: `skill-discovery-draft.md`, заморожен).
+- [x] `doc/tech/skill-map.md` создан — постоянная карта скиллов: принципы, роли, отклонённые, пробелы, отложенные кандидаты.
+- [x] Таблица скиллов в `CLAUDE.md` дополнена принятыми скиллами + ссылка на skill-map.
+- [x] Принятые скиллы лежат в `.claude/skills/` репозитория.
+- [x] Layers & abstractions diagrams — по согласованному принципу «карта сервисов в `vision.md`, слои сервиса в документе сервиса»: `vision.md` (общесистемная, добавлен SIEM-контур), `backend.md` (детальная послойная + сквозной chat-поток + карта persistence), `frontend.md` (послойная + поток данных по осям состояния), `doc/tech/siem-service.md` (новый полный документ: топология, послойная с границей сервиса, event pipeline, lifecycle алерта; секция в backend.md сжата до ссылки). Стиль: Mermaid, слои — полупрозрачные цветные подложки (subgraph с alpha-заливкой и цветным stroke/заголовком), рендер каждой проверен на тёмной теме (запрет светлых сплошных заливок остаётся).
+- [x] Диаграммы ссылаются на конкретные директории/модули кодовой базы (не абстрактные «слой A → слой B»).
+- [x] В `doc/index.md` добавлены ссылки на `siem-service.md` и `skill-map.md`.
 
 ---
 
@@ -140,6 +144,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 - [ ] Status codes везде корректны (201 на POST create, 204 на DELETE без body, и т.д.).
 - [ ] List responses везде имеют единый envelope с pagination metadata.
 - [ ] REST-конвенции добавлены в `doc/tech/conventions.md`.
+- [ ] Тест-кейсы на затронутые endpoints составлены до правок и прогнаны после (контрактные проверки: status codes, envelope, pagination).
 - [ ] Точки остановки на теорию пройдены и (если решено архитектурно) зафиксированы.
 
 ---
@@ -177,6 +182,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 - [ ] Аудит схемы и query-паттернов проведён, findings зафиксированы.
 - [ ] Критичные индексы добавлены (если выявлены пропуски).
 - [ ] DB-конвенции добавлены в `doc/tech/conventions.md`.
+- [ ] Тест-кейсы на затронутые участки составлены и прогнаны (миграции применяются и откатываются, затронутые запросы возвращают прежние результаты).
 - [ ] Точки остановки на теорию пройдены.
 
 ---
@@ -218,13 +224,14 @@ feat-001 (foundation) ── обязательное предусловие д�
 - [ ] `CORS_ORIGINS` парсится надёжно (CSV или `NoDecode`).
 - [ ] SIEM follow-ups закрыты (UP042 + uv pin + line-length 100 + DDL миграции через autogenerate).
 - [ ] FastAPI-конвенции добавлены в `doc/tech/conventions.md`.
+- [ ] Тест-кейсы на затронутые участки составлены и прогнаны; SIEM pipeline — критичный путь, для него допустимы точечные автотесты.
 - [ ] Точки остановки на теорию пройдены.
 
 ---
 
 ### feat-005: Agent Runtime Slice
 
-**Цель:** аудит agent runtime через `langchain-architecture` + `langgraph-patterns` skills, миграция на единые паттерны.
+**Цель:** аудит agent runtime через `langgraph-patterns` skill (+ официальные кандидаты `langgraph-*` от langchain-ai — подтверждение при заходе), миграция на единые паттерны. `langchain-architecture` отклонён в feat-001 (LangChain-обёртки при raw LangGraph), см. `doc/tech/skill-map.md`.
 
 **Статус:** 📋 Planned
 **Scope:** agent
@@ -232,12 +239,12 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 #### Из backlog
 
-- **P2** LangGraph / LangChain audit via langchain-architecture skill *(перенесено из Tech Debt & Competency)*.
+- **P2** LangGraph / LangChain audit via agent-скиллы (изначально langchain-architecture — отклонён в feat-001, заменён на `langgraph-patterns` + кандидаты от langchain-ai) *(перенесено из Tech Debt & Competency)*.
 - **P2** Reasoning ChatOpenAI everywhere — convention + migration. Все модели проекта используют `ReasoningChatOpenAI`, не plain `ChatOpenAI`. Добить summarizer, guard на `ReasoningChatOpenAI`; зафиксировать convention в `conventions.md` *(перенесено из Agent)*.
 
 #### Скоуп работы
 
-- Изучение skill `langchain-architecture` (общие LLM-app паттерны) + `langgraph-patterns` (raw LangGraph: StateGraph, Command, HITL, streaming, checkpointing).
+- Скилл `langgraph-patterns` (raw LangGraph: StateGraph, Command, HITL, streaming, checkpointing) + подтверждение кандидатов `langgraph-*` (langchain-ai/langchain-skills) — сверить на дубль с авторским.
 - Аудит agent runtime: ноды графа, tools, skills layer, context engineering, checkpointer, streaming protocol.
 - Миграция summarizer и guard на `ReasoningChatOpenAI`.
 - Обновление `doc/tech/conventions.md` — LangGraph-конвенции + reasoning convention.
@@ -256,6 +263,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 - [ ] Summarizer и guard переведены на `ReasoningChatOpenAI`.
 - [ ] Reasoning convention зафиксирован в `conventions.md` (раздел Reasoning LLMs уже есть, обновить формулировкой «все модели проекта используют ReasoningChatOpenAI by default»).
 - [ ] LangGraph-конвенции добавлены в `conventions.md`.
+- [ ] Тест-кейсы на затронутые участки составлены и прогнаны (smoke агентного потока: чат, streaming, guard); guard — критичный путь, допустимы точечные автотесты.
 - [ ] Точки остановки на теорию пройдены.
 
 ---
@@ -292,6 +300,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 - [ ] Аудит структуры проведён, findings зафиксированы.
 - [ ] Точечные правки применены.
 - [ ] Frontend-конвенции добавлены в `conventions.md`.
+- [ ] Тест-кейсы на затронутые участки составлены и прогнаны (UI smoke по затронутым экранам).
 - [ ] Точки остановки на теорию пройдены.
 
 ---
@@ -402,7 +411,8 @@ feat-001 (foundation) ── обязательное предусловие д�
   - frontend testing (Vitest / Testing Library / e2e — что используем).
 - **Покрытие критичных участков.** На основе findings из slice-аудитов — точечно дописать тесты:
   - критичные пути auth, security guard, SIEM pipeline;
-  - business invariants, выявленные в slice-аудитах.
+  - business invariants, выявленные в slice-аудитах;
+  - точечные автотесты, написанные в slice-итерациях, привести к общей рамке (структура, фикстуры, naming).
 - Обновление `doc/tech/conventions.md` — раздел про тесты.
 
 #### Точки остановки на теорию

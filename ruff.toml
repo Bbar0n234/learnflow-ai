@@ -6,6 +6,7 @@ target-version = "py312"
 line-length = 88
 extend-exclude = [
     "doc/",
+    ".claude/skills/", # vendored skill assets — справочный материал, не код проекта
     "**/alembic/versions",
     "**/__pycache__",
 ]

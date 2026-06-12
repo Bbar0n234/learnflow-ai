@@ -11,6 +11,7 @@ doc/
 ├── product/         # Продуктовая документация
 ├── tech/            # Техническая документация
 │   ├── backend.md       # Бэкенд: слои, API, persistence
+│   ├── siem-service.md  # SIEM-сервис: pipeline, корреляция, alerts API
 │   ├── frontend.md      # Фронтенд: экраны, компоненты, state
 │   ├── auth.md          # Аутентификация (кросс-сервисная)
 │   ├── streaming.md     # SSE-стриминг (кросс-сервисный)
@@ -20,6 +21,7 @@ doc/
 │   ├── prompt-management.md # Prompt Management: Langfuse, dev/prod, seed/sync
 │   ├── observability.md # Observability: Langfuse, трейсинг, feedback
 │   ├── conventions.md   # Git, code quality, naming, logging, documentation
+│   ├── skill-map.md     # Карта скиллов: принципы, роли, отклонённые, пробелы
 │   ├── setup/            # Инструкции настройки dev/cloud окружений
 │   └── adr/             # Architecture Decision Records
 ├── content/         # Черновики технического контента: статьи, доклады
@@ -40,6 +42,7 @@ doc/
 
 **Сервисы:**
 - [tech/backend.md](tech/backend.md) — слоистая архитектура, API endpoints, schemas, persistence, configuration
+- [tech/siem-service.md](tech/siem-service.md) — SIEM-сервис: топология, event pipeline, correlation engine, alerts REST API
 - [tech/frontend.md](tech/frontend.md) — экраны, компоненты, state management, API-интеграция
 
 **Кросс-сервисные концепты:**
@@ -55,6 +58,7 @@ doc/
 
 **Соглашения и решения:**
 - [tech/conventions.md](tech/conventions.md) — git flow, code quality, naming, logging, Docker
+- [tech/skill-map.md](tech/skill-map.md) — карта скиллов: принципы отбора, роли, отклонённые, пробелы, отложенные кандидаты
 - [tech/adr/](tech/adr/) — архитектурные решения (формат: `ADR-NNN-название.md`)
   - [ADR-018: SIEM Service Topology](tech/adr/ADR-018-siem-service-topology.md) — отдельный backend-сервис, isolation, identity
   - [ADR-019: Security Event Transport](tech/adr/ADR-019-security-event-transport.md) — Redis Streams, at-least-once semantics, bounded queue

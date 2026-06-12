@@ -29,6 +29,7 @@
 
 ## Product / Distribution
 
+- **P2** Telegram Bot — второй канал доставки поверх существующего agent runtime: тонкий адаптер (SSE-поток → `sendMessageDraft`/`sendRichMessageDraft`), ответы агента в Rich Markdown (GFM + LaTeX), топики как сессии, Login with Telegram как мост к auth. Скоуп сознательно ограничен: диалог с агентом и потребление материалов — полноценно; редактирование Knowledge Sphere и rich-UI остаются в вебе. Ориентир — Фаза 6 (канал дистрибуции). Ресерч завершён (`doc/research/telegram-bot-platform.md`) *(cross: Backend, Agent)*
 - **P3** Public Material Sharing — публичные ссылки на материалы (Notion-style share-to-web). Преподаватель публикует → получает URL → студенты видят материал без регистрации. Потенциальный pivot от "инструмент подготовки" к "подготовка + дистрибуция". Для rich-артефактов зависит от подходящего формата публикации / экспорта, но не требует Generative UI *(cross: Frontend, Backend, Infra)*
 
 ## Infra

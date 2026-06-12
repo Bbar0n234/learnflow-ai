@@ -180,6 +180,22 @@ Dockerfile живёт рядом с `pyproject.toml` пакета (`backend/Dock
 
 Если кажется, что без singleton не обойтись — это сигнал, что компонент пытается достать state из места, где у него нет доступа. Решение почти всегда в том, чтобы пробросить зависимость явно (closure, partial, dependency injection), а не закрепить её в модуле.
 
+## Схема БД
+
+Проектные решения по схеме (выбранные развилки; теория — skill `postgresql`):
+
+- **ORM-стиль — SQLAlchemy 2.0**: `Mapped[...]` + `mapped_column()`, declarative `Base` сервиса. Старый `Column()`-стиль порождает каскад `# type: ignore` и запрещён.
+- **Строки — `Text`**, не `String(n)`/`VARCHAR(n)`: в Postgres лимит длины не даёт ни места, ни скорости, но требует миграции на каждое изменение. Лимиты длины — на API-границе (Pydantic-схемы).
+- **Время — `DateTime(timezone=True)`** (`timestamptz`); в Python-коде только aware-datetime: `datetime.now(UTC)`, никогда `datetime.utcnow()` (naive, deprecated).
+- **`created_at` / `updated_at`**: `server_default=func.now()`, для `updated_at` дополнительно `onupdate=func.now()`. Руками `updated_at` не проставляется.
+- **`server_default`** — только `func.now()` / `text(...)`, не голые строковые литералы.
+- **FK — всегда с индексом** (`index=True`): Postgres не индексирует referencing-колонки автоматически, а по ним идут и наши фильтры, и проверки каскадов. `ondelete` указывается явно.
+- **Naming convention** задана в `MetaData` обоих `Base` (backend и siem): `pk_` / `fk_` / `uq_` / `ck_` / `ix_`. Имена constraints руками не пишутся — кроме объектов вне convention (GIN-индексы, partial unique), где имя задаётся явно с тем же префиксом.
+- **Enum-подобные строки, зашитые в код** (`severity`, `status`, `rule_type`, `scope_type`), получают `CHECK`-constraint. Расширение набора значений требует и кода, и миграции — они едут в одном PR. Postgres-`ENUM`-тип не используем (дороже в эволюции).
+- **Индексы — по фактическим путям доступа.** Низкоселективные колонки (3–5 значений, фильтр совпадает с большой долей таблицы) не индексируются — планировщик такой индекс игнорирует; для редкого «горячего» подмножества — partial index. Прецедент решения: дроп `idx_siem_events_severity`.
+- **Полиморфные ссылки без FK** (`mcp_server_disables.scope_id`/`server_id`) каскадом не чистятся — их подчищает приложение в сервисном слое при удалении родителя (см. `MCPServerRepository.cleanup_disables_for_project`).
+- **Бизнес-инварианты — в БД, где это возможно**: уникальность/единственность выражается constraint'ом или (partial) unique-индексом, а не проверкой «SELECT, потом INSERT» в коде (гонка). Прецедент: `uq_siem_alerts_open_alert` + атомарный `INSERT ... ON CONFLICT DO UPDATE` в дедупликации алертов.
+
 ## Database migrations
 
 Миграции — единственный способ изменения схемы БД. Канонический путь:

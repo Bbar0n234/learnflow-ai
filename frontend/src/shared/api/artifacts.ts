@@ -4,7 +4,12 @@ import type { Artifact, ArtifactDetail, ListResponse } from "./types";
 export async function getArtifacts(
   projectId: string,
 ): Promise<ListResponse<Artifact>> {
-  return (await apiClient.get(`/projects/${projectId}/artifacts`)).data;
+  // UI без постраничной подгрузки: берём максимум за один запрос
+  return (
+    await apiClient.get(`/projects/${projectId}/artifacts`, {
+      params: { limit: 200 },
+    })
+  ).data;
 }
 
 export async function getArtifact(

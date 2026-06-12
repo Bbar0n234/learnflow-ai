@@ -363,6 +363,42 @@ style LAYER fill:#58a6ff1a,stroke:#58a6ff,color:#58a6ff
 
 **Верификация связей.** Диаграмма, утверждающая структуру (слои, зависимости, потоки данных), рисуется не по памяти: связи сверяются с кодом — grep по импортам или ревью отдельным сабагентом («взгляд со стороны» ловит связи, которые автор не удержал в голове). Перед фиксацией — проверить рендер на тёмной теме.
 
+## REST API
+
+Проектные решения по REST-контрактам (оба сервиса: main app + siem-service). База — skill `api-design-principles`; здесь только выбранные развилки и специфика репозитория.
+
+### Pagination и list envelope
+
+- Пагинация — **offset/limit** (cursor не используем: коллекции — десятки-сотни элементов на пользователя). Query-параметры: `limit` (default 50, max 200), `offset` (≥0); общий dependency `Pagination` в `app/api/deps.py`.
+- Envelope списочных ответов един для **всех** list-эндпоинтов, включая маленькие фиксированные списки (models, mcp-servers): `{ items, total, limit, offset }`. Generic `Page[T]` — `app/api/schemas/common.py`; endpoint-специфичные поля добавляются наследованием (пример — `inherited` в `MCPServerListResponse`).
+- Решение «пагинация везде» — осознанное: не держим в голове, какой список «может вырасти», а какой нет.
+
+### Status codes
+
+- `201` — POST, создающий ресурс; `204` — DELETE без тела (повторный DELETE того же ресурса — тоже `204`, идемпотентность).
+- `409` — конфликт с текущим состоянием (занятый username, превышен лимит ресурсов в scope).
+- `422` — ошибки валидации запроса; валидация значений выражается схемой (`Literal`, типы, constraints), а не ручными `if` + `400` в handler'е.
+- **Auth-эндпоинты (`/auth/*`) — RPC-семантика**: ответ — токен-сессия, а не представление ресурса, поэтому resource-правила (201 на register, Location) на них не распространяются.
+- `Location`-header на 201 не используем.
+
+### Ошибки — RFC 9457 Problem Details
+
+Все ошибки обоих сервисов — `application/problem+json`: `{ type, title, status, detail, …extensions }`. Реализация — глобальные handlers (`app/api/problem.py`, зеркало в `siem_service/api/problem.py`): перехват `HTTPException` и `RequestValidationError`.
+
+- `type` — машинный код ошибки в форме `urn:learnflow:<code>` (пример: `urn:learnflow:security-policy-violation`); для ошибок без машинной семантики — `about:blank`, клиент ориентируется на `status`.
+- `detail` — человекочитаемое сообщение; ошибки валидации несут расширение `errors` (список полей).
+- В handler'ах ошибки поднимаются как обычно (`HTTPException(status, detail=...)`); структурный код передаётся dict-detail (`{"error": <code>, "message": ...}`) и конвертируется handler'ом в `type` + расширения.
+
+### Ownership и нейминг
+
+- Принадлежность ресурсов по path-цепочке валидируется зависимостями: `UserProject` (project → user), `UserThread` (chat → project → user). Endpoint, принимающий `{project_id}`/`{chat_id}`, обязан использовать соответствующий dependency — ручные проверки в handler'ах не пишем.
+- **Граница нейминга chat/thread проходит по path**: URL-сегменты и path-параметры — `chats` / `chat_id` (user-facing язык), поля payload и внутренние слои — `thread_id` (domain язык, происходит из LangGraph).
+- Action-эндпоинты (`/cancel`, `/test`, `/toggle`) допустимы как controller-паттерн для операций, не ложащихся в CRUD.
+
+### Versioning
+
+API не версионируется (`/api` без `v1`) до появления публичного API.
+
 ## Prompt Naming
 
 Системные промпты в Langfuse именуются по формату `{name}--{label}`:

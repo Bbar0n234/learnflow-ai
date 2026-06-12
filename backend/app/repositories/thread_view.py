@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import contains_eager
 
@@ -23,16 +23,28 @@ class ThreadViewRepository:
     async def get_by_id(self, thread_id: uuid.UUID) -> ThreadView | None:
         return await self._session.get(ThreadView, thread_id)
 
-    async def list_by_project(self, project_id: uuid.UUID) -> list[ThreadView]:
+    async def list_by_project(
+        self, project_id: uuid.UUID, *, limit: int = 50, offset: int = 0
+    ) -> list[ThreadView]:
         result = await self._session.execute(
             select(ThreadView)
             .where(ThreadView.project_id == project_id)
             .order_by(ThreadView.updated_at.desc())
+            .limit(limit)
+            .offset(offset)
         )
         return list(result.scalars().all())
 
+    async def count_by_project(self, project_id: uuid.UUID) -> int:
+        result = await self._session.execute(
+            select(func.count())
+            .select_from(ThreadView)
+            .where(ThreadView.project_id == project_id)
+        )
+        return result.scalar_one()
+
     async def list_recent(
-        self, user_id: uuid.UUID, *, limit: int = 10
+        self, user_id: uuid.UUID, *, limit: int = 10, offset: int = 0
     ) -> list[ThreadView]:
         result = await self._session.execute(
             select(ThreadView)
@@ -41,8 +53,18 @@ class ThreadViewRepository:
             .options(contains_eager(ThreadView.project))
             .order_by(ThreadView.updated_at.desc())
             .limit(limit)
+            .offset(offset)
         )
         return list(result.scalars().unique().all())
+
+    async def count_by_user(self, user_id: uuid.UUID) -> int:
+        result = await self._session.execute(
+            select(func.count())
+            .select_from(ThreadView)
+            .join(ThreadView.project)
+            .where(Project.user_id == user_id)
+        )
+        return result.scalar_one()
 
     async def update(self, thread_view: ThreadView, *, title: str) -> ThreadView:
         thread_view.title = title

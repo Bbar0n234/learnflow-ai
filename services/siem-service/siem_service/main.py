@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from siem_service.api.problem import register_problem_handlers
 from siem_service.api.routes import router
 from siem_service.config import Settings
 from siem_service.correlation.engine import get_correlation_engine
@@ -119,6 +120,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="SIEM Service", version="0.1.0", lifespan=lifespan)
+
+# Exception handlers — RFC 9457 problem+json
+register_problem_handlers(app)
 
 # CORS middleware - allow frontend to access SIEM API
 # Default to localhost dev port if SIEM_FRONTEND_ORIGIN not set

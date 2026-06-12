@@ -5,6 +5,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from app.api.schemas.common import Page
+
 
 class ProjectCreate(BaseModel):
     name: str
@@ -23,5 +25,5 @@ class ProjectResponse(BaseModel):
     updated_at: datetime
 
 
-class ProjectListResponse(BaseModel):
-    items: list[ProjectResponse]
+class ProjectListResponse(Page[ProjectResponse]):
+    pass

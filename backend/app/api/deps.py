@@ -2,15 +2,17 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncGenerator
+from dataclasses import dataclass
 from typing import Annotated, Any
 
 import jwt
 import structlog
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.models.project import Project
+from app.models.thread_view import ThreadView
 from app.models.user import User
 from app.repositories import (
     ArtifactRepository,
@@ -126,6 +128,37 @@ async def get_user_project(
 
 
 UserProject = Annotated[Project, Depends(get_user_project)]
+
+
+async def get_user_thread(
+    chat_id: uuid.UUID,
+    project: UserProject,
+    session: DBSession,
+) -> ThreadView:
+    """Resolve a chat by path param and verify it belongs to the user's project."""
+    thread_view = await ThreadViewRepository(session).get_by_id(chat_id)
+    if thread_view is None or thread_view.project_id != project.id:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    return thread_view
+
+
+UserThread = Annotated[ThreadView, Depends(get_user_thread)]
+
+
+@dataclass(frozen=True)
+class PageParams:
+    limit: int
+    offset: int
+
+
+def get_page_params(
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> PageParams:
+    return PageParams(limit=limit, offset=offset)
+
+
+Pagination = Annotated[PageParams, Depends(get_page_params)]
 
 
 async def require_unblocked_thread(

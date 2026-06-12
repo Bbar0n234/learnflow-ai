@@ -89,8 +89,12 @@ export interface SendMessageRequest {
 
 // === Responses (list wrappers) ===
 
+// Канонический envelope списочных ответов: items + pagination metadata
 export interface ListResponse<T> {
   items: T[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 // === Settings (Track A) ===
@@ -151,8 +155,7 @@ export interface InheritedMCPServer {
   is_disabled: boolean;
 }
 
-export interface MCPServerListResponse {
-  items: MCPServer[];
+export interface MCPServerListResponse extends ListResponse<MCPServer> {
   inherited: InheritedMCPServer[];
 }
 

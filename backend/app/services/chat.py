@@ -61,8 +61,14 @@ class ChatService:
         )
         return thread_view
 
-    async def list_chats(self, project_id: uuid.UUID) -> list[ThreadView]:
-        return await self._thread_view_repo.list_by_project(project_id)
+    async def list_chats(
+        self, project_id: uuid.UUID, *, limit: int = 50, offset: int = 0
+    ) -> tuple[list[ThreadView], int]:
+        items = await self._thread_view_repo.list_by_project(
+            project_id, limit=limit, offset=offset
+        )
+        total = await self._thread_view_repo.count_by_project(project_id)
+        return items, total
 
     async def get_chat(self, thread_id: uuid.UUID) -> ChatDetail:
         thread_view = await self._thread_view_repo.get_by_id(thread_id)
@@ -101,9 +107,13 @@ class ChatService:
         )
 
     async def list_recent(
-        self, user_id: uuid.UUID, *, limit: int = 10
-    ) -> list[ThreadView]:
-        return await self._thread_view_repo.list_recent(user_id, limit=limit)
+        self, user_id: uuid.UUID, *, limit: int = 10, offset: int = 0
+    ) -> tuple[list[ThreadView], int]:
+        items = await self._thread_view_repo.list_recent(
+            user_id, limit=limit, offset=offset
+        )
+        total = await self._thread_view_repo.count_by_user(user_id)
+        return items, total
 
     async def send_message(
         self,

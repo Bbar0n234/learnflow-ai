@@ -1,7 +1,7 @@
 """Pydantic schemas for REST API responses."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -92,7 +92,9 @@ class AlertResponse(BaseModel):
 class AlertPatchRequest(BaseModel):
     """Request body for patching an alert."""
 
-    status: str = Field(..., description="New status (acknowledged or resolved)")
+    status: Literal["acknowledged", "resolved"] = Field(
+        ..., description="New status (acknowledged or resolved)"
+    )
 
 
 class PaginatedAlertsResponse(BaseModel):

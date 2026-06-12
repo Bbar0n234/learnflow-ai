@@ -1,50 +1,40 @@
-"""Database setup and session management."""
+"""Database engine/session factories and the request-scoped session dependency."""
 
 from collections.abc import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from fastapi import Request
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from siem_service.config import Settings
 
-_engine = None
-_async_session_maker = None
 
-
-async def init_db(settings: Settings) -> None:
-    """Initialize database engine and session maker."""
-    global _engine, _async_session_maker
-
-    _engine = create_async_engine(
+def create_engine(settings: Settings) -> AsyncEngine:
+    """Create the async engine (owned by lifespan, stored in app.state)."""
+    return create_async_engine(
         settings.database_url,
         echo=False,
-        future=True,
         pool_pre_ping=True,
     )
-    _async_session_maker = async_sessionmaker(
-        _engine,
+
+
+def create_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
+    """Create the session factory bound to the given engine."""
+    return async_sessionmaker(
+        engine,
         class_=AsyncSession,
         expire_on_commit=False,
     )
 
 
-async def close_db() -> None:
-    """Close database connections."""
-    global _engine
-    if _engine:
-        await _engine.dispose()
-
-
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    """Get database session."""
-    if _async_session_maker is None:
-        raise RuntimeError("Database not initialized")
-
-    async with _async_session_maker() as session:
+async def get_session(request: Request) -> AsyncGenerator[AsyncSession, None]:
+    """Yield a request-scoped session from the lifespan-owned factory."""
+    session_factory: async_sessionmaker[AsyncSession] = (
+        request.app.state.session_factory
+    )
+    async with session_factory() as session:
         yield session
-
-
-def get_async_session_maker() -> "async_sessionmaker[AsyncSession]":
-    """Get async session maker (for non-lifespan use)."""
-    if _async_session_maker is None:
-        raise RuntimeError("Database not initialized")
-    return _async_session_maker

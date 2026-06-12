@@ -7,7 +7,6 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from siem_service.config import get_settings
 from siem_service.domain.models import SiemAlert
 
 logger = structlog.get_logger()
@@ -39,6 +38,7 @@ class AlertDeduper:
     async def dedupe(
         candidate: AlertCandidate,
         session: AsyncSession,
+        open_window_seconds: int,
     ) -> SiemAlert | None:
         """
         Apply open-alert policy: find existing new alert for (rule_id, group_key).
@@ -47,9 +47,7 @@ class AlertDeduper:
             SiemAlert instance if alert was found and updated, or newly created alert.
         """
         now = datetime.now(UTC)
-        age_threshold = now - timedelta(
-            seconds=get_settings().alert_open_window_seconds
-        )
+        age_threshold = now - timedelta(seconds=open_window_seconds)
 
         # Find open alert (new status) for this rule and group_key, created within 24h
         query = select(SiemAlert).where(

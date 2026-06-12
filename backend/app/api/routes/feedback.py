@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import anyio.to_thread
 import httpx
 import structlog
 from fastapi import APIRouter, HTTPException, Request
 
-from app.api.deps import CurrentUser
+from app.api.deps import CurrentUser, SettingsDep
 from app.api.schemas.feedback import FeedbackRequest, FeedbackResponse
-from app.config import Settings
 from app.repositories.trace_store import TraceStore
 
 logger = structlog.get_logger()
@@ -22,7 +22,7 @@ def _score_id(trace_id: str) -> str:
 
 @router.post("/feedback", response_model=FeedbackResponse)
 async def submit_feedback(
-    body: FeedbackRequest, user: CurrentUser, request: Request
+    body: FeedbackRequest, user: CurrentUser, request: Request, settings: SettingsDep
 ) -> FeedbackResponse:
     # lazy: avoid import error when langfuse is not configured
     from langfuse import get_client  # noqa: PLC0415
@@ -37,8 +37,7 @@ async def submit_feedback(
 
     try:
         if body.score is None:
-            settings = Settings()
-            _delete_score_via_api(
+            await _delete_score_via_api(
                 base_url=settings.langfuse_base_url,
                 public_key=settings.langfuse_public_key,
                 secret_key=settings.langfuse_secret_key,
@@ -52,7 +51,8 @@ async def submit_feedback(
                 data_type="BOOLEAN",
                 score_id=_score_id(body.trace_id),
             )
-        langfuse.flush()
+        # flush() блокирует до выгрузки очереди SDK — уводим из event loop
+        await anyio.to_thread.run_sync(langfuse.flush)
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
             pass  # Score already deleted — idempotent
@@ -79,12 +79,13 @@ async def submit_feedback(
     return FeedbackResponse(status="success")
 
 
-def _delete_score_via_api(
+async def _delete_score_via_api(
     *, base_url: str, public_key: str, secret_key: str, score_id: str
 ) -> None:
     """Delete a score via Langfuse REST API (no SDK method available)."""
-    resp = httpx.delete(
-        f"{base_url}/api/public/scores/{score_id}",
-        auth=(public_key, secret_key),
-    )
+    async with httpx.AsyncClient() as client:
+        resp = await client.delete(
+            f"{base_url}/api/public/scores/{score_id}",
+            auth=(public_key, secret_key),
+        )
     resp.raise_for_status()

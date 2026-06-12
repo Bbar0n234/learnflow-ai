@@ -26,7 +26,3 @@ class RateLimiter:
 
         timestamps.append(now)
         return True, None
-
-
-# Singleton instance
-rate_limiter = RateLimiter()

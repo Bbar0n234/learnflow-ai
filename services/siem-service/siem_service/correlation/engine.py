@@ -3,13 +3,12 @@
 import asyncio
 
 import structlog
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from siem_service.correlation.deduper import AlertDeduper
 from siem_service.correlation.strategies import get_strategy
 from siem_service.domain.models import CorrelationRule
-from siem_service.infra.db import get_async_session_maker
 
 logger = structlog.get_logger()
 
@@ -17,9 +16,16 @@ logger = structlog.get_logger()
 class CorrelationEngine:
     """Main correlation engine: loads rules, evaluates them, creates alerts."""
 
-    def __init__(self, poll_interval_seconds: float = 10.0) -> None:
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        poll_interval_seconds: float = 10.0,
+        alert_open_window_seconds: int = 86400,
+    ) -> None:
         """Initialize engine."""
+        self._session_factory = session_factory
         self.poll_interval = poll_interval_seconds
+        self._alert_open_window_seconds = alert_open_window_seconds
         self._running = False
 
     async def start(self) -> None:
@@ -47,8 +53,7 @@ class CorrelationEngine:
 
     async def evaluate_rules(self) -> None:
         """Load active rules and evaluate each one."""
-        session_maker = get_async_session_maker()
-        async with session_maker() as session:
+        async with self._session_factory() as session:
             # Load all enabled rules
             query = select(CorrelationRule).where(CorrelationRule.enabled.is_(True))
             result = await session.execute(query)
@@ -82,7 +87,9 @@ class CorrelationEngine:
 
         # Process each candidate through deduper
         for candidate in candidates:
-            alert = await AlertDeduper.dedupe(candidate, session)
+            alert = await AlertDeduper.dedupe(
+                candidate, session, self._alert_open_window_seconds
+            )
             if alert:
                 logger.info(
                     "alert_processed",
@@ -90,15 +97,3 @@ class CorrelationEngine:
                     alert_id=alert.id,
                     rule_type=rule.rule_type,
                 )
-
-
-# Global engine instance
-_engine: CorrelationEngine | None = None
-
-
-def get_correlation_engine(poll_interval_seconds: float = 10.0) -> CorrelationEngine:
-    """Get or create correlation engine."""
-    global _engine
-    if _engine is None:
-        _engine = CorrelationEngine(poll_interval_seconds)
-    return _engine

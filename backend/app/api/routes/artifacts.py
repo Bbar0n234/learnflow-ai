@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import uuid
+from typing import Annotated
 from urllib.parse import quote
 
+import anyio.to_thread
 from fastapi import APIRouter, HTTPException, Query, Response
 
 from app.api.deps import ArtifactServiceDep, UserProject
@@ -50,7 +52,7 @@ async def download_artifact(
     artifact_id: uuid.UUID,
     project: UserProject,
     service: ArtifactServiceDep,
-    format: str = Query(default="md", pattern="^(md|pdf)$"),
+    format: Annotated[str, Query(pattern="^(md|pdf)$")] = "md",
 ) -> Response:
     artifact = await service.get_artifact(artifact_id)
     if artifact.project_id != project.id:
@@ -61,7 +63,8 @@ async def download_artifact(
         return f"attachment; filename*=UTF-8''{encoded}"
 
     if format == "pdf":
-        pdf_bytes = convert_md_to_pdf(artifact.content)
+        # wkhtmltopdf — блокирующий вызов, уводим из event loop
+        pdf_bytes = await anyio.to_thread.run_sync(convert_md_to_pdf, artifact.content)
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",

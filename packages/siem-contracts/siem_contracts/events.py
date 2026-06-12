@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from siem_contracts.vocabulary import EventType
 
@@ -40,8 +40,8 @@ class SecurityEvent(BaseModel):
         default_factory=dict, description="Event-specific metadata"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "event_id": "550e8400-e29b-41d4-a716-446655440000",
                 "event_type": "auth.login.failed",
@@ -57,3 +57,4 @@ class SecurityEvent(BaseModel):
                 },
             }
         }
+    )

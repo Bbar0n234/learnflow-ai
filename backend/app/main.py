@@ -76,6 +76,7 @@ from app.infra.llm import create_guard_llm
 from app.infra.logging import setup_logging
 from app.infra.mcp import create_mcp_client
 from app.infra.prompt_provider import PromptProvider
+from app.infra.rate_limit import RateLimiter
 from app.infra.redis import create_redis
 from app.security_pipeline.processor import make_security_event_processor
 from app.security_pipeline.transport import (
@@ -210,6 +211,8 @@ def _seed_prompts(
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = Settings()
+    app.state.settings = settings
+    app.state.rate_limiter = RateLimiter()
 
     # Holder is created up front so the structlog processor has something to
     # bind to, then populated when Redis is available below.

@@ -208,9 +208,39 @@ Dockerfile живёт рядом с `pyproject.toml` пакета (`backend/Dock
 
 **Исключение.** Routes/services, чьи возвращаемые данные клиент сразу читает следующим запросом (например, `POST /chats` → клиент тут же делает `POST /messages` по новому `thread_id`), должны выполнять `await session.commit()` **до return**, иначе следующий запрос в параллельной сессии увидит missing row (race на ownership/lookup). Дублирующий commit на уже закоммиченной сессии — no-op в SQLAlchemy.
 
+## FastAPI
+
+Проектные решения по инфраструктуре FastAPI (оба сервиса: main app + siem-service). База — skill `fastapi`; здесь только выбранные развилки и специфика репозитория.
+
+### Владение состоянием: lifespan → app.state → Depends
+
+Всё состояние уровня приложения создаётся в `lifespan` и живёт в `app.state`; handlers получают его через dependency, читающий `request.app.state`. Module-level синглтоны (`_instance + get_x()`, `@lru_cache`-фабрики, глобальные клиенты) запрещены жёстким правилом — `app.state` отличается от них владением: состояние привязано к экземпляру приложения (создаётся/умирает вместе с ним, в тестах каждый `create_app()` изолирован), а не к импортированному модулю.
+
+- **lifespan** — создание/teardown ресурсов: engine, session_factory, Redis, `Settings`, `RateLimiter`, `MetaEmitter`, `JWTValidator`, фоновые задачи (`asyncio.create_task` + cancel после `yield`). Фоновым задачам глобальные переменные не нужны — локальные переменные lifespan живут через `yield`.
+- **app.state** — хранение созданного; ключи именуются по объекту (`app.state.session_factory`, `app.state.meta_emitter`).
+- **Depends** — доступ из handlers: тонкий getter (`def get_x(request): return request.app.state.x`) + type-alias.
+
+`Settings()` инстанцируется один раз в `lifespan` (плюс один раз в `create_app()` для middleware-конфигурации). В handlers/dependencies — только `SettingsDep`; повторный `Settings()` на запрос — это повторный парсинг env.
+
+Известное исключение: флаг `app.infra.langfuse.langfuse_enabled` — module-level, читается агентной инструментацией вне request scope; разбор отложен в backlog (кандидат на agent-slice).
+
+### Annotated и type-alias для зависимостей
+
+Параметры с метаданными (`Query`, `Path`, `Cookie`, `Depends`) — только в `Annotated`, дефолт остаётся обычным значением: `limit: Annotated[int, Query(ge=1, le=200)] = 50`. Переиспользуемые зависимости оборачиваются в type-alias рядом с определением (`DBSession`, `CurrentUser`, `SettingsDep` — `backend/app/api/deps.py`; `SessionDep`, `AdminPayload`, `MetaEmitterDep` — `siem_service/api/deps.py`). Правило ruff `B008` включено: вызовы в дефолтах параметров — ошибка линта, Annotated-стиль её не триггерит.
+
+### Блокирующий код и async
+
+Приоритет: (1) истинно асинхронный вариант, если у библиотеки он есть (`httpx.AsyncClient` вместо sync `httpx`); (2) чисто синхронный handler без await внутри — объявлять `def`, FastAPI сам уведёт его в threadpool; (3) смешанный код (await БД + блокирующий вызов) — блокирующий кусок уводить через `anyio.to_thread.run_sync` (anyio — фундамент Starlette, отдельной зависимости asyncer не заводим).
+
+Эталонные случаи: argon2 hash/verify (`app/services/auth.py`), wkhtmltopdf (`app/api/routes/artifacts.py`), `langfuse.flush()` (`app/api/routes/feedback.py`).
+
+### CSV для списков в env
+
+Списочные env-значения (`CORS_ORIGINS`, `SIEM_FRONTEND_ORIGIN`) — CSV-строка, не JSON: `.env` шелл-сорсится (Makefile `LOAD_ENV`), JSON-список с кавычками такую загрузку не переживает. Реализация — **пара** `Annotated[list[str], NoDecode]` + `field_validator(mode="before")` со split: без `NoDecode` pydantic-settings декодирует complex-типы из env как JSON ещё до validator'а и падает на CSV-строке (`SettingsError` на старте).
+
 ## Тестирование
 
-Pytest. MVP без тестов — инфраструктура для запуска подготовлена (конфиг + директория), тесты добавляются после MVP.
+Pytest. Системная тестовая философия — впереди (итерация testing фазы Codebase Maturity); до неё действует принцип slice-итераций: ручные тест-кейсы на затронутые участки (документ в артефактах итерации) + точечные автотесты на критичные пути (auth, security guard, SIEM pipeline) в `backend/tests/`.
 
 ## Docker
 

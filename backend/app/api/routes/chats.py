@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -89,7 +90,7 @@ async def get_chat(
 async def list_recent_chats(
     user: CurrentUser,
     service: ChatServiceDep,
-    limit: int = Query(default=10, ge=1, le=100),
+    limit: Annotated[int, Query(ge=1, le=100)] = 10,
 ) -> ChatRecentResponse:
     thread_views = await service.list_recent(user.id, limit=limit)
     return ChatRecentResponse(

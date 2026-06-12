@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.mcp_server import (
@@ -12,6 +12,7 @@ from app.models.mcp_server import (
     ThreadMCPServer,
     UserMCPServer,
 )
+from app.models.thread_view import ThreadView
 
 _SCOPE_MODELS = {
     "user": UserMCPServer,
@@ -156,9 +157,38 @@ class MCPServerRepository:
             await self._session.flush()
 
     async def cleanup_disables_for_server(self, server_id: uuid.UUID) -> None:
-        result = await self._session.execute(
-            select(MCPServerDisable).where(MCPServerDisable.server_id == server_id)
+        await self._session.execute(
+            delete(MCPServerDisable).where(MCPServerDisable.server_id == server_id)
         )
-        for disable in result.scalars().all():
-            await self._session.delete(disable)
+        await self._session.flush()
+
+    async def cleanup_disables_for_project(self, project_id: uuid.UUID) -> None:
+        """Disables не связаны FK (полиморфный scope) — при удалении проекта
+        подчищаем его project-scope, thread-scope его тредов и ссылки на его серверы.
+        Вызывать до удаления проекта, пока каскад не стёр треды и серверы."""
+        thread_ids = select(ThreadView.thread_id).where(
+            ThreadView.project_id == project_id
+        )
+        project_server_ids = select(ProjectMCPServer.id).where(
+            ProjectMCPServer.project_id == project_id
+        )
+        thread_server_ids = select(ThreadMCPServer.id).where(
+            ThreadMCPServer.thread_id.in_(thread_ids)
+        )
+        await self._session.execute(
+            delete(MCPServerDisable).where(
+                or_(
+                    and_(
+                        MCPServerDisable.scope_type == "project",
+                        MCPServerDisable.scope_id == project_id,
+                    ),
+                    and_(
+                        MCPServerDisable.scope_type == "thread",
+                        MCPServerDisable.scope_id.in_(thread_ids),
+                    ),
+                    MCPServerDisable.server_id.in_(project_server_ids),
+                    MCPServerDisable.server_id.in_(thread_server_ids),
+                )
+            )
+        )
         await self._session.flush()

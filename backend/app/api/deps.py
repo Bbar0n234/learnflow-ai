@@ -19,6 +19,7 @@ from app.repositories import (
     TraceStore,
     UserRepository,
 )
+from app.repositories.mcp_server import MCPServerRepository
 from app.services import (
     ArtifactService,
     ChatService,
@@ -82,7 +83,10 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
 def get_project_service(session: DBSession) -> ProjectService:
-    return ProjectService(project_repo=ProjectRepository(session))
+    return ProjectService(
+        project_repo=ProjectRepository(session),
+        mcp_server_repo=MCPServerRepository(session),
+    )
 
 
 def get_artifact_service(session: DBSession) -> ArtifactService:

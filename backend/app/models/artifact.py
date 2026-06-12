@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Text, func
 from sqlalchemy.dialects.postgresql import UUID as Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -32,11 +32,11 @@ class Artifact(Base):
         index=True,
         nullable=True,
     )
-    title: Mapped[str] = mapped_column(String(300))
-    type: Mapped[str] = mapped_column(String(50))
+    title: Mapped[str] = mapped_column(Text)
+    type: Mapped[str] = mapped_column(Text)
     content: Mapped[str] = mapped_column(Text)
     message_id: Mapped[str | None] = mapped_column(
-        String(100),
+        Text,
         nullable=True,
         index=True,
     )

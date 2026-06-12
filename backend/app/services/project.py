@@ -3,13 +3,20 @@ from __future__ import annotations
 import uuid
 
 from app.models.project import Project
+from app.repositories.mcp_server import MCPServerRepository
 from app.repositories.project import ProjectRepository
 from app.services.exceptions import EntityNotFoundError
 
 
 class ProjectService:
-    def __init__(self, *, project_repo: ProjectRepository) -> None:
+    def __init__(
+        self,
+        *,
+        project_repo: ProjectRepository,
+        mcp_server_repo: MCPServerRepository,
+    ) -> None:
         self._project_repo = project_repo
+        self._mcp_server_repo = mcp_server_repo
 
     async def create_project(self, *, user_id: uuid.UUID, name: str) -> Project:
         return await self._project_repo.create(user_id=user_id, name=name)
@@ -29,4 +36,5 @@ class ProjectService:
 
     async def delete_project(self, project_id: uuid.UUID) -> None:
         project = await self.get_project(project_id)
+        await self._mcp_server_repo.cleanup_disables_for_project(project_id)
         await self._project_repo.delete(project)

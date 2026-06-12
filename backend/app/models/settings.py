@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy import DateTime, ForeignKey, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as Uuid
 from sqlalchemy.orm import Mapped, mapped_column
@@ -19,7 +19,7 @@ class UserSettings(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    model_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    model_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     extra_body: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -37,7 +37,7 @@ class ProjectSettings(Base):
         ForeignKey("projects.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    model_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    model_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     extra_body: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -55,7 +55,7 @@ class ThreadSettings(Base):
         ForeignKey("thread_views.thread_id", ondelete="CASCADE"),
         primary_key=True,
     )
-    model_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    model_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     extra_body: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

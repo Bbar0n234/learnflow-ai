@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import contains_eager
 
@@ -52,7 +52,11 @@ class ThreadViewRepository:
 
     async def touch(self, thread_view: ThreadView) -> None:
         """Update updated_at without changing other fields."""
-        thread_view.title = thread_view.title  # mark dirty to trigger onupdate
+        await self._session.execute(
+            update(ThreadView)
+            .where(ThreadView.thread_id == thread_view.thread_id)
+            .values(updated_at=func.now())
+        )
         await self._session.flush()
         await self._session.refresh(thread_view)
 

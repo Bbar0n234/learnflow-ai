@@ -28,6 +28,7 @@ from app.services.security import (
 
 class AuthService:
     def __init__(self, session: AsyncSession, settings: Settings) -> None:
+        self._session = session
         self._user_repo = UserRepository(session)
         self._token_repo = RefreshTokenRepository(session)
         self._settings = settings
@@ -49,6 +50,7 @@ class AuthService:
         if user is None or not verify_password(user.password_hash, password):
             raise InvalidCredentialsError
 
+        await self._token_repo.delete_expired_for_user(user.id)
         access_token = self._create_access(user)
         refresh_raw = await self._create_refresh(user.id)
         return user, access_token, refresh_raw
@@ -62,6 +64,9 @@ class AuthService:
 
         if stored.revoked_at is not None:
             await self._token_repo.revoke_all_for_user(stored.user_id)
+            # Commit до raise: иначе get_db_session откатит ревокацию вместе
+            # с HTTPException и replay-защита не сработает.
+            await self._session.commit()
             raise ReplayDetectedError
 
         if stored.expires_at < datetime.now(UTC):

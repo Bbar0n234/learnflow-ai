@@ -41,15 +41,18 @@ async def get_redis_from_request(request: Request) -> redis.Redis:
 
 @router.get("/events", response_model=PaginatedEventsResponse)
 async def list_events(
+    admin_payload: Annotated[dict, Depends(require_admin)],  # noqa: B008
     session: AsyncSession = Depends(get_session),  # noqa: B008 — FastAPI dependency injection
     event_type: str | None = Query(None, description="Filter by event type"),  # noqa: B008
     severity: str | None = Query(None, description="Filter by severity"),  # noqa: B008
-    from_timestamp: str | None = Query(None, alias="from", description="Start time"),  # noqa: B008
-    to_timestamp: str | None = Query(None, alias="to", description="End time"),  # noqa: B008
+    from_timestamp: datetime | None = Query(
+        None, alias="from", description="Start time"
+    ),  # noqa: B008
+    to_timestamp: datetime | None = Query(None, alias="to", description="End time"),  # noqa: B008
     limit: int = Query(50, ge=1, le=200, description="Items per page"),  # noqa: B008
     offset: int = Query(0, ge=0, description="Page offset"),  # noqa: B008
 ) -> PaginatedEventsResponse:
-    """List security events with filtering and pagination.
+    """List security events with filtering and pagination (admin-only).
 
     Args:
         event_type: Filter by event type
@@ -59,30 +62,16 @@ async def list_events(
         limit: Items per page (max 200)
         offset: Page offset
         session: Database session
+        admin_payload: Admin JWT payload (required)
 
     Returns:
         Paginated list of events
     """
-    # Parse timestamps if provided
-    from_dt = None
-    to_dt = None
-
-    try:
-        if from_timestamp:
-            from_dt = datetime.fromisoformat(from_timestamp.replace("Z", "+00:00"))
-        if to_timestamp:
-            to_dt = datetime.fromisoformat(to_timestamp.replace("Z", "+00:00"))
-    except ValueError as e:
-        raise HTTPException(
-            status_code=400, detail=f"Invalid timestamp format: {e}"
-        ) from e
-
-    # Create filter params
     filters = EventFilterParams(
         event_type=event_type,
         severity=severity,
-        from_timestamp=from_dt,
-        to_timestamp=to_dt,
+        from_timestamp=from_timestamp,
+        to_timestamp=to_timestamp,
         limit=limit,
         offset=offset,
     )
@@ -189,12 +178,6 @@ async def patch_alert(
     Returns:
         Updated alert
     """
-    if request.status not in ("acknowledged", "resolved"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Status must be 'acknowledged' or 'resolved'",
-        )
-
     user_id = admin_payload.get("sub")
     if not user_id:
         raise HTTPException(
@@ -360,8 +343,9 @@ async def update_rule(
 
     service = RuleService(session, meta_emitter=meta_emitter)
 
-    # Filter out None values
-    updates = {k: v for k, v in request.model_dump().items() if v is not None}
+    # PATCH-семантика: применяем только явно переданные поля
+    # (exclude_unset позволяет в т.ч. занулить nullable-поле)
+    updates = request.model_dump(exclude_unset=True)
 
     if not updates:
         raise HTTPException(

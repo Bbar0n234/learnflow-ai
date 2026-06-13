@@ -8,7 +8,12 @@ import type {
 } from "./types";
 
 export async function getChats(projectId: string): Promise<ListResponse<Chat>> {
-  return (await apiClient.get(`/projects/${projectId}/chats`)).data;
+  // UI без постраничной подгрузки: берём максимум за один запрос
+  return (
+    await apiClient.get(`/projects/${projectId}/chats`, {
+      params: { limit: 200 },
+    })
+  ).data;
 }
 
 export async function getChat(
@@ -26,7 +31,7 @@ export async function createChat(
 }
 
 export async function getRecentChats(): Promise<ListResponse<RecentChat>> {
-  return (await apiClient.get("/chats/recent")).data;
+  return (await apiClient.get("/chats/recent", { params: { limit: 10 } })).data;
 }
 
 export async function cancelChat(

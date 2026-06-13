@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from app.api.schemas.common import Page
+
 
 class SettingsUpdate(BaseModel):
     model_name: str | None = None
@@ -20,5 +22,5 @@ class AvailableModelResponse(BaseModel):
     display_name: str
 
 
-class ModelsListResponse(BaseModel):
-    items: list[AvailableModelResponse]
+class ModelsListResponse(Page[AvailableModelResponse]):
+    pass

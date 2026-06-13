@@ -4,7 +4,7 @@ import uuid
 
 from fastapi import APIRouter, HTTPException, Request
 
-from app.api.deps import CurrentUser, DBSession, UserProject
+from app.api.deps import CurrentUser, DBSession, UserProject, UserThread
 from app.api.schemas.settings import SettingsResponse, SettingsUpdate
 from app.repositories.settings import SettingsRepository
 from app.services.model_config_resolver import ModelConfigResolver
@@ -142,36 +142,36 @@ async def update_project_settings(
 
 
 @router.get(
-    "/projects/{project_id}/chats/{thread_id}/settings",
+    "/projects/{project_id}/chats/{chat_id}/settings",
     response_model=SettingsResponse,
 )
 async def get_thread_settings(
-    thread_id: uuid.UUID,
+    thread: UserThread,
     project: UserProject,
     user: CurrentUser,
     session: DBSession,
     request: Request,
 ) -> SettingsResponse:
     repo = SettingsRepository(session)
-    s = await repo.get_thread_settings(thread_id)
+    s = await repo.get_thread_settings(thread.thread_id)
     return await _build_response(
         repo,
         _get_resolver(request),
         user.id,
         project.id,
-        thread_id,
+        thread.thread_id,
         s.model_name if s else None,
         s.extra_body if s else None,
     )
 
 
 @router.put(
-    "/projects/{project_id}/chats/{thread_id}/settings",
+    "/projects/{project_id}/chats/{chat_id}/settings",
     response_model=SettingsResponse,
 )
 async def update_thread_settings(
-    thread_id: uuid.UUID,
     body: SettingsUpdate,
+    thread: UserThread,
     project: UserProject,
     user: CurrentUser,
     session: DBSession,
@@ -180,14 +180,14 @@ async def update_thread_settings(
     _validate_model(body.model_name, _get_allowed_models(request))
     repo = SettingsRepository(session)
     s = await repo.upsert_thread_settings(
-        thread_id, model_name=body.model_name, extra_body=body.extra_body
+        thread.thread_id, model_name=body.model_name, extra_body=body.extra_body
     )
     return await _build_response(
         repo,
         _get_resolver(request),
         user.id,
         project.id,
-        thread_id,
+        thread.thread_id,
         s.model_name,
         s.extra_body,
     )

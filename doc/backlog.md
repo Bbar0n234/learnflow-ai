@@ -29,6 +29,8 @@
 
 - **P3** `mcp_servers.py` — дедупликация ownership-проверок и инстанциаций — три уровня (user/project/thread) повторяют один и тот же паттерн «загрузить → проверить владельца → 404» в ~9 handlers, плюс множественные `MCPServerRepository(session)` / `_get_encryption(request)` / `invalidate(...)` по месту. Вынести ownership в dependencies (по образцу `UserProject`/`UserThread`), повторяющиеся инстанциации — в deps. Выявлено в slice feat-004 (codebase maturity), вынесено отдельным пунктом из-за объёма файла *(Backend)*
 
+- **P3** `POST /rules` принимает произвольный `config` без валидации схемы — `services/siem-service/siem_service/api/routes.py` создаёт correlation-правило с любым JSON в `config` (201 на что угодно), а движок затем молча пропускает правило с незнакомой схемой, логируя `threshold_rule_missing_pattern`. Админ получает 201 и «правило», которое тихо не работает. Решение — discriminated union по `rule_type` для `config` (валидация на create) + явная 422 на нераспознанную схему. Known limitation из feat-005, подтверждена прогоном feat-004 *(Backend, SIEM)*
+
 ## Product / Distribution
 
 - **P3** Public Material Sharing — публичные ссылки на материалы (Notion-style share-to-web). Преподаватель публикует → получает URL → студенты видят материал без регистрации. Потенциальный pivot от "инструмент подготовки" к "подготовка + дистрибуция". Для rich-артефактов зависит от подходящего формата публикации / экспорта, но не требует Generative UI *(cross: Frontend, Backend, Infra)*

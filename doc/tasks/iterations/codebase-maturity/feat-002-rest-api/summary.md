@@ -33,8 +33,15 @@
 
 ## Follow-ups (вне scope slice'а)
 
-- **UI-пагинация frontend** — контракт готов, frontend пока берёт `limit=200` одним запросом; постраничная подгрузка — задача frontend slice (feat-006) или отдельная. Зафиксировано по решению архитектора.
-- **PDF-экспорт неработоспособен в dev-окружении** (Findings F1): wkhtmltopdf 0.12.6 на Fedora 43 сегфолтится на MathJax-скрипте; воспроизводится вне приложения. Путь pre-existing; кандидат на замену стека конвертации (weasyprint/playwright print) — feat-004 или backlog.
-- **5xx не в problem+json** (F2): unhandled exceptions отдаются как `text/plain` от ServerErrorMiddleware; распространение RFC 9457 на 500 — решение к feat-007 (error handling philosophy).
-- **`X-Forwarded-For` спуфинг** (F4): `_get_client_ip` доверяет заголовку без проверки прокси → обход per-IP rate limits. Pre-existing, кандидат в backlog (security).
-- Класс ошибок группы A (auth/ownership) механически покрывается тестами «каждый endpoint с авторизацией получает кейсы 401/403/чужой ресурс» — вход для test philosophy feat-009.
+Все отложенные по решению архитектора пункты зафиксированы в `doc/backlog.md` (§ Backend и § Security), чтобы ничего не пропадало молча:
+
+- **Feedback resource modeling** (backlog § Backend, P3): убрать протечку `trace_id` в контракт, перейти на доменную адресацию по `message_id`. Текущий вложенный вариант B принят осознанно (ownership-безопасен, консистентен с API); рефакторинг — на вырост, требует проработки маппинга message↔trace.
+- **5xx не в problem+json** (backlog § Backend, P3 → feat-007): форма ответа на 500; философия обработки — в feat-007.
+- **Дубль `problem.py`** (backlog § Backend, P3 → feat-004): вынос в shared решается вместе с консолидацией `SecurityEvent`.
+- **PDF-экспорт** (backlog § Backend, P2): wkhtmltopdf deprecated + segfault на MathJax; замена с поддержкой математики.
+- **MCP `mcp_unreachable` 503-семантика** (backlog § Backend, P3): код неточен (правильнее 422/502), security fail-closed корректен.
+- **`X-Forwarded-For` спуфинг** (backlog § Security, P2): обход per-IP rate limits; зависит от топологии прода.
+- **UI-пагинация frontend** — контракт готов, frontend берёт `limit=200`; постраничная подгрузка — задача frontend slice (feat-006).
+- Класс ошибок группы A (auth/ownership) механически покрывается тестами «каждый endpoint с авторизацией → кейсы 401/403/чужой ресурс» — вход для test philosophy feat-009.
+
+Закрытый дубль: дыра A1 (SIEM `/events` без `require_admin`) была заведена в backlog как P1 (Security) — закрыта этим slice'ем, пункт удалён тем же PR.

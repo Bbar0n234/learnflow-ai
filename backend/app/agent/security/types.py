@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel
 
 
-class Checkpoint(str, Enum):
+class Checkpoint(StrEnum):
     USER_INPUT = "user_input"
     TOOL_RESULT = "tool_result"
     TOOL_CALL_ARG = "tool_call_arg"
@@ -16,7 +16,7 @@ class Checkpoint(str, Enum):
     KS_WRITE_REST = "ks_write_rest"
 
 
-class Direction(str, Enum):
+class Direction(StrEnum):
     INBOUND = "inbound"
     OUTBOUND = "outbound"
 
@@ -36,7 +36,7 @@ def direction_of(checkpoint: Checkpoint) -> Direction:
     return _DIRECTION_MAP[checkpoint]
 
 
-class DetectionLayer(str, Enum):
+class DetectionLayer(StrEnum):
     CANARY = "canary"
     UNICODE = "unicode"
     FRAGMENT = "fragment"
@@ -45,7 +45,7 @@ class DetectionLayer(str, Enum):
     GRACEFUL_DEGRADATION = "graceful_degradation"
 
 
-class Verdict(str, Enum):
+class Verdict(StrEnum):
     CLEAN = "CLEAN"
     SUSPICIOUS = "SUSPICIOUS"
     INJECTION = "INJECTION"

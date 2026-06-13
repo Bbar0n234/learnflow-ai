@@ -31,6 +31,13 @@ from app.services.security import decode_access_token
 from app.services.sphere import LangGraphSphereService, SphereService
 
 
+def get_settings(request: Request) -> Settings:
+    return request.app.state.settings
+
+
+SettingsDep = Annotated[Settings, Depends(get_settings)]
+
+
 def get_security_guard(request: Request) -> Any:
     return request.app.state.security_guard
 
@@ -57,13 +64,13 @@ DBSession = Annotated[AsyncSession, Depends(get_db_session)]
 async def get_current_user(
     request: Request,
     session: DBSession,
+    settings: SettingsDep,
 ) -> User:
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     token = auth_header.removeprefix("Bearer ")
-    settings = Settings()
     try:
         user_id = decode_access_token(token, settings.jwt_secret)
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):

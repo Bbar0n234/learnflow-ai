@@ -9,7 +9,7 @@ RUN npm run build
 # Stage 2: Backend + frontend dist
 FROM python:3.12-slim-bookworm
 
-COPY --from=ghcr.io/astral-sh/uv:0.10.2 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.11.21 /uv /uvx /bin/
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wkhtmltopdf curl \

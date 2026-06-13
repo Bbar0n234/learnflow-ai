@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
+import anyio.to_thread
 import httpx
 import structlog
 from fastapi import APIRouter, HTTPException, Request, status
 
-from app.api.deps import UserThread
+from app.api.deps import SettingsDep, UserThread
 from app.api.schemas.feedback import FeedbackResponse, FeedbackSet
-from app.config import Settings
 from app.repositories.trace_store import TraceStore
 
 logger = structlog.get_logger()
@@ -70,7 +70,8 @@ async def set_feedback(
             data_type="BOOLEAN",
             score_id=_score_id(trace_id),
         )
-        langfuse.flush()
+        # flush() блокирует до выгрузки очереди SDK — уводим из event loop
+        await anyio.to_thread.run_sync(langfuse.flush)
     except Exception as e:
         logger.warning("langfuse feedback error", error=str(e))
         raise HTTPException(
@@ -94,19 +95,20 @@ async def delete_feedback(
     trace_id: str,
     thread: UserThread,
     request: Request,
+    settings: SettingsDep,
 ) -> None:
     store = await _get_owned_trace_store(request, thread, trace_id)
     langfuse = _get_langfuse_client()
 
     try:
-        settings = Settings()
-        _delete_score_via_api(
+        await _delete_score_via_api(
             base_url=settings.langfuse_base_url,
             public_key=settings.langfuse_public_key,
             secret_key=settings.langfuse_secret_key,
             score_id=_score_id(trace_id),
         )
-        langfuse.flush()
+        # flush() блокирует до выгрузки очереди SDK — уводим из event loop
+        await anyio.to_thread.run_sync(langfuse.flush)
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
             pass  # Score already deleted — idempotent
@@ -127,12 +129,13 @@ async def delete_feedback(
         logger.warning("feedback redis delete failed", exc_info=True)
 
 
-def _delete_score_via_api(
+async def _delete_score_via_api(
     *, base_url: str, public_key: str, secret_key: str, score_id: str
 ) -> None:
     """Delete a score via Langfuse REST API (no SDK method available)."""
-    resp = httpx.delete(
-        f"{base_url}/api/public/scores/{score_id}",
-        auth=(public_key, secret_key),
-    )
+    async with httpx.AsyncClient() as client:
+        resp = await client.delete(
+            f"{base_url}/api/public/scores/{score_id}",
+            auth=(public_key, secret_key),
+        )
     resp.raise_for_status()

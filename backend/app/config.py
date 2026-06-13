@@ -1,14 +1,10 @@
-import json
+from typing import Annotated
 
 from pydantic import field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file_encoding="utf-8",
-    )
-
     database_url: str = (
         "postgresql+psycopg://learnflow:learnflow@localhost:5432/learnflow"
     )
@@ -43,7 +39,9 @@ class Settings(BaseSettings):
     # Redis (trace storage for feedback persistence)
     redis_url: str = "redis://localhost:6379/0"
 
-    cors_origins: list[str] = [
+    # NoDecode: иначе pydantic-settings декодирует list[str] из env как JSON
+    # ещё до field validator'а
+    cors_origins: Annotated[list[str], NoDecode] = [
         "http://localhost:3000",
         "http://localhost:5173",
     ]
@@ -56,6 +54,8 @@ class Settings(BaseSettings):
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: object) -> object:
+        # CSV, не JSON: .env шелл-сорсится (Makefile LOAD_ENV), JSON-список
+        # с кавычками такой загрузки не переживает.
         if isinstance(v, str):
-            return json.loads(v)
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v

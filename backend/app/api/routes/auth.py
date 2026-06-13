@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 import structlog
-from fastapi import APIRouter, Cookie, HTTPException, Request, Response
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from siem_contracts import (
     AUTH_LOGIN_FAILED,
     AUTH_LOGIN_SUCCESS,
@@ -13,7 +15,7 @@ from siem_contracts import (
     RATE_LIMIT_REGISTER_EXCEEDED,
 )
 
-from app.api.deps import CurrentUser, DBSession
+from app.api.deps import CurrentUser, DBSession, SettingsDep
 from app.api.schemas.auth import (
     LoginRequest,
     MessageResponse,
@@ -22,7 +24,7 @@ from app.api.schemas.auth import (
     UserResponse,
 )
 from app.config import Settings
-from app.infra.rate_limit import rate_limiter
+from app.infra.rate_limit import RateLimiter
 from app.services.auth import AuthService
 from app.services.exceptions import (
     InvalidCredentialsError,
@@ -39,12 +41,21 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 _COOKIE_NAME = "refresh_token"
 
 
-def _get_settings() -> Settings:
-    return Settings()
+def _get_rate_limiter(request: Request) -> RateLimiter:
+    return request.app.state.rate_limiter
+
+
+RateLimiterDep = Annotated[RateLimiter, Depends(_get_rate_limiter)]
+
+RefreshCookie = Annotated[str | None, Cookie(alias=_COOKIE_NAME)]
 
 
 def _check_rate_limit(
-    key: str, max_requests: int, window_seconds: int, event_type: str
+    rate_limiter: RateLimiter,
+    key: str,
+    max_requests: int,
+    window_seconds: int,
+    event_type: str,
 ) -> None:
     allowed, retry_after = rate_limiter.is_allowed(key, max_requests, window_seconds)
     if not allowed:
@@ -91,17 +102,34 @@ def _delete_refresh_cookie(response: Response, settings: Settings) -> None:
     )
 
 
+def _cookie_deletion_headers(settings: Settings) -> dict[str, str]:
+    """Set-Cookie удаления refresh-cookie для HTTPException-ответов.
+
+    Заголовки injected `Response` теряются, когда handler поднимает
+    HTTPException (FastAPI строит новый ответ), — передаём удаление cookie
+    через `HTTPException(headers=...)`.
+    """
+    response = Response()
+    _delete_refresh_cookie(response, settings)
+    return {"set-cookie": response.headers["set-cookie"]}
+
+
 @router.post("/register", response_model=TokenResponse)
 async def register(
     body: RegisterRequest,
     request: Request,
     response: Response,
     session: DBSession,
+    settings: SettingsDep,
+    rate_limiter: RateLimiterDep,
 ) -> TokenResponse:
     _check_rate_limit(
-        f"register:{_get_client_ip(request)}", 3, 3600, RATE_LIMIT_REGISTER_EXCEEDED
+        rate_limiter,
+        f"register:{_get_client_ip(request)}",
+        3,
+        3600,
+        RATE_LIMIT_REGISTER_EXCEEDED,
     )
-    settings = _get_settings()
     service = AuthService(session, settings)
     try:
         user, access_token, refresh_raw = await service.register(
@@ -134,10 +162,13 @@ async def login(
     request: Request,
     response: Response,
     session: DBSession,
+    settings: SettingsDep,
+    rate_limiter: RateLimiterDep,
 ) -> TokenResponse:
     ip = _get_client_ip(request)
-    _check_rate_limit(f"login:{body.name}:{ip}", 5, 60, RATE_LIMIT_LOGIN_EXCEEDED)
-    settings = _get_settings()
+    _check_rate_limit(
+        rate_limiter, f"login:{body.name}:{ip}", 5, 60, RATE_LIMIT_LOGIN_EXCEEDED
+    )
     service = AuthService(session, settings)
     try:
         user, access_token, refresh_raw = await service.login(body.name, body.password)
@@ -167,15 +198,20 @@ async def refresh(
     request: Request,
     response: Response,
     session: DBSession,
-    refresh_token: str | None = Cookie(None),
+    settings: SettingsDep,
+    rate_limiter: RateLimiterDep,
+    refresh_token: RefreshCookie = None,
 ) -> TokenResponse:
     _check_rate_limit(
-        f"refresh:{_get_client_ip(request)}", 10, 60, RATE_LIMIT_REFRESH_EXCEEDED
+        rate_limiter,
+        f"refresh:{_get_client_ip(request)}",
+        10,
+        60,
+        RATE_LIMIT_REFRESH_EXCEEDED,
     )
     if not refresh_token:
         raise HTTPException(status_code=401, detail="Refresh token missing")
 
-    settings = _get_settings()
     service = AuthService(session, settings)
     try:
         access_token, new_refresh_raw = await service.refresh(refresh_token)
@@ -190,9 +226,10 @@ async def refresh(
             event_type=AUTH_REFRESH_REPLAY_DETECTED,
             severity="critical",
         )
-        _delete_refresh_cookie(response, settings)
         raise HTTPException(
-            status_code=401, detail="Token reuse detected, all sessions revoked"
+            status_code=401,
+            detail="Token reuse detected, all sessions revoked",
+            headers=_cookie_deletion_headers(settings),
         ) from None
 
     _set_refresh_cookie(response, new_refresh_raw, settings)
@@ -212,9 +249,9 @@ async def me(user: CurrentUser) -> UserResponse:
 async def logout(
     response: Response,
     session: DBSession,
-    refresh_token: str | None = Cookie(None),
+    settings: SettingsDep,
+    refresh_token: RefreshCookie = None,
 ) -> MessageResponse:
-    settings = _get_settings()
     if refresh_token:
         service = AuthService(session, settings)
         await service.logout(refresh_token)

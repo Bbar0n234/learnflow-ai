@@ -35,7 +35,7 @@
 | feat-001 | ✅ Done | foundation | Skill Discovery + Layers & Abstractions Diagram |
 | feat-002 | ✅ Done | backend / REST | REST API slice: api-design-principles skill + поглощение REST API cleanup (8 пунктов аудита 2026-04-04) |
 | feat-003 | ✅ Done | db | DB slice: postgresql skill, индексы, constraints, типы, паттерны миграций |
-| feat-004 | 📋 Planned | backend / fastapi | Backend/FastAPI slice: fastapi skill + поглощение точечных техдолгов (SIEM MetaEmitter, дубль SecurityEvent, CORS_ORIGINS, SIEM follow-ups) |
+| feat-004 | ✅ Done | backend / fastapi | Backend/FastAPI slice: fastapi skill + поглощение точечных техдолгов (SIEM MetaEmitter, дубль SecurityEvent, CORS_ORIGINS, SIEM follow-ups) |
 | feat-005 | 📋 Planned | agent | Agent runtime slice: langgraph-patterns (авторский) + кандидаты langgraph-* от langchain-ai + поглощение Reasoning ChatOpenAI everywhere (langchain-architecture отклонён в feat-001) |
 | feat-006 | 📋 Planned | frontend | Frontend slice: skill discovery for frontend, ручной slice если skill отсутствует |
 | feat-007 | 📋 Planned | cross-cutting | Кросс-резрезные конвенции: error return types + error handling philosophy (graceful degradation vs fail-fast) |
@@ -191,7 +191,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** аудит backend-инфраструктуры через `fastapi` skill, закрытие точечных техдолгов в SIEM и конфиге.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done — итоги в [summary.md](iterations/codebase-maturity/feat-004-fastapi/summary.md)
 **Scope:** backend / fastapi
 **Зависимости:** feat-001
 
@@ -218,14 +218,14 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 #### Definition of Done
 
-- [ ] Skill `fastapi` применён к коду проекта: аудит infra-слоя против его принципов, findings на конкретных примерах.
-- [ ] SIEM `MetaEmitter` singleton устранён (state в app.state, инициализация в lifespan, route'ы через Depends).
-- [ ] Дубль `SecurityEvent` в siem-service удалён, импорт из `siem_contracts.events`.
-- [ ] `CORS_ORIGINS` парсится надёжно (CSV или `NoDecode`).
-- [ ] SIEM follow-ups закрыты (UP042 + uv pin + line-length 100 + DDL миграции через autogenerate).
-- [ ] FastAPI-конвенции добавлены в `doc/tech/conventions.md`.
-- [ ] Тест-кейсы на затронутые участки составлены и прогнаны; SIEM pipeline — критичный путь, для него допустимы точечные автотесты.
-- [ ] Точки остановки на теорию пройдены.
+- [x] Skill `fastapi` применён к коду проекта: аудит infra-слоя против его принципов, findings на конкретных примерах.
+- [x] SIEM `MetaEmitter` singleton устранён (state в app.state, инициализация в lifespan, route'ы через Depends).
+- [x] Дубль `SecurityEvent` в siem-service удалён, импорт из `siem_contracts.events`.
+- [x] `CORS_ORIGINS` парсится надёжно (CSV или `NoDecode`).
+- [x] SIEM follow-ups закрыты частично по решению архитектора: UP042 ✅ (аудит `str()`-семантики чистый), uv pin ✅ (0.10.2 → 0.11.21); line-length 100 — отклонено, остаёмся на 88 (пункт в backlog: bump = project-wide reformat, конфликты с параллельными slice'ами); пересоздание DDL-миграций — отклонено («пусть как есть», переписывание истории миграций не оправдано).
+- [x] FastAPI-конвенции добавлены в `doc/tech/conventions.md`.
+- [x] Тест-кейсы на затронутые участки составлены и прогнаны (33 кейса, независимый агент-тестировщик на docker-стенде; 30 PASS / 3 SKIP без LLM-ключей; + пост-merge прогон 14/14). Точечные автотесты (17 шт.) написаны и отработали (поймали circular import), но по решению архитектора перенесены из `backend/tests/` в архив итерации — живую тестовую инфраструктуру проектирует feat-009.
+- [x] Точки остановки на теорию пройдены (app.state vs module-level singletons, CSV vs NoDecode, anyio.to_thread vs def-handlers vs asyncer, StrEnum `str()`-семантика).
 
 ---
 

@@ -3,11 +3,10 @@
 from datetime import datetime
 from typing import Annotated
 
-import redis.asyncio as redis
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, HTTPException, Query, status
 
+from siem_service.api.deps import AdminPayload, MetaEmitterDep, SessionDep
 from siem_service.domain.schemas import (
     AlertPatchRequest,
     AlertResponse,
@@ -19,54 +18,42 @@ from siem_service.domain.schemas import (
     RuleResponse,
     RuleUpdateRequest,
 )
-from siem_service.infra.auth import require_admin
-from siem_service.infra.db import get_session
-from siem_service.pipeline.meta_emitter import get_meta_emitter
 from siem_service.services import AlertService, EventService, RuleService
 
 logger = structlog.get_logger()
 
 router = APIRouter(prefix="/api/security", tags=["security"])
 
+LimitQuery = Annotated[int, Query(ge=1, le=200, description="Items per page")]
+OffsetQuery = Annotated[int, Query(ge=0, description="Page offset")]
 
-async def get_redis_from_request(request: Request) -> redis.Redis:
-    """Get Redis client from app state.
 
-    This dependency retrieves the async Redis client initialized in lifespan.
-    """
-    if not hasattr(request.app.state, "redis"):
-        raise RuntimeError("Redis client not initialized in app state")
-    return request.app.state.redis
+def _require_user_id(admin_payload: dict) -> str:
+    user_id = admin_payload.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing 'sub' claim in token",
+        )
+    return str(user_id)
 
 
 @router.get("/events", response_model=PaginatedEventsResponse)
 async def list_events(
-    admin_payload: Annotated[dict, Depends(require_admin)],  # noqa: B008
-    session: AsyncSession = Depends(get_session),  # noqa: B008 — FastAPI dependency injection
-    event_type: str | None = Query(None, description="Filter by event type"),  # noqa: B008
-    severity: str | None = Query(None, description="Filter by severity"),  # noqa: B008
-    from_timestamp: datetime | None = Query(
-        None, alias="from", description="Start time"
-    ),  # noqa: B008
-    to_timestamp: datetime | None = Query(None, alias="to", description="End time"),  # noqa: B008
-    limit: int = Query(50, ge=1, le=200, description="Items per page"),  # noqa: B008
-    offset: int = Query(0, ge=0, description="Page offset"),  # noqa: B008
+    admin_payload: AdminPayload,
+    session: SessionDep,
+    event_type: Annotated[str | None, Query(description="Filter by event type")] = None,
+    severity: Annotated[str | None, Query(description="Filter by severity")] = None,
+    from_timestamp: Annotated[
+        datetime | None, Query(alias="from", description="Start time")
+    ] = None,
+    to_timestamp: Annotated[
+        datetime | None, Query(alias="to", description="End time")
+    ] = None,
+    limit: LimitQuery = 50,
+    offset: OffsetQuery = 0,
 ) -> PaginatedEventsResponse:
-    """List security events with filtering and pagination (admin-only).
-
-    Args:
-        event_type: Filter by event type
-        severity: Filter by severity (info, warning, critical)
-        from_timestamp: Start timestamp (ISO 8601)
-        to_timestamp: End timestamp (ISO 8601)
-        limit: Items per page (max 200)
-        offset: Page offset
-        session: Database session
-        admin_payload: Admin JWT payload (required)
-
-    Returns:
-        Paginated list of events
-    """
+    """List security events with filtering and pagination (admin-only)."""
     filters = EventFilterParams(
         event_type=event_type,
         severity=severity,
@@ -95,30 +82,20 @@ async def list_events(
 
 @router.get("/alerts", response_model=PaginatedAlertsResponse)
 async def list_alerts(
-    admin_payload: Annotated[dict, Depends(require_admin)],  # noqa: B008
-    session: AsyncSession = Depends(get_session),  # noqa: B008
-    severity: str | None = Query(None, description="Filter by severity"),  # noqa: B008
-    status: str | None = Query(None, description="Filter by status"),  # noqa: B008
-    limit: int = Query(50, ge=1, le=200, description="Items per page"),  # noqa: B008
-    offset: int = Query(0, ge=0, description="Page offset"),  # noqa: B008
+    admin_payload: AdminPayload,
+    session: SessionDep,
+    severity: Annotated[str | None, Query(description="Filter by severity")] = None,
+    status_filter: Annotated[
+        str | None, Query(alias="status", description="Filter by status")
+    ] = None,
+    limit: LimitQuery = 50,
+    offset: OffsetQuery = 0,
 ) -> PaginatedAlertsResponse:
-    """List security alerts with filtering and pagination (admin-only).
-
-    Args:
-        severity: Filter by severity (info, warning, critical)
-        status: Filter by status (new, acknowledged, resolved, expired)
-        limit: Items per page (max 200)
-        offset: Page offset
-        session: Database session
-        admin_payload: Admin JWT payload (required)
-
-    Returns:
-        Paginated list of alerts
-    """
+    """List security alerts with filtering and pagination (admin-only)."""
     service = AlertService(session)
     alerts, total = await service.list_alerts(
         severity=severity,
-        status=status,
+        status=status_filter,
         limit=limit,
         offset=offset,
     )
@@ -134,19 +111,10 @@ async def list_alerts(
 @router.get("/alerts/{alert_id}", response_model=AlertResponse)
 async def get_alert(
     alert_id: int,
-    admin_payload: Annotated[dict, Depends(require_admin)],  # noqa: B008
-    session: AsyncSession = Depends(get_session),  # noqa: B008
+    admin_payload: AdminPayload,
+    session: SessionDep,
 ) -> AlertResponse:
-    """Get alert details (admin-only).
-
-    Args:
-        alert_id: Alert ID
-        session: Database session
-        admin_payload: Admin JWT payload (required)
-
-    Returns:
-        Alert details
-    """
+    """Get alert details (admin-only)."""
     service = AlertService(session)
     alert = await service.get_alert(alert_id)
 
@@ -162,37 +130,22 @@ async def get_alert(
 async def patch_alert(
     alert_id: int,
     request: AlertPatchRequest,
-    admin_payload: Annotated[dict, Depends(require_admin)],  # noqa: B008
-    session: AsyncSession = Depends(get_session),  # noqa: B008
-    redis_client: redis.Redis = Depends(get_redis_from_request),  # noqa: B008
+    admin_payload: AdminPayload,
+    session: SessionDep,
+    meta_emitter: MetaEmitterDep,
 ) -> AlertResponse:
     """Update alert status (admin-only).
 
-    Args:
-        alert_id: Alert ID
-        request: Patch request (status: acknowledged | resolved)
-        session: Database session
-        admin_payload: Admin JWT payload (required)
-        redis_client: Async Redis client (injected from app state)
-
-    Returns:
-        Updated alert
+    Невалидный ``status`` отсекается схемой ``AlertPatchRequest`` (Literal → 422).
     """
-    user_id = admin_payload.get("sub")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing 'sub' claim in token",
-        )
-
-    meta_emitter = get_meta_emitter(redis_client)
+    user_id = _require_user_id(admin_payload)
 
     service = AlertService(session, meta_emitter=meta_emitter)
 
     if request.status == "acknowledged":
-        alert = await service.acknowledge_alert(alert_id, str(user_id))
+        alert = await service.acknowledge_alert(alert_id, user_id)
     else:
-        alert = await service.resolve_alert(alert_id, str(user_id))
+        alert = await service.resolve_alert(alert_id, user_id)
 
     if not alert:
         raise HTTPException(
@@ -210,22 +163,12 @@ async def patch_alert(
 
 @router.get("/rules", response_model=PaginatedRulesResponse)
 async def list_rules(
-    admin_payload: Annotated[dict, Depends(require_admin)],  # noqa: B008
-    session: AsyncSession = Depends(get_session),  # noqa: B008
-    limit: int = Query(50, ge=1, le=200, description="Items per page"),  # noqa: B008
-    offset: int = Query(0, ge=0, description="Page offset"),  # noqa: B008
+    admin_payload: AdminPayload,
+    session: SessionDep,
+    limit: LimitQuery = 50,
+    offset: OffsetQuery = 0,
 ) -> PaginatedRulesResponse:
-    """List correlation rules (admin-only).
-
-    Args:
-        limit: Items per page
-        offset: Page offset
-        session: Database session
-        admin_payload: Admin JWT payload (required)
-
-    Returns:
-        Paginated list of rules
-    """
+    """List correlation rules (admin-only)."""
     service = RuleService(session)
     rules, total = await service.list_rules(limit=limit, offset=offset)
 
@@ -240,19 +183,10 @@ async def list_rules(
 @router.get("/rules/{rule_id}", response_model=RuleResponse)
 async def get_rule(
     rule_id: int,
-    admin_payload: Annotated[dict, Depends(require_admin)],  # noqa: B008
-    session: AsyncSession = Depends(get_session),  # noqa: B008
+    admin_payload: AdminPayload,
+    session: SessionDep,
 ) -> RuleResponse:
-    """Get rule details (admin-only).
-
-    Args:
-        rule_id: Rule ID
-        session: Database session
-        admin_payload: Admin JWT payload (required)
-
-    Returns:
-        Rule details
-    """
+    """Get rule details (admin-only)."""
     service = RuleService(session)
     rule = await service.get_rule(rule_id)
 
@@ -267,29 +201,12 @@ async def get_rule(
 @router.post("/rules", response_model=RuleResponse, status_code=status.HTTP_201_CREATED)
 async def create_rule(
     request: RuleCreateRequest,
-    admin_payload: Annotated[dict, Depends(require_admin)],  # noqa: B008
-    session: AsyncSession = Depends(get_session),  # noqa: B008
-    redis_client: redis.Redis = Depends(get_redis_from_request),  # noqa: B008
+    admin_payload: AdminPayload,
+    session: SessionDep,
+    meta_emitter: MetaEmitterDep,
 ) -> RuleResponse:
-    """Create a new correlation rule (admin-only).
-
-    Args:
-        request: Rule creation request
-        session: Database session
-        admin_payload: Admin JWT payload (required)
-        redis_client: Async Redis client (injected from app state)
-
-    Returns:
-        Created rule
-    """
-    user_id = admin_payload.get("sub")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing 'sub' claim in token",
-        )
-
-    meta_emitter = get_meta_emitter(redis_client)
+    """Create a new correlation rule (admin-only)."""
+    user_id = _require_user_id(admin_payload)
 
     service = RuleService(session, meta_emitter=meta_emitter)
     rule = await service.create_rule(
@@ -299,7 +216,7 @@ async def create_rule(
         severity=request.severity,
         description=request.description,
         enabled=request.enabled,
-        user_id=str(user_id),
+        user_id=user_id,
     )
 
     if rule is None:
@@ -316,30 +233,12 @@ async def create_rule(
 async def update_rule(
     rule_id: int,
     request: RuleUpdateRequest,
-    admin_payload: Annotated[dict, Depends(require_admin)],  # noqa: B008
-    session: AsyncSession = Depends(get_session),  # noqa: B008
-    redis_client: redis.Redis = Depends(get_redis_from_request),  # noqa: B008
+    admin_payload: AdminPayload,
+    session: SessionDep,
+    meta_emitter: MetaEmitterDep,
 ) -> RuleResponse:
-    """Update a correlation rule (admin-only).
-
-    Args:
-        rule_id: Rule ID
-        request: Rule update request
-        session: Database session
-        admin_payload: Admin JWT payload (required)
-        redis_client: Async Redis client (injected from app state)
-
-    Returns:
-        Updated rule
-    """
-    user_id = admin_payload.get("sub")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing 'sub' claim in token",
-        )
-
-    meta_emitter = get_meta_emitter(redis_client)
+    """Update a correlation rule (admin-only)."""
+    user_id = _require_user_id(admin_payload)
 
     service = RuleService(session, meta_emitter=meta_emitter)
 
@@ -353,7 +252,7 @@ async def update_rule(
             detail="No fields to update",
         )
 
-    rule = await service.update_rule(rule_id, updates, user_id=str(user_id))
+    rule = await service.update_rule(rule_id, updates, user_id=user_id)
 
     if rule is None:
         raise HTTPException(
@@ -367,29 +266,15 @@ async def update_rule(
 @router.delete("/rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_rule(
     rule_id: int,
-    admin_payload: Annotated[dict, Depends(require_admin)],  # noqa: B008
-    session: AsyncSession = Depends(get_session),  # noqa: B008
-    redis_client: redis.Redis = Depends(get_redis_from_request),  # noqa: B008
+    admin_payload: AdminPayload,
+    session: SessionDep,
+    meta_emitter: MetaEmitterDep,
 ) -> None:
-    """Delete a correlation rule (admin-only).
-
-    Args:
-        rule_id: Rule ID
-        session: Database session
-        admin_payload: Admin JWT payload (required)
-        redis_client: Async Redis client (injected from app state)
-    """
-    user_id = admin_payload.get("sub")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing 'sub' claim in token",
-        )
-
-    meta_emitter = get_meta_emitter(redis_client)
+    """Delete a correlation rule (admin-only)."""
+    user_id = _require_user_id(admin_payload)
 
     service = RuleService(session, meta_emitter=meta_emitter)
-    success = await service.delete_rule(rule_id, user_id=str(user_id))
+    success = await service.delete_rule(rule_id, user_id=user_id)
 
     if not success:
         raise HTTPException(
@@ -397,13 +282,3 @@ async def delete_rule(
         )
 
     await session.commit()
-
-
-@router.get("/health")
-async def health() -> dict[str, str]:
-    """Health check endpoint.
-
-    Returns:
-        Health status
-    """
-    return {"status": "ok"}

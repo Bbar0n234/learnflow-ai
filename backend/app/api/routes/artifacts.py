@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Annotated
 from urllib.parse import quote
 
 import anyio.to_thread
@@ -57,7 +58,7 @@ async def download_artifact(
     artifact_id: uuid.UUID,
     project: UserProject,
     service: ArtifactServiceDep,
-    format: str = Query(default="md", pattern="^(md|pdf)$"),
+    format: Annotated[str, Query(pattern="^(md|pdf)$")] = "md",
 ) -> Response:
     artifact = await service.get_artifact(artifact_id)
     if artifact.project_id != project.id:

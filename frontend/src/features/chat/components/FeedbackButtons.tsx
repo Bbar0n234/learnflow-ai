@@ -1,15 +1,22 @@
 import { useState } from "react";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
-import { submitFeedback } from "@/shared/api/feedback";
+import {
+  deleteFeedback,
+  setFeedback as putFeedback,
+} from "@/shared/api/feedback";
 import { logger } from "@/shared/lib/logger";
 import { cn } from "@/shared/lib/utils";
 
 interface FeedbackButtonsProps {
+  projectId: string;
+  chatId: string;
   traceId: string;
   initialScore?: boolean | null;
 }
 
 export function FeedbackButtons({
+  projectId,
+  chatId,
   traceId,
   initialScore = null,
 }: FeedbackButtonsProps) {
@@ -18,7 +25,11 @@ export function FeedbackButtons({
   function handleClick(value: boolean) {
     const next = feedback === value ? null : value;
     setFeedback(next);
-    submitFeedback(traceId, next).catch((err) => {
+    const request =
+      next === null
+        ? deleteFeedback(projectId, chatId, traceId)
+        : putFeedback(projectId, chatId, traceId, next);
+    request.catch((err) => {
       logger.warn("[feedback error]", err);
     });
   }

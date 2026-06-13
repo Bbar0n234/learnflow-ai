@@ -27,8 +27,14 @@ class ProjectService:
             raise EntityNotFoundError("Project", project_id)
         return project
 
-    async def list_projects(self, user_id: uuid.UUID) -> list[Project]:
-        return await self._project_repo.list_by_user(user_id)
+    async def list_projects(
+        self, user_id: uuid.UUID, *, limit: int = 50, offset: int = 0
+    ) -> tuple[list[Project], int]:
+        items = await self._project_repo.list_by_user(
+            user_id, limit=limit, offset=offset
+        )
+        total = await self._project_repo.count_by_user(user_id)
+        return items, total
 
     async def update_project(self, project_id: uuid.UUID, *, name: str) -> Project:
         project = await self.get_project(project_id)

@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.api.schemas.common import Page
+
 
 class InstructionsResponse(BaseModel):
     content: str
@@ -20,5 +22,5 @@ class MemoryItem(BaseModel):
     created_at: datetime
 
 
-class MemoryListResponse(BaseModel):
-    items: list[MemoryItem]
+class MemoryListResponse(Page[MemoryItem]):
+    pass

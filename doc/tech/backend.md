@@ -179,7 +179,7 @@ JWT + Refresh Token. Access token (short-lived, localStorage) для API-зап�
 | POST | `/projects/{id}/chats` | Создать чат в проекте |
 | GET | `/projects/{id}/chats` | Список чатов проекта |
 | GET | `/projects/{id}/chats/{cid}` | История чата (сообщения) |
-| GET | `/chats/recent?limit=10` | Недавние чаты пользователя (across projects, для sidebar) |
+| GET | `/chats/recent` | Недавние чаты пользователя (across projects, для sidebar) |
 
 #### Messages (ядро)
 
@@ -207,7 +207,7 @@ JWT + Refresh Token. Access token (short-lived, localStorage) для API-зап�
 | GET | `/projects/{id}/artifacts/{aid}` | Получить артефакт (метаданные + content) |
 | GET | `/projects/{id}/artifacts/{aid}/download?format=md\|pdf` | Скачать в формате |
 
-PDF — конвертация из Markdown на бэкенде (pandoc / weasyprint).
+PDF — конвертация из Markdown на бэкенде (pdfkit + wkhtmltopdf); блокирующий вызов уводится из event loop через `anyio.to_thread`.
 
 #### Models & Settings
 
@@ -254,8 +254,9 @@ Cascade visibility: project/thread list endpoints поддерживают `?inc
 
 Pydantic request/response модели. Сквозные соглашения:
 - **ID** — UUID для всех app-managed сущностей (включая ThreadView.thread_id). При вызовах LangGraph API — `str(thread_id)`.
-- **Списки** — обёртка `{ items: [...] }`, расширяемая пагинацией позже.
-- **Ошибки** — дефолт FastAPI (`{ detail: "..." }`, 422 с полями валидации).
+- **Списки** — единый envelope `{ items, total, limit, offset }` (generic `Page[T]` в `app/api/schemas/common.py`); query-параметры `limit` (default 50, max 200) и `offset` через общий dependency `Pagination`.
+- **Ошибки** — RFC 9457 Problem Details (`application/problem+json`): `{ type, title, status, detail, …extensions }`; глобальные handlers в `app/api/problem.py`. Детали — [conventions.md](conventions.md#rest-api).
+- **Ownership** — path-цепочка валидируется зависимостями `UserProject` / `UserThread` (404 на чужой ресурс).
 
 #### Projects
 

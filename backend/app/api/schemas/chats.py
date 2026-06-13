@@ -6,6 +6,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 from app.api.schemas.artifacts import ArtifactListItem
+from app.api.schemas.common import Page
 
 
 class ChatCreate(BaseModel):
@@ -22,8 +23,8 @@ class ChatResponse(BaseModel):
     security_blocked: bool = False
 
 
-class ChatListResponse(BaseModel):
-    items: list[ChatResponse]
+class ChatListResponse(Page[ChatResponse]):
+    pass
 
 
 class ChatRecentItem(BaseModel):
@@ -35,8 +36,8 @@ class ChatRecentItem(BaseModel):
     security_blocked: bool = False
 
 
-class ChatRecentResponse(BaseModel):
-    items: list[ChatRecentItem]
+class ChatRecentResponse(Page[ChatRecentItem]):
+    pass
 
 
 class MessageOut(BaseModel):

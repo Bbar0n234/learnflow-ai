@@ -1,10 +1,15 @@
 from __future__ import annotations
 
-import uuid
+from fastapi import APIRouter, status
 
-from fastapi import APIRouter, HTTPException, Query
-
-from app.api.deps import ArtifactServiceDep, ChatServiceDep, CurrentUser, UserProject
+from app.api.deps import (
+    ArtifactServiceDep,
+    ChatServiceDep,
+    CurrentUser,
+    Pagination,
+    UserProject,
+    UserThread,
+)
 from app.api.schemas.artifacts import ArtifactListItem
 from app.api.schemas.chats import (
     ChatCreate,
@@ -19,7 +24,11 @@ from app.api.schemas.chats import (
 router = APIRouter(tags=["chats"])
 
 
-@router.post("/projects/{project_id}/chats", response_model=ChatResponse)
+@router.post(
+    "/projects/{project_id}/chats",
+    response_model=ChatResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_chat(
     body: ChatCreate,
     project: UserProject,
@@ -34,25 +43,29 @@ async def create_chat(
 async def list_chats(
     project: UserProject,
     service: ChatServiceDep,
+    page: Pagination,
 ) -> ChatListResponse:
-    chats = await service.list_chats(project.id)
-    return ChatListResponse(items=[ChatResponse.model_validate(c) for c in chats])
+    chats, total = await service.list_chats(
+        project.id, limit=page.limit, offset=page.offset
+    )
+    return ChatListResponse(
+        items=[ChatResponse.model_validate(c) for c in chats],
+        total=total,
+        limit=page.limit,
+        offset=page.offset,
+    )
 
 
 @router.get("/projects/{project_id}/chats/{chat_id}", response_model=ChatDetailResponse)
 async def get_chat(
-    chat_id: uuid.UUID,
-    project: UserProject,
+    thread: UserThread,
     service: ChatServiceDep,
     artifact_service: ArtifactServiceDep,
 ) -> ChatDetailResponse:
-    chat_detail = await service.get_chat(chat_id)
-    # Verify chat belongs to this project
-    if chat_detail.thread_view.project_id != project.id:
-        raise HTTPException(status_code=404, detail="Chat not found")
+    chat_detail = await service.get_chat(thread.thread_id)
 
     # Get artifacts for this thread, group by message_id
-    artifacts = await artifact_service.list_by_thread(chat_id)
+    artifacts = await artifact_service.list_by_thread(thread.thread_id)
     artifacts_by_msg: dict[str | None, list[ArtifactListItem]] = {}
     for a in artifacts:
         artifacts_by_msg.setdefault(a.message_id, []).append(
@@ -89,9 +102,11 @@ async def get_chat(
 async def list_recent_chats(
     user: CurrentUser,
     service: ChatServiceDep,
-    limit: int = Query(default=10, ge=1, le=100),
+    page: Pagination,
 ) -> ChatRecentResponse:
-    thread_views = await service.list_recent(user.id, limit=limit)
+    thread_views, total = await service.list_recent(
+        user.id, limit=page.limit, offset=page.offset
+    )
     return ChatRecentResponse(
         items=[
             ChatRecentItem(
@@ -103,5 +118,8 @@ async def list_recent_chats(
                 security_blocked=tv.security_blocked,
             )
             for tv in thread_views
-        ]
+        ],
+        total=total,
+        limit=page.limit,
+        offset=page.offset,
     )

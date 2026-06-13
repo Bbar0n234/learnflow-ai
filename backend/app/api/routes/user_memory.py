@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
-from app.api.deps import CurrentUser
+from app.api.deps import CurrentUser, Pagination
 from app.api.schemas.user_memory import (
     InstructionsResponse,
     InstructionsUpdate,
@@ -56,9 +56,11 @@ async def delete_memory(
 async def list_memories(
     user: CurrentUser,
     request: Request,
+    page: Pagination,
 ) -> MemoryListResponse:
     svc = _get_memory_service(request)
-    items = await svc.list_memories(str(user.id))
+    memories = await svc.list_memories(str(user.id))
+    items = memories[page.offset : page.offset + page.limit]
     return MemoryListResponse(
         items=[
             MemoryItem(
@@ -68,5 +70,8 @@ async def list_memories(
                 created_at=i.created_at,
             )
             for i in items
-        ]
+        ],
+        total=len(memories),
+        limit=page.limit,
+        offset=page.offset,
     )

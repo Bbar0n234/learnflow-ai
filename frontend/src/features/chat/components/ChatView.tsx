@@ -81,6 +81,7 @@ export function ChatView() {
         activeTool={activeTool}
         streamingArtifacts={streamingArtifacts}
         projectId={id!}
+        chatId={cid!}
         streamError={streamError}
       />
       <ChatInput

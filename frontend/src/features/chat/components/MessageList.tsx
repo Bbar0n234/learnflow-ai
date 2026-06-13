@@ -14,6 +14,7 @@ interface MessageListProps {
   activeTool: string | null;
   streamingArtifacts: StreamingArtifact[];
   projectId: string;
+  chatId: string;
   streamError: string | null;
 }
 
@@ -24,6 +25,7 @@ export function MessageList({
   activeTool,
   streamingArtifacts,
   projectId,
+  chatId,
   streamError,
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -37,7 +39,12 @@ export function MessageList({
     <div className="flex-1 overflow-auto p-6">
       <div className="mx-auto flex max-w-3xl flex-col gap-4">
         {messages.map((msg) => (
-          <MessageItem key={msg.id} message={msg} projectId={projectId} />
+          <MessageItem
+            key={msg.id}
+            message={msg}
+            projectId={projectId}
+            chatId={chatId}
+          />
         ))}
 
         {isStreaming && (

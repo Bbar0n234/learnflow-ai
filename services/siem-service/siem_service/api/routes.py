@@ -40,6 +40,7 @@ def _require_user_id(admin_payload: dict) -> str:
 
 @router.get("/events", response_model=PaginatedEventsResponse)
 async def list_events(
+    admin_payload: AdminPayload,
     session: SessionDep,
     event_type: Annotated[str | None, Query(description="Filter by event type")] = None,
     severity: Annotated[str | None, Query(description="Filter by severity")] = None,
@@ -52,7 +53,7 @@ async def list_events(
     limit: LimitQuery = 50,
     offset: OffsetQuery = 0,
 ) -> PaginatedEventsResponse:
-    """List security events with filtering and pagination."""
+    """List security events with filtering and pagination (admin-only)."""
     filters = EventFilterParams(
         event_type=event_type,
         severity=severity,
@@ -133,13 +134,10 @@ async def patch_alert(
     session: SessionDep,
     meta_emitter: MetaEmitterDep,
 ) -> AlertResponse:
-    """Update alert status (admin-only)."""
-    if request.status not in ("acknowledged", "resolved"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Status must be 'acknowledged' or 'resolved'",
-        )
+    """Update alert status (admin-only).
 
+    Невалидный ``status`` отсекается схемой ``AlertPatchRequest`` (Literal → 422).
+    """
     user_id = _require_user_id(admin_payload)
 
     service = AlertService(session, meta_emitter=meta_emitter)
@@ -244,8 +242,9 @@ async def update_rule(
 
     service = RuleService(session, meta_emitter=meta_emitter)
 
-    # Filter out None values
-    updates = {k: v for k, v in request.model_dump().items() if v is not None}
+    # PATCH-семантика: применяем только явно переданные поля
+    # (exclude_unset позволяет в т.ч. занулить nullable-поле)
+    updates = request.model_dump(exclude_unset=True)
 
     if not updates:
         raise HTTPException(

@@ -33,8 +33,8 @@
 | Итерация | Статус | Scope | Закрывает |
 |----------|--------|-------|-----------|
 | feat-001 | ✅ Done | foundation | Skill Discovery + Layers & Abstractions Diagram |
-| feat-002 | 📋 Planned | backend / REST | REST API slice: api-design-principles skill + поглощение REST API cleanup (8 пунктов аудита 2026-04-04) |
-| feat-003 | 📋 Planned | db | DB slice: postgresql skill, индексы, constraints, типы, паттерны миграций |
+| feat-002 | ✅ Done | backend / REST | REST API slice: api-design-principles skill + поглощение REST API cleanup (8 пунктов аудита 2026-04-04) |
+| feat-003 | ✅ Done | db | DB slice: postgresql skill, индексы, constraints, типы, паттерны миграций |
 | feat-004 | ✅ Done | backend / fastapi | Backend/FastAPI slice: fastapi skill + поглощение точечных техдолгов (SIEM MetaEmitter, дубль SecurityEvent, CORS_ORIGINS, SIEM follow-ups) |
 | feat-005 | 📋 Planned | agent | Agent runtime slice: langgraph-patterns (авторский) + кандидаты langgraph-* от langchain-ai + поглощение Reasoning ChatOpenAI everywhere (langchain-architecture отклонён в feat-001) |
 | feat-006 | 📋 Planned | frontend | Frontend slice: skill discovery for frontend, ручной slice если skill отсутствует |
@@ -114,7 +114,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** привести REST API к best practices через `api-design-principles` skill, закрыть существующий аудит 2026-04-04.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done — итоги в [summary.md](iterations/codebase-maturity/feat-002-rest-api/summary.md)
 **Scope:** backend / REST
 **Зависимости:** feat-001
 
@@ -139,13 +139,13 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 #### Definition of Done
 
-- [ ] Skill `api-design-principles` применён к коду проекта: аудит endpoints против его принципов, findings на конкретных примерах.
-- [ ] Все 8 пунктов аудита 2026-04-04 либо закрыты, либо явно отложены с обоснованием.
-- [ ] Status codes везде корректны (201 на POST create, 204 на DELETE без body, и т.д.).
-- [ ] List responses везде имеют единый envelope с pagination metadata.
-- [ ] REST-конвенции добавлены в `doc/tech/conventions.md`.
-- [ ] Тест-кейсы на затронутые endpoints составлены до правок и прогнаны после (контрактные проверки: status codes, envelope, pagination).
-- [ ] Точки остановки на теорию пройдены и (если решено архитектурно) зафиксированы.
+- [x] Skill `api-design-principles` применён к коду проекта: аудит endpoints против его принципов, findings на конкретных примерах (включая 4 ownership/authz-дыры сверх бэклога).
+- [x] Все 8 пунктов аудита 2026-04-04 либо закрыты, либо явно отложены с обоснованием (полный список из 8 не был сохранён; 4 зафиксированных закрыты, остальное перекрыто повторным аудитом — см. summary).
+- [x] Status codes везде корректны (201 на POST create, 204 на DELETE без body, 409 на конфликт лимита; auth-endpoints — RPC-исключение по решению архитектора).
+- [x] List responses везде имеют единый envelope с pagination metadata (`Page[T]`: items/total/limit/offset, оба сервиса).
+- [x] REST-конвенции добавлены в `doc/tech/conventions.md` (§ REST API).
+- [x] Тест-кейсы на затронутые endpoints составлены до правок и прогнаны после — 57 pass / 1 fail (environmental, PDF) / 2 deferred 👤 ([test-cases.md](iterations/codebase-maturity/feat-002-rest-api/test-cases.md)).
+- [x] Точки остановки на теорию пройдены: pagination offset/limit vs cursor, RFC 9457 vs custom envelope, versioning policy — решения зафиксированы в conventions.md.
 
 ---
 
@@ -153,7 +153,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** аудит схемы БД и query-паттернов через `postgresql` skill, формирование DB-конвенций.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done — итоги в [summary.md](iterations/codebase-maturity/feat-003-db/summary.md)
 **Scope:** db
 **Зависимости:** feat-001
 
@@ -178,12 +178,12 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 #### Definition of Done
 
-- [ ] Skill `postgresql` применён к коду проекта: аудит схемы и запросов против его принципов, findings на конкретных примерах.
-- [ ] Аудит схемы и query-паттернов проведён, findings зафиксированы.
-- [ ] Критичные индексы добавлены (если выявлены пропуски).
-- [ ] DB-конвенции добавлены в `doc/tech/conventions.md`.
-- [ ] Тест-кейсы на затронутые участки составлены и прогнаны (миграции применяются и откатываются, затронутые запросы возвращают прежние результаты).
-- [ ] Точки остановки на теорию пройдены.
+- [x] Skill `postgresql` применён к коду проекта: аудит схемы и запросов против его принципов, findings на конкретных примерах.
+- [x] Аудит схемы и query-паттернов проведён, findings зафиксированы.
+- [x] Критичные индексы добавлены (если выявлены пропуски).
+- [x] DB-конвенции добавлены в `doc/tech/conventions.md`.
+- [x] Тест-кейсы на затронутые участки составлены и прогнаны (миграции применяются и откатываются, затронутые запросы возвращают прежние результаты).
+- [x] Точки остановки на теорию пройдены.
 
 ---
 

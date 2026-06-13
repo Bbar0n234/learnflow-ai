@@ -7,7 +7,7 @@ from urllib.parse import quote
 import anyio.to_thread
 from fastapi import APIRouter, HTTPException, Query, Response
 
-from app.api.deps import ArtifactServiceDep, UserProject
+from app.api.deps import ArtifactServiceDep, Pagination, UserProject
 from app.api.export import convert_md_to_pdf
 from app.api.schemas.artifacts import (
     ArtifactDetailResponse,
@@ -25,10 +25,16 @@ router = APIRouter(tags=["artifacts"])
 async def list_artifacts(
     project: UserProject,
     service: ArtifactServiceDep,
+    page: Pagination,
 ) -> ArtifactListResponse:
-    artifacts = await service.list_artifacts(project.id)
+    artifacts, total = await service.list_artifacts(
+        project.id, limit=page.limit, offset=page.offset
+    )
     return ArtifactListResponse(
-        items=[ArtifactListItem.model_validate(a) for a in artifacts]
+        items=[ArtifactListItem.model_validate(a) for a in artifacts],
+        total=total,
+        limit=page.limit,
+        offset=page.offset,
     )
 
 
@@ -63,7 +69,7 @@ async def download_artifact(
         return f"attachment; filename*=UTF-8''{encoded}"
 
     if format == "pdf":
-        # wkhtmltopdf — блокирующий вызов, уводим из event loop
+        # wkhtmltopdf — блокирующий вызов (~5s javascript-delay), уводим из event loop
         pdf_bytes = await anyio.to_thread.run_sync(convert_md_to_pdf, artifact.content)
         return Response(
             content=pdf_bytes,

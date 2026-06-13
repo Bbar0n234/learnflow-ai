@@ -7,7 +7,8 @@ import type {
 } from "./types";
 
 export async function getProjects(): Promise<ListResponse<Project>> {
-  return (await apiClient.get("/projects")).data;
+  // UI без постраничной подгрузки: берём максимум за один запрос
+  return (await apiClient.get("/projects", { params: { limit: 200 } })).data;
 }
 
 export async function getProject(id: string): Promise<Project> {

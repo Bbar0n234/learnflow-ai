@@ -17,8 +17,14 @@ class ArtifactService:
             raise EntityNotFoundError("Artifact", artifact_id)
         return artifact
 
-    async def list_artifacts(self, project_id: uuid.UUID) -> list[Artifact]:
-        return await self._artifact_repo.list_by_project(project_id)
+    async def list_artifacts(
+        self, project_id: uuid.UUID, *, limit: int = 50, offset: int = 0
+    ) -> tuple[list[Artifact], int]:
+        items = await self._artifact_repo.list_by_project(
+            project_id, limit=limit, offset=offset
+        )
+        total = await self._artifact_repo.count_by_project(project_id)
+        return items, total
 
     async def list_by_thread(self, thread_id: uuid.UUID) -> list[Artifact]:
         return await self._artifact_repo.list_by_thread(thread_id)

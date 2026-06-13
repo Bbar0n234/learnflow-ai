@@ -49,6 +49,7 @@ from app.agent.tools import (
     scan_skills_index,
     user_memory_tools,
 )
+from app.api.problem import problem_response, register_problem_handlers
 from app.api.routes import (
     artifacts,
     auth,
@@ -525,12 +526,14 @@ def create_app() -> FastAPI:
         response = await call_next(request)
         return response
 
-    # Exception handlers
+    # Exception handlers — RFC 9457 problem+json
+    register_problem_handlers(app)
+
     @app.exception_handler(EntityNotFoundError)
     async def entity_not_found_handler(
         request: object, exc: EntityNotFoundError
     ) -> JSONResponse:
-        return JSONResponse(status_code=404, content={"detail": str(exc)})
+        return problem_response(status=404, detail=str(exc))
 
     # Health check
     @app.get("/health")

@@ -9,6 +9,7 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from siem_service.api.problem import register_problem_handlers
 from siem_service.api.routes import router
 from siem_service.config import Settings
 from siem_service.correlation.engine import CorrelationEngine
@@ -103,6 +104,9 @@ def create_app() -> FastAPI:
     settings = Settings()
     app = FastAPI(title="SIEM Service", version="0.1.0", lifespan=lifespan)
     app.state.settings = settings
+
+    # Exception handlers — RFC 9457 problem+json
+    register_problem_handlers(app)
 
     # CORS — allow frontend to access SIEM API
     app.add_middleware(

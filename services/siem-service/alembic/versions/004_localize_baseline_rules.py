@@ -1,3 +1,4 @@
+# Manual migration: DML data migration (локализация описаний правил) — не покрывается autogenerate
 """localize baseline correlation rules descriptions
 
 Revision ID: 004

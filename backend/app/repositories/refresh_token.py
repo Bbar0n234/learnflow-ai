@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.refresh_token import RefreshToken
@@ -29,6 +29,16 @@ class RefreshTokenRepository:
             update(RefreshToken)
             .where(RefreshToken.id == token_id)
             .values(revoked_at=datetime.now(UTC))
+        )
+
+    async def delete_expired_for_user(self, user_id: uuid.UUID) -> None:
+        """Оппортунистическая чистка: протухшие токены пользователя (включая
+        отозванные — их expires_at истекает естественно)."""
+        await self._session.execute(
+            delete(RefreshToken).where(
+                RefreshToken.user_id == user_id,
+                RefreshToken.expires_at < datetime.now(UTC),
+            )
         )
 
     async def revoke_all_for_user(self, user_id: uuid.UUID) -> None:

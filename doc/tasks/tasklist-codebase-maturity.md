@@ -33,7 +33,7 @@
 | Итерация | Статус | Scope | Закрывает |
 |----------|--------|-------|-----------|
 | feat-001 | ✅ Done | foundation | Skill Discovery + Layers & Abstractions Diagram |
-| feat-002 | 🚧 In Progress | backend / REST | REST API slice: api-design-principles skill + поглощение REST API cleanup (8 пунктов аудита 2026-04-04) |
+| feat-002 | ✅ Done | backend / REST | REST API slice: api-design-principles skill + поглощение REST API cleanup (8 пунктов аудита 2026-04-04) |
 | feat-003 | 📋 Planned | db | DB slice: postgresql skill, индексы, constraints, типы, паттерны миграций |
 | feat-004 | 📋 Planned | backend / fastapi | Backend/FastAPI slice: fastapi skill + поглощение точечных техдолгов (SIEM MetaEmitter, дубль SecurityEvent, CORS_ORIGINS, SIEM follow-ups) |
 | feat-005 | 📋 Planned | agent | Agent runtime slice: langgraph-patterns (авторский) + кандидаты langgraph-* от langchain-ai + поглощение Reasoning ChatOpenAI everywhere (langchain-architecture отклонён в feat-001) |
@@ -114,7 +114,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** привести REST API к best practices через `api-design-principles` skill, закрыть существующий аудит 2026-04-04.
 
-**Статус:** 🚧 In Progress — реализовано, PR в develop, merge за архитектором; итоги в [summary.md](iterations/codebase-maturity/feat-002-rest-api/summary.md)
+**Статус:** ✅ Done — итоги в [summary.md](iterations/codebase-maturity/feat-002-rest-api/summary.md)
 **Scope:** backend / REST
 **Зависимости:** feat-001
 

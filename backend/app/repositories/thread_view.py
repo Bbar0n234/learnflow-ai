@@ -74,7 +74,11 @@ class ThreadViewRepository:
 
     async def touch(self, thread_view: ThreadView) -> None:
         """Update updated_at without changing other fields."""
-        thread_view.title = thread_view.title  # mark dirty to trigger onupdate
+        await self._session.execute(
+            update(ThreadView)
+            .where(ThreadView.thread_id == thread_view.thread_id)
+            .values(updated_at=func.now())
+        )
         await self._session.flush()
         await self._session.refresh(thread_view)
 

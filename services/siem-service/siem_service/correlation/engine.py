@@ -1,14 +1,16 @@
 """Correlation engine for alert generation."""
 
 import asyncio
+from datetime import UTC, datetime, timedelta
 
 import structlog
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
 
+from siem_service.config import get_settings
 from siem_service.correlation.deduper import AlertDeduper
 from siem_service.correlation.strategies import get_strategy
-from siem_service.domain.models import CorrelationRule
+from siem_service.domain.models import CorrelationRule, SiemAlert
 from siem_service.infra.db import get_async_session_maker
 
 logger = structlog.get_logger()
@@ -49,6 +51,8 @@ class CorrelationEngine:
         """Load active rules and evaluate each one."""
         session_maker = get_async_session_maker()
         async with session_maker() as session:
+            await self._expire_stale_alerts(session)
+
             # Load all enabled rules
             query = select(CorrelationRule).where(CorrelationRule.enabled.is_(True))
             result = await session.execute(query)
@@ -69,13 +73,34 @@ class CorrelationEngine:
             # Commit all alert changes
             await session.commit()
 
+    async def _expire_stale_alerts(self, session: AsyncSession) -> None:
+        """Перевести открытые алерты старше окна в `expired`.
+
+        Открытый алерт перестаёт принимать дозаписи по истечении окна —
+        следующее срабатывание правила поднимет свежий `new`-алерт (политика
+        «застоявшееся должно перевсплыть»). Поддерживает инвариант частичного
+        уникального индекса uq_siem_alerts_open_alert.
+        """
+        threshold = datetime.now(UTC) - timedelta(
+            seconds=get_settings().alert_open_window_seconds
+        )
+        result = await session.execute(
+            update(SiemAlert)
+            .where(SiemAlert.status == "new", SiemAlert.created_at < threshold)
+            .values(status="expired")
+            .returning(SiemAlert.id)
+        )
+        expired_ids = result.scalars().all()
+        if expired_ids:
+            logger.info("alerts_expired", count=len(expired_ids))
+
     async def _evaluate_single_rule(
         self,
         rule: CorrelationRule,
         session: AsyncSession,
     ) -> None:
         """Evaluate a single rule."""
-        strategy = get_strategy(rule.rule_type)  # type: ignore[arg-type]  # rule_type is SQLAlchemy Column[str], not literal str
+        strategy = get_strategy(rule.rule_type)
 
         # Get alert candidates from strategy
         candidates = await strategy.evaluate(rule, session)

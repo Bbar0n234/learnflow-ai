@@ -71,7 +71,9 @@ class AlertResponse(BaseModel):
     id: int = Field(..., description="Alert ID")
     rule_id: int = Field(..., description="Correlation rule ID")
     severity: str = Field(..., description="Severity level")
-    status: str = Field(..., description="Alert status (new, acknowledged, resolved)")
+    status: str = Field(
+        ..., description="Alert status (new, acknowledged, resolved, expired)"
+    )
     group_key: str | None = Field(None, description="Grouping key if applicable")
     matched_events_count: int = Field(..., description="Number of matched events")
     first_event_id: UUID = Field(..., description="First matched event ID")

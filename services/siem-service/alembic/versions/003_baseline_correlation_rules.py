@@ -1,3 +1,4 @@
+# Manual migration: DML seed данных (baseline-правила) — не покрывается autogenerate
 """baseline correlation rules seed
 
 Revision ID: 003

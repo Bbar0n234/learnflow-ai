@@ -30,7 +30,9 @@ _redis_client: redis.Redis | None = None
 async def _subscriber_coro(redis_client: redis.Redis, settings: Settings) -> None:
     """Coroutine for subscriber task."""
     # Create a separate engine for the subscriber to avoid connection pool issues
-    engine = create_async_engine(settings.database_url, echo=False, future=True)
+    engine = create_async_engine(
+        settings.database_url, echo=False, future=True, pool_pre_ping=True
+    )
     async_session_maker = async_sessionmaker(engine, expire_on_commit=False)
 
     try:

@@ -34,7 +34,7 @@
 |----------|--------|-------|-----------|
 | feat-001 | ✅ Done | foundation | Skill Discovery + Layers & Abstractions Diagram |
 | feat-002 | ✅ Done | backend / REST | REST API slice: api-design-principles skill + поглощение REST API cleanup (8 пунктов аудита 2026-04-04) |
-| feat-003 | 🚧 In Progress | db | DB slice: postgresql skill, индексы, constraints, типы, паттерны миграций |
+| feat-003 | ✅ Done | db | DB slice: postgresql skill, индексы, constraints, типы, паттерны миграций |
 | feat-004 | 📋 Planned | backend / fastapi | Backend/FastAPI slice: fastapi skill + поглощение точечных техдолгов (SIEM MetaEmitter, дубль SecurityEvent, CORS_ORIGINS, SIEM follow-ups) |
 | feat-005 | 📋 Planned | agent | Agent runtime slice: langgraph-patterns (авторский) + кандидаты langgraph-* от langchain-ai + поглощение Reasoning ChatOpenAI everywhere (langchain-architecture отклонён в feat-001) |
 | feat-006 | 📋 Planned | frontend | Frontend slice: skill discovery for frontend, ручной slice если skill отсутствует |
@@ -153,7 +153,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** аудит схемы БД и query-паттернов через `postgresql` skill, формирование DB-конвенций.
 
-**Статус:** 🚧 In Progress — реализация завершена, PR в develop ждёт ревью/merge архитектора; итоги в [summary.md](iterations/codebase-maturity/feat-003-db/summary.md)
+**Статус:** ✅ Done — итоги в [summary.md](iterations/codebase-maturity/feat-003-db/summary.md)
 **Scope:** db
 **Зависимости:** feat-001
 

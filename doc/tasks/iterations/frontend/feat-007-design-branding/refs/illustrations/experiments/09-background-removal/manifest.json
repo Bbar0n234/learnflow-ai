@@ -1,0 +1,2569 @@
+{
+  "generated_at": "2026-06-13T14:17:07+0300",
+  "python": "3.12.12 (main, Oct 14 2025, 21:25:31) [Clang 20.1.4 ]",
+  "runs": [
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/welcome-hero.png",
+      "theme": "light",
+      "scene": "welcome-hero",
+      "method": "imagemagick-exact",
+      "parameters": {
+        "fuzz_percent": 0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/light/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/light/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/light/welcome-hero/preview.png",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/light/welcome-hero/recomposite.png"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          240.0,
+          228.0
+        ],
+        "mae": 0.0,
+        "rmse": 0.0,
+        "alpha_zero_fraction": 0.118745,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.881255,
+        "elapsed_seconds": 0.613,
+        "peak_rss_mb": 179.5,
+        "output_bytes": 1437497
+      },
+      "artifacts_retained": false,
+      "retention_note": "Метрики сохранены; дублирующие outputs удалены после ревью."
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/welcome-hero.png",
+      "theme": "light",
+      "scene": "welcome-hero",
+      "method": "imagemagick-fuzz-2",
+      "parameters": {
+        "fuzz_percent": 2
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/light/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/light/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/light/welcome-hero/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/light/welcome-hero/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          240.0,
+          228.0
+        ],
+        "mae": 0.4273,
+        "rmse": 0.7735,
+        "alpha_zero_fraction": 0.799396,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.200604,
+        "elapsed_seconds": 0.536,
+        "peak_rss_mb": 180.5,
+        "output_bytes": 1360953
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/welcome-hero.png",
+      "theme": "light",
+      "scene": "welcome-hero",
+      "method": "imagemagick-fuzz-4",
+      "parameters": {
+        "fuzz_percent": 4
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/light/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/light/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/light/welcome-hero/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/light/welcome-hero/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          240.0,
+          228.0
+        ],
+        "mae": 0.4999,
+        "rmse": 1.1202,
+        "alpha_zero_fraction": 0.811286,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.188714,
+        "elapsed_seconds": 0.535,
+        "peak_rss_mb": 180.5,
+        "output_bytes": 1360454
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/welcome-hero.png",
+      "theme": "light",
+      "scene": "welcome-hero",
+      "method": "imagemagick-fuzz-6",
+      "parameters": {
+        "fuzz_percent": 6
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/light/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/light/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/light/welcome-hero/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/light/welcome-hero/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          240.0,
+          228.0
+        ],
+        "mae": 0.5592,
+        "rmse": 1.4685,
+        "alpha_zero_fraction": 0.816935,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.183065,
+        "elapsed_seconds": 0.537,
+        "peak_rss_mb": 180.5,
+        "output_bytes": 1360550
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/welcome-hero.png",
+      "theme": "light",
+      "scene": "welcome-hero",
+      "method": "soft-tight",
+      "parameters": {
+        "low_rgb_distance": 5.0,
+        "high_rgb_distance": 18.0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/light/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/light/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/light/welcome-hero/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/light/welcome-hero/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          240.0,
+          228.0
+        ],
+        "mae": 0.4305,
+        "rmse": 0.7689,
+        "alpha_zero_fraction": 0.787807,
+        "alpha_partial_fraction": 0.012389,
+        "alpha_opaque_fraction": 0.199804,
+        "elapsed_seconds": 0.083,
+        "peak_rss_mb": 180.5,
+        "output_bytes": 1385516
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/welcome-hero.png",
+      "theme": "light",
+      "scene": "welcome-hero",
+      "method": "decontam-tight",
+      "parameters": {
+        "low_rgb_distance": 5.0,
+        "high_rgb_distance": 18.0,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/light/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/light/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/light/welcome-hero/preview.png",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/light/welcome-hero/recomposite.png"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          240.0,
+          228.0
+        ],
+        "mae": 0.498,
+        "rmse": 0.7629,
+        "alpha_zero_fraction": 0.787807,
+        "alpha_partial_fraction": 0.012389,
+        "alpha_opaque_fraction": 0.199804,
+        "elapsed_seconds": 0.239,
+        "peak_rss_mb": 216.5,
+        "output_bytes": 650254
+      },
+      "artifacts_retained": false,
+      "retention_note": "Метрики сохранены; дублирующие outputs удалены после ревью."
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/welcome-hero.png",
+      "theme": "light",
+      "scene": "welcome-hero",
+      "method": "soft-balanced",
+      "parameters": {
+        "low_rgb_distance": 8.0,
+        "high_rgb_distance": 28.0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/light/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/light/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/light/welcome-hero/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/light/welcome-hero/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          240.0,
+          228.0
+        ],
+        "mae": 0.4543,
+        "rmse": 0.8762,
+        "alpha_zero_fraction": 0.793658,
+        "alpha_partial_fraction": 0.009223,
+        "alpha_opaque_fraction": 0.197119,
+        "elapsed_seconds": 0.093,
+        "peak_rss_mb": 216.5,
+        "output_bytes": 1378784
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/welcome-hero.png",
+      "theme": "light",
+      "scene": "welcome-hero",
+      "method": "decontam-balanced",
+      "parameters": {
+        "low_rgb_distance": 8.0,
+        "high_rgb_distance": 28.0,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/light/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/light/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/light/welcome-hero/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/light/welcome-hero/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          240.0,
+          228.0
+        ],
+        "mae": 0.5223,
+        "rmse": 0.8399,
+        "alpha_zero_fraction": 0.793658,
+        "alpha_partial_fraction": 0.009223,
+        "alpha_opaque_fraction": 0.197119,
+        "elapsed_seconds": 0.293,
+        "peak_rss_mb": 219.6,
+        "output_bytes": 621179
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/welcome-hero.png",
+      "theme": "light",
+      "scene": "welcome-hero",
+      "method": "soft-wide",
+      "parameters": {
+        "low_rgb_distance": 12.0,
+        "high_rgb_distance": 42.0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/light/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/light/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/light/welcome-hero/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/light/welcome-hero/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          240.0,
+          228.0
+        ],
+        "mae": 0.5466,
+        "rmse": 1.1459,
+        "alpha_zero_fraction": 0.800204,
+        "alpha_partial_fraction": 0.036546,
+        "alpha_opaque_fraction": 0.16325,
+        "elapsed_seconds": 0.085,
+        "peak_rss_mb": 219.6,
+        "output_bytes": 1408403
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/welcome-hero.png",
+      "theme": "light",
+      "scene": "welcome-hero",
+      "method": "decontam-wide",
+      "parameters": {
+        "low_rgb_distance": 12.0,
+        "high_rgb_distance": 42.0,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/light/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/light/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/light/welcome-hero/preview.png",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/light/welcome-hero/recomposite.png"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          240.0,
+          228.0
+        ],
+        "mae": 0.5724,
+        "rmse": 1.0016,
+        "alpha_zero_fraction": 0.800204,
+        "alpha_partial_fraction": 0.036546,
+        "alpha_opaque_fraction": 0.16325,
+        "elapsed_seconds": 0.29,
+        "peak_rss_mb": 224.1,
+        "output_bytes": 626485
+      },
+      "artifacts_retained": false,
+      "retention_note": "Метрики сохранены; дублирующие outputs удалены после ревью."
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/welcome-hero.png",
+      "theme": "light",
+      "scene": "welcome-hero",
+      "method": "pymatting-knn-balanced",
+      "parameters": {
+        "base": "soft-balanced",
+        "algorithm": "estimate_alpha_knn",
+        "max_dimension": 800,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/light/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/light/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/light/welcome-hero/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/light/welcome-hero/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          240.0,
+          228.0
+        ],
+        "mae": 0.5926,
+        "rmse": 1.4815,
+        "alpha_zero_fraction": 0.782274,
+        "alpha_partial_fraction": 0.066466,
+        "alpha_opaque_fraction": 0.15126,
+        "elapsed_seconds": 5.955,
+        "peak_rss_mb": 1524.8,
+        "output_bytes": 684516
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-sphere.png",
+      "theme": "light",
+      "scene": "empty-sphere",
+      "method": "imagemagick-exact",
+      "parameters": {
+        "fuzz_percent": 0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/light/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/light/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/light/empty-sphere/preview.png",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/light/empty-sphere/recomposite.png"
+      },
+      "metrics": {
+        "background_rgb": [
+          253.0,
+          241.0,
+          228.0
+        ],
+        "mae": 0.0,
+        "rmse": 0.0,
+        "alpha_zero_fraction": 0.083267,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.916733,
+        "elapsed_seconds": 0.694,
+        "peak_rss_mb": 1524.8,
+        "output_bytes": 2314387
+      },
+      "artifacts_retained": false,
+      "retention_note": "Метрики сохранены; дублирующие outputs удалены после ревью."
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-sphere.png",
+      "theme": "light",
+      "scene": "empty-sphere",
+      "method": "imagemagick-fuzz-2",
+      "parameters": {
+        "fuzz_percent": 2
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/light/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/light/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/light/empty-sphere/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/light/empty-sphere/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          253.0,
+          241.0,
+          228.0
+        ],
+        "mae": 0.4613,
+        "rmse": 0.906,
+        "alpha_zero_fraction": 0.576357,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.423643,
+        "elapsed_seconds": 0.616,
+        "peak_rss_mb": 1524.8,
+        "output_bytes": 2228910
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-sphere.png",
+      "theme": "light",
+      "scene": "empty-sphere",
+      "method": "imagemagick-fuzz-4",
+      "parameters": {
+        "fuzz_percent": 4
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/light/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/light/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/light/empty-sphere/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/light/empty-sphere/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          253.0,
+          241.0,
+          228.0
+        ],
+        "mae": 0.5358,
+        "rmse": 1.2119,
+        "alpha_zero_fraction": 0.587986,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.412014,
+        "elapsed_seconds": 0.611,
+        "peak_rss_mb": 1524.8,
+        "output_bytes": 2228890
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-sphere.png",
+      "theme": "light",
+      "scene": "empty-sphere",
+      "method": "imagemagick-fuzz-6",
+      "parameters": {
+        "fuzz_percent": 6
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/light/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/light/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/light/empty-sphere/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/light/empty-sphere/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          253.0,
+          241.0,
+          228.0
+        ],
+        "mae": 0.6788,
+        "rmse": 1.931,
+        "alpha_zero_fraction": 0.600656,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.399344,
+        "elapsed_seconds": 0.613,
+        "peak_rss_mb": 1524.8,
+        "output_bytes": 2231276
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-sphere.png",
+      "theme": "light",
+      "scene": "empty-sphere",
+      "method": "soft-tight",
+      "parameters": {
+        "low_rgb_distance": 5.0,
+        "high_rgb_distance": 18.0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/light/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/light/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/light/empty-sphere/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/light/empty-sphere/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          253.0,
+          241.0,
+          228.0
+        ],
+        "mae": 0.4599,
+        "rmse": 0.8913,
+        "alpha_zero_fraction": 0.552477,
+        "alpha_partial_fraction": 0.019894,
+        "alpha_opaque_fraction": 0.427629,
+        "elapsed_seconds": 0.074,
+        "peak_rss_mb": 1524.8,
+        "output_bytes": 2271881
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-sphere.png",
+      "theme": "light",
+      "scene": "empty-sphere",
+      "method": "decontam-tight",
+      "parameters": {
+        "low_rgb_distance": 5.0,
+        "high_rgb_distance": 18.0,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/light/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/light/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/light/empty-sphere/preview.png",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/light/empty-sphere/recomposite.png"
+      },
+      "metrics": {
+        "background_rgb": [
+          253.0,
+          241.0,
+          228.0
+        ],
+        "mae": 0.562,
+        "rmse": 0.8801,
+        "alpha_zero_fraction": 0.552477,
+        "alpha_partial_fraction": 0.019894,
+        "alpha_opaque_fraction": 0.427629,
+        "elapsed_seconds": 0.158,
+        "peak_rss_mb": 1524.8,
+        "output_bytes": 1519356
+      },
+      "artifacts_retained": false,
+      "retention_note": "Метрики сохранены; дублирующие outputs удалены после ревью."
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-sphere.png",
+      "theme": "light",
+      "scene": "empty-sphere",
+      "method": "soft-balanced",
+      "parameters": {
+        "low_rgb_distance": 8.0,
+        "high_rgb_distance": 28.0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/light/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/light/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/light/empty-sphere/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/light/empty-sphere/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          253.0,
+          241.0,
+          228.0
+        ],
+        "mae": 0.4946,
+        "rmse": 1.0255,
+        "alpha_zero_fraction": 0.56288,
+        "alpha_partial_fraction": 0.013523,
+        "alpha_opaque_fraction": 0.423597,
+        "elapsed_seconds": 0.073,
+        "peak_rss_mb": 1524.8,
+        "output_bytes": 2250748
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-sphere.png",
+      "theme": "light",
+      "scene": "empty-sphere",
+      "method": "decontam-balanced",
+      "parameters": {
+        "low_rgb_distance": 8.0,
+        "high_rgb_distance": 28.0,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/light/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/light/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/light/empty-sphere/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/light/empty-sphere/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          253.0,
+          241.0,
+          228.0
+        ],
+        "mae": 0.5992,
+        "rmse": 0.979,
+        "alpha_zero_fraction": 0.56288,
+        "alpha_partial_fraction": 0.013523,
+        "alpha_opaque_fraction": 0.423597,
+        "elapsed_seconds": 0.152,
+        "peak_rss_mb": 1524.8,
+        "output_bytes": 1465482
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-sphere.png",
+      "theme": "light",
+      "scene": "empty-sphere",
+      "method": "soft-wide",
+      "parameters": {
+        "low_rgb_distance": 12.0,
+        "high_rgb_distance": 42.0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/light/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/light/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/light/empty-sphere/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/light/empty-sphere/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          253.0,
+          241.0,
+          228.0
+        ],
+        "mae": 0.6118,
+        "rmse": 1.378,
+        "alpha_zero_fraction": 0.573454,
+        "alpha_partial_fraction": 0.031305,
+        "alpha_opaque_fraction": 0.395241,
+        "elapsed_seconds": 0.074,
+        "peak_rss_mb": 1524.8,
+        "output_bytes": 2283351
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-sphere.png",
+      "theme": "light",
+      "scene": "empty-sphere",
+      "method": "decontam-wide",
+      "parameters": {
+        "low_rgb_distance": 12.0,
+        "high_rgb_distance": 42.0,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/light/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/light/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/light/empty-sphere/preview.png",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/light/empty-sphere/recomposite.png"
+      },
+      "metrics": {
+        "background_rgb": [
+          253.0,
+          241.0,
+          228.0
+        ],
+        "mae": 0.6659,
+        "rmse": 1.1935,
+        "alpha_zero_fraction": 0.573454,
+        "alpha_partial_fraction": 0.031305,
+        "alpha_opaque_fraction": 0.395241,
+        "elapsed_seconds": 0.153,
+        "peak_rss_mb": 1524.8,
+        "output_bytes": 1461248
+      },
+      "artifacts_retained": false,
+      "retention_note": "Метрики сохранены; дублирующие outputs удалены после ревью."
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-sphere.png",
+      "theme": "light",
+      "scene": "empty-sphere",
+      "method": "pymatting-knn-balanced",
+      "parameters": {
+        "base": "soft-balanced",
+        "algorithm": "estimate_alpha_knn",
+        "max_dimension": 800,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/light/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/light/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/light/empty-sphere/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/light/empty-sphere/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          253.0,
+          241.0,
+          228.0
+        ],
+        "mae": 1.0822,
+        "rmse": 2.0401,
+        "alpha_zero_fraction": 0.551043,
+        "alpha_partial_fraction": 0.407677,
+        "alpha_opaque_fraction": 0.041281,
+        "elapsed_seconds": 5.655,
+        "peak_rss_mb": 1750.1,
+        "output_bytes": 1542237
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-artifacts.png",
+      "theme": "light",
+      "scene": "empty-artifacts",
+      "method": "imagemagick-exact",
+      "parameters": {
+        "fuzz_percent": 0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/light/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/light/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/light/empty-artifacts/preview.png",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/light/empty-artifacts/recomposite.png"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          238.0,
+          224.0
+        ],
+        "mae": 0.0,
+        "rmse": 0.0,
+        "alpha_zero_fraction": 0.058499,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.941501,
+        "elapsed_seconds": 0.661,
+        "peak_rss_mb": 1750.1,
+        "output_bytes": 2141388
+      },
+      "artifacts_retained": false,
+      "retention_note": "Метрики сохранены; дублирующие outputs удалены после ревью."
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-artifacts.png",
+      "theme": "light",
+      "scene": "empty-artifacts",
+      "method": "imagemagick-fuzz-2",
+      "parameters": {
+        "fuzz_percent": 2
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/light/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/light/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/light/empty-artifacts/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/light/empty-artifacts/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          238.0,
+          224.0
+        ],
+        "mae": 0.4489,
+        "rmse": 0.8562,
+        "alpha_zero_fraction": 0.598061,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.401939,
+        "elapsed_seconds": 0.612,
+        "peak_rss_mb": 1750.1,
+        "output_bytes": 2069289
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-artifacts.png",
+      "theme": "light",
+      "scene": "empty-artifacts",
+      "method": "imagemagick-fuzz-4",
+      "parameters": {
+        "fuzz_percent": 4
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/light/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/light/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/light/empty-artifacts/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/light/empty-artifacts/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          238.0,
+          224.0
+        ],
+        "mae": 0.5951,
+        "rmse": 1.4295,
+        "alpha_zero_fraction": 0.619779,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.380221,
+        "elapsed_seconds": 0.611,
+        "peak_rss_mb": 1750.1,
+        "output_bytes": 2070942
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-artifacts.png",
+      "theme": "light",
+      "scene": "empty-artifacts",
+      "method": "imagemagick-fuzz-6",
+      "parameters": {
+        "fuzz_percent": 6
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/light/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/light/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/light/empty-artifacts/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/light/empty-artifacts/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          238.0,
+          224.0
+        ],
+        "mae": 0.8031,
+        "rmse": 2.2731,
+        "alpha_zero_fraction": 0.637492,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.362508,
+        "elapsed_seconds": 0.612,
+        "peak_rss_mb": 1750.1,
+        "output_bytes": 2073585
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-artifacts.png",
+      "theme": "light",
+      "scene": "empty-artifacts",
+      "method": "soft-tight",
+      "parameters": {
+        "low_rgb_distance": 5.0,
+        "high_rgb_distance": 18.0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/light/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/light/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/light/empty-artifacts/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/light/empty-artifacts/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          238.0,
+          224.0
+        ],
+        "mae": 0.455,
+        "rmse": 0.8508,
+        "alpha_zero_fraction": 0.586548,
+        "alpha_partial_fraction": 0.016021,
+        "alpha_opaque_fraction": 0.397431,
+        "elapsed_seconds": 0.075,
+        "peak_rss_mb": 1750.1,
+        "output_bytes": 2100954
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-artifacts.png",
+      "theme": "light",
+      "scene": "empty-artifacts",
+      "method": "decontam-tight",
+      "parameters": {
+        "low_rgb_distance": 5.0,
+        "high_rgb_distance": 18.0,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/light/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/light/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/light/empty-artifacts/preview.png",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/light/empty-artifacts/recomposite.png"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          238.0,
+          224.0
+        ],
+        "mae": 0.5047,
+        "rmse": 0.8221,
+        "alpha_zero_fraction": 0.586548,
+        "alpha_partial_fraction": 0.016021,
+        "alpha_opaque_fraction": 0.397431,
+        "elapsed_seconds": 0.163,
+        "peak_rss_mb": 1750.1,
+        "output_bytes": 1342909
+      },
+      "artifacts_retained": false,
+      "retention_note": "Метрики сохранены; дублирующие outputs удалены после ревью."
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-artifacts.png",
+      "theme": "light",
+      "scene": "empty-artifacts",
+      "method": "soft-balanced",
+      "parameters": {
+        "low_rgb_distance": 8.0,
+        "high_rgb_distance": 28.0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/light/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/light/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/light/empty-artifacts/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/light/empty-artifacts/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          238.0,
+          224.0
+        ],
+        "mae": 0.4861,
+        "rmse": 0.9769,
+        "alpha_zero_fraction": 0.593905,
+        "alpha_partial_fraction": 0.011999,
+        "alpha_opaque_fraction": 0.394095,
+        "elapsed_seconds": 0.074,
+        "peak_rss_mb": 1750.1,
+        "output_bytes": 2090079
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-artifacts.png",
+      "theme": "light",
+      "scene": "empty-artifacts",
+      "method": "decontam-balanced",
+      "parameters": {
+        "low_rgb_distance": 8.0,
+        "high_rgb_distance": 28.0,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/light/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/light/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/light/empty-artifacts/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/light/empty-artifacts/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          238.0,
+          224.0
+        ],
+        "mae": 0.5339,
+        "rmse": 0.9038,
+        "alpha_zero_fraction": 0.593905,
+        "alpha_partial_fraction": 0.011999,
+        "alpha_opaque_fraction": 0.394095,
+        "elapsed_seconds": 0.15,
+        "peak_rss_mb": 1750.1,
+        "output_bytes": 1306040
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-artifacts.png",
+      "theme": "light",
+      "scene": "empty-artifacts",
+      "method": "soft-wide",
+      "parameters": {
+        "low_rgb_distance": 12.0,
+        "high_rgb_distance": 42.0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/light/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/light/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/light/empty-artifacts/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/light/empty-artifacts/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          238.0,
+          224.0
+        ],
+        "mae": 0.522,
+        "rmse": 1.1612,
+        "alpha_zero_fraction": 0.598953,
+        "alpha_partial_fraction": 0.009632,
+        "alpha_opaque_fraction": 0.391415,
+        "elapsed_seconds": 0.073,
+        "peak_rss_mb": 1750.1,
+        "output_bytes": 2084889
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-artifacts.png",
+      "theme": "light",
+      "scene": "empty-artifacts",
+      "method": "decontam-wide",
+      "parameters": {
+        "low_rgb_distance": 12.0,
+        "high_rgb_distance": 42.0,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/light/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/light/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/light/empty-artifacts/preview.png",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/light/empty-artifacts/recomposite.png"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          238.0,
+          224.0
+        ],
+        "mae": 0.5731,
+        "rmse": 1.0665,
+        "alpha_zero_fraction": 0.598953,
+        "alpha_partial_fraction": 0.009632,
+        "alpha_opaque_fraction": 0.391415,
+        "elapsed_seconds": 0.152,
+        "peak_rss_mb": 1750.1,
+        "output_bytes": 1277729
+      },
+      "artifacts_retained": false,
+      "retention_note": "Метрики сохранены; дублирующие outputs удалены после ревью."
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-artifacts.png",
+      "theme": "light",
+      "scene": "empty-artifacts",
+      "method": "pymatting-knn-balanced",
+      "parameters": {
+        "base": "soft-balanced",
+        "algorithm": "estimate_alpha_knn",
+        "max_dimension": 800,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/light/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/light/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/light/empty-artifacts/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/light/empty-artifacts/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          238.0,
+          224.0
+        ],
+        "mae": 0.9813,
+        "rmse": 1.9552,
+        "alpha_zero_fraction": 0.582807,
+        "alpha_partial_fraction": 0.382689,
+        "alpha_opaque_fraction": 0.034504,
+        "elapsed_seconds": 4.565,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 1366051
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/welcome-hero.png",
+      "theme": "dark",
+      "scene": "welcome-hero",
+      "method": "imagemagick-exact",
+      "parameters": {
+        "fuzz_percent": 0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/dark/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/dark/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/dark/welcome-hero/preview.png",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/dark/welcome-hero/recomposite.png"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 0.0,
+        "rmse": 0.0,
+        "alpha_zero_fraction": 0.124953,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.875047,
+        "elapsed_seconds": 0.678,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 1703796
+      },
+      "artifacts_retained": false,
+      "retention_note": "Метрики сохранены; дублирующие outputs удалены после ревью."
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/welcome-hero.png",
+      "theme": "dark",
+      "scene": "welcome-hero",
+      "method": "imagemagick-fuzz-2",
+      "parameters": {
+        "fuzz_percent": 2
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/dark/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/dark/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/dark/welcome-hero/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/dark/welcome-hero/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 0.5975,
+        "rmse": 1.0127,
+        "alpha_zero_fraction": 0.795033,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.204967,
+        "elapsed_seconds": 0.631,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 1582694
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/welcome-hero.png",
+      "theme": "dark",
+      "scene": "welcome-hero",
+      "method": "imagemagick-fuzz-4",
+      "parameters": {
+        "fuzz_percent": 4
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/dark/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/dark/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/dark/welcome-hero/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/dark/welcome-hero/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 0.6559,
+        "rmse": 1.2303,
+        "alpha_zero_fraction": 0.804297,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.195703,
+        "elapsed_seconds": 0.601,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 1582045
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/welcome-hero.png",
+      "theme": "dark",
+      "scene": "welcome-hero",
+      "method": "imagemagick-fuzz-6",
+      "parameters": {
+        "fuzz_percent": 6
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/dark/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/dark/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/dark/welcome-hero/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/dark/welcome-hero/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 0.7218,
+        "rmse": 1.5787,
+        "alpha_zero_fraction": 0.810167,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.189833,
+        "elapsed_seconds": 0.614,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 1582735
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/welcome-hero.png",
+      "theme": "dark",
+      "scene": "welcome-hero",
+      "method": "soft-tight",
+      "parameters": {
+        "low_rgb_distance": 5.0,
+        "high_rgb_distance": 18.0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/dark/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/dark/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/dark/welcome-hero/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/dark/welcome-hero/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 0.6032,
+        "rmse": 1.0108,
+        "alpha_zero_fraction": 0.778566,
+        "alpha_partial_fraction": 0.019754,
+        "alpha_opaque_fraction": 0.20168,
+        "elapsed_seconds": 0.079,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 1620967
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/welcome-hero.png",
+      "theme": "dark",
+      "scene": "welcome-hero",
+      "method": "decontam-tight",
+      "parameters": {
+        "low_rgb_distance": 5.0,
+        "high_rgb_distance": 18.0,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/dark/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/dark/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/dark/welcome-hero/preview.png",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/dark/welcome-hero/recomposite.png"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 0.6402,
+        "rmse": 0.9763,
+        "alpha_zero_fraction": 0.778566,
+        "alpha_partial_fraction": 0.019754,
+        "alpha_opaque_fraction": 0.20168,
+        "elapsed_seconds": 0.163,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 701261
+      },
+      "artifacts_retained": false,
+      "retention_note": "Метрики сохранены; дублирующие outputs удалены после ревью."
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/welcome-hero.png",
+      "theme": "dark",
+      "scene": "welcome-hero",
+      "method": "soft-balanced",
+      "parameters": {
+        "low_rgb_distance": 8.0,
+        "high_rgb_distance": 28.0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/dark/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/dark/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/dark/welcome-hero/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/dark/welcome-hero/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 0.6322,
+        "rmse": 1.1159,
+        "alpha_zero_fraction": 0.789678,
+        "alpha_partial_fraction": 0.011714,
+        "alpha_opaque_fraction": 0.198608,
+        "elapsed_seconds": 0.082,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 1600508
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/welcome-hero.png",
+      "theme": "dark",
+      "scene": "welcome-hero",
+      "method": "decontam-balanced",
+      "parameters": {
+        "low_rgb_distance": 8.0,
+        "high_rgb_distance": 28.0,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/dark/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/dark/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/dark/welcome-hero/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/dark/welcome-hero/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 0.6717,
+        "rmse": 1.0557,
+        "alpha_zero_fraction": 0.789678,
+        "alpha_partial_fraction": 0.011714,
+        "alpha_opaque_fraction": 0.198608,
+        "elapsed_seconds": 0.159,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 649852
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/welcome-hero.png",
+      "theme": "dark",
+      "scene": "welcome-hero",
+      "method": "soft-wide",
+      "parameters": {
+        "low_rgb_distance": 12.0,
+        "high_rgb_distance": 42.0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/dark/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/dark/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/dark/welcome-hero/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/dark/welcome-hero/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 0.6661,
+        "rmse": 1.272,
+        "alpha_zero_fraction": 0.795191,
+        "alpha_partial_fraction": 0.009269,
+        "alpha_opaque_fraction": 0.19554,
+        "elapsed_seconds": 0.084,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 1595702
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/welcome-hero.png",
+      "theme": "dark",
+      "scene": "welcome-hero",
+      "method": "decontam-wide",
+      "parameters": {
+        "low_rgb_distance": 12.0,
+        "high_rgb_distance": 42.0,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/dark/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/dark/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/dark/welcome-hero/preview.png",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/dark/welcome-hero/recomposite.png"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 0.7093,
+        "rmse": 1.1915,
+        "alpha_zero_fraction": 0.795191,
+        "alpha_partial_fraction": 0.009269,
+        "alpha_opaque_fraction": 0.19554,
+        "elapsed_seconds": 0.158,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 621708
+      },
+      "artifacts_retained": false,
+      "retention_note": "Метрики сохранены; дублирующие outputs удалены после ревью."
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/welcome-hero.png",
+      "theme": "dark",
+      "scene": "welcome-hero",
+      "method": "pymatting-knn-balanced",
+      "parameters": {
+        "base": "soft-balanced",
+        "algorithm": "estimate_alpha_knn",
+        "max_dimension": 800,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/dark/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/dark/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/dark/welcome-hero/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/dark/welcome-hero/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 0.7495,
+        "rmse": 1.5773,
+        "alpha_zero_fraction": 0.779867,
+        "alpha_partial_fraction": 0.076627,
+        "alpha_opaque_fraction": 0.143506,
+        "elapsed_seconds": 2.622,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 706169
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-sphere.png",
+      "theme": "dark",
+      "scene": "empty-sphere",
+      "method": "imagemagick-exact",
+      "parameters": {
+        "fuzz_percent": 0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/dark/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/dark/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/dark/empty-sphere/preview.png",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/dark/empty-sphere/recomposite.png"
+      },
+      "metrics": {
+        "background_rgb": [
+          251.0,
+          236.0,
+          223.0
+        ],
+        "mae": 0.0,
+        "rmse": 0.0,
+        "alpha_zero_fraction": 0.059423,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.940577,
+        "elapsed_seconds": 0.651,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 2105597
+      },
+      "artifacts_retained": false,
+      "retention_note": "Метрики сохранены; дублирующие outputs удалены после ревью."
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-sphere.png",
+      "theme": "dark",
+      "scene": "empty-sphere",
+      "method": "imagemagick-fuzz-2",
+      "parameters": {
+        "fuzz_percent": 2
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/dark/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/dark/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/dark/empty-sphere/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/dark/empty-sphere/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          251.0,
+          236.0,
+          223.0
+        ],
+        "mae": 0.4424,
+        "rmse": 0.8703,
+        "alpha_zero_fraction": 0.574728,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.425272,
+        "elapsed_seconds": 0.602,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 2034706
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-sphere.png",
+      "theme": "dark",
+      "scene": "empty-sphere",
+      "method": "imagemagick-fuzz-4",
+      "parameters": {
+        "fuzz_percent": 4
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/dark/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/dark/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/dark/empty-sphere/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/dark/empty-sphere/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          251.0,
+          236.0,
+          223.0
+        ],
+        "mae": 0.5217,
+        "rmse": 1.2091,
+        "alpha_zero_fraction": 0.58663,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.41337,
+        "elapsed_seconds": 0.606,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 2035081
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-sphere.png",
+      "theme": "dark",
+      "scene": "empty-sphere",
+      "method": "imagemagick-fuzz-6",
+      "parameters": {
+        "fuzz_percent": 6
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/dark/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/dark/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/dark/empty-sphere/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/dark/empty-sphere/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          251.0,
+          236.0,
+          223.0
+        ],
+        "mae": 0.6569,
+        "rmse": 1.8575,
+        "alpha_zero_fraction": 0.599261,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.400739,
+        "elapsed_seconds": 0.609,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 2035257
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-sphere.png",
+      "theme": "dark",
+      "scene": "empty-sphere",
+      "method": "soft-tight",
+      "parameters": {
+        "low_rgb_distance": 5.0,
+        "high_rgb_distance": 18.0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/dark/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/dark/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/dark/empty-sphere/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/dark/empty-sphere/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          251.0,
+          236.0,
+          223.0
+        ],
+        "mae": 0.4391,
+        "rmse": 0.8545,
+        "alpha_zero_fraction": 0.554233,
+        "alpha_partial_fraction": 0.016851,
+        "alpha_opaque_fraction": 0.428916,
+        "elapsed_seconds": 0.078,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 2070145
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-sphere.png",
+      "theme": "dark",
+      "scene": "empty-sphere",
+      "method": "decontam-tight",
+      "parameters": {
+        "low_rgb_distance": 5.0,
+        "high_rgb_distance": 18.0,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/dark/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/dark/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/dark/empty-sphere/preview.png",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/dark/empty-sphere/recomposite.png"
+      },
+      "metrics": {
+        "background_rgb": [
+          251.0,
+          236.0,
+          223.0
+        ],
+        "mae": 0.5575,
+        "rmse": 0.8647,
+        "alpha_zero_fraction": 0.554233,
+        "alpha_partial_fraction": 0.016851,
+        "alpha_opaque_fraction": 0.428916,
+        "elapsed_seconds": 0.155,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 1395005
+      },
+      "artifacts_retained": false,
+      "retention_note": "Метрики сохранены; дублирующие outputs удалены после ревью."
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-sphere.png",
+      "theme": "dark",
+      "scene": "empty-sphere",
+      "method": "soft-balanced",
+      "parameters": {
+        "low_rgb_distance": 8.0,
+        "high_rgb_distance": 28.0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/dark/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/dark/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/dark/empty-sphere/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/dark/empty-sphere/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          251.0,
+          236.0,
+          223.0
+        ],
+        "mae": 0.4713,
+        "rmse": 0.9828,
+        "alpha_zero_fraction": 0.56257,
+        "alpha_partial_fraction": 0.012545,
+        "alpha_opaque_fraction": 0.424885,
+        "elapsed_seconds": 0.076,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 2059101
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-sphere.png",
+      "theme": "dark",
+      "scene": "empty-sphere",
+      "method": "decontam-balanced",
+      "parameters": {
+        "low_rgb_distance": 8.0,
+        "high_rgb_distance": 28.0,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/dark/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/dark/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/dark/empty-sphere/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/dark/empty-sphere/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          251.0,
+          236.0,
+          223.0
+        ],
+        "mae": 0.5864,
+        "rmse": 0.9434,
+        "alpha_zero_fraction": 0.56257,
+        "alpha_partial_fraction": 0.012545,
+        "alpha_opaque_fraction": 0.424885,
+        "elapsed_seconds": 0.161,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 1357216
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-sphere.png",
+      "theme": "dark",
+      "scene": "empty-sphere",
+      "method": "soft-wide",
+      "parameters": {
+        "low_rgb_distance": 12.0,
+        "high_rgb_distance": 42.0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/dark/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/dark/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/dark/empty-sphere/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/dark/empty-sphere/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          251.0,
+          236.0,
+          223.0
+        ],
+        "mae": 0.5095,
+        "rmse": 1.1824,
+        "alpha_zero_fraction": 0.567622,
+        "alpha_partial_fraction": 0.010087,
+        "alpha_opaque_fraction": 0.422291,
+        "elapsed_seconds": 0.076,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 2054178
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-sphere.png",
+      "theme": "dark",
+      "scene": "empty-sphere",
+      "method": "decontam-wide",
+      "parameters": {
+        "low_rgb_distance": 12.0,
+        "high_rgb_distance": 42.0,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/dark/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/dark/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/dark/empty-sphere/preview.png",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/dark/empty-sphere/recomposite.png"
+      },
+      "metrics": {
+        "background_rgb": [
+          251.0,
+          236.0,
+          223.0
+        ],
+        "mae": 0.6291,
+        "rmse": 1.1067,
+        "alpha_zero_fraction": 0.567622,
+        "alpha_partial_fraction": 0.010087,
+        "alpha_opaque_fraction": 0.422291,
+        "elapsed_seconds": 0.155,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 1325369
+      },
+      "artifacts_retained": false,
+      "retention_note": "Метрики сохранены; дублирующие outputs удалены после ревью."
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-sphere.png",
+      "theme": "dark",
+      "scene": "empty-sphere",
+      "method": "pymatting-knn-balanced",
+      "parameters": {
+        "base": "soft-balanced",
+        "algorithm": "estimate_alpha_knn",
+        "max_dimension": 800,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/dark/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/dark/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/dark/empty-sphere/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/dark/empty-sphere/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          251.0,
+          236.0,
+          223.0
+        ],
+        "mae": 0.7095,
+        "rmse": 1.8133,
+        "alpha_zero_fraction": 0.552087,
+        "alpha_partial_fraction": 0.085951,
+        "alpha_opaque_fraction": 0.361962,
+        "elapsed_seconds": 4.679,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 1423045
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-artifacts.png",
+      "theme": "dark",
+      "scene": "empty-artifacts",
+      "method": "imagemagick-exact",
+      "parameters": {
+        "fuzz_percent": 0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/dark/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/dark/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/dark/empty-artifacts/preview.png",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-exact/dark/empty-artifacts/recomposite.png"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 0.0,
+        "rmse": 0.0,
+        "alpha_zero_fraction": 0.042978,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.957022,
+        "elapsed_seconds": 0.668,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 2081403
+      },
+      "artifacts_retained": false,
+      "retention_note": "Метрики сохранены; дублирующие outputs удалены после ревью."
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-artifacts.png",
+      "theme": "dark",
+      "scene": "empty-artifacts",
+      "method": "imagemagick-fuzz-2",
+      "parameters": {
+        "fuzz_percent": 2
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/dark/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/dark/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/dark/empty-artifacts/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-2/dark/empty-artifacts/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 0.4984,
+        "rmse": 0.9341,
+        "alpha_zero_fraction": 0.596532,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.403468,
+        "elapsed_seconds": 0.612,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 2022570
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-artifacts.png",
+      "theme": "dark",
+      "scene": "empty-artifacts",
+      "method": "imagemagick-fuzz-4",
+      "parameters": {
+        "fuzz_percent": 4
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/dark/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/dark/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/dark/empty-artifacts/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-4/dark/empty-artifacts/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 0.5931,
+        "rmse": 1.3028,
+        "alpha_zero_fraction": 0.610137,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.389863,
+        "elapsed_seconds": 0.617,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 2022950
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-artifacts.png",
+      "theme": "dark",
+      "scene": "empty-artifacts",
+      "method": "imagemagick-fuzz-6",
+      "parameters": {
+        "fuzz_percent": 6
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/dark/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/dark/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/dark/empty-artifacts/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/imagemagick-fuzz-6/dark/empty-artifacts/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 0.9482,
+        "rmse": 2.5932,
+        "alpha_zero_fraction": 0.63796,
+        "alpha_partial_fraction": 0.0,
+        "alpha_opaque_fraction": 0.36204,
+        "elapsed_seconds": 0.633,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 2027763
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-artifacts.png",
+      "theme": "dark",
+      "scene": "empty-artifacts",
+      "method": "soft-tight",
+      "parameters": {
+        "low_rgb_distance": 5.0,
+        "high_rgb_distance": 18.0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/dark/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/dark/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/dark/empty-artifacts/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-tight/dark/empty-artifacts/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 0.5054,
+        "rmse": 0.9321,
+        "alpha_zero_fraction": 0.583392,
+        "alpha_partial_fraction": 0.018061,
+        "alpha_opaque_fraction": 0.398547,
+        "elapsed_seconds": 0.077,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 2058236
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-artifacts.png",
+      "theme": "dark",
+      "scene": "empty-artifacts",
+      "method": "decontam-tight",
+      "parameters": {
+        "low_rgb_distance": 5.0,
+        "high_rgb_distance": 18.0,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/dark/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/dark/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/dark/empty-artifacts/preview.png",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-tight/dark/empty-artifacts/recomposite.png"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 0.5781,
+        "rmse": 0.9162,
+        "alpha_zero_fraction": 0.583392,
+        "alpha_partial_fraction": 0.018061,
+        "alpha_opaque_fraction": 0.398547,
+        "elapsed_seconds": 0.179,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 1326057
+      },
+      "artifacts_retained": false,
+      "retention_note": "Метрики сохранены; дублирующие outputs удалены после ревью."
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-artifacts.png",
+      "theme": "dark",
+      "scene": "empty-artifacts",
+      "method": "soft-balanced",
+      "parameters": {
+        "low_rgb_distance": 8.0,
+        "high_rgb_distance": 28.0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/dark/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/dark/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/dark/empty-artifacts/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-balanced/dark/empty-artifacts/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 0.5379,
+        "rmse": 1.0555,
+        "alpha_zero_fraction": 0.592059,
+        "alpha_partial_fraction": 0.012878,
+        "alpha_opaque_fraction": 0.395063,
+        "elapsed_seconds": 0.085,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 2045731
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-artifacts.png",
+      "theme": "dark",
+      "scene": "empty-artifacts",
+      "method": "decontam-balanced",
+      "parameters": {
+        "low_rgb_distance": 8.0,
+        "high_rgb_distance": 28.0,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/dark/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/dark/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/dark/empty-artifacts/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-balanced/dark/empty-artifacts/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 0.6081,
+        "rmse": 0.9922,
+        "alpha_zero_fraction": 0.592059,
+        "alpha_partial_fraction": 0.012878,
+        "alpha_opaque_fraction": 0.395063,
+        "elapsed_seconds": 0.157,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 1284257
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-artifacts.png",
+      "theme": "dark",
+      "scene": "empty-artifacts",
+      "method": "soft-wide",
+      "parameters": {
+        "low_rgb_distance": 12.0,
+        "high_rgb_distance": 42.0
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/dark/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/dark/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/dark/empty-artifacts/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/soft-wide/dark/empty-artifacts/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 0.5754,
+        "rmse": 1.238,
+        "alpha_zero_fraction": 0.597722,
+        "alpha_partial_fraction": 0.010121,
+        "alpha_opaque_fraction": 0.392158,
+        "elapsed_seconds": 0.084,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 2039222
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-artifacts.png",
+      "theme": "dark",
+      "scene": "empty-artifacts",
+      "method": "decontam-wide",
+      "parameters": {
+        "low_rgb_distance": 12.0,
+        "high_rgb_distance": 42.0,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/dark/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/dark/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/dark/empty-artifacts/preview.png",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/decontam-wide/dark/empty-artifacts/recomposite.png"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 0.6501,
+        "rmse": 1.149,
+        "alpha_zero_fraction": 0.597722,
+        "alpha_partial_fraction": 0.010121,
+        "alpha_opaque_fraction": 0.392158,
+        "elapsed_seconds": 0.165,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 1252061
+      },
+      "artifacts_retained": false,
+      "retention_note": "Метрики сохранены; дублирующие outputs удалены после ревью."
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-artifacts.png",
+      "theme": "dark",
+      "scene": "empty-artifacts",
+      "method": "pymatting-knn-balanced",
+      "parameters": {
+        "base": "soft-balanced",
+        "algorithm": "estimate_alpha_knn",
+        "max_dimension": 800,
+        "working_space": "linear RGB"
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/dark/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/dark/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/dark/empty-artifacts/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/pymatting-knn-balanced/dark/empty-artifacts/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 0.8145,
+        "rmse": 1.7968,
+        "alpha_zero_fraction": 0.580968,
+        "alpha_partial_fraction": 0.164633,
+        "alpha_opaque_fraction": 0.254399,
+        "elapsed_seconds": 5.063,
+        "peak_rss_mb": 1753.6,
+        "output_bytes": 1374150
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/welcome-hero.png",
+      "theme": "light",
+      "scene": "welcome-hero",
+      "method": "rembg-u2net",
+      "parameters": {
+        "model": "u2net",
+        "alpha_matting": false,
+        "session_initialization_seconds": 18.612,
+        "onnx_providers": null
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/light/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/light/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/light/welcome-hero/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/light/welcome-hero/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          240.0,
+          228.0
+        ],
+        "mae": 4.3739,
+        "rmse": 13.9249,
+        "alpha_zero_fraction": 0.659226,
+        "alpha_partial_fraction": 0.338188,
+        "alpha_opaque_fraction": 0.002586,
+        "elapsed_seconds": 1.191,
+        "peak_rss_mb": 873.7,
+        "output_bytes": 738281
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-sphere.png",
+      "theme": "light",
+      "scene": "empty-sphere",
+      "method": "rembg-u2net",
+      "parameters": {
+        "model": "u2net",
+        "alpha_matting": false,
+        "session_initialization_seconds": 18.612,
+        "onnx_providers": null
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/light/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/light/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/light/empty-sphere/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/light/empty-sphere/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          253.0,
+          241.0,
+          228.0
+        ],
+        "mae": 16.3888,
+        "rmse": 37.1329,
+        "alpha_zero_fraction": 0.510577,
+        "alpha_partial_fraction": 0.488753,
+        "alpha_opaque_fraction": 0.000671,
+        "elapsed_seconds": 2.0,
+        "peak_rss_mb": 1176.1,
+        "output_bytes": 1365228
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-artifacts.png",
+      "theme": "light",
+      "scene": "empty-artifacts",
+      "method": "rembg-u2net",
+      "parameters": {
+        "model": "u2net",
+        "alpha_matting": false,
+        "session_initialization_seconds": 18.612,
+        "onnx_providers": null
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/light/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/light/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/light/empty-artifacts/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/light/empty-artifacts/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          238.0,
+          224.0
+        ],
+        "mae": 18.1115,
+        "rmse": 47.0982,
+        "alpha_zero_fraction": 0.660289,
+        "alpha_partial_fraction": 0.339118,
+        "alpha_opaque_fraction": 0.000593,
+        "elapsed_seconds": 0.6,
+        "peak_rss_mb": 1176.1,
+        "output_bytes": 665745
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/welcome-hero.png",
+      "theme": "dark",
+      "scene": "welcome-hero",
+      "method": "rembg-u2net",
+      "parameters": {
+        "model": "u2net",
+        "alpha_matting": false,
+        "session_initialization_seconds": 18.612,
+        "onnx_providers": null
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/dark/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/dark/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/dark/welcome-hero/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/dark/welcome-hero/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 5.0842,
+        "rmse": 13.8534,
+        "alpha_zero_fraction": 0.65015,
+        "alpha_partial_fraction": 0.34723,
+        "alpha_opaque_fraction": 0.00262,
+        "elapsed_seconds": 0.532,
+        "peak_rss_mb": 1194.0,
+        "output_bytes": 855932
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-sphere.png",
+      "theme": "dark",
+      "scene": "empty-sphere",
+      "method": "rembg-u2net",
+      "parameters": {
+        "model": "u2net",
+        "alpha_matting": false,
+        "session_initialization_seconds": 18.612,
+        "onnx_providers": null
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/dark/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/dark/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/dark/empty-sphere/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/dark/empty-sphere/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          251.0,
+          236.0,
+          223.0
+        ],
+        "mae": 20.951,
+        "rmse": 46.832,
+        "alpha_zero_fraction": 0.501873,
+        "alpha_partial_fraction": 0.497182,
+        "alpha_opaque_fraction": 0.000945,
+        "elapsed_seconds": 0.553,
+        "peak_rss_mb": 1194.0,
+        "output_bytes": 1126751
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-artifacts.png",
+      "theme": "dark",
+      "scene": "empty-artifacts",
+      "method": "rembg-u2net",
+      "parameters": {
+        "model": "u2net",
+        "alpha_matting": false,
+        "session_initialization_seconds": 18.612,
+        "onnx_providers": null
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/dark/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/dark/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/dark/empty-artifacts/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-u2net/dark/empty-artifacts/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 20.5213,
+        "rmse": 52.4036,
+        "alpha_zero_fraction": 0.535371,
+        "alpha_partial_fraction": 0.464038,
+        "alpha_opaque_fraction": 0.000591,
+        "elapsed_seconds": 0.745,
+        "peak_rss_mb": 1194.0,
+        "output_bytes": 689231
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/welcome-hero.png",
+      "theme": "light",
+      "scene": "welcome-hero",
+      "method": "rembg-isnet-anime",
+      "parameters": {
+        "model": "isnet-anime",
+        "alpha_matting": false,
+        "session_initialization_seconds": 29.923,
+        "onnx_providers": null
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/light/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/light/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/light/welcome-hero/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/light/welcome-hero/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          240.0,
+          228.0
+        ],
+        "mae": 23.28,
+        "rmse": 62.0064,
+        "alpha_zero_fraction": 0.76021,
+        "alpha_partial_fraction": 0.23979,
+        "alpha_opaque_fraction": 0.0,
+        "elapsed_seconds": 1.457,
+        "peak_rss_mb": 1464.4,
+        "output_bytes": 147320
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-sphere.png",
+      "theme": "light",
+      "scene": "empty-sphere",
+      "method": "rembg-isnet-anime",
+      "parameters": {
+        "model": "isnet-anime",
+        "alpha_matting": false,
+        "session_initialization_seconds": 29.923,
+        "onnx_providers": null
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/light/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/light/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/light/empty-sphere/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/light/empty-sphere/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          253.0,
+          241.0,
+          228.0
+        ],
+        "mae": 28.0593,
+        "rmse": 56.5826,
+        "alpha_zero_fraction": 0.576898,
+        "alpha_partial_fraction": 0.4231,
+        "alpha_opaque_fraction": 1e-06,
+        "elapsed_seconds": 1.767,
+        "peak_rss_mb": 2034.8,
+        "output_bytes": 973428
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-artifacts.png",
+      "theme": "light",
+      "scene": "empty-artifacts",
+      "method": "rembg-isnet-anime",
+      "parameters": {
+        "model": "isnet-anime",
+        "alpha_matting": false,
+        "session_initialization_seconds": 29.923,
+        "onnx_providers": null
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/light/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/light/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/light/empty-artifacts/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/light/empty-artifacts/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          238.0,
+          224.0
+        ],
+        "mae": 9.1458,
+        "rmse": 31.728,
+        "alpha_zero_fraction": 0.687421,
+        "alpha_partial_fraction": 0.312576,
+        "alpha_opaque_fraction": 4e-06,
+        "elapsed_seconds": 3.559,
+        "peak_rss_mb": 2034.8,
+        "output_bytes": 945054
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/welcome-hero.png",
+      "theme": "dark",
+      "scene": "welcome-hero",
+      "method": "rembg-isnet-anime",
+      "parameters": {
+        "model": "isnet-anime",
+        "alpha_matting": false,
+        "session_initialization_seconds": 29.923,
+        "onnx_providers": null
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/dark/welcome-hero/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/dark/welcome-hero/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/dark/welcome-hero/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/dark/welcome-hero/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 21.8186,
+        "rmse": 55.1104,
+        "alpha_zero_fraction": 0.63729,
+        "alpha_partial_fraction": 0.36271,
+        "alpha_opaque_fraction": 0.0,
+        "elapsed_seconds": 2.169,
+        "peak_rss_mb": 2034.8,
+        "output_bytes": 401303
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-sphere.png",
+      "theme": "dark",
+      "scene": "empty-sphere",
+      "method": "rembg-isnet-anime",
+      "parameters": {
+        "model": "isnet-anime",
+        "alpha_matting": false,
+        "session_initialization_seconds": 29.923,
+        "onnx_providers": null
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/dark/empty-sphere/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/dark/empty-sphere/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/dark/empty-sphere/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/dark/empty-sphere/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          251.0,
+          236.0,
+          223.0
+        ],
+        "mae": 27.6112,
+        "rmse": 56.848,
+        "alpha_zero_fraction": 0.568845,
+        "alpha_partial_fraction": 0.431154,
+        "alpha_opaque_fraction": 1e-06,
+        "elapsed_seconds": 1.844,
+        "peak_rss_mb": 2034.8,
+        "output_bytes": 932524
+      },
+      "artifacts_retained": true
+    },
+    {
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-artifacts.png",
+      "theme": "dark",
+      "scene": "empty-artifacts",
+      "method": "rembg-isnet-anime",
+      "parameters": {
+        "model": "isnet-anime",
+        "alpha_matting": false,
+        "session_initialization_seconds": 29.923,
+        "onnx_providers": null
+      },
+      "artifacts": {
+        "transparent": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/dark/empty-artifacts/transparent.png",
+        "alpha": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/dark/empty-artifacts/alpha.png",
+        "preview": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/dark/empty-artifacts/preview.webp",
+        "recomposite": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/experiments/09-background-removal/outputs/rembg-isnet-anime/dark/empty-artifacts/recomposite.webp"
+      },
+      "metrics": {
+        "background_rgb": [
+          252.0,
+          236.0,
+          222.0
+        ],
+        "mae": 11.4704,
+        "rmse": 36.3787,
+        "alpha_zero_fraction": 0.67825,
+        "alpha_partial_fraction": 0.321747,
+        "alpha_opaque_fraction": 3e-06,
+        "elapsed_seconds": 1.406,
+        "peak_rss_mb": 2034.8,
+        "output_bytes": 944567
+      },
+      "artifacts_retained": true
+    }
+  ],
+  "retention": {
+    "kept_methods": [
+      "imagemagick-fuzz-2",
+      "imagemagick-fuzz-4",
+      "imagemagick-fuzz-6",
+      "soft-tight",
+      "soft-balanced",
+      "soft-wide",
+      "decontam-balanced",
+      "pymatting-knn-balanced",
+      "rembg-u2net",
+      "rembg-isnet-anime"
+    ],
+    "metrics_only_methods": [
+      "imagemagick-exact",
+      "decontam-tight",
+      "decontam-wide"
+    ]
+  }
+}

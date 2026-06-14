@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, HttpUrl
 
+from app.api.schemas.common import Page
+
 
 class MCPServerCreate(BaseModel):
     name: str = Field(max_length=100)
@@ -48,12 +50,15 @@ class InheritedMCPServer(BaseModel):
     is_disabled: bool
 
 
-class MCPServerListResponse(BaseModel):
-    items: list[MCPServerResponse]
+class MCPServerListResponse(Page[MCPServerResponse]):
     inherited: list[InheritedMCPServer] = []
 
 
 class ToggleInheritedRequest(BaseModel):
+    disabled: bool
+
+
+class ToggleInheritedResponse(BaseModel):
     disabled: bool
 
 

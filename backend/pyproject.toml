@@ -29,6 +29,8 @@ dependencies = [
     "langchain>=1.2.13",
     "redis[hiredis]>=7.4.0",
     "siem-contracts>=0.1.0",
+    "anyio>=4.12.1",
+    "httpx>=0.28.1",
 ]
 
 [tool.pytest.ini_options]

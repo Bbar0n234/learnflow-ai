@@ -49,6 +49,7 @@ from app.agent.tools import (
     scan_skills_index,
     user_memory_tools,
 )
+from app.api.problem import problem_response, register_problem_handlers
 from app.api.routes import (
     artifacts,
     auth,
@@ -76,6 +77,7 @@ from app.infra.llm import create_guard_llm
 from app.infra.logging import setup_logging
 from app.infra.mcp import create_mcp_client
 from app.infra.prompt_provider import PromptProvider
+from app.infra.rate_limit import RateLimiter
 from app.infra.redis import create_redis
 from app.security_pipeline.processor import make_security_event_processor
 from app.security_pipeline.transport import (
@@ -210,6 +212,8 @@ def _seed_prompts(
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = Settings()
+    app.state.settings = settings
+    app.state.rate_limiter = RateLimiter()
 
     # Holder is created up front so the structlog processor has something to
     # bind to, then populated when Redis is available below.
@@ -522,12 +526,14 @@ def create_app() -> FastAPI:
         response = await call_next(request)
         return response
 
-    # Exception handlers
+    # Exception handlers — RFC 9457 problem+json
+    register_problem_handlers(app)
+
     @app.exception_handler(EntityNotFoundError)
     async def entity_not_found_handler(
         request: object, exc: EntityNotFoundError
     ) -> JSONResponse:
-        return JSONResponse(status_code=404, content={"detail": str(exc)})
+        return problem_response(status=404, detail=str(exc))
 
     # Health check
     @app.get("/health")

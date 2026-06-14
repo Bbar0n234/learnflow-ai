@@ -45,7 +45,7 @@ services:
       dockerfile: backend/Dockerfile
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
     env_file:
       - .env
     volumes:
@@ -97,11 +97,11 @@ services:
       dockerfile: services/siem-service/Dockerfile
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8001:8001"
+      - "127.0.0.1:${SIEM_PORT:-8001}:8001"
     environment:
       SIEM_DATABASE_URL: postgresql+asyncpg://${SIEM_POSTGRES_USER:-siem}:${SIEM_POSTGRES_PASSWORD:-siem}@siem-db/${SIEM_POSTGRES_DB:-siem}
       SIEM_REDIS_URL: redis://redis:6379
-      SIEM_JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      SIEM_JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required — set it in .env}
       SIEM_FRONTEND_ORIGIN: ${SIEM_FRONTEND_ORIGIN:-http://localhost:8000,http://localhost:5173}
       SIEM_XREAD_BATCH_SIZE: ${SIEM_XREAD_BATCH_SIZE:-100}
       SIEM_XREAD_BLOCK_MS: ${SIEM_XREAD_BLOCK_MS:-1000}

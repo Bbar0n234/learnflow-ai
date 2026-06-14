@@ -1,8 +1,6 @@
 target-version = "py312"
-# NOTE: hygiene pass (a4a96b4) set line-length = 100 in pyproject.toml's
-# [tool.ruff], but the active config (this file) has been 88 since project
-# bootstrap — codebase is formatted to 88. Bumping to 100 will trigger
-# project-wide reformat; out of scope for the dedup fix. Decide separately.
+# 88 — действующая норма (кодовая база отформатирована под неё). Bump до 100 —
+# project-wide reformat, отложен в backlog до завершения параллельных slice'ов.
 line-length = 88
 extend-exclude = [
     "doc/",
@@ -24,7 +22,6 @@ select = [
 ]
 ignore = [
     "E501", # line-length handled by formatter
-    "B008", # FastAPI relies on `Depends()` in defaults
 ]
 fixable = ["ALL"]
 
@@ -33,10 +30,6 @@ fixable = ["ALL"]
 # Bootstrap-time files may need lazy imports for circular-dep reasons; we still
 # document each case with `# lazy:` / `# circular:` comments per conventions.md.
 "backend/app/main.py" = []
-# TODO(hygiene): migrate `class X(str, Enum)` → `class X(StrEnum)`. Deferred —
-# StrEnum changes `str(member)` semantics in Py3.12 and these enums are used in
-# security pipeline serialization paths. Audit downstream str() usage first.
-"backend/app/agent/security/types.py" = ["UP042"]
 
 [format]
 quote-style = "double"

@@ -1025,9 +1025,11 @@ version = "0.1.0"
 source = { virtual = "backend" }
 dependencies = [
     { name = "alembic" },
+    { name = "anyio" },
     { name = "argon2-cffi" },
     { name = "fastapi" },
     { name = "fuzzysearch" },
+    { name = "httpx" },
     { name = "jinja2" },
     { name = "langchain" },
     { name = "langchain-core" },
@@ -1059,9 +1061,11 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.15" },
+    { name = "anyio", specifier = ">=4.12.1" },
     { name = "argon2-cffi", specifier = ">=25.1.0" },
     { name = "fastapi", specifier = ">=0.135.1" },
     { name = "fuzzysearch", specifier = ">=0.8.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "jinja2", specifier = ">=3.1" },
     { name = "langchain", specifier = ">=1.2.13" },
     { name = "langchain-core", specifier = ">=0.3" },

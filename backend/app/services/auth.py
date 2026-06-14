@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import anyio.to_thread
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
@@ -28,6 +29,7 @@ from app.services.security import (
 
 class AuthService:
     def __init__(self, session: AsyncSession, settings: Settings) -> None:
+        self._session = session
         self._user_repo = UserRepository(session)
         self._token_repo = RefreshTokenRepository(session)
         self._settings = settings
@@ -37,7 +39,9 @@ class AuthService:
         if existing is not None:
             raise UsernameAlreadyExistsError
 
-        user = User(name=name, password_hash=hash_password(password))
+        # argon2 — CPU-bound (~сотни мс), уводим из event loop
+        password_hash = await anyio.to_thread.run_sync(hash_password, password)
+        user = User(name=name, password_hash=password_hash)
         await self._user_repo.create(user)
 
         access_token = self._create_access(user)
@@ -46,9 +50,12 @@ class AuthService:
 
     async def login(self, name: str, password: str) -> tuple[User, str, str]:
         user = await self._user_repo.get_by_name(name)
-        if user is None or not verify_password(user.password_hash, password):
+        if user is None or not await anyio.to_thread.run_sync(
+            verify_password, user.password_hash, password
+        ):
             raise InvalidCredentialsError
 
+        await self._token_repo.delete_expired_for_user(user.id)
         access_token = self._create_access(user)
         refresh_raw = await self._create_refresh(user.id)
         return user, access_token, refresh_raw
@@ -62,6 +69,9 @@ class AuthService:
 
         if stored.revoked_at is not None:
             await self._token_repo.revoke_all_for_user(stored.user_id)
+            # Commit до raise: иначе get_db_session откатит ревокацию вместе
+            # с HTTPException и replay-защита не сработает.
+            await self._session.commit()
             raise ReplayDetectedError
 
         if stored.expires_at < datetime.now(UTC):

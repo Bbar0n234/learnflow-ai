@@ -3,10 +3,10 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 
-class FeedbackRequest(BaseModel):
-    trace_id: str
-    score: bool | None  # true=like, false=dislike, null=delete
+class FeedbackSet(BaseModel):
+    score: bool  # true=like, false=dislike
 
 
 class FeedbackResponse(BaseModel):
-    status: str
+    trace_id: str
+    score: bool

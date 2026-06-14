@@ -4,11 +4,14 @@ import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.config import ResolvedModelConfig
+if TYPE_CHECKING:
+    # Annotation-only: runtime-импорт замыкает цикл app.services ↔ app.agent
+    # (agent.runner импортирует Message/StreamEvent отсюда).
+    from app.agent.config import ResolvedModelConfig
 
 
 @dataclass(frozen=True)

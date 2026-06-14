@@ -1,6 +1,6 @@
 """Repository layer for database queries."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import and_, func, select
@@ -148,19 +148,17 @@ class AlertRepository:
         if not alert:
             return None
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         if status == "acknowledged":
-            alert.status = "acknowledged"  # type: ignore[assignment] # SQLAlchemy Column type
-            alert.acknowledged_at = now  # type: ignore[assignment] # SQLAlchemy Column type
-            alert.acknowledged_by = user_id  # type: ignore[assignment] # SQLAlchemy Column type
+            alert.status = "acknowledged"
+            alert.acknowledged_at = now
+            alert.acknowledged_by = user_id
         elif status == "resolved":
-            alert.status = "resolved"  # type: ignore[assignment] # SQLAlchemy Column type
-            alert.resolved_at = now  # type: ignore[assignment] # SQLAlchemy Column type
-            alert.resolved_by = user_id  # type: ignore[assignment] # SQLAlchemy Column type
+            alert.status = "resolved"
+            alert.resolved_at = now
+            alert.resolved_by = user_id
 
-        alert.updated_at = now  # type: ignore[assignment] # SQLAlchemy Column type
-        self.session.add(alert)
         return alert
 
 
@@ -252,8 +250,6 @@ class RuleRepository:
             if value is not None and hasattr(rule, key):
                 setattr(rule, key, value)
 
-        rule.updated_at = datetime.utcnow()  # type: ignore[assignment] # SQLAlchemy Column type
-        self.session.add(rule)
         await self.session.flush()
         await self.session.refresh(rule)
         return rule

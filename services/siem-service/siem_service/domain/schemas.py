@@ -1,7 +1,7 @@
 """Pydantic schemas for REST API responses."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -71,7 +71,9 @@ class AlertResponse(BaseModel):
     id: int = Field(..., description="Alert ID")
     rule_id: int = Field(..., description="Correlation rule ID")
     severity: str = Field(..., description="Severity level")
-    status: str = Field(..., description="Alert status (new, acknowledged, resolved)")
+    status: str = Field(
+        ..., description="Alert status (new, acknowledged, resolved, expired)"
+    )
     group_key: str | None = Field(None, description="Grouping key if applicable")
     matched_events_count: int = Field(..., description="Number of matched events")
     first_event_id: UUID = Field(..., description="First matched event ID")
@@ -92,7 +94,9 @@ class AlertResponse(BaseModel):
 class AlertPatchRequest(BaseModel):
     """Request body for patching an alert."""
 
-    status: str = Field(..., description="New status (acknowledged or resolved)")
+    status: Literal["acknowledged", "resolved"] = Field(
+        ..., description="New status (acknowledged or resolved)"
+    )
 
 
 class PaginatedAlertsResponse(BaseModel):

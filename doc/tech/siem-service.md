@@ -98,24 +98,28 @@ Asyncio background-задача, polling каждые `SIEM_POLL_INTERVAL_SECOND
 
 **Три типа правил** (`correlation/strategies.py`), конфигурация правила — JSONB:
 
-| Тип | Семантика | SQL-механика |
-|-----|-----------|--------------|
-| `threshold` | ≥ N событий за окно T по ключу группировки K | `GROUP BY identifiers->>K HAVING COUNT(*) >= N` |
-| `sequence` | событие A, затем B за окно T (по K) | self-join по `ingested_at` |
+| Тип | Семантика | Механика |
+|-----|-----------|----------|
+| `threshold` | ≥ N событий за окно T по ключу группировки K | выборка окна по `ingested_at`, группировка по `identifiers->>K` в Python |
+| `sequence` | событие A, затем B за окно T (по K) | выборка обоих паттернов, поиск пар A→B в Python |
 | `aggregate` | ≥ N событий за окно T без группировки | threshold с `group_key = NULL` |
 
-**Дедупликация алертов** (`correlation/deduper.py`) — open-alert policy с возрастным лимитом: открытый (status `new`) алерт с тем же `(rule_id, group_key)` младше 24h получает append (инкремент счётчика, обновление `latest_event_id`); иначе создаётся новый алерт. Лимит не даёт многодневной атаке схлопнуться в один бесконечный алерт.
+Стратегии считают в Python над выборкой окна — на текущих объёмах это читаемее; перевод на SQL-агрегаты (`GROUP BY ... HAVING`, self-join) заведён в backlog как оптимизация под нагрузку.
+
+**Дедупликация алертов** (`correlation/deduper.py`) — open-alert policy: открытый (status `new`) алерт с тем же `(rule_id, group_key)` получает append (инкремент счётчика, обновление `latest_event_id`), иначе создаётся новый. Реализована одним атомарным upsert'ом (`INSERT ... ON CONFLICT DO UPDATE`) поверх частичного уникального индекса `uq_siem_alerts_open_alert` — инвариант «не больше одного открытого алерта на ключ» держит БД, гонка реплик исключена. Возрастной лимит обслуживает движок: перед оценкой правил открытые алерты старше `SIEM_ALERT_OPEN_WINDOW_SECONDS` (default 24h) переводятся в `expired`, чтобы многодневная атака не схлопывалась в один бесконечный алерт — следующее срабатывание поднимает свежий алерт.
 
 **Lifecycle алерта:**
 
 ```mermaid
 stateDiagram-v2
-    [*] --> new : кандидат от стратегии, открытого алерта нет<br>(или открытый старше 24h)
+    [*] --> new : кандидат от стратегии, открытого алерта нет
     new --> new : повторное срабатывание — append<br>(matched_events_count++, latest_event_id)
+    new --> expired : старше окна (24h) — авто-закрытие движком<br>перед оценкой правил
     new --> acknowledged : PATCH acknowledge (admin)
-    acknowledged --> acknowledged : append продолжается
     acknowledged --> resolved : PATCH resolve (admin)
+    acknowledged --> [*] : следующее срабатывание<br>создаёт новый алерт
     resolved --> resolved : повторный resolve — идемпотентен
+    expired --> [*] : следующее срабатывание<br>создаёт новый алерт
     resolved --> [*] : следующее срабатывание<br>создаёт новый алерт
 ```
 
@@ -128,14 +132,14 @@ stateDiagram-v2
 | Таблица | Назначение | Ключевое |
 |---------|-----------|----------|
 | `siem_events` | immutable-хранилище событий | `event_id` UNIQUE (идемпотентность); двойные таймстемпы `event_timestamp` (producer) / `ingested_at` (consumer); JSONB `identifiers` (GIN-индекс) и `event_metadata` |
-| `siem_alerts` | алерты от правил | FK → правило и первое/последнее событие; `status`, `group_key`, `matched_events_count`; partial-индекс `(rule_id, group_key, status) WHERE status='new'` под open-alert lookup |
+| `siem_alerts` | алерты от правил | FK → правило и первое/последнее событие; `status`, `group_key`, `matched_events_count`; частичный уникальный индекс `uq_siem_alerts_open_alert (rule_id, group_key) WHERE status='new'` (NULLS NOT DISTINCT) — инвариант open-alert политики и опора ON CONFLICT |
 | `correlation_rules` | определения правил | `rule_type` + JSONB `config`, `enabled`, `severity` алерта |
 
 Окна корреляции считаются по `ingested_at` (детерминизм при отставании producer-таймстемпов). Retention — `SIEM_DELETE_AFTER_DAYS` (default 90).
 
 ## REST API
 
-Все эндпоинты admin-only (`require_admin`: JWT HS256 + claim `is_admin`, иначе 403). Зрелый REST: плюральные ресурсы, `PaginatedXResponse`, PATCH-семантика.
+Все эндпоинты admin-only (`require_admin`: JWT HS256 + claim `is_admin`, иначе 403). Зрелый REST: плюральные ресурсы, `PaginatedXResponse`, PATCH-семантика. Ошибки — RFC 9457 Problem Details (`application/problem+json`), формат един с main app — см. [conventions.md](conventions.md#rest-api).
 
 | Метод | Путь | Назначение |
 |-------|------|-----------|

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Response, status
 
-from app.api.deps import CurrentUser, ProjectServiceDep, UserProject
+from app.api.deps import CurrentUser, Pagination, ProjectServiceDep, UserProject
 from app.api.schemas.projects import (
     ProjectCreate,
     ProjectListResponse,
@@ -13,7 +13,7 @@ from app.api.schemas.projects import (
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-@router.post("", response_model=ProjectResponse)
+@router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
     body: ProjectCreate,
     user: CurrentUser,
@@ -27,10 +27,16 @@ async def create_project(
 async def list_projects(
     user: CurrentUser,
     service: ProjectServiceDep,
+    page: Pagination,
 ) -> ProjectListResponse:
-    projects = await service.list_projects(user.id)
+    projects, total = await service.list_projects(
+        user.id, limit=page.limit, offset=page.offset
+    )
     return ProjectListResponse(
-        items=[ProjectResponse.model_validate(p) for p in projects]
+        items=[ProjectResponse.model_validate(p) for p in projects],
+        total=total,
+        limit=page.limit,
+        offset=page.offset,
     )
 
 

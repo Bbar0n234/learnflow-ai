@@ -12,7 +12,7 @@ graph TD
     AGT -->|span.trace_id| SVC["ChatService"]
     SVC -->|"save(thread_id, message_id, trace_id)"| REDIS["Redis"]
     SVC -->|"SSE done event"| FE["Frontend"]
-    FE -->|"POST /feedback"| FB["Feedback Endpoint"]
+    FE -->|"PUT/DELETE …/feedback/{trace_id}"| FB["Feedback Endpoint"]
     FB -->|create_score| LF
     FB -->|save_feedback| REDIS
     FE -->|"GET /chats/{id}"| CHAT["Chat Detail"]
@@ -74,12 +74,13 @@ Frontend получает trace_id двумя путями: из SSE `done` even
 sequenceDiagram
     participant U as User
     participant FE as Frontend
-    participant API as POST /feedback
+    participant API as PUT /projects/{id}/chats/{cid}/feedback/{trace_id}
     participant LF as Langfuse
     participant REDIS as Redis
 
     U->>FE: Click 👍 on message
-    FE->>API: {trace_id, score: true}
+    FE->>API: {score: true}
+    API->>REDIS: проверка trace_id ∈ trace:{thread_id}
     API->>LF: create_score("user-feedback", value=1)
     API->>REDIS: SET feedback:{trace_id} "1"
     API-->>FE: 200 OK
@@ -88,10 +89,12 @@ sequenceDiagram
 **UI:** FeedbackButtons (ThumbsUp / ThumbsDown) на каждом AI-сообщении, имеющем trace_id.
 
 **Toggle-поведение:**
-- Click like → score = true
-- Click like повторно → score = null (удаление)
-- Click dislike → score = false
-- Click dislike повторно → score = null (удаление)
+- Click like → `PUT {score: true}`
+- Click like повторно → `DELETE` (снятие оценки)
+- Click dislike → `PUT {score: false}`
+- Click dislike повторно → `DELETE` (снятие оценки)
+
+Feedback — подресурс чата: `PUT | DELETE /projects/{id}/chats/{cid}/feedback/{trace_id}`. Ownership-цепочка (user → project → chat) валидируется зависимостями, принадлежность trace чату — по Redis-маппингу `trace:{thread_id}`.
 
 **Score config:** `user-feedback` (data type BOOLEAN, 1=like / 0=dislike). Создаётся idempotently при старте приложения через `_ensure_score_config()`.
 
@@ -99,7 +102,7 @@ sequenceDiagram
 - **Langfuse:** `create_score()` с `score_id = "{trace_id}-user-feedback"` — idempotent upsert, queryable в Langfuse dashboard
 - **Redis:** persistence между перезагрузками страницы (feedback_score возвращается в chat detail)
 
-**Удаление feedback:** при score = null — DELETE score в Langfuse API + DEL key в Redis.
+**Удаление feedback:** `DELETE`-endpoint — удаление score в Langfuse API (404 проглатывается, идемпотентно) + DEL key в Redis, ответ 204.
 
 ## Security Observability: Langfuse Tracing
 
@@ -193,7 +196,7 @@ SIEM не заменяет Langfuse; они ортогональны. Langfuse �
 | Компонент | При отказе | Поведение |
 |-----------|-----------|-----------|
 | Langfuse credentials missing | `langfuse_enabled = false` | No-op span, приложение работает без трейсинга |
-| Langfuse API unavailable | Callback буферизирует async | Стрим не блокируется; POST /feedback → 503 |
+| Langfuse API unavailable | Callback буферизирует async | Стрим не блокируется; PUT/DELETE feedback → 503 |
 | Redis unavailable | `trace_store = None` | Trace persistence отключена, feedback только в Langfuse |
 
 Каждый компонент деградирует изолированно. Отсутствие Langfuse не влияет на основную функциональность агента.

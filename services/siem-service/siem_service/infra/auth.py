@@ -3,10 +3,8 @@
 from typing import Annotated
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-
-from siem_service.config import get_settings
 
 security = HTTPBearer()
 
@@ -48,10 +46,9 @@ class JWTValidator:
         return payload.get("is_admin", False) is True
 
 
-def get_jwt_validator() -> JWTValidator:
-    """Get JWTValidator instance."""
-    settings = get_settings()
-    return JWTValidator(settings.jwt_secret)
+def get_jwt_validator(request: Request) -> JWTValidator:
+    """Get the lifespan-owned JWTValidator from app state."""
+    return request.app.state.jwt_validator
 
 
 async def require_admin(

@@ -233,3 +233,7 @@ React SPA — chat-first интерфейс с sidebar-навигацией. Fea
 #### Артефакты
 - [Plan](iterations/frontend/feat-006-sphere-artifacts/plan.md)
 - [Summary](iterations/frontend/feat-006-sphere-artifacts/summary.md)
+
+---
+
+> **Design-branding** выделен в отдельный трек — см. [tasklist-design-branding.md](tasklist-design-branding.md). Финальная доводка артов и интеграция токенов/cutout в код фронтенда живут там (cross: frontend).

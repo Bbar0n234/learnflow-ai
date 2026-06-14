@@ -1,6 +1,6 @@
 # Claude Design — обзор инструмента по итогам реальной сессии
 
-Дата: 2026-06-12. Контекст: концепт-сессия брендинга LearnFlowAI (итерация feat-007, см. [бриф](../tasks/iterations/frontend/feat-007-design-branding/reference-brand-brief.md) и [handoff bundle](../tasks/iterations/frontend/feat-007-design-branding/design-handoff/)). Инструмент — [Claude Design](https://claude.ai/design) от Anthropic Labs (research preview, доступен с Pro), powered by Opus 4.7.
+Дата: 2026-06-12. Контекст: концепт-сессия брендинга LearnFlowAI (трек Design-branding, итерация feat-001 PoC, см. [бриф](../tasks/iterations/design-branding/feat-001-poc/reference-brand-brief.md) и [handoff bundle](../tasks/iterations/design-branding/feat-001-poc/design-handoff/)). Инструмент — [Claude Design](https://claude.ai/design) от Anthropic Labs (research preview, доступен с Pro), powered by Opus 4.7.
 
 ## Ожидание vs реальность
 

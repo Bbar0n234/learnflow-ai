@@ -53,6 +53,7 @@
 - **P2** File attachments — загрузка файлов агенту: документы, презентации, картинки. Продуманная и надёжная работа с файлами *(Frontend + Backend + Agent)*
 - **P2** Per-user MCP management — UI для добавления/отключения MCP-серверов per user *(Frontend + Backend)*
 - **P1** OAuth authentication (Google, GitHub) — сейчас только логин/пароль. Перед публичным запуском — must-have: требование хранить отдельный пароль для сервиса сильно снижает конверсию. Полноценная OAuth-интеграция через Google и GitHub (не email confirmation code, а именно OAuth). Затрагивает backend (провайдерская интеграция, token exchange, user linking), frontend (социальные кнопки логина, OAuth callback flow), `tech/auth.md` (актуализация). Может потребовать ADR по user identity model при нескольких OAuth-провайдерах для одного пользователя *(Frontend + Backend)*
+- **P2** HF Pro utilization — найти применение подписке Hugging Face (~$9/мес) шире одной задачи: batch-прогон качественного вырезания фона по всему паку (нужно треку Design-branding, feat-002), плюс разведка сильных моделей/Spaces под текущие задачи и проекты (генерация, обработка, разовые специфические задачи). Триггер уже есть — managed BiRefNet оказался лучшим инструментом cutout. Off-topic относительно одного трека, поэтому здесь, а не в tasklist *(cross: Design-branding, Agent)*
 
 ## Meta (Backlog & Workflow Infrastructure)
 

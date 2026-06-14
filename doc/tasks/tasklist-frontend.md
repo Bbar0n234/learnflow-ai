@@ -26,7 +26,6 @@ React SPA — chat-first интерфейс с sidebar-навигацией. Fea
 | feat-004 | ✅ Done | Chat UI |
 | feat-005 | ✅ Done | SSE streaming |
 | feat-006 | ✅ Done | Sphere + artifacts |
-| feat-007 | ✅ Done | Design-branding: визуальная идентичность, иллюстрации, dark-адаптация, прозрачные cutout |
 
 ## Быстро меняющиеся инструменты
 
@@ -237,44 +236,4 @@ React SPA — chat-first интерфейс с sidebar-навигацией. Fea
 
 ---
 
-### feat-007: Design-branding
-
-**Цель:** проработать визуальную идентичность продукта и подготовить брендовые ассеты для UI: дизайн-токены и хэндофф, серию брендовых иллюстраций для ключевых экранов (light + dark), а также воспроизводимый pipeline получения прозрачных cutout. Итерация подготовительная — генерация и обработка ассетов, без интеграции в код фронтенда (это отдельная будущая итерация).
-
-**Статус:** ✅ Done
-**Закрывает:** визуальную идентичность и брендовые ассеты для экранов из frontend.md
-**Ветка:** `feat/feat-007-design-branding`
-
-#### Из backlog
-- **P2** Design system — проработка дизайн-системы, визуальной идентичности, референсов.
-
-#### Состав работ
-- [x] Бренд-бриф и исследование референсов (`reference-brand-brief.md`, `reference-research-notes.md`)
-- [x] Design-хэндофф: токены light/dark, wordmark, экраны (`design-handoff/`)
-- [x] Паспорт стиля иллюстраций + базовый промпт-блок (`illustration-style-guide.md`)
-- [x] Manifest и промпты для воспроизводимой генерации (`illustration-generation-manifest.md`, `illustration-prompts.md`)
-- [x] Финальный пак иллюстраций: 6 сцен light + 6 dark (`refs/illustrations/final/`)
-- [x] Генеративная адаптация к тёмной теме, режим B (`dark-theme-adaptation.md`)
-- [x] Исследование удаления фона: детерминированные методы, локальный ML, managed-сервисы (`transparent-png-research.md`, `background-removal-services-research.md`)
-- [x] Прозрачные cutout: локальные кандидаты soft-* + примеры победившего managed-подхода (`refs/illustrations/candidates/`, `refs/illustrations/managed-service-examples/`)
-- [x] Research векторизации в SVG как следующий шаг (`svg-vectorization-research.md`)
-- [x] Прореживание экспериментов, упаковка итерации, очистка
-
-#### Критерии приёмки
-- [x] Утверждён единый визуальный язык серии и эталон ключевого персонажа
-- [x] Получены 6 финальных light- и 6 dark-сцен под экраны (welcome, empty-состояния, error)
-- [x] Подтверждён воспроизводимый способ генерации новых сцен (manifest + промпты)
-- [x] Выбран и проверен на реальных картинках подход к прозрачным cutout (managed BiRefNet General-HR), зафиксирован локальный fallback
-- [x] Все артефакты упакованы как самодостаточная итерация, ссылки в доках валидны
-
-#### Вне scope (будущие итерации)
-- Интеграция токенов и cutout в код фронтенда
-- SVG-векторизация финального пака (запускается после утверждения прозрачного PNG)
-- Отдельные character sheets для человеческих персонажей
-
-#### Артефакты
-- [Style guide](iterations/frontend/feat-007-design-branding/illustration-style-guide.md)
-- [Dark theme adaptation](iterations/frontend/feat-007-design-branding/dark-theme-adaptation.md)
-- [Transparent PNG research](iterations/frontend/feat-007-design-branding/transparent-png-research.md)
-- [Background removal services research](iterations/frontend/feat-007-design-branding/background-removal-services-research.md)
-- [Summary](iterations/frontend/feat-007-design-branding/summary.md)
+> **Design-branding** выделен в отдельный трек — см. [tasklist-design-branding.md](tasklist-design-branding.md). Финальная доводка артов и интеграция токенов/cutout в код фронтенда живут там (cross: frontend).

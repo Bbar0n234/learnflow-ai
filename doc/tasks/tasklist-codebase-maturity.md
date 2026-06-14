@@ -241,6 +241,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 - **P2** LangGraph / LangChain audit via agent-скиллы (изначально langchain-architecture — отклонён в feat-001, заменён на `langgraph-patterns` + кандидаты от langchain-ai) *(перенесено из Tech Debt & Competency)*.
 - **P2** Reasoning ChatOpenAI everywhere — convention + migration. Все модели проекта используют `ReasoningChatOpenAI`, не plain `ChatOpenAI`. Добить summarizer, guard на `ReasoningChatOpenAI`; зафиксировать convention в `conventions.md` *(перенесено из Agent)*.
+- **P3** `langfuse_enabled` module-level флаг (`backend/app/infra/langfuse.py`) — поднимается через `global` в `init_langfuse()`, читается lazy-импортами в `agent/runner.py` и `agent/security/observer.py` (вне request scope). Единственное намеренное отступление от правила «никаких module-level синглтонов» (conventions.md § FastAPI). Владение флагом перевести в агентную инструментацию (closure/DI) *(перенесено из Tech Debt & Competency)*.
 
 #### Скоуп работы
 
@@ -316,6 +317,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 #### Из backlog
 
 - **P2** Error return types conventions — exceptions / Result-Either / Optional + None, границы применимости *(перенесено из Agent Harness & Workflow)*.
+- **P3** 5xx-ответы не в RFC 9457 — необработанные исключения проходят мимо problem-handlers через Starlette `ServerErrorMiddleware` и отдаются как `text/plain "Internal Server Error"` (4xx уже problem+json). Распространить единый формат на 500: generic `Exception`-handler → минимальный problem+json без internal details (`{type: about:blank, title, status: 500}`) + обязательное логирование `exc_info`. Форма ответа решается здесь вместе с философией обработки (где ловить, graceful degradation vs fail-fast) *(перенесено из Backend, finding feat-002)*.
 
 #### Скоуп работы
 

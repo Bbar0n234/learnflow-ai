@@ -14,35 +14,32 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger()
 
-# Module-level flag: checked by _langfuse_observation to skip instrumentation.
-langfuse_enabled = False
 
+def init_langfuse(*, public_key: str, secret_key: str, host: str) -> bool:
+    """Initialize the Langfuse singleton and ensure score config exists.
 
-def init_langfuse(*, public_key: str, secret_key: str, host: str) -> None:
-    """Initialize Langfuse singleton and ensure score config exists.
-
-    After this call, get_client() returns the initialized instance.
+    Returns whether tracing is enabled (keys present and auth verified). The
+    caller owns that flag and injects it where instrumentation needs it — no
+    module-level state. After this call, get_client() returns the instance.
     """
-    global langfuse_enabled  # noqa: PLW0603
-
     # OTel context detach fails in async generators (CPython by design, PEP 525).
     # The error is harmless — suppress ERROR log from opentelemetry.context.
     logging.getLogger("opentelemetry.context").setLevel(logging.CRITICAL)
 
     if not public_key or not secret_key:
         logger.info("langfuse disabled, keys not configured")
-        return
+        return False
 
     Langfuse(public_key=public_key, secret_key=secret_key, host=host)
     langfuse = get_client()
 
     if not langfuse.auth_check():
         logger.warning("langfuse auth check failed, tracing disabled")
-        return
+        return False
 
     _ensure_score_config(langfuse)
-    langfuse_enabled = True
     logger.info("langfuse initialized")
+    return True
 
 
 def _ensure_score_config(langfuse: Langfuse) -> None:
@@ -60,9 +57,9 @@ def _ensure_score_config(langfuse: Langfuse) -> None:
         logger.info("langfuse score config created", name="user-feedback")
 
 
-def ensure_security_score_config() -> None:
+def ensure_security_score_config(*, enabled: bool) -> None:
     """Idempotently create security_verdict score config (CATEGORICAL)."""
-    if not langfuse_enabled:
+    if not enabled:
         return
 
     langfuse = get_client()
@@ -85,7 +82,9 @@ def ensure_security_score_config() -> None:
         logger.info("langfuse score config created", name="security_verdict")
 
 
-def ensure_model_definitions(models: list[ModelDefinitionConfig]) -> None:
+def ensure_model_definitions(
+    models: list[ModelDefinitionConfig], *, enabled: bool
+) -> None:
     """Idempotently sync Langfuse model definitions for cost tracking.
 
     Re-seeds when ``configs/pricing.yaml`` adds new price keys (e.g.
@@ -97,7 +96,7 @@ def ensure_model_definitions(models: list[ModelDefinitionConfig]) -> None:
     entries) is bounded by an exact-name match; we only touch our managed
     models.
     """
-    if not langfuse_enabled or not models:
+    if not enabled or not models:
         return
 
     # lazy: heavy submodule, only needed when langfuse is actually enabled

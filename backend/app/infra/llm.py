@@ -1,4 +1,6 @@
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import openai
 from langchain_core.language_models import BaseChatModel
@@ -6,9 +8,12 @@ from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage
 from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from langchain_openai import ChatOpenAI
 
-from app.agent.config import AgentConfig, ResolvedModelConfig, SummarizationConfig
-from app.agent.security.types import SecurityConfig
-from app.config import Settings
+if TYPE_CHECKING:
+    # Annotation-only: runtime import of app.agent.* here closes the
+    # app.infra.llm ↔ app.agent import cycle (classifier imports extract_usage).
+    from app.agent.config import ResolvedModelConfig, SummarizationConfig
+    from app.agent.security.types import SecurityConfig
+    from app.config import Settings
 
 
 class ReasoningChatOpenAI(ChatOpenAI):
@@ -63,101 +68,64 @@ class ReasoningChatOpenAI(ChatOpenAI):
         return gen_chunk
 
 
-def create_llm(settings: Settings, agent_config: AgentConfig) -> BaseChatModel:
-    extra_body = agent_config.llm.extra_body
-    use_reasoning = extra_body.get("include_reasoning", False) if extra_body else False
-    llm_class = ReasoningChatOpenAI if use_reasoning else ChatOpenAI
+def _build_chat_model(
+    settings: Settings,
+    model: str,
+    extra_body: dict[str, Any] | None,
+    *,
+    max_tokens: int | None = None,
+    temperature: float | None = None,
+) -> BaseChatModel:
+    """Construct the project's chat model.
 
+    ``ReasoningChatOpenAI`` is used unconditionally: it is a safe superset of
+    ``ChatOpenAI`` (reasoning extraction is a no-op when the provider returns no
+    ``reasoning`` field), so every model in the project surfaces reasoning when
+    available without per-callsite branching. See conventions.md § Reasoning LLMs.
+    """
     kwargs: dict[str, Any] = {
-        "model": agent_config.llm.model,
+        "model": model,
         "api_key": settings.llm_api_key,
         "base_url": settings.llm_base_url,
     }
+    if max_tokens is not None:
+        kwargs["max_tokens"] = max_tokens
+    if temperature is not None:
+        kwargs["temperature"] = temperature
     if extra_body:
         kwargs["extra_body"] = extra_body
-
-    return llm_class(**kwargs)
+    return ReasoningChatOpenAI(**kwargs)
 
 
 def create_summarization_llm(
     settings: Settings, config: SummarizationConfig
 ) -> BaseChatModel:
-    extra_body = config.extra_body or {}
-    use_reasoning = extra_body.get("include_reasoning", False)
-    llm_class = ReasoningChatOpenAI if use_reasoning else ChatOpenAI
-
-    kwargs: dict[str, Any] = {
-        "model": config.model,
-        "api_key": settings.llm_api_key,
-        "base_url": settings.llm_base_url,
-        "max_tokens": config.max_summary_tokens,
-    }
-    if extra_body:
-        kwargs["extra_body"] = extra_body
-    return llm_class(**kwargs)
+    return _build_chat_model(
+        settings,
+        config.model,
+        config.extra_body or None,
+        max_tokens=config.max_summary_tokens,
+    )
 
 
 def create_llm_from_config(
     settings: Settings, model_config: ResolvedModelConfig
 ) -> BaseChatModel:
     """Create LLM from a resolved model configuration (per-request)."""
-    extra_body = model_config.extra_body or {}
-    use_reasoning = extra_body.get("include_reasoning", False)
-    llm_class = ReasoningChatOpenAI if use_reasoning else ChatOpenAI
-
-    kwargs: dict[str, Any] = {
-        "model": model_config.model,
-        "api_key": settings.llm_api_key,
-        "base_url": settings.llm_base_url,
-    }
-    if extra_body:
-        kwargs["extra_body"] = extra_body
-
-    return llm_class(**kwargs)
-
-
-def create_summarization_llm_from_prompt_config(
-    settings: Settings, config: dict[str, Any]
-) -> BaseChatModel:
-    """Create summarization LLM from Langfuse prompt config dict."""
-    extra_body = config.get("extra_body") or {}
-    use_reasoning = extra_body.get("include_reasoning", False)
-    llm_class = ReasoningChatOpenAI if use_reasoning else ChatOpenAI
-
-    kwargs: dict[str, Any] = {
-        "model": config.get("model", ""),
-        "api_key": settings.llm_api_key,
-        "base_url": settings.llm_base_url,
-        "max_tokens": config.get("max_tokens", 500),
-    }
-    if extra_body:
-        kwargs["extra_body"] = extra_body
-    return llm_class(**kwargs)
+    return _build_chat_model(settings, model_config.model, model_config.extra_body)
 
 
 def create_guard_llm(
     settings: Settings, security_config: SecurityConfig
 ) -> BaseChatModel:
-    """Create LLM for the security guard classifier.
-
-    When ``security_config.llm_classifier.extra_body.include_reasoning`` is
-    true, uses ``ReasoningChatOpenAI`` to surface reasoning traces for
-    calibration.
-    """
+    """Create LLM for the security guard classifier."""
     cfg = security_config.llm_classifier
-    extra_body = cfg.extra_body.as_dict()
-    use_reasoning = cfg.extra_body.include_reasoning
-    llm_class = ReasoningChatOpenAI if use_reasoning else ChatOpenAI
-
-    kwargs: dict[str, Any] = {
-        "model": cfg.model,
-        "api_key": settings.llm_api_key,
-        "base_url": settings.llm_base_url,
-        "temperature": cfg.temperature,
-    }
-    if extra_body:
-        kwargs["extra_body"] = extra_body
-    return llm_class(**kwargs)
+    return _build_chat_model(
+        settings,
+        cfg.model,
+        cfg.extra_body.as_dict() or None,
+        temperature=cfg.temperature,
+    )
 
 
 def extract_usage(response: BaseMessage) -> dict[str, Any] | None:

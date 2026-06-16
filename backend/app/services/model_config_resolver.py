@@ -68,6 +68,10 @@ class ModelConfigResolver:
             )
 
         # agent.yaml fallback
+        return self.default()
+
+    def default(self) -> ResolvedModelConfig:
+        """Resolve the agent.yaml base model config (no per-scope overrides)."""
         return self._from_llm_config(self._llm_config)
 
     @staticmethod

@@ -1,11 +1,55 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "./client";
-import type {
-  Chat,
-  ChatDetail,
-  CreateChatRequest,
-  ListResponse,
-  RecentChat,
-} from "./types";
+import type { Artifact } from "./artifacts";
+import type { ListResponse } from "./pagination";
+import { queryKeys } from "./query-keys";
+
+// === Types ===
+
+export interface Chat {
+  thread_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  security_blocked: boolean;
+}
+
+export interface ChatDetail {
+  thread_id: string;
+  title: string;
+  security_blocked: boolean;
+  messages: Message[];
+}
+
+export interface Message {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string | null;
+  artifacts: Artifact[];
+  trace_id?: string | null;
+  feedback_score?: boolean | null;
+  redacted?: boolean;
+}
+
+export interface RecentChat {
+  thread_id: string;
+  title: string;
+  project_id: string;
+  project_name: string;
+  updated_at: string;
+  security_blocked: boolean;
+}
+
+export interface CreateChatRequest {
+  title?: string;
+}
+
+export interface SendMessageRequest {
+  content: string;
+}
+
+// === API ===
 
 export async function getChats(projectId: string): Promise<ListResponse<Chat>> {
   // UI без постраничной подгрузки: берём максимум за один запрос
@@ -40,4 +84,53 @@ export async function cancelChat(
 ): Promise<{ ok: boolean }> {
   return (await apiClient.post(`/projects/${projectId}/chats/${chatId}/cancel`))
     .data;
+}
+
+// === Hooks ===
+
+export function useChats(projectId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.projects.chats(projectId),
+    queryFn: () => getChats(projectId!),
+    enabled: !!projectId,
+  });
+}
+
+export function useChat(
+  projectId: string | undefined,
+  chatId: string | undefined,
+  options?: { refetchOnWindowFocus?: boolean },
+) {
+  return useQuery({
+    queryKey: queryKeys.projects.chat(projectId, chatId),
+    queryFn: () => getChat(projectId!, chatId!),
+    enabled: !!projectId && !!chatId,
+    refetchOnWindowFocus: options?.refetchOnWindowFocus,
+  });
+}
+
+export function useCreateChat() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      projectId,
+      data,
+    }: {
+      projectId: string;
+      data: CreateChatRequest;
+    }) => createChat(projectId, data),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.projects.chats(variables.projectId),
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chats.recent });
+    },
+  });
+}
+
+export function useRecentChats() {
+  return useQuery({
+    queryKey: queryKeys.chats.recent,
+    queryFn: getRecentChats,
+  });
 }

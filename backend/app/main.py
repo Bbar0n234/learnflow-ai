@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from langfuse import get_client as get_langfuse_client
 from sqlalchemy import text
 
+from app.agent.checkpoint_history import CheckpointHistory
 from app.agent.config import (
     PromptsRegistry,
     load_agent_config,
@@ -26,6 +27,7 @@ from app.agent.config import (
 )
 from app.agent.graph_factory import GraphFactory
 from app.agent.runner import LangGraphAgentRunner
+from app.agent.runtime_security import RuntimeSecurityEnforcer
 from app.agent.security.classifier import LLMClassifier
 from app.agent.security.config import checkpoint_configs, load_security_config
 from app.agent.security.corpus import (
@@ -42,6 +44,7 @@ from app.agent.security.detectors.base import DeterministicDetector
 from app.agent.security.guard import SecurityGuard
 from app.agent.security.observer import GuardObserver
 from app.agent.security.types import Checkpoint, Verdict
+from app.agent.stream_events import StreamEventMapper
 from app.agent.tools import (
     ks_tools,
     make_create_artifact_tool,
@@ -49,6 +52,7 @@ from app.agent.tools import (
     scan_skills_index,
     user_memory_tools,
 )
+from app.agent.tracing import AgentRunTracer
 from app.api.problem import problem_response, register_problem_handlers
 from app.api.routes import (
     artifacts,
@@ -69,7 +73,6 @@ from app.infra.langfuse import (
     ensure_model_definitions,
     ensure_security_score_config,
     init_langfuse,
-    langfuse_enabled,
     shutdown_langfuse,
 )
 from app.infra.langgraph import create_checkpointer, create_store
@@ -227,8 +230,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         log_file=settings.log_file,
     )
 
+    langfuse_enabled = False
     try:
-        init_langfuse(
+        langfuse_enabled = init_langfuse(
             public_key=settings.langfuse_public_key,
             secret_key=settings.langfuse_secret_key,
             host=settings.langfuse_base_url,
@@ -246,12 +250,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     prompts_registry = load_prompts_registry()
 
     try:
-        ensure_model_definitions(pricing_config.models)
+        ensure_model_definitions(pricing_config.models, enabled=langfuse_enabled)
     except Exception:
         logger.warning("langfuse model definitions init failed", exc_info=True)
 
     try:
-        ensure_security_score_config()
+        ensure_security_score_config(enabled=langfuse_enabled)
     except Exception:
         logger.warning("langfuse security score config init failed", exc_info=True)
 
@@ -366,7 +370,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         security_guard = SecurityGuard(
             detectors=detectors,
             classifier=classifier,
-            observer=GuardObserver(),
+            observer=GuardObserver(enabled=langfuse_enabled),
             config=security_config,
         )
         logger.info(
@@ -449,16 +453,28 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if not settings.canary_secret:
             logger.warning("CANARY_SECRET not configured, canary protection disabled")
 
+        checkpoint_history = CheckpointHistory(checkpointer, security_config.messages)
+        runtime_security = RuntimeSecurityEnforcer(
+            guard=security_guard,
+            security_messages=security_config.messages,
+            history=checkpoint_history,
+            session_factory=app.state.session_factory,
+        )
+        agent_tracer = AgentRunTracer(
+            enabled=langfuse_enabled,
+            security_messages=security_config.messages,
+        )
+
         app.state.agent_runner = LangGraphAgentRunner(
             graph_factory=graph_factory,
             model_resolver=model_resolver,
-            checkpointer=checkpointer,
-            security_messages=security_config.messages,
+            tracer=agent_tracer,
+            enforcer=runtime_security,
+            history=checkpoint_history,
             error_messages=error_messages,
+            event_mapper=StreamEventMapper(),
             tool_resolver=tool_resolver,
-            security_guard=security_guard,
             canary_secret=settings.canary_secret,
-            session_factory=app.state.session_factory,
         )
         app.state.agent_config = agent_config
         app.state.security_config = security_config

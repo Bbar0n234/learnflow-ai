@@ -131,7 +131,13 @@ class GuardObserver:
       ``guardrail`` observation under the current (parent) span.
     * REST add-time (top-level): ``trace_ctx["top_level"] is True`` — opens a
       top-level trace ``security.<checkpoint>`` with attribute propagation.
+
+    ``enabled`` is injected at startup (auth-checked Langfuse client) instead of
+    read from a module-level flag.
     """
+
+    def __init__(self, *, enabled: bool = False) -> None:
+        self._enabled = enabled
 
     @asynccontextmanager
     async def observe(
@@ -155,23 +161,22 @@ class GuardObserver:
 
         get_client: Any = None
         propagate_attributes: Any = None
-        try:
-            # lazy: langfuse is optional; observe block degrades gracefully
-            from langfuse import (  # noqa: PLC0415
-                get_client as _get_client,
-            )
-            from langfuse import (  # noqa: PLC0415
-                propagate_attributes as _propagate_attributes,
-            )
+        if self._enabled:
+            try:
+                # lazy: langfuse is optional; observe block degrades gracefully
+                from langfuse import (  # noqa: PLC0415
+                    get_client as _get_client,
+                )
+                from langfuse import (  # noqa: PLC0415
+                    propagate_attributes as _propagate_attributes,
+                )
 
-            from app.infra.langfuse import langfuse_enabled  # noqa: PLC0415
+                get_client = _get_client
+                propagate_attributes = _propagate_attributes
+            except Exception:
+                get_client = None
 
-            get_client = _get_client
-            propagate_attributes = _propagate_attributes
-        except Exception:
-            langfuse_enabled = False
-
-        if langfuse_enabled and get_client is not None:
+        if get_client is not None:
             try:
                 client = get_client()
                 if top_level:

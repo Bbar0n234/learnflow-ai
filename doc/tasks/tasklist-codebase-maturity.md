@@ -36,7 +36,7 @@
 | feat-002 | ✅ Done | backend / REST | REST API slice: api-design-principles skill + поглощение REST API cleanup (8 пунктов аудита 2026-04-04) |
 | feat-003 | ✅ Done | db | DB slice: postgresql skill, индексы, constraints, типы, паттерны миграций |
 | feat-004 | ✅ Done | backend / fastapi | Backend/FastAPI slice: fastapi skill + поглощение точечных техдолгов (SIEM MetaEmitter, дубль SecurityEvent, CORS_ORIGINS, SIEM follow-ups) |
-| feat-005 | 📋 Planned | agent | Agent runtime slice: langgraph-patterns (авторский) + кандидаты langgraph-* от langchain-ai + поглощение Reasoning ChatOpenAI everywhere (langchain-architecture отклонён в feat-001) |
+| feat-005 | 🚧 In Progress | agent | Agent runtime slice: langgraph-patterns (авторский) + кандидаты langgraph-* от langchain-ai + поглощение Reasoning ChatOpenAI everywhere (langchain-architecture отклонён в feat-001) |
 | feat-006 | 📋 Planned | frontend | Frontend slice: skill discovery for frontend, ручной slice если skill отсутствует |
 | feat-007 | 📋 Planned | cross-cutting | Кросс-резрезные конвенции: error return types + error handling philosophy (graceful degradation vs fail-fast) |
 | feat-008 | 📋 Planned | enforcement | Arch-checker (детерминированные проверки) + Reviewer-промпты (logging, error returns, doc-first) |
@@ -233,7 +233,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** аудит agent runtime через `langgraph-patterns` skill (+ официальные кандидаты `langgraph-*` от langchain-ai — подтверждение при заходе), миграция на единые паттерны. `langchain-architecture` отклонён в feat-001 (LangChain-обёртки при raw LangGraph), см. `doc/tech/skill-map.md`.
 
-**Статус:** 📋 Planned
+**Статус:** 🚧 In Progress — итоги в [summary.md](iterations/codebase-maturity/feat-005-agent-runtime/summary.md)
 **Scope:** agent
 **Зависимости:** feat-001
 
@@ -260,12 +260,13 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 #### Definition of Done
 
-- [ ] Skill `langgraph-patterns` (+ подтверждённые кандидаты `langgraph-*`) применён к коду проекта: аудит runtime против его паттернов, findings на конкретных примерах.
-- [ ] Summarizer и guard переведены на `ReasoningChatOpenAI`.
-- [ ] Reasoning convention зафиксирован в `conventions.md` (раздел Reasoning LLMs уже есть, обновить формулировкой «все модели проекта используют ReasoningChatOpenAI by default»).
-- [ ] LangGraph-конвенции добавлены в `conventions.md`.
-- [ ] Тест-кейсы на затронутые участки составлены и прогнаны (smoke агентного потока: чат, streaming, guard); guard — критичный путь, допустимы точечные автотесты.
-- [ ] Точки остановки на теорию пройдены.
+- [x] Skill `langgraph-patterns` применён к коду проекта: аудит runtime против его паттернов, findings на конкретных примерах (подтверждения: pre-defined edges для ReAct, shared checkpointer/store через `async with`, multi-mode streaming).
+- [x] Summarizer и guard на `ReasoningChatOpenAI` — все модели создаются как `ReasoningChatOpenAI` безусловно (единый билдер `_build_chat_model`).
+- [x] Reasoning convention зафиксирован в `conventions.md § Reasoning LLMs` («все модели проекта создаются как ReasoningChatOpenAI — безусловно»).
+- [x] LangGraph-конвенции добавлены в `conventions.md § Agent Runtime` (топология графа, runner-оркестратор + коллаборáторы).
+- [x] Тест-кейсы составлены; точечные автотесты прогнаны (46 PASS, критичный путь guard покрыт, независимо отревьюены, заархивированы). Ручной smoke агентного потока отложен — стенд занят параллельным slice'ом feat-006 + нет LLM-ключей (см. summary).
+- [x] Точки остановки на теорию пройдены (langfuse `tracing_enabled`/no-op vs наш auth-флаг; Command API vs pre-defined edges; reasoning-надкласс).
+- [x] Доп. findings закрыты: `langfuse_enabled` module-global → DI; runner расщеплён (separation of concerns); `ModelConfigResolver.default()`; user_memory `RuntimeError`; удалён мёртвый код; пойман и пофикшен циклический импорт llm↔agent.
 
 ---
 

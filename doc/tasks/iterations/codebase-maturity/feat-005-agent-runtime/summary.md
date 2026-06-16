@@ -62,20 +62,32 @@ ReAct на pre-defined edges (Command API не нужен), shared checkpointer/
   сайд-эффектов редакции, добавлены тесты `init_langfuse`, mid-stream observation,
   граница скана redaction. Тесты заархивированы в `archived-point-tests/` по
   конвенции фазы (живую инфру проектирует feat-009).
-- **Ручные smoke-кейсы (SM-1…8): отложены.** Причина: в worktree нет LLM-ключей
-  (`.env.local` отсутствует), а docker-стенд занят параллельным агентом feat-006
-  (порт 8001 — `...wt-feat-006-...siem-service`). Поднимать второй стек —
-  инфраконфликт, эскалируется архитектору. Прогон smoke — за архитектором на
-  выделенном стенде (см. `test-cases.md`).
+- **Ручной smoke прогнан на изолированном стенде** (отдельный PG :5440 + backend :8080,
+  чтобы не конфликтовать со стеком параллельного feat-006; LLM-ключ архитектора во
+  временном gitignored `.env.local`):
+  - **SM-1 (обычный чат) — PASS.** `text_chunk`-стрим → `final_output_review_*` → `done`.
+    Подтверждает корректность wiring коллаборáторов в `main.py` и оркестрации `stream()`.
+  - **SM-6 (Langfuse off) — PASS.** `trace_id:""`, ошибок трейсинга нет → `AgentRunTracer(enabled=False)` = no-op (DI-флаг работает).
+  - **SM-3 (инъекция на входе)** вскрыл **пред-существующий дедлок** (не регрессию): `touch(thread_view)`
+    в request-сессии (`chat.py`) держит row-lock на `thread_views` до конца SSE-стрима, а
+    `_mark_blocked` открывал отдельную сессию → UPDATE той же строки виснет → взаимоблокировка
+    (≈120с). Проверено идентичностью структуры в `HEAD~1`.
+    **Фикс (вариант A, реализован отдельным агентом-экспертом):** `_mark_blocked` метит blocked
+    через **сессию запроса** (проброшена из `runner.stream` в `check_*`/`inspect_in_graph`), без
+    второй транзакции; fallback на `session_factory` сохранён для вызовов вне request-scope.
+    После фикса SM-3 — PASS (`security_block` за ~6.6с, `security_blocked=true`, redacted-плейсхолдер),
+    SM-1 регрессии нет.
 
 ## Гейты
-`make check` — ✅ (ruff + ruff format + mypy, 158 files, чисто).
+`make check` — ✅ (ruff + ruff format + mypy, 158 files, чисто), включая фикс дедлока.
 
 ## Изменённые файлы (код)
 `infra/llm.py`, `infra/langfuse.py`, `services/model_config_resolver.py`,
 `agent/runner.py`, `agent/tracing.py` (new), `agent/runtime_security.py` (new),
 `agent/checkpoint_history.py` (new), `agent/stream_events.py` (new),
 `agent/tools/user_memory.py`, `agent/security/observer.py`, `main.py`.
+Пост-смоук фикс дедлока: `agent/runtime_security.py` (`_mark_blocked` + `session`-параметр
+в `check_*`/`inspect_in_graph`/`_redact_final_output`), `agent/runner.py` (проброс `session`).
 
 ## Не делалось / осознанные пропуски
 - Дальнейшее дробление `RuntimeSecurityEnforcer` — достаточно текущего.

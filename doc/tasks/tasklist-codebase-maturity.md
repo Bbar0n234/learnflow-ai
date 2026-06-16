@@ -327,6 +327,7 @@ feat-001 (foundation) ── обязательное предусловие д�
   - Result/Either — для ожидаемых бизнес-ошибок (если решим так);
   - Optional — для отсутствия значения без ошибки.
 - **Error handling philosophy.** Где graceful degradation, где fail-fast: какие сервисы и слои деградируют (LLM провайдер недоступен → fallback), какие падают (БД недоступна → 503). На каком уровне принимается решение (handler / service / infra).
+  - *Конкретный пример из feat-005 (решить здесь):* агентные tools при отсутствии инфраструктуры (`runtime.store is None`) — fail-fast или graceful? Сейчас и KS, и user_memory **бросают `RuntimeError`** (выровнено в feat-005); из-за дефолтного `_default_handle_tool_errors` в `ToolNode` (глотает только `ToolInvocationError`) такое исключение пробрасывается из графа → SSE `error`, ход рвётся. Альтернатива — обе тулзы возвращают error-строку (status=success, агент продолжает). Это защитный путь (`store` в проде всегда есть), но направление políticy нужно зафиксировать.
 - Что ещё всплыло по ходу slice'ов и достойно кросс-резрезной фиксации — записать.
 - Обновление `doc/tech/conventions.md` — раздел про error handling.
 

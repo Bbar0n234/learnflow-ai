@@ -73,6 +73,7 @@ class RuntimeSecurityEnforcer:
         content: str,
         canary_token: str,
         graph: Any,
+        session: AsyncSession | None = None,
     ) -> GuardResult | None:
         """Pre-graph USER_INPUT check. Returns the verdict (``None`` if guard off).
 
@@ -91,7 +92,7 @@ class RuntimeSecurityEnforcer:
         )
         if result.verdict == Verdict.INJECTION:
             await self._persist_user_input_block(graph, thread_id, content, result)
-            await self._mark_blocked(thread_id)
+            await self._mark_blocked(thread_id, session=session)
         elif result.verdict == Verdict.SUSPICIOUS:
             logger.warning(
                 "suspicious input detected, proceeding",
@@ -112,6 +113,7 @@ class RuntimeSecurityEnforcer:
         graph: Any,
         config: dict[str, Any],
         last_message_id: str | None,
+        session: AsyncSession | None = None,
     ) -> SecurityOutcome | None:
         """Mid-stream tail-only deterministic check (skip_classifier=True)."""
         if self._guard is None:
@@ -126,7 +128,7 @@ class RuntimeSecurityEnforcer:
         if result.verdict != Verdict.INJECTION:
             return None
         await self._redact_final_output(
-            graph, config, thread_id, full_response, result, last_message_id
+            graph, config, thread_id, full_response, result, last_message_id, session
         )
         return SecurityOutcome(
             reason=self.block_reason(result, "final_output"), result=result
@@ -141,6 +143,7 @@ class RuntimeSecurityEnforcer:
         graph: Any,
         config: dict[str, Any],
         last_message_id: str | None,
+        session: AsyncSession | None = None,
     ) -> SecurityOutcome | None:
         """End-of-stream FINAL_OUTPUT classifier check."""
         if self._guard is None:
@@ -153,18 +156,23 @@ class RuntimeSecurityEnforcer:
         if result.verdict != Verdict.INJECTION:
             return None
         await self._redact_final_output(
-            graph, config, thread_id, full_response, result, last_message_id
+            graph, config, thread_id, full_response, result, last_message_id, session
         )
         return SecurityOutcome(
             reason=self.block_reason(result, "final_output"), result=result
         )
 
-    async def inspect_in_graph(self, *, thread_id: uuid.UUID) -> SecurityOutcome | None:
+    async def inspect_in_graph(
+        self,
+        *,
+        thread_id: uuid.UUID,
+        session: AsyncSession | None = None,
+    ) -> SecurityOutcome | None:
         """Post-stream inspection of TOOL_CALL_ARG / TOOL_RESULT redactions."""
         hit = await self._history.latest_redaction(thread_id)
         if hit is None:
             return None
-        await self._mark_blocked(thread_id)
+        await self._mark_blocked(thread_id, session=session)
         result = GuardResult(
             verdict=Verdict.INJECTION,
             checkpoint=hit.checkpoint,
@@ -182,6 +190,7 @@ class RuntimeSecurityEnforcer:
         full_response: str,
         result: GuardResult,
         last_message_id: str | None,
+        session: AsyncSession | None = None,
     ) -> None:
         """Replace the assistant message by id with the redaction placeholder."""
         try:
@@ -205,7 +214,7 @@ class RuntimeSecurityEnforcer:
                 thread_id=str(thread_id),
                 exc_info=True,
             )
-        await self._mark_blocked(thread_id)
+        await self._mark_blocked(thread_id, session=session)
         logger.warning(
             "final output blocked",
             security_event=True,
@@ -261,12 +270,38 @@ class RuntimeSecurityEnforcer:
                 exc_info=True,
             )
 
-    async def _mark_blocked(self, thread_id: uuid.UUID) -> None:
+    async def _mark_blocked(
+        self,
+        thread_id: uuid.UUID,
+        *,
+        session: AsyncSession | None = None,
+    ) -> None:
+        """Mark the thread blocked.
+
+        When a request-scoped ``session`` is provided, reuse it directly: the
+        request transaction already holds the ``thread_views`` row lock (via
+        ``touch``), so opening a second session here would deadlock — the second
+        UPDATE would wait on a lock that only releases when the request commits,
+        which only happens after the stream (and thus this call) finishes.
+        ``mark_security_blocked`` flushes; the request transaction commits at the
+        end of the request. The standalone fallback (own session + ``begin()``)
+        covers non-request callers such as tests.
+        """
+        if session is not None:
+            try:
+                await ThreadViewRepository(session).mark_security_blocked(thread_id)
+            except Exception:
+                logger.warning(
+                    "mark_security_blocked failed",
+                    thread_id=str(thread_id),
+                    exc_info=True,
+                )
+            return
         if self._session_factory is None:
             return
         try:
-            async with self._session_factory() as session, session.begin():
-                repo = ThreadViewRepository(session)
+            async with self._session_factory() as own_session, own_session.begin():
+                repo = ThreadViewRepository(own_session)
                 await repo.mark_security_blocked(thread_id)
         except Exception:
             logger.warning(

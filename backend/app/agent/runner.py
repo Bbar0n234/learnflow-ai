@@ -121,6 +121,7 @@ class LangGraphAgentRunner:
                 content=content,
                 canary_token=canary_token,
                 graph=graph,
+                session=session,
             )
             if guard_result is not None and guard_result.verdict.value == "INJECTION":
                 span.finalize_blocked(guard_result)
@@ -194,6 +195,7 @@ class LangGraphAgentRunner:
                             graph=graph,
                             config=config,
                             last_message_id=last_message_id,
+                            session=session,
                         )
                         if mid_outcome is not None:
                             injection_emitted = True
@@ -251,6 +253,7 @@ class LangGraphAgentRunner:
                     graph=graph,
                     config=config,
                     last_message_id=last_message_id,
+                    session=session,
                 )
                 if final_outcome is not None:
                     injection_emitted = True
@@ -266,7 +269,9 @@ class LangGraphAgentRunner:
 
             # --- Post-stream in-graph INJECTION inspection ---
             if not injection_emitted and not stream_error:
-                in_graph = await self._enforcer.inspect_in_graph(thread_id=thread_id)
+                in_graph = await self._enforcer.inspect_in_graph(
+                    thread_id=thread_id, session=session
+                )
                 if in_graph is not None:
                     injection_emitted = True
                     span.finalize_blocked(in_graph.result)

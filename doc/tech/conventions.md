@@ -257,8 +257,6 @@ Dockerfile живёт рядом с `pyproject.toml` пакета (`backend/Dock
 
 `Settings()` инстанцируется один раз в `lifespan` (плюс один раз в `create_app()` для middleware-конфигурации). В handlers/dependencies — только `SettingsDep`; повторный `Settings()` на запрос — это повторный парсинг env.
 
-Флаг «доступен ли Langfuse» — не module-level. `init_langfuse()` возвращает `bool` (ключи есть и `auth_check()` прошёл), `lifespan` владеет этим значением и инжектит его в инструментацию (`AgentRunTracer(enabled=...)`, `GuardObserver(enabled=...)`) и в startup-хелперы (`ensure_*(enabled=...)`). Так request-scope-код не читает глобал; решение «трейсить или нет» приходит через DI.
-
 ### Annotated и type-alias для зависимостей
 
 Параметры с метаданными (`Query`, `Path`, `Cookie`, `Depends`) — только в `Annotated`, дефолт остаётся обычным значением: `limit: Annotated[int, Query(ge=1, le=200)] = 50`. Переиспользуемые зависимости оборачиваются в type-alias рядом с определением (`DBSession`, `CurrentUser`, `SettingsDep` — `backend/app/api/deps.py`; `SessionDep`, `AdminPayload`, `MetaEmitterDep` — `siem_service/api/deps.py`). Правило ruff `B008` включено: вызовы в дефолтах параметров — ошибка линта, Annotated-стиль её не триггерит.

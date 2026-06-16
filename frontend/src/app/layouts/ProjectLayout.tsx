@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useParams, useMatch } from "react-router";
-import { useProject } from "@/features/projects/hooks/useProject";
+import { useProject } from "@/shared/api/projects";
 
 export function ProjectLayout() {
   const { id } = useParams();

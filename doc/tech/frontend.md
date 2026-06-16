@@ -60,7 +60,7 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 
 ## Компонентная архитектура
 
-Feature-based: компоненты группируются по фичам, не по типам. Новая фича = новая папка, существующие не затрагиваются.
+Организация по FSD: код группируется по слоям и слайсам (`pages/` — экраны маршрутов, `features/` — переиспользуемые interactions), не по техническим типам. Раскладка по дереву — в [Module Structure](#module-structure) ниже; ниже — функциональное описание экранов и компонентов.
 
 ### Layout
 
@@ -150,43 +150,46 @@ flowchart LR
 
 ### TanStack Query — серверный state
 
-Кеширование, рефетч, loading/error — автоматически. Query keys иерархические, для точечной инвалидации.
+Кеширование, рефетч, loading/error — автоматически. Query keys иерархические, для префиксной инвалидации.
+
+**Источник истины по ключам — фабрика `shared/api/query-keys.ts`** (объект `queryKeys`); инлайн-литералов в хуках нет. Таблица ниже отражает её структуру.
 
 **Queries:**
 
-| Query Key | Endpoint |
-|-----------|----------|
-| `["projects"]` | `GET /projects` |
-| `["projects", id]` | `GET /projects/:id` |
-| `["projects", id, "chats"]` | `GET /projects/:id/chats` |
-| `["projects", id, "chats", cid]` | `GET /projects/:id/chats/:cid` |
-| `["projects", id, "sphere"]` | `GET /projects/:id/sphere` |
-| `["projects", id, "artifacts"]` | `GET /projects/:id/artifacts` |
-| `["projects", id, "artifacts", aid]` | `GET /projects/:id/artifacts/:aid` |
-| `["chats", "recent"]` | `GET /chats/recent` |
-| `["models"]` | `GET /models` |
-| `["user", "settings"]` | `GET /users/me/settings` |
-| `["user", "instructions"]` | `GET /users/me/instructions` |
-| `["user", "memories"]` | `GET /users/me/memories` |
-| `["user", "mcp-servers"]` | `GET /users/me/mcp-servers` |
-| `["projects", id, "settings"]` | `GET /projects/:id/settings` |
-| `["projects", id, "mcp-servers"]` | `GET /projects/:id/mcp-servers` |
-| `["projects", id, "chats", cid, "settings"]` | `GET /projects/:id/chats/:cid/settings` |
-| `["projects", id, "chats", cid, "mcp-servers"]` | `GET /projects/:id/chats/:cid/mcp-servers` |
+| Фабрика | Ключ | Endpoint |
+|---------|------|----------|
+| `queryKeys.projects.all` | `["projects"]` | `GET /projects` |
+| `queryKeys.projects.detail(id)` | `["projects", id]` | `GET /projects/:id` |
+| `queryKeys.projects.chats(id)` | `["projects", id, "chats"]` | `GET /projects/:id/chats` |
+| `queryKeys.projects.chat(id, cid)` | `["projects", id, "chats", cid]` | `GET /projects/:id/chats/:cid` |
+| `queryKeys.projects.sphere(id)` | `["projects", id, "sphere"]` | `GET /projects/:id/sphere` |
+| `queryKeys.projects.artifacts(id)` | `["projects", id, "artifacts"]` | `GET /projects/:id/artifacts` |
+| `queryKeys.projects.artifact(id, aid)` | `["projects", id, "artifacts", aid]` | `GET /projects/:id/artifacts/:aid` |
+| `queryKeys.chats.recent` | `["chats", "recent"]` | `GET /chats/recent` |
+| `queryKeys.models` | `["models"]` | `GET /models` |
+| `queryKeys.instructions` | `["instructions"]` | `GET /users/me/instructions` |
+| `queryKeys.memories` | `["memories"]` | `GET /users/me/memories` |
+| `queryKeys.settings(scope, projectId?, threadId?)` | `["settings", scope, …]` | settings по scope (user/project/thread) |
+| `queryKeys.mcpServers(scope, projectId?, threadId?)` | `["mcp-servers", scope, …]` | mcp-servers по scope |
+| `queryKeys.auth.me` | `["auth", "me"]` | `GET /auth/me` (route guard, user footer) |
+| `queryKeys.security.*` | `["security", …]` | SIEM events/alerts/rules (siem-service) |
+
+Settings и MCP-серверы используют единый ключ с осью `scope` (`user` / `project` / `thread`) + `projectId`/`threadId`, отфильтрованными через `.filter(Boolean)` — не отдельные ключи на каждый уровень.
 
 **Mutations → инвалидация:**
 
 | Действие | Инвалидирует |
 |----------|-------------|
-| Создать/обновить/удалить проект | `["projects"]` |
-| Создать чат | `["projects", id, "chats"]`, `["chats", "recent"]` |
-| Обновить sphere | `["projects", id, "sphere"]` |
-| Стрим завершён (`done`) | `["projects", id, "chats", cid]`, `["chats", "recent"]` |
-| Событие `artifact_created` | `["projects", id, "artifacts"]` |
-| Обновить settings (any scope) | Соответствующий `[..., "settings"]` key |
-| Обновить instructions | `["user", "instructions"]` |
-| Удалить memory | `["user", "memories"]` |
-| CRUD MCP server (any scope) | Соответствующий `[..., "mcp-servers"]` key |
+| Создать/обновить/удалить проект | `queryKeys.projects.all` |
+| Создать чат | `queryKeys.projects.chats(id)`, `queryKeys.chats.recent` |
+| Обновить sphere | `queryKeys.projects.sphere(id)` |
+| Стрим завершён (`done`) | `queryKeys.projects.chat(id, cid)`, `queryKeys.chats.recent` |
+| Событие `artifact_created` | `queryKeys.projects.artifacts(id)` |
+| Обновить settings (any scope) | `queryKeys.settings(scope, …)` |
+| Обновить instructions | `queryKeys.instructions` |
+| Удалить memory | `queryKeys.memories` |
+| CRUD MCP server (any scope) | `queryKeys.mcpServers(scope, …)` |
+| Ack/resolve alert, CRUD rule | `queryKeys.security.alerts` / `queryKeys.security.rules` |
 
 ### Zustand — клиентский state
 
@@ -228,43 +231,32 @@ streamStore
 
 ### TypeScript типы
 
-Ручные, 1:1 со schemas из [backend.md](backend.md). Единый файл `types.ts`. Генерация из OpenAPI — при росте API.
+Ручные, 1:1 со schemas из [backend.md](backend.md). DTO-типы дробятся по доменам и лежат рядом с API-функциями ресурса (`shared/api/<domain>.ts`), а не единым файлом. Generic-envelope `ListResponse<T>` — `shared/api/pagination.ts`, типы SSE-событий — `shared/api/sse.ts`. Генерация из OpenAPI — при росте API.
 
-### API-модули
+### API-модули и хуки
 
-По модулю на ресурс, по функции на endpoint:
+По доменному модулю на ресурс в `shared/api/`. Каждый модуль — самодостаточный домен: DTO-типы + API-функции + TanStack Query data-хуки. CRUD/data-fetch — инфраструктура, по FSD её место в `shared/api`, а не в слайсах.
 
 ```
 shared/api/
-├── client.ts        — axios instance
-├── types.ts         — TS-типы
-├── projects.ts      — getProjects, getProject, createProject, updateProject, deleteProject
-├── chats.ts         — getChats, getChat, createChat, getRecentChats
-├── sphere.ts        — getSphere, updateSphere
-├── artifacts.ts     — getArtifacts, getArtifact, downloadArtifact
-├── models.ts        — getModels
-├── settings.ts      — get/updateUserSettings, get/updateProjectSettings, get/updateThreadSettings
-├── user-memory.ts   — getInstructions, updateInstructions, getMemories, deleteMemory
-└── mcp-servers.ts   — CRUD per scope (user, project, thread), testConnection
+├── client.ts        — axios instance, interceptor, ensureFreshToken
+├── query-keys.ts    — фабрика queryKeys (единый источник ключей)
+├── pagination.ts    — ListResponse<T>
+├── sse.ts           — SSEEvent
+├── projects.ts      — Project + getProjects… + useProjects, useProject, useCreate/Update/DeleteProject
+├── chats.ts         — Chat/ChatDetail/Message… + getChats… + useChats, useChat, useCreateChat, useRecentChats
+├── sphere.ts        — Sphere + getSphere/updateSphere + useSphere, useUpdateSphere
+├── artifacts.ts     — Artifact… + getArtifacts/getArtifact/downloadArtifact + useArtifacts, useArtifact
+├── models.ts        — AvailableModel + getModels + useModels
+├── settings.ts      — Settings… + get/updateSettings + useSettings, useUpdateSettings (per scope)
+├── user-memory.ts   — Instructions/MemoryItem + … + useInstructions, useUpdateInstructions, useMemories
+├── mcp-servers.ts   — MCPServer… + CRUD per scope + useMCPServers, useMCPServerMutations
+├── feedback.ts      — setFeedback, deleteFeedback
+├── auth.ts          — register/login/refresh/getMe/logout
+└── security.ts      — SIEM типы + siemClient + listEvents/Alerts/Rules… + useEvents, useAlerts, useRules, …
 ```
 
-Без `messages.ts` — отправка сообщений через SSE (см. ниже).
-
-### TanStack Query хуки
-
-По хуку на query/mutation, живут в features:
-
-```
-features/projects/   → useProjects, useProject, useCreateProject, useUpdateProject, useDeleteProject
-features/chat/       → useChats, useChat, useCreateChat, useRecentChats
-features/sphere/     → useSphere, useUpdateSphere
-features/artifacts/  → useArtifacts, useArtifact
-features/settings/   → useModels, useSettings, useUpdateSettings, useInstructions, useUpdateInstructions,
-                       useMemories, useDeleteMemory, useMCPServers, useMCPServerCRUD, useTestConnection
-features/security/   → useSecurityAPI (events, alerts, rules — list, mutate)
-```
-
-Компоненты вызывают хуки, не API-функции напрямую.
+Без `messages.ts` — отправка сообщений через SSE (см. ниже). Компоненты вызывают хуки, не API-функции напрямую. Страница-специфичная оркестрация (SSE-стрим) живёт в слайсе: `pages/chat/model/useAgentStream.ts`.
 
 **downloadArtifact** — axios blob download с Bearer token (через interceptor). Не через TanStack Query (императивный вызов из onClick).
 
@@ -304,7 +296,7 @@ Frontend различает две точки взаимодействия с с
 
 ## Module Structure
 
-Слои показаны цветными подложками поверх компонентов и их связей:
+Слои FSD показаны цветными подложками поверх компонентов и их связей. Импорт строго вниз по слоям: `app → pages → features → shared`; `stores/` — cross-cutting клиентское состояние.
 
 ```mermaid
 graph TD
@@ -320,16 +312,21 @@ graph TD
         ROUTERX["router.tsx"]
         LAY["layouts/ — AppLayout, ProjectLayout"]
         PROVX["providers/ — QueryClientProvider"]
-        ACOMP["components/ — WelcomePage и др."]
+        ACOMP["components/ — Sidebar, project-управление,<br>AuthGate, ErrorBoundary"]
     end
 
-    subgraph FEATS["features/ — в каждой: components/ + hooks/ (TanStack Query)"]
-        CHATF["chat"]
-        PROJF["projects"]
-        SETF["settings"]
-        SPHF["sphere"]
-        ARTF["artifacts"]
-        SECFX["security — admin"]
+    subgraph PAGESL["pages/ — слайсы уровня маршрута (ui/ + model/)"]
+        CHATP["chat · project-chats"]
+        SPHP["sphere"]
+        ARTP["artifacts · artifact"]
+        SETP["user-settings · project-settings"]
+        SECP["security — admin"]
+        WELP["welcome"]
+    end
+
+    subgraph FEATSL["features/ — переиспользуемые interactions"]
+        MSEL["model-selector"]
+        MCPF["mcp-servers"]
     end
 
     subgraph CLST["stores/ — клиентский state, Zustand"]
@@ -338,35 +335,33 @@ graph TD
     end
 
     subgraph SHRD["shared/"]
-        APIX["api/ — axios client,<br>модули по ресурсам"]
-        UIX["ui/ — shadcn"]
-        SCOMP["components/"]
+        APIX["api/ — client, query-keys,<br>домены: типы+fn+хуки"]
+        UIX["ui/ — shadcn + MarkdownRenderer"]
         LIBX["lib/ — logger, utils"]
     end
-
-    TYPESX["types/ — security.ts"]
 
     MAINX --> APPX
     APPX --> ROUTERX
     ROUTERX --> LAY
-    LAY --> FEATS
-    FEATS --> SHRD
-    CHATF --> STST
-    SECFX --> TYPESX
-    CHATF -. "cross-imports" .-> SETF
-    CHATF -. "cross-imports" .-> PROJF
+    LAY --> PAGESL
+    PAGESL --> FEATSL
+    PAGESL --> SHRD
+    FEATSL --> SHRD
+    ACOMP --> SHRD
+    CHATP --> STST
     APIX -->|HTTP| BE
     APIX -->|HTTP| SIEMS
-    CHATF -->|"SSE fetch"| BE
+    CHATP -->|"SSE fetch"| BE
 
     style ENTRY fill:#8b949e1a,stroke:#8b949e,color:#8b949e
     style SHELL fill:#58a6ff1a,stroke:#58a6ff,color:#58a6ff
-    style FEATS fill:#3fb9501a,stroke:#3fb950,color:#3fb950
+    style PAGESL fill:#3fb9501a,stroke:#3fb950,color:#3fb950
+    style FEATSL fill:#e3b3411a,stroke:#e3b341,color:#e3b341
     style CLST fill:#bc8cff1a,stroke:#bc8cff,color:#bc8cff
     style SHRD fill:#d299221a,stroke:#d29922,color:#d29922
 ```
 
-Структура отступает от канонического FSD: нет `pages/`, stores и types на верхнем уровне, нет public API у слайсов, есть cross-imports между features.
+Структура каноническая по FSD с осознанными отступлениями (зафиксированы в [conventions.md](conventions.md#frontend)): `stores/` на верхнем уровне (`stream-store` cross-feature), `shared/` импортируется по доменным файлам без barrel-индексов, слои `widgets/` и `entities/` не вводятся.
 
 ```
 frontend/
@@ -381,63 +376,47 @@ frontend/
 │   ├── index.css                  — Tailwind + shadcn theme variables
 │   │
 │   ├── app/                       — application shell
-│   │   ├── layouts/
-│   │   │   ├── AppLayout.tsx      — sidebar + центральная область
-│   │   │   └── ProjectLayout.tsx  — имя проекта, табы (Chats/Sphere/Artifacts)
-│   │   ├── components/            — app-level компоненты (AuthGate, WelcomePage и т.д.)
+│   │   ├── layouts/               — AppLayout (sidebar + центр), ProjectLayout (табы)
+│   │   ├── components/            — Sidebar, ProjectList/ProjectCard/ProjectActions/
+│   │   │                            CreateProjectModal, AuthGate, ErrorBoundary
 │   │   ├── providers/             — QueryClientProvider, прочие провайдеры
 │   │   └── router.tsx             — конфигурация маршрутов
 │   │
-│   ├── features/                  — feature-based модули
-│   │   ├── projects/
-│   │   │   ├── components/        — ProjectCard, ProjectActions, CreateProjectModal, ProjectList
-│   │   │   └── hooks/             — useProjects, useProject, useCreateProject, useUpdateProject, useDeleteProject
-│   │   ├── chat/
-│   │   │   ├── components/        — ChatList, ChatView, ChatHeader, ModelSelector, ToolsDialog,
-│   │   │   │                        MessageList, MessageItem, ChatInput, ToolIndicator, ArtifactCard
-│   │   │   └── hooks/             — useChats, useChat, useCreateChat, useRecentChats, useAgentStream
-│   │   ├── settings/
-│   │   │   ├── components/        — SettingsPage, ModelSelector, CustomInstructionsSection,
-│   │   │   │                        AgentMemorySection, MCPServersSection, ProjectSettingsTab
-│   │   │   └── hooks/             — useModels, useSettings, useInstructions, useMemories, useMCPServers
-│   │   ├── sphere/
-│   │   │   ├── components/        — SphereView, SphereViewer, SphereEditor
-│   │   │   └── hooks/             — useSphere, useUpdateSphere
-│   │   ├── artifacts/
-│   │   │   ├── components/        — ArtifactList, ArtifactView
-│   │   │   └── hooks/             — useArtifacts, useArtifact
-│   │   └── security/              — admin-only SIEM monitoring
-│   │       ├── components/        — SecurityPage, SecurityRouteGuard, SecurityEvents,
-│   │       │                        SecurityAlerts, SecurityRules, RuleForm,
-│   │       │                        SecurityFilter, SecurityPagination,
-│   │       │                        SeverityBadge, StatusBadge
-│   │       └── hooks/             — useSecurityAPI
+│   ├── pages/                     — слайсы уровня маршрута (ui/ + при нужде model/), public API в index.ts
+│   │   ├── welcome/               — /
+│   │   ├── project-chats/         — /projects/:id (ChatList)
+│   │   ├── chat/                  — /projects/:id/chats/:cid
+│   │   │   ├── ui/                — ChatView, ChatHeader, ChatInput, MessageList, MessageItem,
+│   │   │   │                        ToolIndicator, ReviewIndicator, ArtifactCard, FeedbackButtons
+│   │   │   └── model/             — useAgentStream (SSE-оркестрация)
+│   │   ├── sphere/                — /projects/:id/sphere (SphereView/Viewer/Editor)
+│   │   ├── artifacts/             — /projects/:id/artifacts (ArtifactList)
+│   │   ├── artifact/              — /projects/:id/artifacts/:aid (ArtifactView)
+│   │   ├── user-settings/         — /settings (SettingsPage, CustomInstructions, AgentMemory)
+│   │   ├── project-settings/      — /projects/:id/settings (ProjectSettingsPage)
+│   │   └── security/              — /security, admin (SecurityPage, RouteGuard, Events/Alerts/Rules,
+│   │                                RuleForm, Filter, Pagination, Severity/StatusBadge)
+│   │
+│   ├── features/                  — переиспользуемые interactions (2+ страниц), public API в index.ts
+│   │   ├── model-selector/        — ModelSelector (chat + user/project settings)
+│   │   └── mcp-servers/           — MCPServersSection (+ MCPServerForm, приватный)
 │   │
 │   ├── shared/
-│   │   ├── api/                   — HTTP-слой
-│   │   │   ├── client.ts          — axios instance
-│   │   │   ├── types.ts           — TS-типы (1:1 с backend schemas)
-│   │   │   ├── projects.ts
-│   │   │   ├── chats.ts
-│   │   │   ├── sphere.ts
-│   │   │   ├── artifacts.ts
-│   │   │   ├── models.ts
-│   │   │   ├── settings.ts
-│   │   │   ├── user-memory.ts
-│   │   │   ├── mcp-servers.ts
-│   │   │   └── security.ts        — events, alerts, rules (siem-service API)
-│   │   ├── ui/                    — shadcn/ui компоненты
-│   │   ├── components/            — MarkdownRenderer и другие shared-компоненты
-│   │   └── lib/                   — утилиты (logger, utils)
+│   │   ├── api/                   — HTTP-слой: домен = типы + API-функции + data-хуки
+│   │   │   ├── client.ts          — axios instance, interceptor, ensureFreshToken
+│   │   │   ├── query-keys.ts      — фабрика queryKeys (единый источник ключей)
+│   │   │   ├── pagination.ts      — ListResponse<T>
+│   │   │   ├── sse.ts             — SSEEvent
+│   │   │   ├── projects.ts  chats.ts  sphere.ts  artifacts.ts  models.ts
+│   │   │   ├── settings.ts  user-memory.ts  mcp-servers.ts  feedback.ts  auth.ts
+│   │   │   └── security.ts        — SIEM типы + siemClient + хуки (siem-service API)
+│   │   ├── ui/                    — shadcn/ui примитивы + MarkdownRenderer
+│   │   └── lib/                   — утилиты (logger, utils, security-error)
 │   │
-│   ├── stores/                    — Zustand stores
-│   │   ├── ui-store.ts
-│   │   └── stream-store.ts
-│   │
-│   └── types/                     — TS-типы вне shared/api (security.ts)
+│   └── stores/                    — Zustand stores (ui-store, stream-store)
 ```
 
-**Принципы:** features/ изолированы друг от друга. shared/ — то, что нужно нескольким фичам. app/ — shell (layouts, providers, router), не бизнес-логика. stores/ отдельно от features, т.к. stream store используется cross-feature. Pages не выделены — при 6 маршрутах роутер рендерит layout + feature-компонент напрямую.
+**Принципы:** `pages/` — композиция уровня маршрута, каждая изолирована и закрыта `index.ts`. `features/` — только реально переиспользуемое между страницами (`model-selector`, `mcp-servers`); кросс-импортов между слайсами одного слоя нет — страницы тянут общие куски вниз, из `features/`. `shared/api` держит data-хуки и фабрику ключей. `app/` — shell (layouts, providers, router, постоянный Sidebar с управлением проектами), не бизнес-логика. `stores/` отдельно — `stream-store` cross-feature.
 
 ## Logging
 

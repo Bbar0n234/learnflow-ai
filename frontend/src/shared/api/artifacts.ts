@@ -1,5 +1,28 @@
+import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "./client";
-import type { Artifact, ArtifactDetail, ListResponse } from "./types";
+import type { ListResponse } from "./pagination";
+import { queryKeys } from "./query-keys";
+
+// === Types ===
+
+export interface Artifact {
+  id: string;
+  title: string;
+  type: string;
+  created_at: string;
+}
+
+export interface ArtifactDetail {
+  id: string;
+  title: string;
+  type: string;
+  content: string;
+  thread_id: string | null;
+  message_id: string | null;
+  created_at: string;
+}
+
+// === API ===
 
 export async function getArtifacts(
   projectId: string,
@@ -40,4 +63,25 @@ export async function downloadArtifact(
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// === Hooks ===
+
+export function useArtifacts(projectId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.projects.artifacts(projectId),
+    queryFn: () => getArtifacts(projectId!),
+    enabled: !!projectId,
+  });
+}
+
+export function useArtifact(
+  projectId: string | undefined,
+  artifactId: string | undefined,
+) {
+  return useQuery({
+    queryKey: queryKeys.projects.artifact(projectId, artifactId),
+    queryFn: () => getArtifact(projectId!, artifactId!),
+    enabled: !!projectId && !!artifactId,
+  });
 }

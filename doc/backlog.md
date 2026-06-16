@@ -9,7 +9,6 @@
 ## Frontend / UX
 
 - **P1** Voice input — голосовой ввод сообщений агенту (STT) *(cross: Backend)*
-- **P2** Design system — проработка дизайн-системы, визуальная идентичность, референсы
 - **P3** Rich Artifact UI — специализированные viewer/editor-компоненты для разных типов артефактов (аудио, графики, презентации и др.) вместо универсального markdown-viewer. Это обычный типизированный UI, не Generative UI; конкретные сценарии и приоритет уточняются через dogfooding *(cross: Backend)*
 - **P3** Generative UI — агент сам выбирает или компонует UI-компоненты. Для текущего продукта подтверждённого сценария нет; вернуться при развитии LearnFlowAI в платформу для студентов, где потребуются адаптивные учебные интерфейсы. Ресерч завершён (`doc/research/generative-ui-research-report.md`) *(cross: Agent, Backend)*
 - **P3** Rich Material Export — экспорт rich-артефактов с сохранением визуального качества (не markdown-дамп). Форматы и требования определяются после появления реальных типов rich-артефактов; Generative UI не является обязательной зависимостью *(cross: Backend)*
@@ -67,6 +66,7 @@ _Findings из feat-002 REST API slice (Codebase Maturity) — отложены 
 - **P2** File attachments — загрузка файлов агенту: документы, презентации, картинки. Продуманная и надёжная работа с файлами *(Frontend + Backend + Agent)*
 - **P2** Per-user MCP management — UI для добавления/отключения MCP-серверов per user *(Frontend + Backend)*
 - **P1** OAuth authentication (Google, GitHub) — сейчас только логин/пароль. Перед публичным запуском — must-have: требование хранить отдельный пароль для сервиса сильно снижает конверсию. Полноценная OAuth-интеграция через Google и GitHub (не email confirmation code, а именно OAuth). Затрагивает backend (провайдерская интеграция, token exchange, user linking), frontend (социальные кнопки логина, OAuth callback flow), `tech/auth.md` (актуализация). Может потребовать ADR по user identity model при нескольких OAuth-провайдерах для одного пользователя *(Frontend + Backend)*
+- **P2** HF Pro utilization — найти применение подписке Hugging Face (~$9/мес) шире одной задачи: batch-прогон качественного вырезания фона по всему паку (нужно треку Design-branding, feat-002), плюс разведка сильных моделей/Spaces под текущие задачи и проекты (генерация, обработка, разовые специфические задачи). Триггер уже есть — managed BiRefNet оказался лучшим инструментом cutout. Off-topic относительно одного трека, поэтому здесь, а не в tasklist *(cross: Design-branding, Agent)*
 
 ## Meta (Backlog & Workflow Infrastructure)
 

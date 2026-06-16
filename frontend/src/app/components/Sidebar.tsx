@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useMatch, useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "@/shared/api/query-keys";
 import {
   LogOut,
   MessageSquare,
@@ -14,10 +15,10 @@ import { getIsAdminFromAccessToken, getMe, logout } from "@/shared/api/auth";
 import { clearAccessToken, getAccessToken } from "@/shared/api/client";
 import { Button } from "@/shared/ui/button";
 import { useUIStore } from "@/stores/ui-store";
-import { useRecentChats } from "@/features/chat/hooks/useRecentChats";
-import { useCreateChat } from "@/features/chat/hooks/useCreateChat";
-import { ProjectList } from "@/features/projects/components/ProjectList";
-import { CreateProjectModal } from "@/features/projects/components/CreateProjectModal";
+import { useRecentChats } from "@/shared/api/chats";
+import { useCreateChat } from "@/shared/api/chats";
+import { ProjectList } from "./ProjectList";
+import { CreateProjectModal } from "./CreateProjectModal";
 
 export function Sidebar() {
   const [createOpen, setCreateOpen] = useState(false);
@@ -29,7 +30,7 @@ export function Sidebar() {
   const { data: recentChats } = useRecentChats();
   const createChat = useCreateChat();
   const { data: user } = useQuery({
-    queryKey: ["auth", "me"],
+    queryKey: queryKeys.auth.me,
     queryFn: getMe,
     staleTime: Infinity,
   });

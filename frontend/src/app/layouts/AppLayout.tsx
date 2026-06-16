@@ -6,7 +6,8 @@ import { useUIStore } from "@/stores/ui-store";
 import { Sidebar } from "../components/Sidebar";
 
 export function AppLayout() {
-  const { sidebarOpen, toggleSidebar } = useUIStore();
+  const sidebarOpen = useUIStore((s) => s.sidebarOpen);
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
 
   return (
     <div className="flex h-screen">

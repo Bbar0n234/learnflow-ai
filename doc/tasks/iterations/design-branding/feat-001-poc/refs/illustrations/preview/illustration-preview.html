@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light" data-profile="soft-wide">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LearnFlowAI — превью иллюстраций в UI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root[data-theme="light"]{
+    --background:#FAF7F1; --foreground:#2E2A24; --card:#FFFEFA; --card-foreground:#2E2A24;
+    --primary:#7434F4; --primary-foreground:#F6F1FF; --primary-fill:#7434F4; --primary-fill-fg:#F6F1FF;
+    --secondary:#EFE7FE; --secondary-foreground:#5B21CE;
+    --muted:#F1EDE3; --muted-foreground:#8B8370; --tertiary:#9D9582;
+    --border:#E2DCD0; --input:#D8D1C2; --ring:#7434F4;
+    --sidebar:#F1EDE3; --sidebar-border:#E2DCD0; --sidebar-active:#E7E0F8;
+    --lilac:#C5A9F9; --user-bubble:#EDE7DA; --user-bubble-border:#E2DCD0;
+    --orb:radial-gradient(circle at 38% 32%, #A47CFA 0%, #7434F4 52%, #4C16B8 100%);
+    --orb-shadow:0 6px 26px rgba(116,52,244,0.35);
+    --ring1:#E5DCFC; --ring2:#CDB9F8;
+    --terracotta:#B0573F;
+  }
+  :root[data-theme="dark"]{
+    --background:#181420; --foreground:#EDE8E2; --card:#221C30; --card-foreground:#EDE8E2;
+    --primary:#B194FF; --primary-foreground:#F7F4FF; --primary-fill:#8A5CF6; --primary-fill-fg:#F7F4FF;
+    --secondary:rgba(177,148,255,0.15); --secondary-foreground:#CDB6FF;
+    --muted:#1E1929; --muted-foreground:#9A90A8; --tertiary:#7E7490;
+    --border:#322A44; --input:#3A3150; --ring:#B194FF;
+    --sidebar:#1E1929; --sidebar-border:#322A44; --sidebar-active:#261F38;
+    --lilac:#B194FF; --user-bubble:#262031; --user-bubble-border:#322A44;
+    --orb:radial-gradient(circle at 38% 32%, #D0BAFF 0%, #9D6FFF 50%, #5520C8 100%);
+    --orb-shadow:0 0 46px rgba(177,148,255,0.48);
+    --ring1:rgba(177,148,255,0.25); --ring2:rgba(177,148,255,0.45);
+    --terracotta:#C46A50;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:#3a3a40;font-family:"Instrument Sans",system-ui,sans-serif;color:var(--foreground);}
+
+  /* control bar */
+  .controls{position:sticky;top:0;z-index:50;display:flex;gap:18px;align-items:center;flex-wrap:wrap;
+    padding:12px 20px;background:#26262b;color:#e8e8ea;border-bottom:1px solid #000;font-size:13px;}
+  .controls strong{font-weight:600;}
+  .seg{display:inline-flex;background:#1a1a1e;border:1px solid #444;border-radius:8px;overflow:hidden;}
+  .seg button{appearance:none;border:0;background:transparent;color:#bbb;padding:6px 12px;font:inherit;cursor:pointer;}
+  .seg button.active{background:#7434F4;color:#fff;}
+  .hint{color:#9a9aa0;font-size:12px;}
+
+  .stage{padding:28px;display:flex;flex-direction:column;gap:28px;align-items:center;}
+  .stage.checker .app{background-image:
+    linear-gradient(45deg,#bbb 25%,transparent 25%),linear-gradient(-45deg,#bbb 25%,transparent 25%),
+    linear-gradient(45deg,transparent 75%,#bbb 75%),linear-gradient(-45deg,transparent 75%,#bbb 75%);
+    background-size:20px 20px;background-position:0 0,0 10px,10px -10px,-10px 0;}
+
+  .label{align-self:flex-start;max-width:1180px;width:100%;margin:0 auto;color:#cfcfd4;font-size:12px;
+    font-family:"IBM Plex Mono",monospace;letter-spacing:.04em;text-transform:uppercase;}
+  .label span{color:#86868c;}
+
+  /* app frame */
+  .app{width:1180px;max-width:100%;height:680px;display:flex;border-radius:16px;overflow:hidden;
+    background:var(--background);color:var(--foreground);box-shadow:0 18px 60px rgba(0,0,0,.45);
+    border:1px solid var(--border);}
+
+  /* sidebar */
+  .sidebar{width:252px;flex:0 0 252px;background:var(--sidebar);border-right:1px solid var(--sidebar-border);
+    display:flex;flex-direction:column;padding:14px 12px;gap:14px;position:relative;}
+  .wordmark{font-weight:700;font-size:18px;letter-spacing:-.015em;display:flex;align-items:center;gap:1px;padding:4px 6px;}
+  .wordmark .orb{width:14px;height:14px;border-radius:50%;background:var(--orb);box-shadow:var(--orb-shadow);
+    display:inline-block;transform:translateY(2px);margin:0 1px;}
+  .btn{border:0;border-radius:10px;padding:9px 12px;font:inherit;font-weight:600;font-size:13.5px;cursor:pointer;
+    display:flex;align-items:center;gap:8px;width:100%;}
+  .btn.primary{background:var(--primary-fill);color:var(--primary-fill-fg);}
+  .btn.outline{background:transparent;color:var(--foreground);border:1px solid var(--input);}
+  .nav-cap{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--tertiary);padding:4px 8px;font-weight:600;}
+  .nav-item{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;font-size:13.5px;color:var(--foreground);}
+  .nav-item.active{background:var(--sidebar-active);font-weight:600;}
+  .dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto;}
+  .dot.v{background:var(--primary);} .dot.g{background:#4C9A6E;} .dot.m{background:var(--lilac);}
+  .side-spacer{flex:1;}
+  .vignette{height:88px;margin:0 -12px -14px;position:relative;overflow:hidden;display:flex;align-items:flex-end;justify-content:center;}
+  .vignette img{height:118px;object-fit:contain;object-position:bottom;opacity:.96;}
+  .user-row{display:flex;align-items:center;gap:9px;padding:8px;border-top:1px solid var(--sidebar-border);}
+  .avatar{width:26px;height:26px;border-radius:50%;background:var(--orb);box-shadow:var(--orb-shadow);}
+
+  /* main */
+  .main{flex:1;display:flex;flex-direction:column;min-width:0;}
+  .topbar{height:54px;flex:0 0 54px;border-bottom:1px solid var(--border);display:flex;align-items:center;
+    gap:12px;padding:0 20px;font-size:14px;}
+  .topbar .title{font-family:"Source Serif 4",serif;font-weight:600;font-size:17px;}
+  .chip{font-size:12px;padding:4px 10px;border-radius:999px;background:var(--secondary);color:var(--secondary-foreground);font-weight:500;}
+  .tab{font-size:13.5px;color:var(--muted-foreground);padding:4px 2px;position:relative;}
+  .tab.active{color:var(--secondary-foreground);font-weight:600;box-shadow:inset 0 -2px 0 var(--primary);}
+  .body{flex:1;overflow:auto;display:flex;flex-direction:column;}
+
+  .center-col{max-width:680px;margin:0 auto;width:100%;padding:32px 28px;display:flex;flex-direction:column;}
+  .center-mid{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px;padding:24px;}
+
+  h1.hero{font-family:"Source Serif 4",serif;font-weight:700;font-size:38px;line-height:1.1;margin:6px 0 0;}
+  h2.empty{font-family:"Source Serif 4",serif;font-weight:600;font-size:24px;margin:4px 0 0;}
+  .sub{color:var(--muted-foreground);font-size:14.5px;max-width:440px;line-height:1.5;}
+  .cta-row{display:flex;gap:10px;margin-top:6px;}
+  .btn.inline{width:auto;}
+
+  .hero-illu{width:460px;max-width:100%;}
+  .hero-illu img{width:100%;display:block;}
+  .empty-illu{width:300px;max-width:70%;}
+  .empty-illu img{width:100%;display:block;}
+
+  .proj-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:26px;width:100%;}
+  .pcard{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:left;display:flex;flex-direction:column;gap:8px;}
+  .pcard .mini-orb{width:18px;height:18px;border-radius:50%;background:var(--orb);box-shadow:var(--orb-shadow);}
+  .pcard .pname{font-family:"Source Serif 4",serif;font-weight:600;font-size:14.5px;}
+  .pcard .pmeta{font-size:12px;color:var(--tertiary);}
+
+  /* input bar */
+  .inputbar{margin:16px auto 22px;max-width:680px;width:calc(100% - 56px);background:var(--card);
+    border:1px solid var(--border);border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:10px;
+    box-shadow:0 2px 10px rgba(80,70,50,0.06);}
+  .inputbar .ph{flex:1;color:var(--tertiary);font-size:14px;}
+  .send{width:34px;height:34px;border-radius:50%;background:var(--primary-fill);color:var(--primary-fill-fg);
+    display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+
+  /* sphere panel mini */
+  .orb-lg{width:120px;height:120px;border-radius:50%;background:var(--orb);box-shadow:var(--orb-shadow);
+    position:relative;margin:0 auto;}
+  .orb-lg::before,.orb-lg::after{content:"";position:absolute;border-radius:50%;border:1.5px solid var(--ring2);
+    inset:-12px;} .orb-lg::after{inset:-22px;border-color:var(--ring1);}
+
+  .artifacts-split{display:flex;flex:1;min-height:0;}
+  .art-list{width:300px;flex:0 0 300px;border-right:1px solid var(--border);padding:14px;display:flex;flex-direction:column;gap:8px;}
+  .art-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;padding:24px;}
+
+  .err-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:30px;
+    display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;max-width:460px;}
+  .spark{display:inline-block;width:8px;height:8px;background:var(--lilac);transform:rotate(45deg);}
+</style>
+</head>
+<body>
+<div class="controls">
+  <strong>Тема:</strong>
+  <span class="seg" id="seg-theme">
+    <button data-theme="light" class="active">Light</button>
+    <button data-theme="dark">Dark</button>
+  </span>
+  <strong>Профиль выреза:</strong>
+  <span class="seg" id="seg-profile">
+    <button data-profile="soft-balanced">color-key balanced</button>
+    <button data-profile="soft-wide" class="active">color-key wide</button>
+  </span>
+  <strong>Фон:</strong>
+  <span class="seg" id="seg-bg">
+    <button data-bg="ui" class="active">UI-токен</button>
+    <button data-bg="checker">Шахматка (контроль краёв)</button>
+  </span>
+  <span class="hint">Light-тема показывает light-иллюстрации, dark-тема — dark-адаптацию. Меняй профиль, чтобы сравнить края.</span>
+</div>
+
+<div class="stage" id="stage">
+
+  <!-- WELCOME -->
+  <div class="label">Welcome — главный экран · <span>welcome-hero · врезка 460×270</span></div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="wordmark">LearnFl<span class="orb"></span>w<span style="color:var(--primary)">AI</span></div>
+      <button class="btn primary">＋ Новый чат</button>
+      <button class="btn outline">＋ Новый проект</button>
+      <div class="nav-cap">Проекты</div>
+      <div class="nav-item active"><span class="dot v"></span>Векторные базы для RAG</div>
+      <div class="nav-item"><span class="dot g"></span>Дизайн-система</div>
+      <div class="nav-item"><span class="dot m"></span>Конспект лекций</div>
+      <div class="side-spacer"></div>
+      <div class="user-row"><span class="avatar"></span><span style="font-size:13px">bbaron</span></div>
+      <div class="vignette"><img data-scene="sidebar-vignette" alt=""></div>
+    </aside>
+    <div class="main">
+      <div class="topbar"><span class="title">Главная</span></div>
+      <div class="body">
+        <div class="center-mid">
+          <div class="hero-illu"><img data-scene="welcome-hero" alt="welcome hero"></div>
+          <h1 class="hero">С чего начнём сегодня?</h1>
+          <div class="sub">Создайте проект, чтобы собрать чаты, артефакты и Сферу знаний в одном месте — или продолжите недавнюю работу.</div>
+          <div class="cta-row">
+            <button class="btn primary inline">＋ Новый проект</button>
+            <button class="btn outline inline">Продолжить «Векторные базы для RAG»</button>
+          </div>
+          <div class="proj-cards">
+            <div class="pcard"><span class="mini-orb"></span><span class="pname">Векторные базы для RAG</span><span class="pmeta">обновлён сегодня · v2.4.1</span></div>
+            <div class="pcard"><span class="mini-orb" style="opacity:.6"></span><span class="pname">Дизайн-система</span><span class="pmeta">3 дня назад · v1.8.0</span></div>
+            <div class="pcard"><span class="mini-orb" style="opacity:.35"></span><span class="pname">Конспект лекций</span><span class="pmeta">2 недели назад · v1.0.2</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EMPTY CHATS -->
+  <div class="label">Проект · вкладка «Чаты» — пустое состояние · <span>empty-chats</span></div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="wordmark">LearnFl<span class="orb"></span>w<span style="color:var(--primary)">AI</span></div>
+      <button class="btn primary">＋ Новый чат</button>
+      <button class="btn outline">＋ Новый проект</button>
+      <div class="nav-cap">Проекты</div>
+      <div class="nav-item active"><span class="dot v"></span>Векторные базы для RAG</div>
+      <div class="nav-item"><span class="dot g"></span>Дизайн-система</div>
+      <div class="side-spacer"></div>
+      <div class="user-row"><span class="avatar"></span><span style="font-size:13px">bbaron</span></div>
+      <div class="vignette"><img data-scene="sidebar-vignette" alt=""></div>
+    </aside>
+    <div class="main">
+      <div class="topbar">
+        <span class="title">Векторные базы для RAG</span>
+        <span class="chip">сфера v2.4.1 · растёт</span>
+        <div style="flex:1"></div>
+        <span class="tab active">Чаты</span><span class="tab">Сфера</span><span class="tab">Артефакты</span><span class="tab">Настройки</span>
+      </div>
+      <div class="body">
+        <div class="center-mid">
+          <div class="empty-illu"><img data-scene="empty-chats" alt="empty chats"></div>
+          <h2 class="empty">В этом проекте пока нет чатов</h2>
+          <div class="sub">Задайте первый вопрос — и начнётся диалог. Полезные находки можно будет сохранить в Сферу знаний.</div>
+        </div>
+        <div class="inputbar"><span class="ph">Спросите что-нибудь по проекту…</span><span class="chip">GPT-5</span><span class="send">↑</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EMPTY SPHERE -->
+  <div class="label">Проект · вкладка «Сфера знаний» — пустое состояние · <span>empty-sphere</span></div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="wordmark">LearnFl<span class="orb"></span>w<span style="color:var(--primary)">AI</span></div>
+      <button class="btn primary">＋ Новый чат</button>
+      <button class="btn outline">＋ Новый проект</button>
+      <div class="nav-cap">Проекты</div>
+      <div class="nav-item active"><span class="dot v"></span>Векторные базы для RAG</div>
+      <div class="side-spacer"></div>
+      <div class="user-row"><span class="avatar"></span><span style="font-size:13px">bbaron</span></div>
+      <div class="vignette"><img data-scene="sidebar-vignette" alt=""></div>
+    </aside>
+    <div class="main">
+      <div class="topbar">
+        <span class="title">Векторные базы для RAG</span>
+        <div style="flex:1"></div>
+        <span class="tab">Чаты</span><span class="tab active">Сфера</span><span class="tab">Артефакты</span><span class="tab">Настройки</span>
+      </div>
+      <div class="body">
+        <div class="center-mid">
+          <div class="empty-illu"><img data-scene="empty-sphere" alt="empty sphere"></div>
+          <h2 class="empty">Сфера знаний ещё пуста</h2>
+          <div class="sub">Когда агент найдёт что-то стоящее, он предложит записать это в Сферу. Так знание проекта будет расти от версии к версии.</div>
+          <button class="btn outline inline" style="margin-top:4px">Как это работает</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EMPTY ARTIFACTS -->
+  <div class="label">Проект · вкладка «Артефакты» — пустое состояние · <span>empty-artifacts</span></div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="wordmark">LearnFl<span class="orb"></span>w<span style="color:var(--primary)">AI</span></div>
+      <button class="btn primary">＋ Новый чат</button>
+      <button class="btn outline">＋ Новый проект</button>
+      <div class="nav-cap">Проекты</div>
+      <div class="nav-item active"><span class="dot v"></span>Векторные базы для RAG</div>
+      <div class="side-spacer"></div>
+      <div class="user-row"><span class="avatar"></span><span style="font-size:13px">bbaron</span></div>
+      <div class="vignette"><img data-scene="sidebar-vignette" alt=""></div>
+    </aside>
+    <div class="main">
+      <div class="topbar">
+        <span class="title">Векторные базы для RAG</span>
+        <div style="flex:1"></div>
+        <span class="tab">Чаты</span><span class="tab">Сфера</span><span class="tab active">Артефакты</span><span class="tab">Настройки</span>
+      </div>
+      <div class="body">
+        <div class="artifacts-split">
+          <div class="art-list">
+            <div class="nav-cap" style="padding-left:0">Материалы</div>
+            <div class="sub" style="font-size:12.5px;text-align:left">Здесь появятся документы, презентации, изображения и аудио, созданные в чатах.</div>
+          </div>
+          <div class="art-empty">
+            <div class="empty-illu"><img data-scene="empty-artifacts" alt="empty artifacts"></div>
+            <h2 class="empty">Пока нет артефактов</h2>
+            <div class="sub">Попросите агента собрать конспект, презентацию или изображение — и материалы появятся в этом списке.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ERROR STATE -->
+  <div class="label">Состояние ошибки · <span>error-state</span></div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="wordmark">LearnFl<span class="orb"></span>w<span style="color:var(--primary)">AI</span></div>
+      <button class="btn primary">＋ Новый чат</button>
+      <button class="btn outline">＋ Новый проект</button>
+      <div class="nav-cap">Проекты</div>
+      <div class="nav-item active"><span class="dot v"></span>Векторные базы для RAG</div>
+      <div class="side-spacer"></div>
+      <div class="user-row"><span class="avatar"></span><span style="font-size:13px">bbaron</span></div>
+      <div class="vignette"><img data-scene="sidebar-vignette" alt=""></div>
+    </aside>
+    <div class="main">
+      <div class="topbar"><span class="title">Векторные базы для RAG</span></div>
+      <div class="body">
+        <div class="center-mid">
+          <div class="err-card">
+            <div class="empty-illu" style="width:280px"><img data-scene="error-state" alt="error state"></div>
+            <h2 class="empty">Что-то пошло не так</h2>
+            <div class="sub">Не удалось загрузить ответ. Обычно это временно — печка скоро снова растопится.</div>
+            <div class="cta-row">
+              <button class="btn primary inline">Повторить</button>
+              <button class="btn outline inline">Сообщить о проблеме</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const root = document.documentElement;
+  function srcFor(scene){
+    const profile = root.dataset.profile;
+    const theme = root.dataset.theme;
+    return `../candidates/transparent/${profile}/${theme}/${scene}.png`;
+  }
+  function refresh(){
+    document.querySelectorAll('img[data-scene]').forEach(img=>{
+      img.src = srcFor(img.dataset.scene);
+    });
+  }
+  function wire(segId, attr, cb){
+    document.querySelectorAll(`#${segId} button`).forEach(b=>{
+      b.addEventListener('click',()=>{
+        document.querySelectorAll(`#${segId} button`).forEach(x=>x.classList.remove('active'));
+        b.classList.add('active');
+        cb(b.dataset[attr]);
+      });
+    });
+  }
+  wire('seg-theme','theme',v=>{root.dataset.theme=v;refresh();});
+  wire('seg-profile','profile',v=>{root.dataset.profile=v;refresh();});
+  wire('seg-bg','bg',v=>{document.getElementById('stage').classList.toggle('checker',v==='checker');});
+  refresh();
+</script>
+</body>
+</html>

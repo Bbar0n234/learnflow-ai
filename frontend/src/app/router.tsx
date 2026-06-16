@@ -2,19 +2,19 @@ import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router";
 import { AppLayout } from "./layouts/AppLayout";
 import { ProjectLayout } from "./layouts/ProjectLayout";
-import { WelcomePage } from "./components/WelcomePage";
-import { ChatList } from "@/features/chat/components/ChatList";
-import { ChatView } from "@/features/chat/components/ChatView";
-import { SphereView } from "@/features/sphere/components/SphereView";
-import { ArtifactList } from "@/features/artifacts/components/ArtifactList";
-import { ArtifactView } from "@/features/artifacts/components/ArtifactView";
-import { SettingsPage } from "@/features/settings/components/SettingsPage";
-import { ProjectSettingsPage } from "@/features/settings/components/ProjectSettingsPage";
-import { SecurityRouteGuard } from "@/features/security/components/SecurityRouteGuard";
+import { WelcomePage } from "@/pages/welcome";
+import { ChatList } from "@/pages/project-chats";
+import { ChatView } from "@/pages/chat";
+import { SphereView } from "@/pages/sphere";
+import { ArtifactList } from "@/pages/artifacts";
+import { ArtifactView } from "@/pages/artifact";
+import { SettingsPage } from "@/pages/user-settings";
+import { ProjectSettingsPage } from "@/pages/project-settings";
+import { SecurityRouteGuard } from "@/pages/security";
 
 // Lazy load Security page
 const SecurityPage = lazy(() =>
-  import("@/features/security/pages/SecurityPage").then((m) => ({
+  import("@/pages/security").then((m) => ({
     default: m.SecurityPage,
   })),
 );

@@ -37,7 +37,7 @@
 | feat-003 | ✅ Done | db | DB slice: postgresql skill, индексы, constraints, типы, паттерны миграций |
 | feat-004 | ✅ Done | backend / fastapi | Backend/FastAPI slice: fastapi skill + поглощение точечных техдолгов (SIEM MetaEmitter, дубль SecurityEvent, CORS_ORIGINS, SIEM follow-ups) |
 | feat-005 | 🚧 In Progress | agent | Agent runtime slice: langgraph-patterns (авторский) + кандидаты langgraph-* от langchain-ai + поглощение Reasoning ChatOpenAI everywhere (langchain-architecture отклонён в feat-001) |
-| feat-006 | 📋 Planned | frontend | Frontend slice: skill discovery for frontend, ручной slice если skill отсутствует |
+| feat-006 | ✅ Done | frontend | Frontend slice: `feature-sliced-design` skill + миграция на канон FSD (pages/features), фабрика query keys, ось состояния в conventions |
 | feat-007 | 📋 Planned | cross-cutting | Кросс-резрезные конвенции: error return types + error handling philosophy (graceful degradation vs fail-fast) |
 | feat-008 | 📋 Planned | enforcement | Arch-checker (детерминированные проверки) + Reviewer-промпты (logging, error returns, doc-first) |
 | feat-009 | 📋 Planned | testing | Test philosophy + test engineering + покрытие критичных участков |
@@ -274,7 +274,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** аудит фронтенд-кода, формирование frontend-конвенций.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done — итоги в [summary.md](iterations/codebase-maturity/feat-006-frontend/summary.md)
 **Scope:** frontend
 **Зависимости:** feat-001
 
@@ -298,12 +298,12 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 #### Definition of Done
 
-- [ ] Frontend-skill найден (или зафиксировано, что подходящего нет — slice идёт ручным).
-- [ ] Аудит структуры проведён, findings зафиксированы.
-- [ ] Точечные правки применены.
-- [ ] Frontend-конвенции добавлены в `conventions.md`.
-- [ ] Тест-кейсы на затронутые участки составлены и прогнаны (UI smoke по затронутым экранам).
-- [ ] Точки остановки на теорию пройдены.
+- [x] Frontend-skill — `feature-sliced-design` (принят в feat-001), применён к коду; ось состояния закрыта конвенцией (ядро отклонённого `react-state-management`).
+- [x] Аудит структуры проведён, findings зафиксированы и разобраны с архитектором (FSD-отступления, ось состояния, чистый код, дрейф доки).
+- [x] Точечные правки применены: миграция на канон FSD (`pages/`/`features/`), консолидация `shared/api` (дробление типов, data-хуки, фабрика query keys), публичные API слайсов, B3-селекторы, C4 MarkdownRenderer→`shared/ui`, C1 удалён мёртвый `__init__.ts`.
+- [x] Frontend-конвенции добавлены в `conventions.md` (§ Frontend); дрейф `frontend.md` исправлен (Module Structure + таблица query keys).
+- [x] Тест-кейсы составлены до правок, прошли ревью полноты, прогнаны независимым тестировщиком на стенде в два захода (без LLM + на реальном ключе) — поведение-сохраняющий, регрессий нет ([test-cases.md](iterations/codebase-maturity/feat-006-frontend/test-cases.md)).
+- [x] Точки остановки на теорию пройдены (pages vs features-as-sections, публичные API, ось состояния Zustand/TanStack Query, optimistic vs пессимистик).
 
 ---
 
@@ -399,6 +399,17 @@ feat-001 (foundation) ── обязательное предусловие д�
 #### Из backlog
 
 - *(нет точечных пунктов из бэклога — итерация заведена как логическое завершение фазы)*
+
+#### Контекст из slice-аудитов
+
+- **Тестируемость LLM-guard и agent-flow путей (находка feat-006).** Прогон feat-006 на стенде
+  показал: целый класс путей нельзя проверить без реального LLM-ключа — add-time security blocks
+  (custom instructions / sphere editor / MCP form, HTTP 422), runtime `security_block` в чате,
+  запись в Knowledge Sphere через checkpoint `ks_write_rest` (без ключа guard деградирует в CLEAN
+  и контент не персистится), весь агентный SSE-стрим. Инфраструктура **не адаптирована под мок/
+  фейк LLM**. Это прямой вход для «Test engineering → моки LLM в тестах агента»: нужен способ
+  гонять guard- и agent-пути без живого провайдера (мок LLM/LangGraph, возможно replay-from-trace),
+  иначе security-критичные пути остаются вне автотестов.
 
 #### Скоуп работы
 

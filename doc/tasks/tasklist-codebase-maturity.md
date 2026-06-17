@@ -36,7 +36,7 @@
 | feat-002 | ✅ Done | backend / REST | REST API slice: api-design-principles skill + поглощение REST API cleanup (8 пунктов аудита 2026-04-04) |
 | feat-003 | ✅ Done | db | DB slice: postgresql skill, индексы, constraints, типы, паттерны миграций |
 | feat-004 | ✅ Done | backend / fastapi | Backend/FastAPI slice: fastapi skill + поглощение точечных техдолгов (SIEM MetaEmitter, дубль SecurityEvent, CORS_ORIGINS, SIEM follow-ups) |
-| feat-005 | 🚧 In Progress | agent | Agent runtime slice: langgraph-patterns (авторский) + кандидаты langgraph-* от langchain-ai + поглощение Reasoning ChatOpenAI everywhere (langchain-architecture отклонён в feat-001) |
+| feat-005 | ✅ Done | agent | Agent runtime slice: langgraph-patterns (авторский) + кандидаты langgraph-* от langchain-ai + поглощение Reasoning ChatOpenAI everywhere (langchain-architecture отклонён в feat-001) |
 | feat-006 | ✅ Done | frontend | Frontend slice: `feature-sliced-design` skill + миграция на канон FSD (pages/features), фабрика query keys, ось состояния в conventions |
 | feat-007 | 📋 Planned | cross-cutting | Кросс-резрезные конвенции: error return types + error handling philosophy (graceful degradation vs fail-fast) |
 | feat-008 | 📋 Planned | enforcement | Arch-checker (детерминированные проверки) + Reviewer-промпты (logging, error returns, doc-first) |
@@ -233,7 +233,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** аудит agent runtime через `langgraph-patterns` skill (+ официальные кандидаты `langgraph-*` от langchain-ai — подтверждение при заходе), миграция на единые паттерны. `langchain-architecture` отклонён в feat-001 (LangChain-обёртки при raw LangGraph), см. `doc/tech/skill-map.md`.
 
-**Статус:** 🚧 In Progress — итоги в [summary.md](iterations/codebase-maturity/feat-005-agent-runtime/summary.md)
+**Статус:** ✅ Done — итоги в [summary.md](iterations/codebase-maturity/feat-005-agent-runtime/summary.md)
 **Scope:** agent
 **Зависимости:** feat-001
 
@@ -329,7 +329,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 - **Error handling philosophy.** Где graceful degradation, где fail-fast: какие сервисы и слои деградируют (LLM провайдер недоступен → fallback), какие падают (БД недоступна → 503). На каком уровне принимается решение (handler / service / infra).
   - *Конкретный пример из feat-005 (решить здесь):* агентные tools при отсутствии инфраструктуры (`runtime.store is None`) — fail-fast или graceful? Сейчас и KS, и user_memory **бросают `RuntimeError`** (выровнено в feat-005); из-за дефолтного `_default_handle_tool_errors` в `ToolNode` (глотает только `ToolInvocationError`) такое исключение пробрасывается из графа → SSE `error`, ход рвётся. Альтернатива — обе тулзы возвращают error-строку (status=success, агент продолжает). Это защитный путь (`store` в проде всегда есть), но направление políticy нужно зафиксировать.
 - Что ещё всплыло по ходу slice'ов и достойно кросс-резрезной фиксации — записать.
-- Обновление `doc/tech/conventions.md` — раздел про error handling.
+- Обновление `doc/tech/conventions.md` — раздел про error handling (пишется в лаконичном стиле, обоснование «почему» сжато; систематический анти-раздувочный проход по всему документу — feat-008).
 
 #### Точки остановки на теорию
 
@@ -348,7 +348,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 ### feat-008: Enforcement — Arch-Checker + Reviewer Prompts
 
-**Цель:** автоматизировать проверку конвенций, сформированных в slice-аудитах и feat-007.
+**Цель:** автоматизировать проверку конвенций, сформированных в slice-аудитах и feat-007, и привести сам `conventions.md` в поддерживаемую форму (анти-раздувание).
 
 **Статус:** 📋 Planned
 **Scope:** enforcement (workflow / CI)
@@ -358,6 +358,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 - **P2** Arch-checker (deterministic layer rules) — детерминированные проверки архитектурных инвариантов: направление зависимостей, отсутствие module-level singletons, запрет cross-slice imports, запрет прямого DB-доступа из handlers. Tentative инструменты: `import-linter`, AST-чекеры, комбинация *(перенесено из Agent Harness & Workflow)*.
 - **P2** Logging conventions enforcement in code reviewer — проверка соответствия logging conventions из `conventions.md` встраивается в промпт code reviewer как отдельный чек-лист *(перенесено из Agent Harness & Workflow)*.
+- **P2** Анти-раздувание конвенций — формат записи `conventions.md`. Документ копится с каждым slice'ом (backend, agent, frontend) → риск разрастись до объёма, который реализатор-агенту тяжело удержать и соблюсти, и сам инструмент обесценится. Три направления: **(1) лаконичнее** — сжать/вынести развёрнутое «почему» из тела норм; **(2) опускать «трудноломаемые» нормы** — структурно выстроенное агент не сломает, держим норму там, где отклонение легко допустить и трудно заметить; **(3) Progressive disclosure / per-service** — не монолит, а подгрузка конвенций по домену/сервису в момент работы (по аналогии со скиллами). Направление 2 — естественный побочный продукт arch-checker'а (норма ушла в детерминированную проверку → удаляется из текста); направление 3 — мета-решение по формату, принимается здесь *(перенесено из Documentation Quality & Architecture)*.
 
 #### Скоуп работы
 
@@ -371,12 +372,17 @@ feat-001 (foundation) ── обязательное предусловие д�
   - Чек-лист по error return types (из feat-007).
   - Чек-лист по error handling philosophy (из feat-007).
   - Точная точка встраивания — на этапе реализации (отдельный reviewer-агент, инструкция в `.claude/skills/`, секция в `CLAUDE.md` — варианты).
+- **Конвенции — формат и анти-раздувание (направления 1–3):**
+  - Сжать развёрнутые «почему» в `conventions.md`, где они избыточны (направление 1).
+  - Нормы, ушедшие в arch-checker (направления зависимостей, module-level state, cross-slice imports), удалить из текста — их теперь держит детерминированная проверка, дублировать прозой незачем (направление 2).
+  - Принять решение по формату ведения конвенций: монолит против progressive disclosure / per-service (направление 3). При выборе per-service — определить раскладку (конвенции по домену/сервису, подгрузка в момент работы, по аналогии со скиллами) и мигрировать. Кандидат на ADR, т.к. меняет, *куда* пишут результат feat-007 и сами slice'ы.
 
 #### Точки остановки на теорию
 
 - `import-linter` vs AST-чекеры: что покрывает, что нет, цена поддержки.
 - pre-commit hook architecture: что в hook, что в CI.
 - Reviewer-prompt design: как формулировать чек-листы, чтобы reviewer-агент стабильно их применял.
+- Формат ведения конвенций: монолит vs per-service/progressive disclosure — где граница «трудноломаемой» нормы (что в arch-checker, что в тексте, что опускаем).
 
 #### Definition of Done
 
@@ -384,6 +390,8 @@ feat-001 (foundation) ── обязательное предусловие д�
 - [ ] Arch-checker запускается в pre-commit или CI, нарушения блокируют merge.
 - [ ] Reviewer-промпты содержат чек-листы по logging / error returns / error handling.
 - [ ] Документация: как добавлять новые правила в arch-checker, как обновлять reviewer-чек-листы.
+- [ ] Конвенции прорежены: развёрнутое «почему» сжато где избыточно; нормы, перешедшие в arch-checker, удалены из текста.
+- [ ] Формат ведения конвенций решён (монолит / per-service) и, при выборе per-service, применён.
 - [ ] Точки остановки на теорию пройдены.
 
 ---

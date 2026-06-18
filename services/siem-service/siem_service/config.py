@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     # instead of appending. Operational knob — change without rebuild.
     alert_open_window_seconds: int = 86400
 
+    # Event pipeline: max PEL delivery attempts before terminal drop (D-ERR-7, OQ-E).
+    # After this many re-deliveries the message is dropped + XACK with logger.error.
+    max_delivery_attempts: int = 5
+
     @field_validator("frontend_origin", mode="before")
     @classmethod
     def parse_frontend_origin(cls, v: object) -> object:

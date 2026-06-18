@@ -18,6 +18,7 @@ from siem_service.domain.schemas import (
     RuleResponse,
     RuleUpdateRequest,
 )
+from siem_service.exceptions import NotFoundError
 from siem_service.services import AlertService, EventService, RuleService
 
 logger = structlog.get_logger()
@@ -119,9 +120,7 @@ async def get_alert(
     alert = await service.get_alert(alert_id)
 
     if not alert:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found"
-        )
+        raise NotFoundError("Alert not found")
 
     return alert
 
@@ -148,9 +147,7 @@ async def patch_alert(
         alert = await service.resolve_alert(alert_id, user_id)
 
     if not alert:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found"
-        )
+        raise NotFoundError("Alert not found")
 
     await session.commit()
     return alert
@@ -191,9 +188,7 @@ async def get_rule(
     rule = await service.get_rule(rule_id)
 
     if not rule:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found"
-        )
+        raise NotFoundError("Rule not found")
 
     return rule
 
@@ -218,12 +213,6 @@ async def create_rule(
         enabled=request.enabled,
         user_id=user_id,
     )
-
-    if rule is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create rule",
-        )
 
     await session.commit()
     return rule
@@ -255,9 +244,7 @@ async def update_rule(
     rule = await service.update_rule(rule_id, updates, user_id=user_id)
 
     if rule is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found"
-        )
+        raise NotFoundError("Rule not found")
 
     await session.commit()
     return rule
@@ -277,8 +264,6 @@ async def delete_rule(
     success = await service.delete_rule(rule_id, user_id=user_id)
 
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found"
-        )
+        raise NotFoundError("Rule not found")
 
     await session.commit()

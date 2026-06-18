@@ -150,9 +150,13 @@ class RuleCreateRequest(BaseModel):
 
     name: str = Field(..., description="Rule name")
     description: str | None = Field(None, description="Rule description")
-    rule_type: str = Field(..., description="Rule type")
+    rule_type: Literal["threshold", "sequence", "aggregate"] = Field(
+        ..., description="Rule type"
+    )
     enabled: bool = Field(True, description="Enable rule")
-    severity: str = Field("warning", description="Alert severity")
+    severity: Literal["info", "warning", "critical"] = Field(
+        "warning", description="Alert severity"
+    )
     config: dict[str, Any] = Field(..., description="Rule configuration")
 
 
@@ -161,9 +165,9 @@ class RuleUpdateRequest(BaseModel):
 
     name: str | None = None
     description: str | None = None
-    rule_type: str | None = None
+    rule_type: Literal["threshold", "sequence", "aggregate"] | None = None
     enabled: bool | None = None
-    severity: str | None = None
+    severity: Literal["info", "warning", "critical"] | None = None
     config: dict[str, Any] | None = None
 
 

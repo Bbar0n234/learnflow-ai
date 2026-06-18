@@ -3,13 +3,14 @@
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
+from typing import Any
 
 import redis.asyncio as redis
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from siem_service.api.problem import register_problem_handlers
+from siem_service.api.problem import problem_response, register_problem_handlers
 from siem_service.api.routes import router
 from siem_service.config import Settings
 from siem_service.correlation.engine import CorrelationEngine
@@ -116,6 +117,19 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Layer 3 — generic last-resort catch (CORS on 500).
+    # This middleware sits below CORSMiddleware in the stack, so the
+    # JSONResponse we return here passes back up through CORS and picks
+    # up Access-Control-Allow-Origin headers, unlike a bare
+    # add_exception_handler(Exception) which sits above CORS.
+    @app.middleware("http")
+    async def _generic_exception_middleware(request: Request, call_next: Any) -> Any:
+        try:
+            return await call_next(request)
+        except Exception:
+            logger.error("unhandled exception", exc_info=True)
+            return problem_response(status=500)
 
     app.include_router(router)
 

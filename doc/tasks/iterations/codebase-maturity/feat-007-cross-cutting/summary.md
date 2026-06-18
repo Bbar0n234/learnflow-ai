@@ -11,7 +11,7 @@
 
 ## Прогресс
 - [x] T1 — модель ошибок + барьерный стек (main app)
-- [ ] T4 — siem error handling (полное зеркало)
+- [x] T4 — siem error handling (полное зеркало)
 - [ ] T2 — устойчивость + config
 - [ ] T3 — agent error handling
 - [ ] T5 — frontend обвязка
@@ -78,3 +78,62 @@
 - **OQ-6 (таймаут PDF)**: `_PDF_TIMEOUT_SECONDS = 30` как параметр функции, Settings-поле — в T2 (TODO в коде).
 - **OQ-7 (🟢 EncryptionError)**: включён — по резолюции оркестратора.
 - **`InvalidURLError`**: не была в явном списке иерархии (план говорил «OQ-1 → архитектору»), но резолюция оркестратора DNS→400 требовала нового типа. Добавлен как `AppError` (400, `invalid-url`) — минимальный и органичный в иерархии.
+
+---
+
+### T4 — SIEM error handling (полное зеркало)
+
+**`make check` (ruff + mypy): зелёный.**
+
+#### Что реализовано
+
+**Фаза 1 — `siem_service/exceptions.py` + `siem_service/api/problem.py` + `siem_service/main.py`**
+
+Создана собственная иерархия `AppError` в siem (зеркало backend, OQ-C):
+- `AppError` — база с `code: str`, `status: int`, `detail: str`, `extensions: dict`.
+- `NotFoundError` (404, `entity-not-found`).
+- `ConflictError` (409, `conflict`).
+
+Барьерный стек в `siem_service/api/problem.py` расширен до 3 слоёв (зеркало T1):
+- `_app_error_handler` (Layer 1): `AppError` → `urn:learnflow:<code>` + `exc.status`.
+- `_infra_exception_handler` (Layer 2): `DBAPIError` → 503 + `logger.error(exc_info=True)`.
+- `_timeout_exception_handler` (Layer 2): `TimeoutError`/`asyncio.TimeoutError` → 504 + `logger.error(exc_info=True)`.
+- `_validation_exception_handler`: сужен до `loc`/`msg`/`type` (убран `ctx`/`input`/`url`), зеркало T1 (F-API-14).
+- Layer 3 (generic 500 + CORS): middleware `_generic_exception_middleware` в `main.py` ниже `CORSMiddleware` — тот же механизм, что T1 (`request_id_middleware`). OQ-2 закрыт через middleware-подход, CORS-on-500 работает корректно.
+
+**Фаза 2 — `siem_service/pipeline/subscriber.py` + `siem_service/config.py`**
+
+Разделение барьеров в `_process_single_message` (D-ERR-7):
+- `ValidationError` (poison): drop + XACK + метрика `siem_events_invalid`. Поведение сохранено, event_id исправлен.
+- `OperationalError`/`DBAPIError` (транзиент): **НЕ XACK** (остаётся в PEL) + метрика `siem_events_transient` + `logger.warning(exc_info=True)`.
+- Bounded delivery-count (OQ-E): `_get_delivery_count` через `xpending_range` перед обработкой. После `> max_delivery_attempts` → terminal drop + XACK + `logger.error` с payload + метрика `siem_events_failed_terminal`.
+- `event_id_str` извлекается из распарсенного `event_dict` (фолбэк — `message_id`), не из raw `payload_dict` (F-SIEM-04).
+- `_read_pending` добавлено `error=str(e)` в `logger.warning` (F-SIEM-08).
+- `SIEM_MAX_DELIVERY_ATTEMPTS` добавлен в `Settings` + `.env.example` + `.env.local.example` + `docker-compose.yml` (D-ERR-11).
+
+**Фаза 3 — `siem_service/pipeline/meta_emitter.py`**
+
+- `exc_info=True` в `logger.error` при сбое эмиссии (F-SIEM-03).
+- `_metrics: defaultdict(int)` с ключом `meta_events_dropped` — счётчик дропнутых meta-событий.
+- Исправлен stale-комментарий строки 45: XADD отправляет `{"data": ...}`, event_id внутри JSON-payload, не как отдельное поле stream-записи.
+
+**Фаза 4 — `siem_service/domain/schemas.py` + `siem_service/correlation/strategies.py`**
+
+- `RuleCreateRequest.rule_type` → `Literal["threshold", "sequence", "aggregate"]` (F-SIEM-05).
+- `RuleCreateRequest.severity` → `Literal["info", "warning", "critical"]`.
+- `RuleUpdateRequest` — те же поля `Literal | None`.
+- `get_strategy`: `logger.warning` + `raise ValueError` для неизвестного типа; per-rule `try/except` в `CorrelationEngine` перехватывает, engine продолжает (F-SIEM-G4).
+
+**Фаза 5 — `siem_service/api/routes.py` + `siem_service/services.py`**
+
+- Убрана мёртвая ветка `if rule is None: raise HTTPException(500)` из `create_rule` (F-SIEM-06).
+- `RuleService.create_rule` ловит `IntegrityError` → `ConflictError` (409); возврат сужен до non-Optional `RuleResponse`.
+- Все `if not X: raise HTTPException(404)` в роутах заменены на `raise NotFoundError(...)` (OQ-C: полное зеркало, роуты на доменные исключения): `get_alert`, `patch_alert`, `get_rule`, `update_rule`, `delete_rule`.
+- `HTTPException` сохранён для 401 (`_require_user_id`) и 400 (update пустой PATCH).
+
+#### Отклонения от плана / решения
+
+- **OQ-C (иерархия AppError в siem)**: реализовано как «полное зеркало» — собственные `exceptions.py`, барьер 3 слоя, роуты на доменные исключения. Scope T4 расширен относительно изначального плана (где упоминался вариант «только слои 2+3»).
+- **OQ-2 (CORS-on-500 в siem)**: решено через `@app.middleware("http")` `_generic_exception_middleware` в `main.py` (ниже CORS) — зеркало механизма `request_id_middleware` в T1, без `request_id`-биндинга (siem его не имеет).
+- **OQ-4 (Literal severity)**: локальный `Literal` в `schemas.py` (не переиспользование типа из `siem_contracts`) — достаточно для валидации; `get_strategy` для неизвестного типа → `raise ValueError` (поднимается в per-rule catch CorrelationEngine).
+- **OQ-5 (где ловить IntegrityError)**: поймано в `RuleService.create_rule` (сервисный слой) → `ConflictError`. Pre-check через `get_rule_by_name` не добавлен: IntegrityError как единственная защита от TOCTOU; pre-check остаётся кандидатом в follow-up.

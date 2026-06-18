@@ -1,5 +1,6 @@
 """Meta-event emitter for SIEM administrative actions."""
 
+from collections import defaultdict
 from datetime import UTC, datetime
 from typing import Literal
 from uuid import uuid4
@@ -20,6 +21,7 @@ class MetaEmitter:
         """Initialize emitter."""
         self.redis = redis_client
         self.stream_name = stream_name
+        self._metrics: dict[str, int] = defaultdict(int)
 
     async def emit(
         self,
@@ -42,7 +44,8 @@ class MetaEmitter:
         )
 
         try:
-            # XADD security.events with event_id as field to ensure idempotency
+            # XADD security.events with {"data": <event JSON>}; event_id is
+            # embedded inside the JSON payload, not as a separate stream field.
             await self.redis.xadd(
                 self.stream_name,
                 {
@@ -55,9 +58,10 @@ class MetaEmitter:
                 severity=severity,
                 user_id=user_id,
             )
-        except Exception as e:
+        except Exception:
+            self._metrics["meta_events_dropped"] += 1
             logger.error(
                 "meta_event_emission_failed",
                 event_type=event_type,
-                error=str(e),
+                exc_info=True,
             )

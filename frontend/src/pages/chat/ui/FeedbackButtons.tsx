@@ -23,7 +23,9 @@ export function FeedbackButtons({
   const [feedback, setFeedback] = useState<boolean | null>(initialScore);
 
   function handleClick(value: boolean) {
+    const prevFeedback = feedback;
     const next = feedback === value ? null : value;
+    // Optimistic update: set immediately, roll back on error.
     setFeedback(next);
     const request =
       next === null
@@ -31,6 +33,7 @@ export function FeedbackButtons({
         : putFeedback(projectId, chatId, traceId, next);
     request.catch((err) => {
       logger.warn("[feedback error]", err);
+      setFeedback(prevFeedback); // rollback to previous state
     });
   }
 

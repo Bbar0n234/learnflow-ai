@@ -19,6 +19,8 @@ import {
 import { Input } from "@/shared/ui/input";
 import { useUpdateProject } from "@/shared/api/projects";
 import { useDeleteProject } from "@/shared/api/projects";
+import { getApiErrorMessage } from "@/shared/lib/api-error";
+import { logger } from "@/shared/lib/logger";
 
 interface ProjectActionsProps {
   projectId: string;
@@ -37,6 +39,8 @@ export function ProjectActions({
   const [renameOpen, setRenameOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [newName, setNewName] = useState(projectName);
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   function handleRename(e: FormEvent) {
     e.preventDefault();
@@ -45,9 +49,16 @@ export function ProjectActions({
       setRenameOpen(false);
       return;
     }
+    setRenameError(null);
     updateProject.mutate(
       { id: projectId, data: { name: trimmed } },
-      { onSuccess: () => setRenameOpen(false) },
+      {
+        onSuccess: () => setRenameOpen(false),
+        onError: (err) => {
+          logger.error("[Rename project error]", err);
+          setRenameError(getApiErrorMessage(err));
+        },
+      },
     );
   }
 
@@ -55,12 +66,17 @@ export function ProjectActions({
     const isCurrentProject = location.pathname.includes(
       `/projects/${projectId}`,
     );
+    setDeleteError(null);
     deleteProject.mutate(projectId, {
       onSuccess: () => {
         setDeleteOpen(false);
         if (isCurrentProject) {
           navigate("/");
         }
+      },
+      onError: (err) => {
+        logger.error("[Delete project error]", err);
+        setDeleteError(getApiErrorMessage(err));
       },
     });
   }
@@ -84,6 +100,7 @@ export function ProjectActions({
           <DropdownMenuItem
             onClick={() => {
               setNewName(projectName);
+              setRenameError(null);
               setRenameOpen(true);
             }}
           >
@@ -92,7 +109,10 @@ export function ProjectActions({
           </DropdownMenuItem>
           <DropdownMenuItem
             variant="destructive"
-            onClick={() => setDeleteOpen(true)}
+            onClick={() => {
+              setDeleteError(null);
+              setDeleteOpen(true);
+            }}
           >
             <Trash2 />
             Delete
@@ -110,12 +130,18 @@ export function ProjectActions({
                 Enter a new name for the project.
               </DialogDescription>
             </DialogHeader>
-            <div className="py-4">
+            <div className="py-4 space-y-2">
               <Input
                 value={newName}
-                onChange={(e) => setNewName(e.target.value)}
+                onChange={(e) => {
+                  setNewName(e.target.value);
+                  setRenameError(null);
+                }}
                 autoFocus
               />
+              {renameError && (
+                <p className="text-sm text-destructive">{renameError}</p>
+              )}
             </div>
             <DialogFooter>
               <Button
@@ -150,6 +176,9 @@ export function ProjectActions({
               action cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          {deleteError && (
+            <p className="text-sm text-destructive">{deleteError}</p>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteOpen(false)}>
               Cancel

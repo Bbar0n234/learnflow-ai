@@ -14,7 +14,7 @@
 - [x] T4 — siem error handling (полное зеркало)
 - [x] T2 — устойчивость + config
 - [x] T3 — agent error handling
-- [ ] T5 — frontend обвязка
+- [x] T5 — frontend обвязка
 
 ---
 
@@ -242,3 +242,73 @@
 - **OQ-2 (connect_timeout для langgraph)**: переиспользован `redis_socket_connect_timeout` (дефолт 5s) вместо отдельного поля — план допускал оба варианта; значения эквивалентны в типичных сценариях.
 - **Дефолты `mcp_timeout` в сигнатурах**: `fetch_remote_metadata`, `MCPToolResolver.__init__`, `McpServerService.__init__` имеют дефолт `= 30` как fallback — все основные callsites явно передают из Settings.
 - **`StreamableHttpConnection.timeout`**: тип аннотации `timedelta`; передаём `int` с `# type: ignore[typeddict-item]` — унаследовано из T1, runtime принимает корректно.
+
+---
+
+### T5 — Frontend error handling (обвязка)
+
+**`make check-fe` (tsc + ESLint + Prettier --check): зелёный.**
+
+#### Что реализовано
+
+**Фаза 1 — `frontend/src/shared/lib/api-error.ts` (новый файл)**
+
+Единый парсер RFC 9457 problem+json. Два экспорта:
+- `getProblemMessageFromBody(status, body)` — извлекает сообщение из тела: `detail` → `title` → категория по статусу. Используется и внутри `getApiErrorMessage`, и напрямую в fetch-ветке SSE.
+- `getApiErrorMessage(error: unknown): string` — единая точка входа: `AxiosError` с `response` → `getProblemMessageFromBody`; `AxiosError` без `response` (`ECONNABORTED` → «Превышено время ожидания», прочее → «Сервер недоступен»); не-`AxiosError` → «Произошла ошибка, попробуйте позже».
+- Типобезопасный type guard `isProblemBody` без поля `any` — по образцу `security-error.ts`.
+- `security-error.ts` не изменялся: разделение концернов сохранено.
+
+**Фаза 2 — axios `timeout` (D-ERR-9, D-ERR-11, F-FE-01)**
+
+- `frontend/src/shared/api/client.ts`: `apiClient` — `timeout: Number(import.meta.env.VITE_API_TIMEOUT_MS) || 30000`.
+- `frontend/src/shared/api/security.ts`: `siemClient` — тот же timeout из той же env-переменной (дрейф-фикс F-FE-01: close twin).
+- Env-переменная `VITE_API_TIMEOUT_MS` задокументирована в корневом `.env.example` (OQ-F).
+
+**Фаза 3 — Дефолты `QueryClient` (F-FE-02)**
+
+- `frontend/src/app/providers/QueryProvider.tsx`: `QueryClient` с `defaultOptions` + `QueryCache` + `MutationCache`.
+- Предикат `shouldRetryQuery`: 4xx → `false` (не ретраить); 5xx/сеть → `failureCount < 2` (bounded, согласовано с backend `max_retries=2`).
+- `defaultOptions.mutations.retry: false` — побочные эффекты не ретраим.
+- `QueryCache.onError` и `MutationCache.onError`: централизованный `logger.error` с `getApiErrorMessage(error)`. Подача пользователю (тост) — backlog (D-ERR-8 подтверждает: здесь только лог).
+
+**Фаза 4 — Применение парсера (F-FE-03/04/05/06/07/09)**
+
+- `SecurityRules.tsx`: error-блок `useRules` + toggle-catch → `getApiErrorMessage`.
+- `SecurityAlerts.tsx`: error-блок `useAlerts` → `getApiErrorMessage`.
+- `SecurityEvents.tsx`: error-блок `useEvents` → `getApiErrorMessage`.
+- `RuleForm.tsx`: submit-catch → `getApiErrorMessage` вместо `err.message`.
+- `AuthGate.tsx`: семиуровневая `in`-проверка заменена одной строкой `setError(getApiErrorMessage(err))`.
+- `CreateProjectModal.tsx`: добавлен `try/catch` вокруг `mutateAsync`; инлайн `<p className="text-sm text-destructive">` в разметке модалки.
+- `ProjectActions.tsx`: `onError` в rename-мутации → `setRenameError`; `onError` в delete-мутации → `setDeleteError`; инлайн-сообщения в соответствующих диалогах.
+- `MCPServerForm.tsx`: `isSecurityViolation(error) ? SECURITY_VIOLATION_MESSAGE : error ? getApiErrorMessage(error) : null` — security-ветка сохранена.
+- `MCPServersSection.tsx`: `handleTest.onError` → `getApiErrorMessage(err)` (заменён «Connection failed»).
+- `useAgentStream.ts`: `!response.ok` → `getProblemMessageFromBody(status, body)` через `response.json()` в try/catch вместо `` `HTTP ${response.status}` ``.
+
+**Фаза 5 — SSE: first-byte timeout + защита JSON.parse (D-ERR-9, F-FE-10)**
+
+- `useAgentStream.ts`: константа `FIRST_BYTE_TIMEOUT_MS` из `VITE_SSE_FIRST_BYTE_TIMEOUT_MS` (fallback → `VITE_API_TIMEOUT_MS` → 30 000 мс). Флаг `timedOut`; `firstByteTimer` запускается до первого `fetch`, снимается после `response.ok`. При срабатывании: `controller.abort()` + `endStream()` + `onError("Превышено время ожидания")`. В catch: `AbortError && timedOut` → тихий return (timeout уже обработан).
+- `JSON.parse(line.slice(6))` обёрнут в `try/catch`: `logger.warn("[SSE] Malformed frame, skipping")` + `continue` — стрим не падает, уже полученный текст сохраняется.
+- Env-переменная `VITE_SSE_FIRST_BYTE_TIMEOUT_MS` задокументирована в корневом `.env.example`.
+
+**Фаза 6 — FeedbackButtons: откат оптимистичного лайка (F-FE-08)**
+
+- `frontend/src/pages/chat/ui/FeedbackButtons.tsx`: `prevFeedback = feedback` до обновления; `request.catch(err => { logger.warn(...); setFeedback(prevFeedback); })` — откат при ошибке.
+
+**Фаза 7 — Нормализация языка сообщений (F-FE-11)**
+
+- `AuthGate.tsx`: «Password must be at least 8 characters» → «Пароль должен содержать не менее 8 символов»; «Passwords do not match» → «Пароли не совпадают».
+- `useAgentStream.ts`: «Connection lost» → «Соединение прервано»; «Connection error» → «Ошибка соединения».
+- `ErrorBoundary.tsx`: «Something went wrong» → «Что-то пошло не так»; «An unexpected error occurred.» → «Произошла непредвиденная ошибка.»; «Reload page» → «Обновить страницу».
+- `ChatView.tsx`: «Failed to load chat.» → «Не удалось загрузить чат.»
+- `ProjectList.tsx`: «Failed to load projects» → «Не удалось загрузить проекты»
+
+**Фаза 8 — Сверка конвенций (дрейф-фикс)**
+
+- `doc/tech/conventions.md` § Optimistic vs пессимистичные: исправлена строка «Единственный оптимистичный патч — `security_block`…» — теперь упоминаются оба оптимистичных патча (`security_block` + `FeedbackButtons` с откатом).
+
+#### Открытые вопросы — резолюции
+
+- **OQ-2 (`VITE_SSE_FIRST_BYTE_TIMEOUT_MS` vs переиспользование)**: заведена отдельная `VITE_SSE_FIRST_BYTE_TIMEOUT_MS` (семантически чище; fallback на `VITE_API_TIMEOUT_MS` если не задана). Обе задокументированы в корневом `.env.example` (OQ-F).
+- **OQ-3 (глобальный `onError` без UI)**: подтверждено — `QueryCache/MutationCache.onError` = только `logger.error`, без тоста. Полноценная подача ждёт тост-итерации (backlog).
+- **OQ-4 (F-FE-08 откат)**: включён в трек как точечный correctness-фикс (фаза 6).

@@ -13,7 +13,7 @@ export function ProjectList() {
   if (isError) {
     return (
       <p className="px-3 py-1.5 text-xs text-destructive">
-        Failed to load projects
+        Не удалось загрузить проекты
       </p>
     );
   }

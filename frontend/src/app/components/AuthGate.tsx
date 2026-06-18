@@ -12,6 +12,7 @@ import {
 import { Input } from "@/shared/ui/input";
 import { Button } from "@/shared/ui/button";
 import { logger } from "@/shared/lib/logger";
+import { getApiErrorMessage } from "@/shared/lib/api-error";
 
 type Mode = "login" | "register";
 
@@ -35,11 +36,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
     if (mode === "register") {
       if (password.length < 8) {
-        setError("Password must be at least 8 characters");
+        setError("Пароль должен содержать не менее 8 символов");
         return;
       }
       if (password !== confirmPassword) {
-        setError("Passwords do not match");
+        setError("Пароли не совпадают");
         return;
       }
     }
@@ -53,23 +54,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       setAccessToken(result.access_token);
       setAuthenticated(true);
     } catch (err: unknown) {
-      if (
-        err &&
-        typeof err === "object" &&
-        "response" in err &&
-        err.response &&
-        typeof err.response === "object" &&
-        "data" in err.response &&
-        err.response.data &&
-        typeof err.response.data === "object" &&
-        "detail" in err.response.data
-      ) {
-        setError(
-          String((err.response as { data: { detail: string } }).data.detail),
-        );
-      } else {
-        setError("Something went wrong");
-      }
+      setError(getApiErrorMessage(err));
       logger.error("[Auth error]", err);
     } finally {
       setLoading(false);

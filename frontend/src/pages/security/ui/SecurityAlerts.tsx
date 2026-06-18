@@ -11,6 +11,7 @@ import { StatusBadge } from "./StatusBadge";
 import { AlertStatus, Severity } from "@/shared/api/security";
 import { Button } from "@/shared/ui/button";
 import { logger } from "@/shared/lib/logger";
+import { getApiErrorMessage } from "@/shared/lib/api-error";
 
 interface AlertsFilterState {
   severity?: Severity;
@@ -64,8 +65,7 @@ export function SecurityAlerts() {
   if (error) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
-        Ошибка загрузки алертов:{" "}
-        {error instanceof Error ? error.message : "Unknown error"}
+        Ошибка загрузки алертов: {getApiErrorMessage(error)}
       </div>
     );
   }

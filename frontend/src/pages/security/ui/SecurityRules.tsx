@@ -22,6 +22,7 @@ import {
 import { Plus, Edit2, Trash2 } from "lucide-react";
 import { Switch } from "@/shared/ui/switch";
 import { logger } from "@/shared/lib/logger";
+import { getApiErrorMessage } from "@/shared/lib/api-error";
 
 const RULE_TYPE_LABELS: Record<string, string> = {
   threshold: "Порог",
@@ -101,11 +102,7 @@ export function SecurityRules() {
       setTimeout(() => setSuccessMessage(""), 3000);
     } catch (err) {
       logger.error("Rule toggle error", err);
-      setErrorMessage(
-        err instanceof Error
-          ? err.message
-          : "Ошибка при обновлении активности правила",
-      );
+      setErrorMessage(getApiErrorMessage(err));
     } finally {
       setPendingToggleId(null);
     }
@@ -114,8 +111,7 @@ export function SecurityRules() {
   if (error) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
-        Ошибка загрузки правил:{" "}
-        {error instanceof Error ? error.message : "Unknown error"}
+        Ошибка загрузки правил: {getApiErrorMessage(error)}
       </div>
     );
   }

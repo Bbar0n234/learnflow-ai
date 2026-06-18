@@ -10,6 +10,8 @@ import {
 import { Input } from "@/shared/ui/input";
 import { Button } from "@/shared/ui/button";
 import { useCreateProject } from "@/shared/api/projects";
+import { getApiErrorMessage } from "@/shared/lib/api-error";
+import { logger } from "@/shared/lib/logger";
 
 interface CreateProjectModalProps {
   open: boolean;
@@ -21,15 +23,22 @@ export function CreateProjectModal({
   onOpenChange,
 }: CreateProjectModalProps) {
   const [name, setName] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
   const navigate = useNavigate();
   const createProject = useCreateProject();
 
   async function handleCreate() {
     if (!name.trim()) return;
-    const data = await createProject.mutateAsync({ name: name.trim() });
-    setName("");
-    onOpenChange(false);
-    navigate(`/projects/${data.id}`);
+    setCreateError(null);
+    try {
+      const data = await createProject.mutateAsync({ name: name.trim() });
+      setName("");
+      onOpenChange(false);
+      navigate(`/projects/${data.id}`);
+    } catch (err: unknown) {
+      logger.error("[CreateProject error]", err);
+      setCreateError(getApiErrorMessage(err));
+    }
   }
 
   return (
@@ -41,11 +50,17 @@ export function CreateProjectModal({
         <Input
           placeholder="Project name"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            setName(e.target.value);
+            setCreateError(null);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter") handleCreate();
           }}
         />
+        {createError && (
+          <p className="text-sm text-destructive">{createError}</p>
+        )}
         <DialogFooter>
           <Button
             onClick={handleCreate}

@@ -34,11 +34,9 @@ export class ErrorBoundary extends Component<Props, State> {
             fontFamily: "system-ui, sans-serif",
           }}
         >
-          <h1 style={{ fontSize: "1.5rem", margin: 0 }}>
-            Something went wrong
-          </h1>
+          <h1 style={{ fontSize: "1.5rem", margin: 0 }}>Что-то пошло не так</h1>
           <p style={{ color: "#666", margin: 0 }}>
-            An unexpected error occurred.
+            Произошла непредвиденная ошибка.
           </p>
           <button
             onClick={() => window.location.reload()}
@@ -51,7 +49,7 @@ export class ErrorBoundary extends Component<Props, State> {
               background: "#fff",
             }}
           >
-            Reload page
+            Обновить страницу
           </button>
         </div>
       );

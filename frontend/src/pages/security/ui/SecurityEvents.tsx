@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/shared/ui/dialog";
 import { Button } from "@/shared/ui/button";
+import { getApiErrorMessage } from "@/shared/lib/api-error";
 
 interface EventsFilterState {
   event_type?: string;
@@ -38,8 +39,7 @@ export function SecurityEvents() {
   if (error) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
-        Ошибка загрузки событий:{" "}
-        {error instanceof Error ? error.message : "Unknown error"}
+        Ошибка загрузки событий: {getApiErrorMessage(error)}
       </div>
     );
   }

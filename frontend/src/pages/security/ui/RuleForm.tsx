@@ -24,6 +24,7 @@ import {
   RuleConfig,
   Severity,
 } from "@/shared/api/security";
+import { getApiErrorMessage } from "@/shared/lib/api-error";
 import { CreateRuleInput } from "@/shared/api/security";
 
 const RULE_TYPES: Array<{ value: RuleType; label: string }> = [
@@ -159,9 +160,7 @@ export function RuleForm({
       });
       onOpenChange(false);
     } catch (err) {
-      setSubmitError(
-        err instanceof Error ? err.message : "Ошибка при сохранении правила",
-      );
+      setSubmitError(getApiErrorMessage(err));
     }
   };
 

@@ -510,16 +510,16 @@ def create_app() -> FastAPI:
     settings = Settings()
     app = FastAPI(title="LearnFlowAI", lifespan=lifespan)
 
-    # CORS
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
-    # Request ID and security context middleware
+    # Request ID + security context + Layer 3 generic-500 catch.
+    #
+    # Middleware ordering (Starlette): add_middleware inserts at the front of
+    # the stack, so the LAST registered middleware is the OUTERMOST. CORS is
+    # registered AFTER this one (below) and is therefore the outermost wrapper.
+    # The generic-500 JSONResponse returned here flows back OUT through
+    # CORSMiddleware and picks up Access-Control-Allow-Origin (F-API-01). A bare
+    # add_exception_handler(Exception) would run in ServerErrorMiddleware,
+    # OUTSIDE all user middleware including CORS, and the 500 would ship without
+    # CORS headers — which is exactly why the catch lives here.
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next: Any) -> Any:
         structlog.contextvars.clear_contextvars()
@@ -543,11 +543,6 @@ def create_app() -> FastAPI:
             ip=client_ip,
             user_agent_hash=user_agent_hash,
         )
-        # Layer 3 — generic last-resort catch (F-API-01: CORS on 500).
-        # This middleware sits below CORSMiddleware in the stack, so the
-        # JSONResponse we return here passes back up through CORS and picks
-        # up Access-Control-Allow-Origin headers, unlike a bare
-        # add_exception_handler(Exception) which sits above CORS.
         try:
             response = await call_next(request)
             return response
@@ -555,11 +550,25 @@ def create_app() -> FastAPI:
             logger.error("unhandled exception", exc_info=True)
             return problem_response(status=500, detail="Internal server error")
 
+    # CORS — registered LAST so it is the OUTERMOST middleware and wraps the
+    # generic-500 handler above; this is what lets 500 responses carry CORS
+    # headers (F-API-01).
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     # Exception handlers — RFC 9457 problem+json
     register_problem_handlers(app)
 
-    # Health check — honest 503 when DB is down (F-API-02)
-    @app.get("/health")
+    # Health check — honest 503 when DB is down (F-API-02).
+    # response_model=None: the handler returns either a plain dict (200) or a
+    # JSONResponse (503 problem+json); FastAPI cannot build a response model
+    # from that union (Response subclass + dict) and would raise at startup.
+    @app.get("/health", response_model=None)
     async def health(request: Request) -> JSONResponse | dict[str, str]:
         try:
             async with request.app.state.engine.connect() as conn:

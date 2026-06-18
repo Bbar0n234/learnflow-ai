@@ -114,20 +114,14 @@ def create_app() -> FastAPI:
     # Exception handlers — RFC 9457 problem+json
     register_problem_handlers(app)
 
-    # CORS — allow frontend to access SIEM API
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.frontend_origin,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
     # Layer 3 — generic last-resort catch (CORS on 500).
-    # This middleware sits below CORSMiddleware in the stack, so the
-    # JSONResponse we return here passes back up through CORS and picks
-    # up Access-Control-Allow-Origin headers, unlike a bare
-    # add_exception_handler(Exception) which sits above CORS.
+    #
+    # Middleware ordering (Starlette): the LAST registered middleware is the
+    # OUTERMOST. CORS is registered AFTER this one (below) and is therefore the
+    # outermost wrapper, so the generic-500 JSONResponse returned here flows back
+    # OUT through CORSMiddleware and picks up Access-Control-Allow-Origin. A bare
+    # add_exception_handler(Exception) would run OUTSIDE CORS and ship the 500
+    # without CORS headers.
     @app.middleware("http")
     async def _generic_exception_middleware(request: Request, call_next: Any) -> Any:
         try:
@@ -135,6 +129,17 @@ def create_app() -> FastAPI:
         except Exception:
             logger.error("unhandled exception", exc_info=True)
             return problem_response(status=500)
+
+    # CORS — registered LAST so it is the OUTERMOST middleware and wraps the
+    # generic-500 handler above; this is what lets 500 responses carry CORS
+    # headers.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.frontend_origin,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     app.include_router(router)
 

@@ -5,6 +5,7 @@ import {
   isSecurityViolation,
   SECURITY_VIOLATION_MESSAGE,
 } from "@/shared/lib/security-error";
+import { getApiErrorMessage } from "@/shared/lib/api-error";
 
 interface SphereEditorProps {
   content: string;
@@ -22,7 +23,6 @@ export function SphereEditor({
   onCancel,
 }: SphereEditorProps) {
   const [text, setText] = useState(content);
-  const showSecurityError = isSecurityViolation(error);
 
   return (
     <div className="flex h-full flex-col">
@@ -38,11 +38,15 @@ export function SphereEditor({
         </div>
       </div>
       <div className="flex flex-1 flex-col p-6">
-        {showSecurityError && (
+        {isSecurityViolation(error) ? (
           <p className="mb-2 text-sm text-destructive">
             {SECURITY_VIOLATION_MESSAGE}
           </p>
-        )}
+        ) : error ? (
+          <p className="mb-2 text-sm text-destructive">
+            {getApiErrorMessage(error)}
+          </p>
+        ) : null}
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}

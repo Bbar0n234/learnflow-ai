@@ -312,3 +312,47 @@
 - **OQ-2 (`VITE_SSE_FIRST_BYTE_TIMEOUT_MS` vs переиспользование)**: заведена отдельная `VITE_SSE_FIRST_BYTE_TIMEOUT_MS` (семантически чище; fallback на `VITE_API_TIMEOUT_MS` если не задана). Обе задокументированы в корневом `.env.example` (OQ-F).
 - **OQ-3 (глобальный `onError` без UI)**: подтверждено — `QueryCache/MutationCache.onError` = только `logger.error`, без тоста. Полноценная подача ждёт тост-итерации (backlog).
 - **OQ-4 (F-FE-08 откат)**: включён в трек как точечный correctness-фикс (фаза 6).
+
+---
+
+## Code-review fixes
+
+Применены по отчётам ревью (`code-review-{backend,siem,agent,frontend}.md`).
+`make check` (ruff+mypy) — **зелёный**; `make check-fe` (tsc+ESLint+Prettier) — **зелёный**.
+Точечные тесты — **12 passed** (10 T3 + 2 новых CORS-on-500).
+
+### FIX-1 (blocker, системный) — generic-500 без CORS-заголовков
+- **Было:** в обоих сервисах обработчик generic-500 регистрировался ПОСЛЕ `CORSMiddleware`. По семантике Starlette (последний `add_middleware` — самый внешний) обработчик оказывался СНАРУЖИ CORS, и 500-ответ уходил без `Access-Control-Allow-Origin`. Цель F-API-01 / OQ-2 не достигалась ни в main app, ни в siem. Комментарии «sits below CORSMiddleware» были фактически неверны.
+- **Починено:** `CORSMiddleware` теперь регистрируется ПОСЛЕДНИМ (самый внешний) в обоих `main.py` — он оборачивает обработчик generic-500, и 500-ответ проходит обратно через CORS, получая заголовки. Комментарии в обоих `main.py` и docstring-и в обоих `api/problem.py` приведены к фактическому поведению (явно описан инвариант порядка middleware).
+- **Проверено эмпирически:** новый `tests/test_cors_on_500.py` строит каждый app через реальный `create_app()`, вешает роут, кидающий `Exception`, шлёт GET с `Origin: http://localhost:5173` → 500 содержит `access-control-allow-origin`. Оба сервиса — pass.
+- Ссылка: code-review-siem.md B1; code-review-backend.md Summary; задача FIX-1.
+
+### FIX-1a (сопутствующий blocker, не в списке — регрессия feat-007) — `/health` ломал старт backend
+- **Было:** T1 сменил возвращаемую аннотацию `/health` на `JSONResponse | dict[str, str]`. Под FastAPI ≥0.135.1 (закреплённая версия) `create_app()` падал на старте — FastAPI не строит response-model из union (Response-подкласс + dict). `make check` (только ruff+mypy) это не ловит; приложение не поднималось. Обнаружено при попытке прогнать CORS-тест.
+- **Починено:** `@app.get("/health", response_model=None)` (FastAPI-идиоматичный приём, прямо из текста ошибки) — поведение хендлера сохранено. Это корректностный фикс на месте (CLAUDE.md «Исправляй дрейф на месте»), не арх-решение.
+
+### FIX-2 (blocker) — PDF-таймаут не доходил до wkhtmltopdf
+- **Было:** `convert_md_to_pdf` принимал `timeout` из Settings, но `pdfkit.from_string` своего timeout не имеет → subprocess wkhtmltopdf мог висеть вечно, исчерпывая пул `anyio.to_thread`. Knob создавал ложное чувство защиты.
+- **Починено:** команда строится через `pdfkit.PDFKit(...).command()` (сохранена вся обработка опций pdfkit), но запускается через `subprocess.run(..., timeout=timeout)`, который убивает процесс по таймауту. По таймауту → `UpstreamUnavailableError(code="pdf-render-timeout", status=504)`; сбой запуска/рендера → `UpstreamUnavailableError(code="pdf-render-failed", status=502)` (heuristic `PDFKit.handle_error` сохранён для «non-zero exit, но PDF валиден»). Все пути логируют `exc_info`. Новой runtime-зависимости нет (pdfkit уже в зависимостях).
+- **Проверено эмпирически:** `timeout=1` против hardcoded `javascript-delay=5000` → процесс убит за 1.0s, конвертирован в 504. Архитектор НЕ потребовался (задача явно санкционировала `subprocess.run(timeout=...)`).
+- Ссылка: code-review-backend.md blocker #1; задача FIX-2.
+
+### FIX-3 (blocker) — 5xx из barrier не логировались
+- **Было:** `_app_error_handler` (Layer 1) не логировал серверные `AppError` (`UpstreamUnavailableError` 502/503, `EncryptionError` 500). В частности, PDF-502 уходил без следа (второй blocker code-review-backend).
+- **Починено:** в обоих `api/problem.py` `_app_error_handler` при `exc.status >= 500` пишет `logger.error("application error", code=..., status=..., exc_info=exc)`. 4xx как error НЕ логируются (§ Logging антипаттерны — клиентские ошибки не серверные). Покрывает PDF-502 централизованно.
+- Ссылка: code-review-backend.md blocker #2; задача FIX-3.
+
+### FIX-4 (доковый дрейф) — conventions.md `handle_tool_errors`
+- **Было:** § «Агентные tools» буквально предписывал `ToolNode(tools, handle_tool_errors=True)`, что противоречит OQ-A (callable) и самой реализации `graph.py` (`=True` глушит молча).
+- **Починено:** формулировка заменена на callable-форму: обработчик логирует `exc_info` и возвращает безопасный текст для `ToolMessage(status="error")`; явно сказано, что `=True` запрещено (молчит).
+- Ссылка: code-review-agent.md finding #2; задача FIX-4.
+
+### FIX-5 (swallow) — siem `_get_delivery_count`
+- **Было:** `except Exception: pass` без лога — при устойчивом падении `XPENDING` bounded-защита тихо отключалась.
+- **Починено:** `logger.warning("failed to read delivery count, assuming first delivery", message_id=..., exc_info=True)` перед fallback `return 1`.
+- Ссылка: code-review-siem.md N1; задача FIX-5.
+
+### FIX-6 (консистентность, drift-policy) — `SphereEditor.tsx`
+- **Было:** показывалась только security-ошибка (`isSecurityViolation`); прочие ошибки сохранения (409/422/503/сеть) молча глотались — тот же дефект F-FE-07, что починен в `MCPServerForm`.
+- **Починено:** применён общий парсер `@/shared/lib/api-error` — `isSecurityViolation(error) ? SECURITY_VIOLATION_MESSAGE : error ? getApiErrorMessage(error) : null` (зеркало `MCPServerForm`). Логирование не добавлялось (компонент не имеет catch-точки; ошибки приходят через проп `error` мутации).
+- Ссылка: code-review-frontend.md finding #1; задача FIX-6.

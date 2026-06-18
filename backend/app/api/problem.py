@@ -11,7 +11,9 @@
   1. AppError → доменный статус problem+json (4xx/409/422).
   2. Инфра-исключения (DBAPIError→503, TimeoutError→504) + лог exc_info.
   3. generic Exception (last-resort) — перехватывается в request_id_middleware
-     в main.py ниже CORS, чтобы 500-ответ получал CORS-заголовки (F-API-01).
+     в main.py; CORSMiddleware регистрируется последним и потому оборачивает
+     этот обработчик (он самый внешний в стеке), так что 500-ответ проходит
+     обратно через CORS и получает CORS-заголовки (F-API-01).
 """
 
 from __future__ import annotations
@@ -67,6 +69,16 @@ def problem_response(
 
 
 async def _app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+    # Server-side AppError (UpstreamUnavailableError 502/503, EncryptionError
+    # 500, …) must leave a trace with exc_info. 4xx are client errors, not
+    # server faults — not logged as error (§ Logging антипаттерны).
+    if exc.status >= 500:
+        logger.error(
+            "application error",
+            code=exc.code,
+            status=exc.status,
+            exc_info=exc,
+        )
     type_ = TYPE_PREFIX + exc.code
     extensions = {k: jsonable_encoder(v) for k, v in exc.extensions.items()}
     return problem_response(

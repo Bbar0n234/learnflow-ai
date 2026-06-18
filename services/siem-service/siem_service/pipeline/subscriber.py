@@ -170,7 +170,14 @@ class Subscriber:
             if entries:
                 return int(entries[0]["times_delivered"])
         except Exception:
-            pass
+            # XPENDING failed (Redis degradation): fall back to "first delivery"
+            # so processing continues, but do NOT swallow silently — if this
+            # persists, the bounded-retry guard is effectively disabled.
+            logger.warning(
+                "failed to read delivery count, assuming first delivery",
+                message_id=message_id,
+                exc_info=True,
+            )
         return 1
 
     async def _process_single_message(

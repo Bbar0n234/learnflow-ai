@@ -12,7 +12,7 @@
 ## Прогресс
 - [x] T1 — модель ошибок + барьерный стек (main app)
 - [x] T4 — siem error handling (полное зеркало)
-- [ ] T2 — устойчивость + config
+- [x] T2 — устойчивость + config
 - [ ] T3 — agent error handling
 - [ ] T5 — frontend обвязка
 
@@ -137,3 +137,61 @@
 - **OQ-2 (CORS-on-500 в siem)**: решено через `@app.middleware("http")` `_generic_exception_middleware` в `main.py` (ниже CORS) — зеркало механизма `request_id_middleware` в T1, без `request_id`-биндинга (siem его не имеет).
 - **OQ-4 (Literal severity)**: локальный `Literal` в `schemas.py` (не переиспользование типа из `siem_contracts`) — достаточно для валидации; `get_strategy` для неизвестного типа → `raise ValueError` (поднимается в per-rule catch CorrelationEngine).
 - **OQ-5 (где ловить IntegrityError)**: поймано в `RuleService.create_rule` (сервисный слой) → `ConflictError`. Pre-check через `get_rule_by_name` не добавлен: IntegrityError как единственная защита от TOCTOU; pre-check остаётся кандидатом в follow-up.
+
+---
+
+### T2 — Устойчивость + конфигурирование (таймауты/retry через Settings/env)
+
+**`make check` (ruff + mypy): зелёный.**
+
+#### Что реализовано
+
+**Фаза T2.1 — Декларация knob'ов (Settings + .env.example + docker-compose.yml)**
+
+- `backend/app/config.py`: добавлены поля `redis_socket_timeout: float = 5.0`, `redis_socket_connect_timeout: float = 5.0`, `db_statement_timeout_seconds: int = 120`, `llm_guard_timeout_seconds: float = 45`, `llm_summarizer_timeout_seconds: float = 300`, `llm_max_retries: int = 2`, `mcp_timeout_seconds: int = 30`, `pdf_conversion_timeout_seconds: int = 30`.
+- `services/siem-service/siem_service/config.py`: добавлены `redis_socket_timeout: float = 5.0`, `redis_socket_connect_timeout: float = 5.0`, `db_statement_timeout_seconds: int = 120` (с комментарием OQ-D инварианта: `socket_timeout > xread_block_ms/1000`).
+- `.env.example`: добавлены 8 app-переменных (секция «Operational knobs») и 3 SIEM-переменных с документацией инварианта OQ-D.
+- `docker-compose.yml` (siem-service.environment): добавлены `SIEM_REDIS_SOCKET_TIMEOUT`, `SIEM_REDIS_SOCKET_CONNECT_TIMEOUT`, `SIEM_DB_STATEMENT_TIMEOUT_SECONDS`.
+- `.env.local.example` — не трогали (по плану T2.1: дефолты подходят для local dev).
+
+**Фаза T2.2 — Redis socket-таймауты (оба сервиса)**
+
+- `backend/app/infra/redis.py`: `aioredis.from_url(...)` расширен `socket_timeout=settings.redis_socket_timeout`, `socket_connect_timeout=settings.redis_socket_connect_timeout`. Startup-ping автоматически попадает под connect-таймаут — graceful degradation на blackhole-URL за ~5s.
+- `services/siem-service/siem_service/main.py`: аналогично для lifespan-клиента. OQ-D инвариант держится: `socket_timeout=5s > xread_block=1s`.
+
+**Фаза T2.3 — Postgres `statement_timeout` (оба engine)**
+
+- `backend/app/infra/db.py` (psycopg3): `create_async_engine` расширен `connect_args={"options": f"-c statement_timeout={ms}"}`.
+- `services/siem-service/siem_service/infra/db.py` (asyncpg): `connect_args={"server_settings": {"statement_timeout": str(ms)}}`.
+- `idle_in_transaction_session_timeout` намеренно НЕ добавлен — только per-statement SQL, длинные agent-turn'ы не рубятся (T2.18/T2.19).
+
+**Фаза T2.4 — LangGraph checkpointer/store таймауты**
+
+- `backend/app/config.py`, property `langgraph_database_url`: URL расширен libpq query-параметрами через `urllib.parse.urlencode(quote_via=quote)`. Результат: `postgresql://...@host/db?options=-c%20statement_timeout%3D120000&connect_timeout=5`. Единственный рычаг для обоих (saver/store не принимают connection-kwargs). `connect_timeout` переиспользует значение `redis_socket_connect_timeout` (5s).
+
+**Фаза T2.5 — LLM таймауты и `max_retries`**
+
+- `backend/app/infra/llm.py`, `_build_chat_model`: добавлены `timeout: float | None = None`, `max_retries: int | None = None`. `ChatOpenAI` принимает `timeout` через alias `request_timeout` (проверено по installed package).
+- `create_guard_llm`: `timeout=settings.llm_guard_timeout_seconds` (45s) + `max_retries=settings.llm_max_retries` (2).
+- `create_summarization_llm`: `timeout=settings.llm_summarizer_timeout_seconds` (300s) + `max_retries`.
+- `create_llm_from_config` (основной чат): только `max_retries` — timeout намеренно не вводим (D-ERR-9: reasoning-модели, openai-дефолт 600s).
+- `LLMClassifierConfig.max_retries` (bounded-цикл на невалидный вывод) — не тронут; бизнес-инвариант агента.
+
+**Фаза T2.6 — MCP единый таймаут**
+
+- `backend/app/infra/mcp.py`: `_build_connection`, `build_mcp_connections`, `create_mcp_client` расширены обязательным `timeout: int`; прокинут в `SSEConnection(sse_read_timeout=float(timeout))` и `StreamableHttpConnection(timeout=timeout)`.
+- `backend/app/services/mcp_tool_resolver.py`: удалена константа `MCP_TIMEOUT = 30`; `MCPToolResolver.__init__` получил `mcp_timeout: int = 30`; `_fetch_tools` использует `self._mcp_timeout`.
+- `backend/app/services/mcp_server.py`: `_build_test_connection` и `fetch_remote_metadata` расширены параметром `timeout: int`; `McpServerService` хранит `self._mcp_timeout`, передаёт в `_fetch_or_503`.
+- `backend/app/api/routes/mcp_servers.py`: `_test_connection(url, transport, api_key, timeout)`; `_build_mcp_service` берёт `mcp_timeout` из `request.app.state.settings`; три `test_*_server` хендлера передают `settings.mcp_timeout_seconds`.
+- `backend/app/main.py`: `_validate_builtin_mcp` принимает `timeout: int`; вызовы `fetch_remote_metadata`, `create_mcp_client`, `MCPToolResolver` обновлены с `settings.mcp_timeout_seconds`.
+
+**`_PDF_TIMEOUT_SECONDS` → Settings**
+
+- `backend/app/api/export.py`: удалена константа `_PDF_TIMEOUT_SECONDS = 30` и TODO-комментарий T2. Функция сохраняет `timeout: int = 30` как fallback-дефолт.
+- `backend/app/api/routes/artifacts.py`: `download_artifact` получил `request: Request`; timeout берётся из `settings.pdf_conversion_timeout_seconds` и передаётся через `functools.partial(convert_md_to_pdf, timeout=...)`.
+
+#### Отклонения от плана / решения
+
+- **OQ-2 (connect_timeout для langgraph)**: переиспользован `redis_socket_connect_timeout` (дефолт 5s) вместо отдельного поля — план допускал оба варианта; значения эквивалентны в типичных сценариях.
+- **Дефолты `mcp_timeout` в сигнатурах**: `fetch_remote_metadata`, `MCPToolResolver.__init__`, `McpServerService.__init__` имеют дефолт `= 30` как fallback — все основные callsites явно передают из Settings.
+- **`StreamableHttpConnection.timeout`**: тип аннотации `timedelta`; передаём `int` с `# type: ignore[typeddict-item]` — унаследовано из T1, runtime принимает корректно.

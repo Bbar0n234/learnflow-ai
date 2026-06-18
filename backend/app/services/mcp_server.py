@@ -36,18 +36,22 @@ _TEXT_SCHEMA_KEYS = frozenset({"description", "title", "examples", "default", "e
 
 
 def _build_test_connection(
-    url: str, transport: str, api_key: str | None
+    url: str, transport: str, api_key: str | None, timeout: int
 ) -> SSEConnection | StreamableHttpConnection:
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else None
     if transport == "sse":
-        conn_sse = SSEConnection(transport="sse", url=url, sse_read_timeout=30)
+        conn_sse = SSEConnection(
+            transport="sse", url=url, sse_read_timeout=float(timeout)
+        )
         if headers:
             conn_sse["headers"] = headers
         return conn_sse
+    # StreamableHttpConnection.timeout expects timedelta; passing int is accepted
+    # at runtime but mismatches the TypedDict annotation.
     conn_http = StreamableHttpConnection(
         transport="streamable_http",
         url=url,
-        timeout=30,  # type: ignore[typeddict-item]
+        timeout=timeout,  # type: ignore[typeddict-item]
     )
     if headers:
         conn_http["headers"] = headers
@@ -55,14 +59,14 @@ def _build_test_connection(
 
 
 async def fetch_remote_metadata(
-    url: str, transport: str, api_key: str | None
+    url: str, transport: str, api_key: str | None, timeout: int = 30
 ) -> list[dict[str, Any]]:
     """Fetch ``tools/list`` from a remote MCP server.
 
     Returns a list of ``{name, description, inputSchema}`` dicts. Raises on
     connectivity / protocol errors — callers map to 503.
     """
-    conn = _build_test_connection(url, transport, api_key)
+    conn = _build_test_connection(url, transport, api_key, timeout)
     client = MultiServerMCPClient({"_validate": conn})
     tools = await client.get_tools(server_name="_validate")
 
@@ -159,10 +163,12 @@ class McpServerService:
         repo: MCPServerRepository,
         guard: SecurityGuard | None,
         encryption: EncryptionService,
+        mcp_timeout: int = 30,
     ) -> None:
         self._repo = repo
         self._guard = guard
         self._encryption = encryption
+        self._mcp_timeout = mcp_timeout
 
     async def guard_and_persist(
         self,
@@ -266,7 +272,9 @@ class McpServerService:
         # validate_url raises InvalidURLError (400) or SecurityPolicyViolationError (422)
         validate_url(url)
         try:
-            return await fetch_remote_metadata(url, transport, api_key)
+            return await fetch_remote_metadata(
+                url, transport, api_key, self._mcp_timeout
+            )
         except Exception as exc:
             logger.warning("mcp remote metadata fetch failed", url=url, exc_info=True)
             raise UpstreamUnavailableError(

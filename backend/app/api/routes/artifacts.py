@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import functools
 import uuid
 from typing import Annotated
 from urllib.parse import quote
 
 import anyio.to_thread
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 
 from app.api.deps import ArtifactServiceDep, Pagination, UserProject
 from app.api.export import convert_md_to_pdf
@@ -58,6 +59,7 @@ async def download_artifact(
     artifact_id: uuid.UUID,
     project: UserProject,
     service: ArtifactServiceDep,
+    request: Request,
     format: Annotated[str, Query(pattern="^(md|pdf)$")] = "md",
 ) -> Response:
     artifact = await service.get_artifact(artifact_id)
@@ -69,8 +71,13 @@ async def download_artifact(
         return f"attachment; filename*=UTF-8''{encoded}"
 
     if format == "pdf":
-        # wkhtmltopdf — блокирующий вызов (~5s javascript-delay), уводим из event loop
-        pdf_bytes = await anyio.to_thread.run_sync(convert_md_to_pdf, artifact.content)
+        # wkhtmltopdf — блокирующий вызов (~5s javascript-delay), уводим из event loop.
+        # Timeout comes from Settings.pdf_conversion_timeout_seconds (D-ERR-11).
+        pdf_timeout = request.app.state.settings.pdf_conversion_timeout_seconds
+        pdf_bytes = await anyio.to_thread.run_sync(
+            functools.partial(convert_md_to_pdf, timeout=pdf_timeout),
+            artifact.content,
+        )
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",

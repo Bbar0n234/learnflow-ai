@@ -56,6 +56,7 @@ def _build_mcp_service(request: Request, session: Any) -> McpServerService:
         repo=MCPServerRepository(session),
         guard=getattr(request.app.state, "security_guard", None),
         encryption=_get_encryption(request),
+        mcp_timeout=request.app.state.settings.mcp_timeout_seconds,
     )
 
 
@@ -98,7 +99,7 @@ def _to_inherited(
 
 
 async def _test_connection(
-    url: str, transport: str, api_key: str | None
+    url: str, transport: str, api_key: str | None, timeout: int
 ) -> TestConnectionResponse:
     """Test MCP server connection."""
     try:
@@ -113,14 +114,18 @@ async def _test_connection(
     try:
         conn: SSEConnection | StreamableHttpConnection
         if transport == "sse":
-            conn = SSEConnection(transport="sse", url=url, sse_read_timeout=30)
+            conn = SSEConnection(
+                transport="sse", url=url, sse_read_timeout=float(timeout)
+            )
             if headers:
                 conn["headers"] = headers
         else:
+            # StreamableHttpConnection.timeout expects timedelta; passing int is
+            # accepted at runtime but mismatches the TypedDict annotation.
             conn = StreamableHttpConnection(
                 transport="streamable_http",
                 url=url,
-                timeout=30,  # type: ignore[typeddict-item]
+                timeout=timeout,  # type: ignore[typeddict-item]
             )
             if headers:
                 conn["headers"] = headers
@@ -234,7 +239,12 @@ async def test_user_server(
     api_key = None
     if server.api_key_encrypted and enc.is_available:
         api_key = enc.decrypt(server.api_key_encrypted)
-    return await _test_connection(server.url, server.transport, api_key)
+    return await _test_connection(
+        server.url,
+        server.transport,
+        api_key,
+        request.app.state.settings.mcp_timeout_seconds,
+    )
 
 
 # ====================== Project-level ======================
@@ -349,7 +359,12 @@ async def test_project_server(
     api_key = None
     if server.api_key_encrypted and enc.is_available:
         api_key = enc.decrypt(server.api_key_encrypted)
-    return await _test_connection(server.url, server.transport, api_key)
+    return await _test_connection(
+        server.url,
+        server.transport,
+        api_key,
+        request.app.state.settings.mcp_timeout_seconds,
+    )
 
 
 # ====================== Project-level toggle ======================
@@ -500,7 +515,12 @@ async def test_thread_server(
     api_key = None
     if server.api_key_encrypted and enc.is_available:
         api_key = enc.decrypt(server.api_key_encrypted)
-    return await _test_connection(server.url, server.transport, api_key)
+    return await _test_connection(
+        server.url,
+        server.transport,
+        api_key,
+        request.app.state.settings.mcp_timeout_seconds,
+    )
 
 
 @router.put(

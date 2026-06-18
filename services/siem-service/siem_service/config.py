@@ -42,6 +42,13 @@ class Settings(BaseSettings):
     # After this many re-deliveries the message is dropped + XACK with logger.error.
     max_delivery_attempts: int = 5
 
+    # Operational knobs — tune without rebuild (D-ERR-9, D-ERR-11)
+    # Invariant: redis_socket_timeout > xread_block_ms / 1000 (OQ-D).
+    # Default 5s > 1s (xread_block_ms=1000) — blocking XREADGROUP won't hit socket_timeout.
+    redis_socket_timeout: float = 5.0
+    redis_socket_connect_timeout: float = 5.0
+    db_statement_timeout_seconds: int = 120
+
     @field_validator("frontend_origin", mode="before")
     @classmethod
     def parse_frontend_origin(cls, v: object) -> object:

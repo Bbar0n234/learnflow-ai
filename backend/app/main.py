@@ -108,6 +108,7 @@ def _content_hash(text: str, config: dict[str, Any]) -> str:
 async def _validate_builtin_mcp(
     servers: dict[str, Any],
     guard: Any,
+    timeout: int,
 ) -> set[str]:
     """Validate each enabled remote built-in MCP server at startup.
 
@@ -122,7 +123,7 @@ async def _validate_builtin_mcp(
         api_key = os.environ.get(cfg.api_key_env, "") if cfg.api_key_env else None
         try:
             remote_tools = await fetch_remote_metadata(
-                cfg.url or "", cfg.transport, api_key
+                cfg.url or "", cfg.transport, api_key, timeout
             )
             blob = serialize_mcp_meta_blob(
                 name=name,
@@ -384,7 +385,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # server that fails the fetch or the guard check is excluded from the
         # runtime tool registry. App still boots (graceful disable).
         disabled_builtin_mcp: set[str] = await _validate_builtin_mcp(
-            agent_config.mcp_servers, security_guard
+            agent_config.mcp_servers, security_guard, settings.mcp_timeout_seconds
         )
         app.state.disabled_builtin_mcp = disabled_builtin_mcp
 
@@ -396,7 +397,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 for name, cfg in agent_config.mcp_servers.items()
                 if cfg.enabled and name not in disabled_builtin_mcp
             }
-            mcp_client = create_mcp_client(active_mcp)
+            mcp_client = create_mcp_client(
+                active_mcp, timeout=settings.mcp_timeout_seconds
+            )
             if mcp_client is not None:
                 for server_name, server_config in active_mcp.items():
                     tools = await mcp_client.get_tools(server_name=server_name)
@@ -446,6 +449,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             session_factory=app.state.session_factory,
             encryption_service=encryption_service,
             global_tool_names=global_tool_names,
+            mcp_timeout=settings.mcp_timeout_seconds,
         )
 
         app.state.tool_resolver = tool_resolver

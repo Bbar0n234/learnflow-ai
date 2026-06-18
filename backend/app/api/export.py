@@ -25,12 +25,8 @@ code {{ background: #f4f4f4; padding: 0.2em 0.4em; }}
 </html>
 """
 
-# TODO(T2): promote to Settings.pdf_conversion_timeout (env-configurable).
-# T2 will add the Settings field + .env.example + docker-compose entries.
-_PDF_TIMEOUT_SECONDS = 30
 
-
-def convert_md_to_pdf(content: str, timeout: int = _PDF_TIMEOUT_SECONDS) -> bytes:
+def convert_md_to_pdf(content: str, timeout: int = 30) -> bytes:
     """Convert Markdown content to PDF bytes via HTML (pdfkit + wkhtmltopdf).
 
     Raises:

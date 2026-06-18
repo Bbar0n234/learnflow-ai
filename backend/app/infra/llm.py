@@ -75,6 +75,8 @@ def _build_chat_model(
     *,
     max_tokens: int | None = None,
     temperature: float | None = None,
+    timeout: float | None = None,
+    max_retries: int | None = None,
 ) -> BaseChatModel:
     """Construct the project's chat model.
 
@@ -82,6 +84,11 @@ def _build_chat_model(
     ``ChatOpenAI`` (reasoning extraction is a no-op when the provider returns no
     ``reasoning`` field), so every model in the project surfaces reasoning when
     available without per-callsite branching. See conventions.md § Reasoning LLMs.
+
+    ``timeout`` maps to ``ChatOpenAI.request_timeout`` (alias ``timeout``).
+    ``max_retries`` controls openai-client transient-error retries (not
+    ``LLMClassifierConfig.max_retries``, which is a classifier re-classification
+    counter — a business invariant).
     """
     kwargs: dict[str, Any] = {
         "model": model,
@@ -94,6 +101,10 @@ def _build_chat_model(
         kwargs["temperature"] = temperature
     if extra_body:
         kwargs["extra_body"] = extra_body
+    if timeout is not None:
+        kwargs["timeout"] = timeout
+    if max_retries is not None:
+        kwargs["max_retries"] = max_retries
     return ReasoningChatOpenAI(**kwargs)
 
 
@@ -105,14 +116,25 @@ def create_summarization_llm(
         config.model,
         config.extra_body or None,
         max_tokens=config.max_summary_tokens,
+        timeout=settings.llm_summarizer_timeout_seconds,
+        max_retries=settings.llm_max_retries,
     )
 
 
 def create_llm_from_config(
     settings: Settings, model_config: ResolvedModelConfig
 ) -> BaseChatModel:
-    """Create LLM from a resolved model configuration (per-request)."""
-    return _build_chat_model(settings, model_config.model, model_config.extra_body)
+    """Create LLM from a resolved model configuration (per-request).
+
+    No timeout on the main chat model — reasoning models may take 10+ min;
+    the openai-client default (600 s) is intentionally preserved (D-ERR-9).
+    """
+    return _build_chat_model(
+        settings,
+        model_config.model,
+        model_config.extra_body,
+        max_retries=settings.llm_max_retries,
+    )
 
 
 def create_guard_llm(
@@ -125,6 +147,8 @@ def create_guard_llm(
         cfg.model,
         cfg.extra_body.as_dict() or None,
         temperature=cfg.temperature,
+        timeout=settings.llm_guard_timeout_seconds,
+        max_retries=settings.llm_max_retries,
     )
 
 

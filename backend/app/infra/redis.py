@@ -19,7 +19,11 @@ async def create_redis(settings: Settings) -> aioredis.Redis | None:
         return None
 
     try:
-        client: aioredis.Redis = aioredis.from_url(settings.redis_url)
+        client: aioredis.Redis = aioredis.from_url(
+            settings.redis_url,
+            socket_timeout=settings.redis_socket_timeout,
+            socket_connect_timeout=settings.redis_socket_connect_timeout,
+        )
         await client.ping()  # type: ignore[misc]
         logger.info("redis connected")
         return client

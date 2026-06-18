@@ -19,7 +19,6 @@ logger = structlog.get_logger()
 
 MAX_USER_TOOLS = 20
 CACHE_TTL_SECONDS = 300  # 5 minutes
-MCP_TIMEOUT = 30
 
 # Cache key: (user_id, project_id, thread_id) as strings
 _CacheKey = tuple[str, str, str]
@@ -35,10 +34,12 @@ class MCPToolResolver:
         session_factory: async_sessionmaker[AsyncSession],
         encryption_service: EncryptionService,
         global_tool_names: set[str],
+        mcp_timeout: int = 30,
     ) -> None:
         self._session_factory = session_factory
         self._encryption = encryption_service
         self._global_tool_names = global_tool_names
+        self._mcp_timeout = mcp_timeout
         self._cache: dict[_CacheKey, tuple[list[BaseTool], float]] = {}
 
     async def resolve(
@@ -150,15 +151,19 @@ class MCPToolResolver:
         conn: SSEConnection | StreamableHttpConnection
         if server.transport == "sse":
             conn = SSEConnection(
-                transport="sse", url=server.url, sse_read_timeout=MCP_TIMEOUT
+                transport="sse",
+                url=server.url,
+                sse_read_timeout=float(self._mcp_timeout),
             )
             if headers:
                 conn["headers"] = headers
         else:
+            # StreamableHttpConnection.timeout expects timedelta; passing int is
+            # accepted at runtime but mismatches the TypedDict annotation.
             conn = StreamableHttpConnection(
                 transport="streamable_http",
                 url=server.url,
-                timeout=MCP_TIMEOUT,  # type: ignore[typeddict-item]
+                timeout=self._mcp_timeout,  # type: ignore[typeddict-item]
             )
             if headers:
                 conn["headers"] = headers

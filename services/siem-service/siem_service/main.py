@@ -49,7 +49,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("database initialized")
 
     # Redis
-    redis_client = await redis.from_url(settings.redis_url, decode_responses=True)
+    redis_client = await redis.from_url(
+        settings.redis_url,
+        decode_responses=True,
+        socket_timeout=settings.redis_socket_timeout,
+        socket_connect_timeout=settings.redis_socket_connect_timeout,
+    )
     await redis_client.ping()
     app.state.redis = redis_client
     logger.info("redis connected")

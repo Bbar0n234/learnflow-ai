@@ -1,4 +1,5 @@
 from typing import Annotated
+from urllib.parse import quote, urlencode
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, NoDecode
@@ -39,6 +40,16 @@ class Settings(BaseSettings):
     # Redis (trace storage for feedback persistence)
     redis_url: str = "redis://localhost:6379/0"
 
+    # Operational knobs — tune without rebuild (D-ERR-9, D-ERR-11)
+    redis_socket_timeout: float = 5.0
+    redis_socket_connect_timeout: float = 5.0
+    db_statement_timeout_seconds: int = 120
+    llm_guard_timeout_seconds: float = 45
+    llm_summarizer_timeout_seconds: float = 300
+    llm_max_retries: int = 2
+    mcp_timeout_seconds: int = 30
+    pdf_conversion_timeout_seconds: int = 30
+
     # NoDecode: иначе pydantic-settings декодирует list[str] из env как JSON
     # ещё до field validator'а
     cors_origins: Annotated[list[str], NoDecode] = [
@@ -48,8 +59,24 @@ class Settings(BaseSettings):
 
     @property
     def langgraph_database_url(self) -> str:
-        """PostgreSQL URL for LangGraph (without +psycopg dialect)."""
-        return self.database_url.replace("+psycopg", "")
+        """PostgreSQL URL for LangGraph (without +psycopg dialect, with libpq timeout params).
+
+        Injects ``statement_timeout`` and ``connect_timeout`` via libpq query
+        parameters — the only mechanism that reaches both AsyncPostgresSaver and
+        AsyncPostgresStore (neither accepts connection-kwargs directly).
+        """
+        base = self.database_url.replace("+psycopg", "")
+        statement_timeout_ms = self.db_statement_timeout_seconds * 1000
+        connect_timeout_s = int(self.redis_socket_connect_timeout)
+        params = urlencode(
+            {
+                "options": f"-c statement_timeout={statement_timeout_ms}",
+                "connect_timeout": connect_timeout_s,
+            },
+            quote_via=quote,
+        )
+        sep = "&" if "?" in base else "?"
+        return f"{base}{sep}{params}"
 
     @field_validator("cors_origins", mode="before")
     @classmethod

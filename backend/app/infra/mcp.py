@@ -33,7 +33,7 @@ def _resolve_headers(cfg: MCPServerConfig) -> dict[str, Any] | None:
     return None
 
 
-def _build_connection(cfg: MCPServerConfig) -> _Connection:
+def _build_connection(cfg: MCPServerConfig, timeout: int) -> _Connection:
     """Build a typed connection dict from MCPServerConfig."""
     transport = cfg.transport
 
@@ -52,13 +52,21 @@ def _build_connection(cfg: MCPServerConfig) -> _Connection:
         raise ValueError(f"MCP server: {transport} transport requires 'url'")
 
     if transport == "sse":
-        conn_sse = SSEConnection(transport="sse", url=cfg.url)
+        conn_sse = SSEConnection(
+            transport="sse", url=cfg.url, sse_read_timeout=float(timeout)
+        )
         if headers:
             conn_sse["headers"] = headers
         return conn_sse
 
-    # "http" → streamable_http (alias per langchain-mcp-adapters docs)
-    conn_http = StreamableHttpConnection(transport="streamable_http", url=cfg.url)
+    # "http" → streamable_http (alias per langchain-mcp-adapters docs).
+    # StreamableHttpConnection.timeout expects timedelta; passing int is accepted
+    # at runtime but mismatches the TypedDict annotation.
+    conn_http = StreamableHttpConnection(
+        transport="streamable_http",
+        url=cfg.url,
+        timeout=timeout,  # type: ignore[typeddict-item]
+    )
     if headers:
         conn_http["headers"] = headers
     return conn_http
@@ -66,21 +74,25 @@ def _build_connection(cfg: MCPServerConfig) -> _Connection:
 
 def build_mcp_connections(
     servers: dict[str, MCPServerConfig],
+    timeout: int,
 ) -> dict[str, _Connection]:
     """Convert MCPServerConfig dict → MultiServerMCPClient connections dict.
 
     Skips servers with enabled=false.
     """
     return {
-        name: _build_connection(cfg) for name, cfg in servers.items() if cfg.enabled
+        name: _build_connection(cfg, timeout)
+        for name, cfg in servers.items()
+        if cfg.enabled
     }
 
 
 def create_mcp_client(
     servers: dict[str, MCPServerConfig],
+    timeout: int,
 ) -> MultiServerMCPClient | None:
     """Create MultiServerMCPClient from config. Returns None if no servers configured."""
     if not servers:
         return None
-    connections = build_mcp_connections(servers)
+    connections = build_mcp_connections(servers, timeout)
     return MultiServerMCPClient(connections)

@@ -306,6 +306,8 @@ Dockerfile живёт рядом с `pyproject.toml` пакета (`backend/Dock
 2. **Инфра-исключения** → `OperationalError`/`DBAPIError` → 503, таймаут → 504; problem+json + лог `exc_info`.
 3. **generic `Exception`** (last-resort) → 500 problem+json без внутренностей + лог `exc_info`.
 
+**Порядок middleware.** Перехватчик generic-`Exception` должен стоять **внутри** `CORSMiddleware` (CORS добавляется последним → он внешний), иначе сформированный им 500-ответ не пройдёт обратно через CORS и уйдёт без `Access-Control-Allow-Origin` — браузер увидит CORS-ошибку вместо 500. Проверяется TestClient'ом: запрос с `Origin` на роут, бросающий `Exception`, → ответ 500 несёт `access-control-allow-origin`.
+
 Карта «источник → статус»:
 
 | Источник | Статус |

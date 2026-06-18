@@ -131,4 +131,5 @@ class LLMClassifier:
             verdict=Verdict.CLEAN,
             reasoning=None,
             retries=classifier_cfg.max_retries,
+            degraded=True,
         )

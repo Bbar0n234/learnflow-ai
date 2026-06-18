@@ -12,6 +12,7 @@ import {
   isSecurityViolation,
   SECURITY_VIOLATION_MESSAGE,
 } from "@/shared/lib/security-error";
+import { getApiErrorMessage } from "@/shared/lib/api-error";
 
 interface Props {
   onSubmit: (data: MCPServerCreate) => void;
@@ -116,9 +117,11 @@ export function MCPServerForm({
           Cancel
         </Button>
       </div>
-      {isSecurityViolation(error) && (
+      {isSecurityViolation(error) ? (
         <p className="text-sm text-destructive">{SECURITY_VIOLATION_MESSAGE}</p>
-      )}
+      ) : error ? (
+        <p className="text-sm text-destructive">{getApiErrorMessage(error)}</p>
+      ) : null}
     </form>
   );
 }

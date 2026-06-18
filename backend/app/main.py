@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from langfuse import get_client as get_langfuse_client
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 
 from app.agent.checkpoint_history import CheckpointHistory
 from app.agent.config import (
@@ -53,7 +54,7 @@ from app.agent.tools import (
     user_memory_tools,
 )
 from app.agent.tracing import AgentRunTracer
-from app.api.problem import problem_response, register_problem_handlers
+from app.api.problem import TYPE_PREFIX, problem_response, register_problem_handlers
 from app.api.routes import (
     artifacts,
     auth,
@@ -88,7 +89,6 @@ from app.security_pipeline.transport import (
     RedisEventTransport,
 )
 from app.services.encryption import EncryptionService
-from app.services.exceptions import EntityNotFoundError
 from app.services.mcp_server import (
     fetch_remote_metadata,
     serialize_mcp_meta_blob,
@@ -108,6 +108,7 @@ def _content_hash(text: str, config: dict[str, Any]) -> str:
 async def _validate_builtin_mcp(
     servers: dict[str, Any],
     guard: Any,
+    timeout: int,
 ) -> set[str]:
     """Validate each enabled remote built-in MCP server at startup.
 
@@ -122,7 +123,7 @@ async def _validate_builtin_mcp(
         api_key = os.environ.get(cfg.api_key_env, "") if cfg.api_key_env else None
         try:
             remote_tools = await fetch_remote_metadata(
-                cfg.url or "", cfg.transport, api_key
+                cfg.url or "", cfg.transport, api_key, timeout
             )
             blob = serialize_mcp_meta_blob(
                 name=name,
@@ -384,7 +385,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # server that fails the fetch or the guard check is excluded from the
         # runtime tool registry. App still boots (graceful disable).
         disabled_builtin_mcp: set[str] = await _validate_builtin_mcp(
-            agent_config.mcp_servers, security_guard
+            agent_config.mcp_servers, security_guard, settings.mcp_timeout_seconds
         )
         app.state.disabled_builtin_mcp = disabled_builtin_mcp
 
@@ -396,7 +397,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 for name, cfg in agent_config.mcp_servers.items()
                 if cfg.enabled and name not in disabled_builtin_mcp
             }
-            mcp_client = create_mcp_client(active_mcp)
+            mcp_client = create_mcp_client(
+                active_mcp, timeout=settings.mcp_timeout_seconds
+            )
             if mcp_client is not None:
                 for server_name, server_config in active_mcp.items():
                     tools = await mcp_client.get_tools(server_name=server_name)
@@ -446,6 +449,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             session_factory=app.state.session_factory,
             encryption_service=encryption_service,
             global_tool_names=global_tool_names,
+            mcp_timeout=settings.mcp_timeout_seconds,
         )
 
         app.state.tool_resolver = tool_resolver
@@ -506,16 +510,16 @@ def create_app() -> FastAPI:
     settings = Settings()
     app = FastAPI(title="LearnFlowAI", lifespan=lifespan)
 
-    # CORS
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
-    # Request ID and security context middleware
+    # Request ID + security context + Layer 3 generic-500 catch.
+    #
+    # Middleware ordering (Starlette): add_middleware inserts at the front of
+    # the stack, so the LAST registered middleware is the OUTERMOST. CORS is
+    # registered AFTER this one (below) and is therefore the outermost wrapper.
+    # The generic-500 JSONResponse returned here flows back OUT through
+    # CORSMiddleware and picks up Access-Control-Allow-Origin (F-API-01). A bare
+    # add_exception_handler(Exception) would run in ServerErrorMiddleware,
+    # OUTSIDE all user middleware including CORS, and the 500 would ship without
+    # CORS headers — which is exactly why the catch lives here.
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next: Any) -> Any:
         structlog.contextvars.clear_contextvars()
@@ -539,24 +543,44 @@ def create_app() -> FastAPI:
             ip=client_ip,
             user_agent_hash=user_agent_hash,
         )
-        response = await call_next(request)
-        return response
+        try:
+            response = await call_next(request)
+            return response
+        except Exception:
+            logger.error("unhandled exception", exc_info=True)
+            return problem_response(status=500, detail="Internal server error")
+
+    # CORS — registered LAST so it is the OUTERMOST middleware and wraps the
+    # generic-500 handler above; this is what lets 500 responses carry CORS
+    # headers (F-API-01).
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     # Exception handlers — RFC 9457 problem+json
     register_problem_handlers(app)
 
-    @app.exception_handler(EntityNotFoundError)
-    async def entity_not_found_handler(
-        request: object, exc: EntityNotFoundError
-    ) -> JSONResponse:
-        return problem_response(status=404, detail=str(exc))
-
-    # Health check
-    @app.get("/health")
-    async def health(request: Request) -> dict[str, str]:
-        async with request.app.state.engine.connect() as conn:
-            await conn.execute(text("SELECT 1"))
-        return {"status": "ok"}
+    # Health check — honest 503 when DB is down (F-API-02).
+    # response_model=None: the handler returns either a plain dict (200) or a
+    # JSONResponse (503 problem+json); FastAPI cannot build a response model
+    # from that union (Response subclass + dict) and would raise at startup.
+    @app.get("/health", response_model=None)
+    async def health(request: Request) -> JSONResponse | dict[str, str]:
+        try:
+            async with request.app.state.engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+            return {"status": "ok"}
+        except OperationalError:
+            logger.warning("health check: database unavailable", exc_info=True)
+            return problem_response(
+                status=503,
+                detail="Database unavailable",
+                type_=TYPE_PREFIX + "db-unavailable",
+            )
 
     # API routes
     api_prefix = "/api"

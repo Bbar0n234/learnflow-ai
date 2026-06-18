@@ -3,6 +3,7 @@
 from typing import Any
 
 import structlog
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from siem_service.domain.schemas import (
@@ -12,6 +13,7 @@ from siem_service.domain.schemas import (
     RuleResponse,
     SecurityEventIdentifiersResponse,
 )
+from siem_service.exceptions import ConflictError
 from siem_service.pipeline.meta_emitter import MetaEmitter
 from siem_service.repositories import AlertRepository, EventRepository, RuleRepository
 
@@ -218,16 +220,22 @@ class RuleService:
         description: str | None = None,
         enabled: bool = True,
         user_id: str | None = None,
-    ) -> RuleResponse | None:
-        """Create a new correlation rule."""
-        rule = await self.repository.create_rule(
-            name=name,
-            rule_type=rule_type,
-            config=config,
-            severity=severity,
-            description=description,
-            enabled=enabled,
-        )
+    ) -> RuleResponse:
+        """Create a new correlation rule.
+
+        Raises ConflictError if a rule with the same name already exists.
+        """
+        try:
+            rule = await self.repository.create_rule(
+                name=name,
+                rule_type=rule_type,
+                config=config,
+                severity=severity,
+                description=description,
+                enabled=enabled,
+            )
+        except IntegrityError as e:
+            raise ConflictError("Rule name already exists") from e
 
         # Emit meta-event
         if self.meta_emitter and user_id:

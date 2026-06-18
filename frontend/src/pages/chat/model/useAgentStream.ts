@@ -6,7 +6,18 @@ import { queryKeys } from "@/shared/api/query-keys";
 import type { ChatDetail } from "@/shared/api/chats";
 import type { SSEEvent } from "@/shared/api/sse";
 import { logger } from "@/shared/lib/logger";
+import { getProblemMessageFromBody } from "@/shared/lib/api-error";
 import { useStreamStore } from "@/stores/stream-store";
+
+/**
+ * Таймаут первого байта SSE-стрима (мс).
+ * Отдельная env (семантически первый байт ≠ полный REST-запрос).
+ * Fallback на VITE_API_TIMEOUT_MS, затем 30 000 мс.
+ */
+const FIRST_BYTE_TIMEOUT_MS =
+  Number(import.meta.env.VITE_SSE_FIRST_BYTE_TIMEOUT_MS) ||
+  Number(import.meta.env.VITE_API_TIMEOUT_MS) ||
+  30000;
 
 interface DoneInfo {
   messageId: string | null;
@@ -58,9 +69,20 @@ export function useAgentStream(
       abortRef.current = controller;
 
       (async () => {
+        // First-byte timeout: fires if server doesn't respond within the limit.
+        // Cleared immediately after a valid (ok) response is received.
+        let timedOut = false;
+        const firstByteTimer = setTimeout(() => {
+          timedOut = true;
+          controller.abort();
+          endStream();
+          optionsRef.current?.onError?.("Превышено время ожидания");
+        }, FIRST_BYTE_TIMEOUT_MS);
+
         try {
           const token = await ensureFreshToken();
           if (!token) {
+            clearTimeout(firstByteTimer);
             endStream();
             return;
           }
@@ -82,6 +104,7 @@ export function useAgentStream(
           if (response.status === 401) {
             const freshToken = await ensureFreshToken();
             if (!freshToken) {
+              clearTimeout(firstByteTimer);
               endStream();
               return;
             }
@@ -100,10 +123,22 @@ export function useAgentStream(
           }
 
           if (!response.ok) {
+            clearTimeout(firstByteTimer);
             endStream();
-            optionsRef.current?.onError?.(`HTTP ${response.status}`);
+            let body: unknown = null;
+            try {
+              body = await response.json();
+            } catch {
+              // Тело не JSON — используем категорию по статусу
+            }
+            optionsRef.current?.onError?.(
+              getProblemMessageFromBody(response.status, body),
+            );
             return;
           }
+
+          // Got valid SSE response — first byte received, cancel timeout.
+          clearTimeout(firstByteTimer);
 
           const reader = response.body!.getReader();
           const decoder = new TextDecoder();
@@ -122,7 +157,14 @@ export function useAgentStream(
               const line = part.trim();
               if (!line.startsWith("data: ")) continue;
 
-              const event: SSEEvent = JSON.parse(line.slice(6));
+              // Protect against malformed SSE frames — skip bad frame, keep stream alive.
+              let event: SSEEvent;
+              try {
+                event = JSON.parse(line.slice(6)) as SSEEvent;
+              } catch {
+                logger.warn("[SSE] Malformed frame, skipping");
+                continue;
+              }
 
               switch (event.type) {
                 case "text_chunk":
@@ -205,18 +247,21 @@ export function useAgentStream(
 
           if (!terminated) {
             endStream();
-            optionsRef.current?.onError?.("Connection lost");
+            optionsRef.current?.onError?.("Соединение прервано");
           }
         } catch (err) {
+          clearTimeout(firstByteTimer);
           if (err instanceof DOMException && err.name === "AbortError") {
-            if (isCancellingRef.current) endStream();
+            if (timedOut) {
+              // Таймаут уже обработан в колбэке firstByteTimer
+            } else if (isCancellingRef.current) {
+              endStream();
+            }
             return;
           }
           logger.error("[SSE stream error]", err);
           endStream();
-          optionsRef.current?.onError?.(
-            err instanceof Error ? err.message : "Connection error",
-          );
+          optionsRef.current?.onError?.("Ошибка соединения");
         }
       })();
     },

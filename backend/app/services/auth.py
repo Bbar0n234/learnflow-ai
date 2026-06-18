@@ -4,6 +4,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import anyio.to_thread
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
@@ -42,7 +43,12 @@ class AuthService:
         # argon2 — CPU-bound (~сотни мс), уводим из event loop
         password_hash = await anyio.to_thread.run_sync(hash_password, password)
         user = User(name=name, password_hash=password_hash)
-        await self._user_repo.create(user)
+        # TOCTOU: parallel requests may race past the pre-check above and both
+        # reach the INSERT; catch the unique-constraint violation from flush.
+        try:
+            await self._user_repo.create(user)
+        except IntegrityError as e:
+            raise UsernameAlreadyExistsError from e
 
         access_token = self._create_access(user)
         refresh_raw = await self._create_refresh(user.id)

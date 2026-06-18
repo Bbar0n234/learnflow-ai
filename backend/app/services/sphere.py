@@ -7,10 +7,10 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Protocol
 
 import structlog
-from fastapi import HTTPException
 
 from app.agent.security.guard import SecurityGuard
 from app.agent.security.types import Checkpoint, Verdict
+from app.services.exceptions import SecurityPolicyViolationError
 
 if TYPE_CHECKING:
     from langgraph.store.base import BaseStore
@@ -128,16 +128,12 @@ class LangGraphSphereService:
                         )
                     },
                 )
-                raise HTTPException(
-                    status_code=422,
-                    detail={
-                        "error": "security_policy_violation",
-                        "reason": (
-                            result.detection_layer.value
-                            if result.detection_layer
-                            else "ks_write_rest"
-                        ),
-                    },
+                raise SecurityPolicyViolationError(
+                    reason=(
+                        result.detection_layer.value
+                        if result.detection_layer
+                        else "ks_write_rest"
+                    )
                 )
 
         ns = self._namespace(project_id)

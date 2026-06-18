@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Pencil, Plug, Plus, Trash2, Zap } from "lucide-react";
+import { getApiErrorMessage } from "@/shared/lib/api-error";
 import { useMCPServers } from "@/shared/api/mcp-servers";
 import { useMCPServerMutations } from "@/shared/api/mcp-servers";
 import { MCPServerForm } from "./MCPServerForm";
@@ -57,10 +58,10 @@ export function MCPServersSection({ scope, projectId, threadId }: Props) {
             : `Failed: ${result.error}`,
         }));
       },
-      onError: () => {
+      onError: (err) => {
         setTestResults((prev) => ({
           ...prev,
-          [id]: "Connection failed",
+          [id]: getApiErrorMessage(err),
         }));
       },
     });

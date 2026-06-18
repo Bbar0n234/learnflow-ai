@@ -89,8 +89,10 @@ export interface CreateRuleInput {
 const VITE_SIEM_API_URL = import.meta.env.VITE_SIEM_API_URL ?? "/siem/api";
 
 // Отдельный axios instance под SIEM API; токен берёт из того же хранилища, что main app.
+// timeout берётся из той же VITE_API_TIMEOUT_MS, что и apiClient (дрейф-фикс F-FE-01).
 export const siemClient = axios.create({
   baseURL: VITE_SIEM_API_URL,
+  timeout: Number(import.meta.env.VITE_API_TIMEOUT_MS) || 30000,
   withCredentials: true,
 });
 

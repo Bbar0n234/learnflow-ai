@@ -6,6 +6,8 @@ from urllib.parse import urlparse
 
 import structlog
 
+from app.services.exceptions import InvalidURLError, SecurityPolicyViolationError
+
 logger = structlog.get_logger()
 
 _PRIVATE_NETWORKS = [
@@ -21,19 +23,23 @@ _PRIVATE_NETWORKS = [
 
 
 def validate_url(url: str) -> None:
-    """Validate URL is not pointing to private/internal IPs (SSRF protection).
+    """Validate that the URL is not pointing to private/internal IPs (SSRF protection).
 
-    Raises ValueError if the URL resolves to a private IP address.
+    Raises:
+        InvalidURLError (400): URL is syntactically invalid or hostname cannot be
+            resolved (DNS failure — client supplied a bad hostname).
+        SecurityPolicyViolationError (422): hostname resolves to a private/internal
+            IP (SSRF attempt).
     """
     parsed = urlparse(url)
     hostname = parsed.hostname
     if not hostname:
-        raise ValueError(f"Invalid URL: no hostname in {url}")
+        raise InvalidURLError(f"Invalid URL: no hostname in {url!r}")
 
     try:
         addr_infos = socket.getaddrinfo(hostname, None)
     except socket.gaierror as e:
-        raise ValueError(f"Cannot resolve hostname: {hostname}") from e
+        raise InvalidURLError(f"Cannot resolve hostname: {hostname!r}") from e
 
     for addr_info in addr_infos:
         ip_str = addr_info[4][0]
@@ -41,7 +47,7 @@ def validate_url(url: str) -> None:
         for network in _PRIVATE_NETWORKS:
             if ip in network:
                 logger.error("ssrf validation failed", url=url, resolved_ip=ip_str)
-                raise ValueError(
-                    f"URL resolves to private IP ({ip_str}). "
-                    "Only public URLs are allowed for MCP servers."
+                raise SecurityPolicyViolationError(
+                    reason="ssrf_private_ip",
+                    detail="URL resolves to a private or internal address",
                 )

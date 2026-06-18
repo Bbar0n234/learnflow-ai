@@ -3,13 +3,14 @@
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
+from typing import Any
 
 import redis.asyncio as redis
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from siem_service.api.problem import register_problem_handlers
+from siem_service.api.problem import problem_response, register_problem_handlers
 from siem_service.api.routes import router
 from siem_service.config import Settings
 from siem_service.correlation.engine import CorrelationEngine
@@ -48,7 +49,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("database initialized")
 
     # Redis
-    redis_client = await redis.from_url(settings.redis_url, decode_responses=True)
+    redis_client = await redis.from_url(
+        settings.redis_url,
+        decode_responses=True,
+        socket_timeout=settings.redis_socket_timeout,
+        socket_connect_timeout=settings.redis_socket_connect_timeout,
+    )
     await redis_client.ping()
     app.state.redis = redis_client
     logger.info("redis connected")
@@ -108,7 +114,25 @@ def create_app() -> FastAPI:
     # Exception handlers — RFC 9457 problem+json
     register_problem_handlers(app)
 
-    # CORS — allow frontend to access SIEM API
+    # Layer 3 — generic last-resort catch (CORS on 500).
+    #
+    # Middleware ordering (Starlette): the LAST registered middleware is the
+    # OUTERMOST. CORS is registered AFTER this one (below) and is therefore the
+    # outermost wrapper, so the generic-500 JSONResponse returned here flows back
+    # OUT through CORSMiddleware and picks up Access-Control-Allow-Origin. A bare
+    # add_exception_handler(Exception) would run OUTSIDE CORS and ship the 500
+    # without CORS headers.
+    @app.middleware("http")
+    async def _generic_exception_middleware(request: Request, call_next: Any) -> Any:
+        try:
+            return await call_next(request)
+        except Exception:
+            logger.error("unhandled exception", exc_info=True)
+            return problem_response(status=500)
+
+    # CORS — registered LAST so it is the OUTERMOST middleware and wraps the
+    # generic-500 handler above; this is what lets 500 responses carry CORS
+    # headers.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.frontend_origin,

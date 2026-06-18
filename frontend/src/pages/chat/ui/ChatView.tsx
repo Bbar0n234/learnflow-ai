@@ -64,7 +64,7 @@ export function ChatView() {
   if (isError) {
     return (
       <div className="flex h-full items-center justify-center text-destructive">
-        Failed to load chat.
+        Не удалось загрузить чат.
       </div>
     );
   }

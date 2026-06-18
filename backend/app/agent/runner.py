@@ -225,8 +225,11 @@ class LangGraphAgentRunner:
 
             except Exception as e:
                 stream_error = True
-                logger.warning(
-                    "agent stream error", thread_id=str(thread_id), error=str(e)
+                logger.error(
+                    "agent stream error",
+                    thread_id=str(thread_id),
+                    error_type=type(e).__name__,
+                    exc_info=e,
                 )
                 yield StreamEvent(
                     type="error",

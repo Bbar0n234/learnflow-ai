@@ -159,9 +159,10 @@ Guard LLM generation регистрируется внутри guardrail-observa
 | `producer_drop_newest` | Producer | События, выброшенные из bounded queue при overflow |
 | `siem_events_ingested` | Consumer | Новые события, успешно inserted |
 | `siem_events_duplicate` | Consumer | Повторно-пришедшие события (на основе event_id дедупа) |
-| `siem_events_invalid` | Consumer | Validation failures (dropped, logged) |
+| `siem_events_invalid` | Consumer | Validation failures — poison-события, dropped + XACK |
+| `siem_events_transient` | Consumer | Транзиентные инфра-сбои (OperationalError); сообщение не XACK'd, остаётся в PEL |
+| `siem_events_failed_terminal` | Consumer | Терминальные сбои: drop + XACK после исчерпания `max_delivery_attempts` |
 | `siem_unknown_event_type` | Consumer | События с неизвестным event_type (accepted, monitored) |
-| `siem_processing_errors` | Consumer | Ошибки при обработке (отправлены в retry) |
 | `alerts_created_total` | CorrelationEngine | Всего сгенерировано alerts |
 
 Метрики собираются в памяти (встроенные counters), возможен export в `/metrics` endpoint для Prometheus.

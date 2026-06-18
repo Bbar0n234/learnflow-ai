@@ -228,10 +228,20 @@ class AggregateStrategy:
 
 
 def get_strategy(rule_type: str) -> Strategy:
-    """Get strategy for rule type."""
+    """Get strategy for rule type.
+
+    Raises ValueError for unknown rule_type so the per-rule try/except in
+    CorrelationEngine logs the error and skips the rule without crashing the
+    engine (F-SIEM-G4: one failing rule must not stop the correlation cycle).
+    Unknown values indicate a DB record created before schema tightening —
+    silent fallback to ThresholdStrategy is intentionally avoided.
+    """
     strategies: dict[str, Strategy] = {
         "threshold": ThresholdStrategy(),
         "sequence": SequenceStrategy(),
         "aggregate": AggregateStrategy(),
     }
-    return strategies.get(rule_type, ThresholdStrategy())
+    if rule_type not in strategies:
+        logger.warning("unknown rule type in correlation engine", rule_type=rule_type)
+        raise ValueError(f"Unknown rule_type: {rule_type!r}")
+    return strategies[rule_type]

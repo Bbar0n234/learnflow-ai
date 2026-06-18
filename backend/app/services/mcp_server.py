@@ -14,7 +14,6 @@ import uuid
 from typing import Any, Literal
 
 import structlog
-from fastapi import HTTPException
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.sessions import SSEConnection, StreamableHttpConnection
 
@@ -23,6 +22,10 @@ from app.agent.security.types import Checkpoint, Verdict
 from app.api.schemas.mcp_servers import MCPServerCreate, MCPServerUpdate
 from app.repositories.mcp_server import MCPServerRepository
 from app.services.encryption import EncryptionService
+from app.services.exceptions import (
+    SecurityPolicyViolationError,
+    UpstreamUnavailableError,
+)
 from app.services.url_validator import validate_url
 
 logger = structlog.get_logger()
@@ -33,18 +36,22 @@ _TEXT_SCHEMA_KEYS = frozenset({"description", "title", "examples", "default", "e
 
 
 def _build_test_connection(
-    url: str, transport: str, api_key: str | None
+    url: str, transport: str, api_key: str | None, timeout: int
 ) -> SSEConnection | StreamableHttpConnection:
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else None
     if transport == "sse":
-        conn_sse = SSEConnection(transport="sse", url=url, sse_read_timeout=30)
+        conn_sse = SSEConnection(
+            transport="sse", url=url, sse_read_timeout=float(timeout)
+        )
         if headers:
             conn_sse["headers"] = headers
         return conn_sse
+    # StreamableHttpConnection.timeout expects timedelta; passing int is accepted
+    # at runtime but mismatches the TypedDict annotation.
     conn_http = StreamableHttpConnection(
         transport="streamable_http",
         url=url,
-        timeout=30,  # type: ignore[typeddict-item]
+        timeout=timeout,  # type: ignore[typeddict-item]
     )
     if headers:
         conn_http["headers"] = headers
@@ -52,14 +59,14 @@ def _build_test_connection(
 
 
 async def fetch_remote_metadata(
-    url: str, transport: str, api_key: str | None
+    url: str, transport: str, api_key: str | None, timeout: int = 30
 ) -> list[dict[str, Any]]:
     """Fetch ``tools/list`` from a remote MCP server.
 
     Returns a list of ``{name, description, inputSchema}`` dicts. Raises on
     connectivity / protocol errors — callers map to 503.
     """
-    conn = _build_test_connection(url, transport, api_key)
+    conn = _build_test_connection(url, transport, api_key, timeout)
     client = MultiServerMCPClient({"_validate": conn})
     tools = await client.get_tools(server_name="_validate")
 
@@ -156,10 +163,12 @@ class McpServerService:
         repo: MCPServerRepository,
         guard: SecurityGuard | None,
         encryption: EncryptionService,
+        mcp_timeout: int = 30,
     ) -> None:
         self._repo = repo
         self._guard = guard
         self._encryption = encryption
+        self._mcp_timeout = mcp_timeout
 
     async def guard_and_persist(
         self,
@@ -260,18 +269,19 @@ class McpServerService:
     async def _fetch_or_503(
         self, *, url: str, transport: str, api_key: str | None
     ) -> list[dict[str, Any]]:
+        # validate_url raises InvalidURLError (400) or SecurityPolicyViolationError (422)
+        validate_url(url)
         try:
-            validate_url(url)
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from None
-        try:
-            return await fetch_remote_metadata(url, transport, api_key)
+            return await fetch_remote_metadata(
+                url, transport, api_key, self._mcp_timeout
+            )
         except Exception as exc:
-            logger.warning("mcp remote metadata fetch failed", url=url, error=str(exc))
-            raise HTTPException(
-                status_code=503,
-                detail={"error": "mcp_unreachable", "reason": str(exc)},
-            ) from None
+            logger.warning("mcp remote metadata fetch failed", url=url, exc_info=True)
+            raise UpstreamUnavailableError(
+                code="mcp-unreachable",
+                status=503,
+                detail="MCP server is unreachable",
+            ) from exc
 
     async def _guard_blob(
         self,
@@ -314,16 +324,12 @@ class McpServerService:
                     result.detection_layer.value if result.detection_layer else None
                 ),
             )
-            raise HTTPException(
-                status_code=422,
-                detail={
-                    "error": "security_policy_violation",
-                    "reason": (
-                        result.detection_layer.value
-                        if result.detection_layer
-                        else "mcp_metadata"
-                    ),
-                },
+            raise SecurityPolicyViolationError(
+                reason=(
+                    result.detection_layer.value
+                    if result.detection_layer
+                    else "mcp_metadata"
+                )
             )
 
     @staticmethod
@@ -347,10 +353,8 @@ class McpServerService:
 
         if payload.url is not None:
             url_str = str(payload.url)
-            try:
-                validate_url(url_str)
-            except ValueError as e:
-                raise HTTPException(status_code=400, detail=str(e)) from None
+            # validate_url raises InvalidURLError (400) or SecurityPolicyViolationError (422) directly
+            validate_url(url_str)
             data["url"] = url_str
         if payload.name is not None:
             data["name"] = payload.name
@@ -368,9 +372,10 @@ class McpServerService:
                 data["api_key_hint"] = None
             else:
                 if not self._encryption.is_available:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="MCP_ENCRYPTION_KEY not configured, cannot store API keys",
+                    raise UpstreamUnavailableError(
+                        code="encryption-not-configured",
+                        status=503,
+                        detail="API key storage unavailable: encryption not configured",
                     )
                 data["api_key_encrypted"] = self._encryption.encrypt(api_key)
                 data["api_key_hint"] = (
@@ -382,10 +387,8 @@ class McpServerService:
         data: dict[str, Any] = {}
 
         url_str = str(body.url)
-        try:
-            validate_url(url_str)
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from None
+        # validate_url raises InvalidURLError (400) or SecurityPolicyViolationError (422) directly
+        validate_url(url_str)
         data["url"] = url_str
 
         data["name"] = body.name
@@ -396,9 +399,10 @@ class McpServerService:
         api_key = getattr(body, "api_key", None)
         if api_key:
             if not self._encryption.is_available:
-                raise HTTPException(
-                    status_code=400,
-                    detail="MCP_ENCRYPTION_KEY not configured, cannot store API keys",
+                raise UpstreamUnavailableError(
+                    code="encryption-not-configured",
+                    status=503,
+                    detail="API key storage unavailable: encryption not configured",
                 )
             data["api_key_encrypted"] = self._encryption.encrypt(api_key)
             data["api_key_hint"] = (

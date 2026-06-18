@@ -9,6 +9,7 @@ from siem_contracts.rules import (
     ThresholdRuleConfig,
 )
 from siem_contracts.vocabulary import (
+    AGENT_GUARD_DEGRADED,
     AGENT_GUARD_INPUT_CLASSIFIER_CLEAN,
     AGENT_GUARD_INPUT_CLASSIFIER_INJECTION,
     AGENT_GUARD_INPUT_CLASSIFIER_SUSPICIOUS,
@@ -50,6 +51,7 @@ __all__ = [
     "AggregateRuleConfig",
     # Vocabulary
     "EventType",
+    "AGENT_GUARD_DEGRADED",
     "AUTH_LOGIN_FAILED",
     "AUTH_LOGIN_SUCCESS",
     "AUTH_REFRESH_SUCCESS",

@@ -38,7 +38,7 @@
 | feat-004 | ✅ Done | backend / fastapi | Backend/FastAPI slice: fastapi skill + поглощение точечных техдолгов (SIEM MetaEmitter, дубль SecurityEvent, CORS_ORIGINS, SIEM follow-ups) |
 | feat-005 | ✅ Done | agent | Agent runtime slice: langgraph-patterns (авторский) + кандидаты langgraph-* от langchain-ai + поглощение Reasoning ChatOpenAI everywhere (langchain-architecture отклонён в feat-001) |
 | feat-006 | ✅ Done | frontend | Frontend slice: `feature-sliced-design` skill + миграция на канон FSD (pages/features), фабрика query keys, ось состояния в conventions |
-| feat-007 | 📋 Planned | cross-cutting | Кросс-резрезные конвенции: error return types + error handling philosophy (graceful degradation vs fail-fast) |
+| feat-007 | 🚧 In Progress | cross-cutting | Кросс-резрезные конвенции: error return types + error handling philosophy (graceful degradation vs fail-fast) |
 | feat-008 | 📋 Planned | enforcement | Arch-checker (детерминированные проверки) + Reviewer-промпты (logging, error returns, doc-first) |
 | feat-009 | 📋 Planned | testing | Test philosophy + test engineering + покрытие критичных участков |
 
@@ -311,7 +311,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** формализовать кросс-резрезные конвенции, которые не привязаны к одному slice'у.
 
-**Статус:** 📋 Planned
+**Статус:** 🚧 In Progress
 **Scope:** cross-cutting
 **Зависимости:** feat-002, feat-003, feat-004, feat-005, feat-006 (нужны накопленные примеры)
 

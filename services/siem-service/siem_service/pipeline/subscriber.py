@@ -16,6 +16,35 @@ from siem_service.pipeline.event_writer import EventWriter
 
 logger = structlog.get_logger()
 
+# Transient DB-infra failures on the write path → keep in PEL for re-delivery
+# (D-ERR-7), do NOT XACK. Two layers:
+#   1. SQLAlchemy-wrapped DB errors (OperationalError/DBAPIError) — raised when a
+#      live connection drops mid-statement; SQLAlchemy also wraps asyncpg's
+#      server-side connect errors (CannotConnectNowError/ConnectionDoesNotExistError)
+#      into OperationalError when they surface through session.execute.
+#   2. Raw connect-time failures. When the DB is fully down, asyncpg/uvloop raises
+#      a raw builtin ConnectionRefusedError (a ConnectionError → OSError subclass)
+#      while opening the socket — BEFORE the Postgres protocol runs, so SQLAlchemy
+#      never wraps it (root cause of stand finding F-SIEM-T4.13). ConnectionError
+#      also covers reset/aborted/broken-pipe.
+# ConnectionError is preferred over the broader OSError so unrelated OS failures
+# (DNS gaierror, FileNotFoundError, PermissionError) are NOT swallowed as transient.
+_TRANSIENT_DB_ERRORS: tuple[type[BaseException], ...] = (
+    OperationalError,
+    DBAPIError,
+    ConnectionError,
+)
+
+
+def is_transient_db_error(exc: BaseException) -> bool:
+    """Return True if exc is a transient DB-infra failure (re-deliver via PEL).
+
+    Pure predicate — categorizes write-path failures so the subscriber can keep
+    the message unacked (transient) instead of crashing the task. Poison
+    (ValidationError) and unexpected bugs are NOT transient.
+    """
+    return isinstance(exc, _TRANSIENT_DB_ERRORS)
+
 
 class Subscriber:
     """Subscribes to Redis Streams and ingests security events."""
@@ -188,8 +217,9 @@ class Subscriber:
         Barrier separation (D-ERR-7, OQ-E):
         - bounded delivery-count: after max_delivery_attempts → terminal drop+XACK.
         - ValidationError (poison): drop + XACK + metric siem_events_invalid.
-        - OperationalError/DBAPIError (transient infra): NO XACK (stays in PEL for
-          _read_pending to re-deliver) + metric siem_events_transient.
+        - Transient infra (is_transient_db_error: SQLAlchemy DB errors AND raw
+          connect-time ConnectionError/asyncpg connect errors): NO XACK (stays in
+          PEL for _read_pending to re-deliver) + metric siem_events_transient.
         - Other unhandled: re-raise to run() outer barrier (supervisor restarts).
         """
         # event_id_str is "unknown" until we parse the JSON below; we set a
@@ -261,9 +291,15 @@ class Subscriber:
             # Acknowledge after successful write
             await self._redis.xack(self.STREAM_NAME, self.CONSUMER_GROUP, message_id)
 
-        except (OperationalError, DBAPIError):
+        except Exception as exc:
+            if not is_transient_db_error(exc):
+                # Unexpected bug → re-raise to run() outer barrier (supervisor
+                # restarts the task). Keeps poison/terminal/generic separation.
+                raise
             # Transient infra failure: do NOT XACK — leave in PEL so
-            # _read_pending can re-deliver after DB recovers (D-ERR-7).
+            # _read_pending can re-deliver after DB recovers (D-ERR-7). This
+            # includes the raw ConnectionRefusedError asyncpg raises when the DB
+            # is fully down (it is not wrapped into SQLAlchemy OperationalError).
             self._metrics["siem_events_transient"] += 1
             logger.warning(
                 "transient database error processing security event",

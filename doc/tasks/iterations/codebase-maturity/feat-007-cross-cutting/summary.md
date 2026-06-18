@@ -18,6 +18,28 @@
 
 ---
 
+## Пост-имплементационные итоги
+
+**Что сделано.** Сформирована и зафиксирована в `conventions.md` § «Обработка ошибок» единая философия обработки ошибок (5 осей решения) и проектные нормы, реализованные по 5 трекам: доменная модель ошибок + 3-слойный барьер (оба сервиса), устойчивость (таймауты/retry через Settings/env), целостность agent-thread при ошибках tool, наблюдаемая деградация guard, устойчивость SIEM event-pipeline, frontend-обвязка. Объём: 8 коммитов, ~58 файлов кода (+1244/−289). Оба gate (`make check`, `make check-fe`) зелёные; 12/12 точечных автотестов.
+
+**Ключевые архитектурные решения** (полно — в `decisions.md` D-ERR-1…11):
+- Канон — доменные исключения + единый барьер; сервисы не знают про HTTP. Result/Either не вводим (exceptions + Optional + Pydantic-результат для ожидаемых исходов).
+- Восстановление: fail-fast для core, graceful для некритичного; security-guard — fail-safe (fail-open), но НАБЛЮДАЕМО (`agent.guard.degraded`).
+- store-is-None: эмпирика изменила исходное «жёсткий fail-fast» → `ToolNode(handle_tool_errors=callable)` (целостность thread) + core fail-fast в `agent_node`; репарацию старых тредов не делаем.
+- SIEM: транзиент → не XACK (PEL retry), poison → drop+XACK; не теряем security-события.
+- Таймауты — операционные настройки в Settings/env; основной чат-LLM не ограничиваем (reasoning-модели).
+
+**Нетривиальные находки (поймала верификация, починены):**
+- Системный CORS-on-500: generic-500 стоял снаружи CORSMiddleware → 500 без `Access-Control-Allow-Origin`, в обоих сервисах (copy-pattern растиражировал баг). Поймал параллельный siem-ревьюер эмпирически (TestClient).
+- Регрессия старта от T1: union-аннотация `/health` ломала `create_app()` под FastAPI ≥0.135; `make check` (статика) не ловит. Поймал fix-агент на реальном `create_app()`. → сигнал для feat-009: нужен smoke-boot в gate.
+- PDF-таймаут: pdfkit не поддерживает timeout → enforce на subprocess (build command + `subprocess.run(timeout=)`).
+
+**Отложено / вне scope:** тосты + редизайн error-UI → backlog (P2); 👤-кейсы стенда (LLM/браузер/Redis+PG) — прогон отдельным агентом (`stand-validation-results.md`); оставшиеся nit/nice-to-have — в `code-review-*.md`.
+
+**Артефакты:** `decisions.md`, `audit-findings.md` (+`audit-raw-0X`), `empirical-reentry-toolnode.md`, `plan.md` (+`plan-TX`), `test-cases.md` (+`test-cases-TX`), `code-review-*.md`, `tests/` (точечные автотесты), `stand-validation-results.md`, `sofa-proposals.md`.
+
+---
+
 ## Журнал фаз
 
 ### T1 — Модель ошибок + барьерный стек (main app)
@@ -356,3 +378,16 @@
 - **Было:** показывалась только security-ошибка (`isSecurityViolation`); прочие ошибки сохранения (409/422/503/сеть) молча глотались — тот же дефект F-FE-07, что починен в `MCPServerForm`.
 - **Починено:** применён общий парсер `@/shared/lib/api-error` — `isSecurityViolation(error) ? SECURITY_VIOLATION_MESSAGE : error ? getApiErrorMessage(error) : null` (зеркало `MCPServerForm`). Логирование не добавлялось (компонент не имеет catch-точки; ошибки приходят через проп `error` мутации).
 - Ссылка: code-review-frontend.md finding #1; задача FIX-6.
+
+## Stand-validation fixes
+
+Применены по `stand-validation-results.md` (прогон 👤-кейсов на реальном стенде).
+`make check` — **зелёный**; точечный тест предиката категоризации — **11 passed**.
+
+### FIX-S1 (finding F-SIEM-T4.13) — транзиентный барьер subscriber не ловил реальный DB-аутэйдж
+- **Было:** ветка `except (OperationalError, DBAPIError)` в `subscriber._process_single_message` НЕ срабатывала при полностью недоступной siem-db. На connect-time asyncpg/uvloop бросает СЫРОЙ builtin `ConnectionRefusedError` (`ConnectionError` → `OSError`, [Errno 111]) ещё до Postgres-протокола — SQLAlchemy его НЕ оборачивает в `OperationalError`/`DBAPIError`, поэтому он пролетал мимо `except` → доходил до внешнего барьера `run()` → падала вся subscriber-таска → восстановление через supervisor-restart+backoff вместо спроектированного in-loop пути. Метрика `siem_events_transient` не инкрементировалась никогда (эмпирика прогона: 0 warnings, 5–6 `error in subscriber loop`). Safety (событие не теряется) держалась, наблюдаемость — нет.
+- **Починено:** введён чистый предикат `is_transient_db_error(exc)` (module-level в `subscriber.py`), single source of truth для категоризации. Транзиент = `(OperationalError, DBAPIError, ConnectionError)`. Внешний `except` в `_process_single_message` теперь ловит `Exception`, делегирует решение предикату: транзиент → `siem_events_transient` + `logger.warning(exc_info=True)`, НЕ XACK (остаётся в PEL, `_read_pending` переобработает), без падения цикла; не-транзиент (баг, неожиданное) → `raise` во внешний барьер `run()` как раньше. Разделение барьеров сохранено: poison(`ValidationError`)→drop+XACK; terminal по delivery-count→drop+XACK+`logger.error`; неожиданное→всплывает.
+- **Ширина ловли (консервативно-узкий выбор):** взят builtin `ConnectionError` (покрывает `ConnectionRefusedError`/`ConnectionResetError`/`BrokenPipeError`/`ConnectionAbortedError` — реальный escaping-кейс), а НЕ широкий `OSError` — чтобы не проглотить как транзиент посторонние OS-сбои (`socket.gaierror` DNS, `FileNotFoundError`, `PermissionError`). asyncpg server-side connect-ошибки (`CannotConnectNowError`/`ConnectionDoesNotExistError`) в кортеж НЕ добавлены: они `PostgresError` и приходят через `session.execute` уже обёрнутыми SQLAlchemy в `OperationalError` (проверено по MRO установленных asyncpg/sqlalchemy), а прямой их импорт потребовал бы mypy-override на безстабовый asyncpg (config-change → апрув архитектора) без выигрыша по покрытию.
+- **Проверено:** точечный юнит-тест `tests/test_subscriber_transient_categorization.py` (без живой БД) — `ConnectionRefusedError`/connection-семейство/`OperationalError`/`DBAPIError` → транзиент; `ValidationError` (poison), `ValueError`/`KeyError` (баг), `FileNotFoundError`/`PermissionError` (посторонний OSError) → НЕ транзиент. 11 passed.
+- **Требует ре-прогона:** полная стендовая ре-валидация T4.13 с реальной остановкой siem-db (наблюдать `siem_events_transient`++ и отсутствие `error in subscriber loop`/supervisor-restart) — вне мандата фикса, помечена на повторный прогон.
+- Ссылка: stand-validation-results.md finding F-SIEM-T4.13; decisions.md D-ERR-7 / OQ-E.

@@ -72,6 +72,7 @@ class ClassifierResult(BaseModel):
     verdict: Verdict
     reasoning: str | None = None
     retries: int = 0
+    degraded: bool = False
 
 
 class PairedDetectorConfig(BaseModel):

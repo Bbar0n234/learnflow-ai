@@ -13,7 +13,7 @@
 - [x] T1 — модель ошибок + барьерный стек (main app)
 - [x] T4 — siem error handling (полное зеркало)
 - [x] T2 — устойчивость + config
-- [ ] T3 — agent error handling
+- [x] T3 — agent error handling
 - [ ] T5 — frontend обвязка
 
 ---
@@ -189,6 +189,53 @@
 
 - `backend/app/api/export.py`: удалена константа `_PDF_TIMEOUT_SECONDS = 30` и TODO-комментарий T2. Функция сохраняет `timeout: int = 30` как fallback-дефолт.
 - `backend/app/api/routes/artifacts.py`: `download_artifact` получил `request: Request`; timeout берётся из `settings.pdf_conversion_timeout_seconds` и передаётся через `functools.partial(convert_md_to_pdf, timeout=...)`.
+
+---
+
+### T3 — Agent error handling
+
+**`make check` (ruff + mypy): зелёный. Точечные автотесты: 10/10 pass.**
+
+#### Что реализовано
+
+**Фаза 1 — `packages/siem-contracts/siem_contracts/vocabulary.py` + `__init__.py`**
+- Константа `AGENT_GUARD_DEGRADED = "agent.guard.degraded"` добавлена в блок `# Agent security guard events - cross-checkpoint degradation`.
+- Строка `"agent.guard.degraded"` добавлена в `EventType` Literal (mypy-проверяемо на call-site в guard.py).
+- `__init__.py`: импорт и экспорт `AGENT_GUARD_DEGRADED` в `__all__`. Добавление аддитивно — существующие константы не тронуты.
+
+**Фаза 2 — `backend/app/agent/security/types.py`**
+- В `ClassifierResult` добавлено поле `degraded: bool = False`. Позволяет guard.py различать «честный CLEAN» и «CLEAN из деградации» (корень F-AGT-04).
+
+**Фаза 2 — `backend/app/agent/security/classifier.py`**
+- Ветка исчерпания ретраев (конец цикла) возвращает `ClassifierResult(..., degraded=True)`. Существующий `logger.warning("classifier retries exhausted...")` сохранён (внутренний WARNING ретраев).
+
+**Фаза 3 — `backend/app/agent/security/guard.py`**
+- Импорт `AGENT_GUARD_DEGRADED` из `siem_contracts`.
+- **Дорога 1** (`except Exception`, LLM-исключение): заменён `event_type=AGENT_GUARD_INPUT_CLASSIFIER_INJECTION` на `AGENT_GUARD_DEGRADED`; уровень поднят с `warning` → `error`; в `metadata` добавлен `"direction": direction.value`. Снято два дефекта F-AGT-03: (а) INPUT-событие на OUTPUT-checkpoint'ах, (б) семантический конфликт `event_type=…INJECTION` при `verdict="clean"`.
+- **Дорога 2** (после успешного `classify`, если `classifier_result.degraded`): новая ветка перед injection-блоком — возвращает `GuardResult(detection_layer=GRACEFUL_DEGRADATION, verdict=CLEAN, details={"reason": "retries_exhausted"})` + `logger.warning(security_event=True, event_type=AGENT_GUARD_DEGRADED, severity="critical", metadata={checkpoint, direction, detection_layer, verdict})`. Закрыт F-AGT-04 — дорога больше не тихая.
+- Блок injection-события не срабатывает при degraded (verdict=CLEAN) — порядок ветвления сохранён.
+
+**Фаза 4 — `backend/app/agent/graph.py`**
+- Модульная функция-обработчик `_handle_tool_error(exc: Exception) -> str`: логирует `logger.error("tool execution failed", error_type=type(exc).__name__, exc_info=exc)`, возвращает константу `_TOOL_ERROR_MESSAGE` — нейтральное сообщение без внутренностей стека/DSN.
+- `ToolNode(tools)` → `ToolNode(tools, handle_tool_errors=_handle_tool_error)`. Любое исключение в tool → `ToolMessage(status="error")`, ReAct-шаг закрывается, thread остаётся валидным. Callable вызывается как `flag(exc)` (проверено по установленному langgraph-prebuilt 1.0.8).
+
+**Фаза 5 — `backend/app/agent/runner.py`**
+- Барьер `except Exception` стрима: `logger.warning("agent stream error", error=str(e))` → `logger.error("agent stream error", error_type=type(e).__name__, exc_info=e)`. Оператор теперь видит тип и стек. Трансляция клиенту (`normalize_error_message`) не тронута (F-AGT-06).
+
+**Фаза 6 — `doc/tech/security-events.md`**
+- Добавлена секция «Security Guard Events - Degradation (cross-checkpoint)» с записью `agent.guard.degraded | critical | LLM guard degraded to CLEAN (LLM exception or classifier retries exhausted) | request_id, thread_id, user_id`.
+
+**Точечные автотесты** (`doc/tasks/.../tests/`):
+- `test_tool_node_handle_errors.py`: T3.3 (thread валиден + re-entry), T3.4 (logged error+exc_info, нет утечки контента), T3.10 (core-store fail-fast сохранён).
+- `test_guard_degradation.py`: T3.2 (import smoke), T3.5 (road 1 INBOUND), T3.6 (road 1 OUTBOUND, direction=outbound), T3.7 (road 2 retries_exhausted), T3.8a/b (ClassifierResult.degraded signal), T3.9 (injection-путь не затронут).
+- Итого: **10 тестов, 10 pass**.
+
+#### Отклонения от плана / решения
+
+- **Уровень лога дороги 1**: план (`plan-T3.md`) указывал `logger.warning` для road 1, но тот же план (§ Фаза 5) и decisions.md (OQ-B) требуют `logger.error` для security_event деградации. Применён `error` — последовательно с runner.py и смысловой тяжестью события.
+- **conftest.py**: добавлен в папку тестов для разрешения `app.*` импортов (тесты лежат вне `backend/tests/`).
+
+---
 
 #### Отклонения от плана / решения
 

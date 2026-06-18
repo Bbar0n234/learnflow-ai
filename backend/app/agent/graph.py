@@ -31,6 +31,26 @@ from app.infra.prompt_provider import PromptProvider
 
 logger = structlog.get_logger()
 
+_TOOL_ERROR_MESSAGE = (
+    "Tool execution failed; the requested operation could not be completed. "
+    "Please try a different approach or rephrasing the request."
+)
+
+
+def _handle_tool_error(exc: Exception) -> str:
+    """Callable handler for ToolNode(handle_tool_errors=...).
+
+    Logs the exception with exc_info so operators have full context, then
+    returns a safe, non-leaking message that goes into ToolMessage(status="error").
+    The message is seen only by the agent (LLM), not by the end user.
+    """
+    logger.error(
+        "tool execution failed",
+        error_type=type(exc).__name__,
+        exc_info=exc,
+    )
+    return _TOOL_ERROR_MESSAGE
+
 
 @dataclass
 class AgentContext:
@@ -336,7 +356,7 @@ def build_graph(
 
         return {"messages": [*result_prefix, response]}
 
-    tool_node = ToolNode(tools)
+    tool_node = ToolNode(tools, handle_tool_errors=_handle_tool_error)
 
     builder = StateGraph(MessagesState, context_schema=AgentContext)
     builder.add_node("agent", agent_node)

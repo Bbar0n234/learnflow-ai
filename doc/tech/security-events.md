@@ -39,6 +39,12 @@ Event types follow the naming convention: `<domain>.<subject>.<outcome>`
 | `rate_limit.register.exceeded` | `warning` | Registration rate limit exceeded | `ip`, `request_id` |
 | `rate_limit.refresh.exceeded` | `warning` | Refresh rate limit exceeded | `ip`, `request_id` |
 
+#### Security Guard Events - Degradation (cross-checkpoint)
+
+| Event Type | Severity | Occurs When | Identifiers |
+|------------|----------|-------------|-------------|
+| `agent.guard.degraded` | `critical` | LLM guard degraded to CLEAN (LLM exception or classifier retries exhausted) | `request_id`, `thread_id`, `user_id` |
+
 #### Security Guard Events - Input Checkpoint
 
 | Event Type | Severity | Occurs When | Identifiers |

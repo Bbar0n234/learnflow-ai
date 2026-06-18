@@ -7,6 +7,7 @@ from typing import Any
 import structlog
 from langchain_core.messages import BaseMessage
 from siem_contracts import (
+    AGENT_GUARD_DEGRADED,
     AGENT_GUARD_INPUT_CLASSIFIER_INJECTION,
     AGENT_GUARD_INPUT_DETERMINISTIC_HIT,
     AGENT_GUARD_OUTPUT_CLASSIFIER_INJECTION,
@@ -147,15 +148,16 @@ class SecurityGuard:
                 )
             except Exception:
                 duration_ms = int((time.monotonic() - start) * 1000)
-                logger.warning(
+                logger.error(
                     "guard llm failed, degrading to CLEAN",
                     security_event=True,
-                    event_type=AGENT_GUARD_INPUT_CLASSIFIER_INJECTION,  # Classify as attempted injection for safety
+                    event_type=AGENT_GUARD_DEGRADED,
                     severity="critical",
                     metadata={
                         "checkpoint": checkpoint.value,
+                        "direction": direction.value,
                         "detection_layer": DetectionLayer.GRACEFUL_DEGRADATION.value,
-                        "verdict": "clean",  # Actual verdict is clean due to degradation
+                        "verdict": "clean",
                     },
                     exc_info=True,
                 )
@@ -171,6 +173,32 @@ class SecurityGuard:
                 return result
 
             duration_ms = int((time.monotonic() - start) * 1000)
+
+            # Road 2: retries exhausted → degradation is observable (F-AGT-04 / D-ERR-6)
+            if classifier_result.degraded:
+                logger.warning(
+                    "guard classifier degraded, falling back to CLEAN",
+                    security_event=True,
+                    event_type=AGENT_GUARD_DEGRADED,
+                    severity="critical",
+                    metadata={
+                        "checkpoint": checkpoint.value,
+                        "direction": direction.value,
+                        "detection_layer": DetectionLayer.GRACEFUL_DEGRADATION.value,
+                        "verdict": "clean",
+                    },
+                )
+                result = GuardResult(
+                    verdict=Verdict.CLEAN,
+                    checkpoint=checkpoint,
+                    direction=direction,
+                    detection_layer=DetectionLayer.GRACEFUL_DEGRADATION,
+                    details={"reason": "retries_exhausted"},
+                    duration_ms=duration_ms,
+                )
+                obs.finalize(result)
+                return result
+
             details: dict[str, Any] = {
                 "reasoning": classifier_result.reasoning,
                 "retries": classifier_result.retries,

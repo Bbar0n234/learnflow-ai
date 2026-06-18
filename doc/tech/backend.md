@@ -520,7 +520,9 @@ logger.warning(
 
 ## Error Handling
 
-Основные сценарии покрываются фреймворками: ToolNode возвращает ошибку как ToolMessage (агент видит и решает сам в ReAct loop), FastAPI — стандартные HTTP-ошибки, SSE — терминальный `error` event. Детали (retry policy для LLM, поведение при disconnect, cancel semantics) — определяются при реализации.
+Конвенции выбора сигнала, барьерный стек, graceful degradation vs fail-fast, таймауты — [conventions.md](conventions.md#обработка-ошибок).
+
+Main app реализует: иерархию `AppError` в `services/exceptions.py` (доменные исключения без знания о HTTP-транспорте); барьерный стек на `app/api/problem.py` (3 слоя: `AppError` → инфра-исключения → generic 500); SSE-барьер в `api/routes/messages.py` (терминальный `error`-event для непойманных исключений в стриме агента).
 
 ## Configuration
 

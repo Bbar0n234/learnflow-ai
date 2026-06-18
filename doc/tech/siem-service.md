@@ -81,11 +81,14 @@ Composition root — `siem_service/main.py`: lifespan инициализируе
 graph LR
     STREAM[("security.events<br>MAXLEN ~100k")] -->|"XREADGROUP<br>group siem-readers"| VAL["Validation<br>Pydantic SecurityEvent strict"]
     VAL -->|valid| WRITE["EventWriter<br>INSERT ON CONFLICT(event_id) DO NOTHING"]
-    VAL -->|invalid| DROP["метрика siem_events_invalid + XACK"]
+    VAL -->|"ValidationError (poison)"| DROP["drop + XACK<br>siem_events_invalid"]
+    VAL -->|"OperationalError (транзиент)"| PEL[("остаётся в PEL<br>siem_events_transient")]
+    PEL -->|"delivery > N"| FAIL["terminal drop + XACK<br>siem_events_failed_terminal"]
+    PEL -->|"delivery ≤ N"| VAL
     WRITE --> ACK["XACK"]
 ```
 
-- **`pipeline/subscriber.py`** — consumer group `siem-readers`; на старте дочитывает pending list (unacked после краха). `XACK` строго после успешной записи в БД.
+- **`pipeline/subscriber.py`** — consumer group `siem-readers`; на старте дочитывает pending list (unacked после краха). Разделяет классы отказа: `ValidationError` (poison) → drop + XACK; `OperationalError`/`DBAPIError` (транзиент) → **не XACK** (остаётся в PEL на переобработку) + bounded delivery-count (после `max_delivery_attempts` — terminal drop + XACK + `logger.error`); успешная запись → XACK. Конвенция разделения — [conventions.md](conventions.md#siem-event-pipeline).
 - **`pipeline/event_writer.py`** — единственная точка INSERT; идемпотентность по `event_id` (UNIQUE + `ON CONFLICT DO NOTHING`).
 - **`pipeline/meta_emitter.py`** — back-channel: admin-CRUD операции сервиса сами порождают события (`siem.alert.acknowledged`, `siem.rule.created` и т.д.) через XADD в тот же stream — петля через собственный subscriber, дедуп по `event_id`.
 - **`pipeline/supervisor.py`** — рестарт background-задач с exponential backoff (1s → cap 60s), бесконечно; пропускает только `CancelledError`.
@@ -188,5 +191,8 @@ services/siem-service/
 | `SIEM_POLL_INTERVAL_SECONDS` | период корреляции | 10 |
 | `SIEM_ALERT_OPEN_WINDOW_SECONDS` | возрастной лимит open-alert | 86400 |
 | `SIEM_DELETE_AFTER_DAYS` | retention событий | 90 |
+| `SIEM_REDIS_SOCKET_TIMEOUT` / `SIEM_REDIS_SOCKET_CONNECT_TIMEOUT` | таймауты Redis-сокета; инвариант: `socket_timeout > xread_block_ms/1000` | 5.0 / 5.0 |
+| `SIEM_DB_STATEMENT_TIMEOUT_SECONDS` | statement_timeout PostgreSQL (per-statement) | 120 |
+| `SIEM_MAX_DELIVERY_ATTEMPTS` | максимум переобработок транзиентного сообщения через PEL | 5 |
 
 **Deployment:** контейнер `siem-service` + контейнер `siem-db` (PostgreSQL :5434) в docker-compose; зависит от siem-db и redis (healthy). CORS — origins main app и dev-фронта.

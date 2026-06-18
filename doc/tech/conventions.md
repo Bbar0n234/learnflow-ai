@@ -302,7 +302,7 @@ Dockerfile живёт рядом с `pyproject.toml` пакета (`backend/Dock
 
 Граница приложения (оба сервиса, `app/api/problem.py` + зеркало `siem_service/api/problem.py`) имеет три слоя перехвата, от специфичного к общему:
 
-1. **`AppError`** → доменный статус problem+json (4xx/409/422).
+1. **`AppError`** → problem+json с `exc.status`; охватывает доменные 4xx и инфра-класс 5xx (`UpstreamUnavailableError` → 502/503, `EncryptionError` → 500); ошибки с `exc.status ≥ 500` дополнительно логируются `logger.error(exc_info=...)`.
 2. **Инфра-исключения** → `OperationalError`/`DBAPIError` → 503, таймаут → 504; problem+json + лог `exc_info`.
 3. **generic `Exception`** (last-resort) → 500 problem+json без внутренностей + лог `exc_info`.
 

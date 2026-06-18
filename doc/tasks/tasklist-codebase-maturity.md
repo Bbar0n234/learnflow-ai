@@ -339,10 +339,12 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 #### Definition of Done
 
-- [ ] Error return types conventions зафиксированы в `conventions.md`.
-- [ ] Error handling philosophy зафиксирована в `conventions.md`.
-- [ ] Конвенции иллюстрированы примерами из реального кода проекта (не абстрактные снippets).
-- [ ] Точки остановки на теорию пройдены.
+- [x] Error return types conventions зафиксированы в `conventions.md` (§ «Сигнал: исключения + Optional», § «Модель ошибок»).
+- [x] Error handling philosophy зафиксирована в `conventions.md` (§ «Восстановление: fail-fast / graceful / fail-safe», § «Барьерный стек», § «Агентные tools», § «SIEM event pipeline», § «Frontend»).
+- [x] Конвенции иллюстрированы примерами из реального кода проекта (ссылки на реальные файлы, карта «источник → статус», callable-обработчик `ToolNode`).
+- [x] Точки остановки на теорию пройдены (Result/Either анализ — D-ERR-4; graceful degradation vs circuit breaker — D-ERR-6; fail-safe vs fail-secure для guard — D-ERR-6; барьер vs middleware vs exception handler — D-ERR-2).
+
+Артефакты итерации: [decisions.md](iterations/codebase-maturity/feat-007-cross-cutting/decisions.md) · [summary.md](iterations/codebase-maturity/feat-007-cross-cutting/summary.md) · [test-cases.md](iterations/codebase-maturity/feat-007-cross-cutting/test-cases.md)
 
 ---
 

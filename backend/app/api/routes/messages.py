@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterator
 
+import structlog
 from fastapi import APIRouter, Depends
 from starlette.responses import StreamingResponse
 
@@ -19,14 +20,28 @@ from app.services.agent_runner import StreamEvent
 
 router = APIRouter(tags=["messages"])
 
+logger = structlog.get_logger()
+
 
 async def _event_generator(
     events: AsyncIterator[StreamEvent],
 ) -> AsyncIterator[str]:
-    """Map StreamEvent objects to SSE wire format."""
-    async for event in events:
-        payload = {"type": event.type, **event.data}
-        yield f"data: {json.dumps(payload)}\n\n"
+    """Map StreamEvent objects to SSE wire format.
+
+    Wraps the iteration in try/except so exceptions in the setup phase of the
+    runner (before its own try-block) or in JSON serialisation produce a
+    terminal ``{"type":"error"}`` event rather than a silent stream tear.
+    The runner (T3) already emits error events for in-graph exceptions; this
+    catch covers the residual gap (setup failures, serialisation errors).
+    """
+    try:
+        async for event in events:
+            payload = {"type": event.type, **event.data}
+            yield f"data: {json.dumps(payload)}\n\n"
+    except Exception:
+        logger.error("sse stream error", exc_info=True)
+        error_payload = json.dumps({"type": "error", "message": "Stream failed"})
+        yield f"data: {error_payload}\n\n"
 
 
 @router.post(

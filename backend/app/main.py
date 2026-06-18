@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from langfuse import get_client as get_langfuse_client
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 
 from app.agent.checkpoint_history import CheckpointHistory
 from app.agent.config import (
@@ -53,7 +54,7 @@ from app.agent.tools import (
     user_memory_tools,
 )
 from app.agent.tracing import AgentRunTracer
-from app.api.problem import problem_response, register_problem_handlers
+from app.api.problem import TYPE_PREFIX, problem_response, register_problem_handlers
 from app.api.routes import (
     artifacts,
     auth,
@@ -88,7 +89,6 @@ from app.security_pipeline.transport import (
     RedisEventTransport,
 )
 from app.services.encryption import EncryptionService
-from app.services.exceptions import EntityNotFoundError
 from app.services.mcp_server import (
     fetch_remote_metadata,
     serialize_mcp_meta_blob,
@@ -539,24 +539,35 @@ def create_app() -> FastAPI:
             ip=client_ip,
             user_agent_hash=user_agent_hash,
         )
-        response = await call_next(request)
-        return response
+        # Layer 3 — generic last-resort catch (F-API-01: CORS on 500).
+        # This middleware sits below CORSMiddleware in the stack, so the
+        # JSONResponse we return here passes back up through CORS and picks
+        # up Access-Control-Allow-Origin headers, unlike a bare
+        # add_exception_handler(Exception) which sits above CORS.
+        try:
+            response = await call_next(request)
+            return response
+        except Exception:
+            logger.error("unhandled exception", exc_info=True)
+            return problem_response(status=500, detail="Internal server error")
 
     # Exception handlers — RFC 9457 problem+json
     register_problem_handlers(app)
 
-    @app.exception_handler(EntityNotFoundError)
-    async def entity_not_found_handler(
-        request: object, exc: EntityNotFoundError
-    ) -> JSONResponse:
-        return problem_response(status=404, detail=str(exc))
-
-    # Health check
+    # Health check — honest 503 when DB is down (F-API-02)
     @app.get("/health")
-    async def health(request: Request) -> dict[str, str]:
-        async with request.app.state.engine.connect() as conn:
-            await conn.execute(text("SELECT 1"))
-        return {"status": "ok"}
+    async def health(request: Request) -> JSONResponse | dict[str, str]:
+        try:
+            async with request.app.state.engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+            return {"status": "ok"}
+        except OperationalError:
+            logger.warning("health check: database unavailable", exc_info=True)
+            return problem_response(
+                status=503,
+                detail="Database unavailable",
+                type_=TYPE_PREFIX + "db-unavailable",
+            )
 
     # API routes
     api_prefix = "/api"

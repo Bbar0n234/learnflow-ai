@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from app.api.deps import SettingsDep, UserThread
 from app.api.schemas.feedback import FeedbackResponse, FeedbackSet
 from app.repositories.trace_store import TraceStore
+from app.services.exceptions import UpstreamUnavailableError
 
 logger = structlog.get_logger()
 
@@ -43,9 +44,11 @@ def _get_langfuse_client() -> Any:
     try:
         return get_client()
     except Exception as exc:
-        logger.warning("langfuse not available for feedback")
-        raise HTTPException(
-            status_code=503, detail="Observability service unavailable"
+        logger.warning("langfuse not available for feedback", exc_info=True)
+        raise UpstreamUnavailableError(
+            code="langfuse-unavailable",
+            status=503,
+            detail="Observability service unavailable",
         ) from exc
 
 
@@ -72,11 +75,15 @@ async def set_feedback(
         )
         # flush() блокирует до выгрузки очереди SDK — уводим из event loop
         await anyio.to_thread.run_sync(langfuse.flush)
-    except Exception as e:
-        logger.warning("langfuse feedback error", error=str(e))
-        raise HTTPException(
-            status_code=503, detail="Observability service unavailable"
+    except (httpx.HTTPError, httpx.TimeoutException, OSError, ConnectionError) as e:
+        logger.warning("langfuse feedback error", exc_info=True)
+        raise UpstreamUnavailableError(
+            code="langfuse-unavailable",
+            status=503,
+            detail="Observability service unavailable",
         ) from e
+    # Other exceptions (TypeError, AttributeError, etc.) bubble to the
+    # generic barrier (500) — not masked as 503.
 
     # Persist feedback score in Redis (survives localStorage clearing)
     try:
@@ -113,15 +120,21 @@ async def delete_feedback(
         if e.response.status_code == 404:
             pass  # Score already deleted — idempotent
         else:
-            logger.warning("langfuse feedback error", error=str(e))
-            raise HTTPException(
-                status_code=503, detail="Observability service unavailable"
+            logger.warning("langfuse feedback delete error", exc_info=True)
+            raise UpstreamUnavailableError(
+                code="langfuse-unavailable",
+                status=503,
+                detail="Observability service unavailable",
             ) from e
-    except Exception as e:
-        logger.warning("langfuse feedback error", error=str(e))
-        raise HTTPException(
-            status_code=503, detail="Observability service unavailable"
+    except (httpx.HTTPError, httpx.TimeoutException, OSError, ConnectionError) as e:
+        logger.warning("langfuse feedback delete error", exc_info=True)
+        raise UpstreamUnavailableError(
+            code="langfuse-unavailable",
+            status=503,
+            detail="Observability service unavailable",
         ) from e
+    # Other exceptions (TypeError, AttributeError, etc.) bubble to the
+    # generic barrier (500) — not masked as 503.
 
     try:
         await store.save_feedback(trace_id, None)

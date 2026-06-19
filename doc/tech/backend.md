@@ -255,7 +255,7 @@ Cascade visibility: project/thread list endpoints поддерживают `?inc
 Pydantic request/response модели. Сквозные соглашения:
 - **ID** — UUID для всех app-managed сущностей (включая ThreadView.thread_id). При вызовах LangGraph API — `str(thread_id)`.
 - **Списки** — единый envelope `{ items, total, limit, offset }` (generic `Page[T]` в `app/api/schemas/common.py`); query-параметры `limit` (default 50, max 200) и `offset` через общий dependency `Pagination`.
-- **Ошибки** — RFC 9457 Problem Details (`application/problem+json`): `{ type, title, status, detail, …extensions }`; глобальные handlers в `app/api/problem.py`. Детали — [conventions.md](conventions.md#rest-api).
+- **Ошибки** — RFC 9457 Problem Details (`application/problem+json`): `{ type, title, status, detail, …extensions }`; глобальные handlers в `app/api/problem.py`. Детали — [conventions/api.md](conventions/api.md#rest-api).
 - **Ownership** — path-цепочка валидируется зависимостями `UserProject` / `UserThread` (404 на чужой ресурс).
 
 #### Projects

@@ -142,7 +142,7 @@ stateDiagram-v2
 
 ## REST API
 
-Все эндпоинты admin-only (`require_admin`: JWT HS256 + claim `is_admin`, иначе 403). Зрелый REST: плюральные ресурсы, `PaginatedXResponse`, PATCH-семантика. Ошибки — RFC 9457 Problem Details (`application/problem+json`), формат един с main app — см. [conventions.md](conventions.md#rest-api).
+Все эндпоинты admin-only (`require_admin`: JWT HS256 + claim `is_admin`, иначе 403). Зрелый REST: плюральные ресурсы, `PaginatedXResponse`, PATCH-семантика. Ошибки — RFC 9457 Problem Details (`application/problem+json`), формат един с main app — см. [conventions/api.md](conventions/api.md#rest-api).
 
 | Метод | Путь | Назначение |
 |-------|------|-----------|

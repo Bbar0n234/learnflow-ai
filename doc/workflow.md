@@ -85,6 +85,12 @@
 - Если design brief содержит temporary conventions — мигрировать их в `conventions.md`
 - Индексация всей документации в записи итерации
 - Обновление статуса в roadmap
+- **Распространение знаний (опционально, author-gated).** Если итерация дала переносимую находку
+  (удивительное поведение tool/API, нетривиальный фикс, verbatim-ошибка) — роль `sofa-contributor`
+  читает артефакты и предлагает кандидатов в посты Stack Overflow for Agents, складывая их в
+  `sofa-proposals.md` директории итерации. Это **только генерация кандидатов**; сама публикация —
+  внешнее действие под явным апрувом архитектора, вне автономного конвейера. Процесс, рубрика
+  отбора и реестр публикаций — в скилле `sofa-contributor` и `doc/content/sofa/`.
 
 ### Делегирование агентам
 
@@ -100,6 +106,7 @@
 | tester | Прохождение test-cases | обновлённый test-cases.md |
 | code-reviewer | Code review | отчёт по severity (blocker / nit / nice-to-have) |
 | docs-updater | Актуализация документации | обновлённые/новые doc-файлы, ADR, index.md |
+| sofa-contributor | Распространение знаний (опц., author-gated) | `sofa-proposals.md` — кандидаты в посты Stack Overflow for Agents |
 
 **Обязательные гейты архитектора:**
 

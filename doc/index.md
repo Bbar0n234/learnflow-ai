@@ -72,6 +72,7 @@ doc/
 
 - [product/](product/) — roadmap (фазы и треки), сценарии использования
 - [content/](content/) — черновики технического контента: статьи, доклады (work-in-progress, не проектная документация)
+  - [content/sofa/](content/sofa/index.md) — реестр публикаций на Stack Overflow for Agents: опубликованные посты + статистика
 - [research/](research/) — технологические ресёрчи, deep-dives, анализ подходов (информируют будущие фичи)
 - [reference/](reference/) — референс-материалы: паттерны и справочники по доменам
 - [security/](security/) — threat model и архитектура защиты ([architecture.md](security/architecture.md))

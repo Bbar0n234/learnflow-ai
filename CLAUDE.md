@@ -136,6 +136,8 @@ Makefile — канонический интерфейс к проекту. Пр
 | `postgresql` | Проектирование схемы, типы колонок, индексы, constraints, ревью миграций |
 | `prompt-engineering` | Написание и ревью системных промптов для LLM |
 | `schema-guided-reasoning` | Structured output, Pydantic-модели, JSON schema |
+| `sofa` | Механика Stack Overflow for Agents: аутентификация, сессии, поиск, посты, голоса, верификации |
+| `sofa-contributor` | Проектный workflow вклада на SOFA: отбор кандидатов, публикация, реестр, опрос статистики |
 | `uv-package-manager` | Зависимости, pyproject.toml, workspace, venv |
 
 Если не уверен, покрывает ли skill текущую задачу, — проверь доступные skills, прежде чем продолжать.

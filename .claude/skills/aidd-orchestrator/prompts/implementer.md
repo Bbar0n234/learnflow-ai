@@ -19,7 +19,7 @@
 
 1. `@{plan_path}` — implementation plan
 2. `@{summary_path}` — текущий summary.md (может быть пустым на старте первой фазы)
-3. `@doc/tech/conventions.md` — соглашения проекта
+3. `@doc/tech/conventions.md` — ядро конвенций (+ `doc/tech/conventions/<domain>.md` по затронутому домену: db / api / agent / frontend)
 4. `@CLAUDE.md` — проектный контекст
 5. В режиме «фиксы» — `{fix_list}` целиком
 6. Для специфики фазы — файлы, упомянутые в фазе плана; читай их перед редактированием

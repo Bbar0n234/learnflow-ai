@@ -58,6 +58,7 @@ doc/
 
 **Соглашения и решения:**
 - [tech/conventions.md](tech/conventions.md) — git flow, code quality, naming, logging, Docker
+- [tech/arch-checker.md](tech/arch-checker.md) — реестр архитектурных инвариантов и детерминированные проверки (import-linter, AST-ассерты, eslint-boundaries)
 - [tech/skill-map.md](tech/skill-map.md) — карта скиллов: принципы отбора, роли, отклонённые, пробелы, отложенные кандидаты
 - [tech/adr/](tech/adr/) — архитектурные решения (формат: `ADR-NNN-название.md`)
   - [ADR-018: SIEM Service Topology](tech/adr/ADR-018-siem-service-topology.md) — отдельный backend-сервис, isolation, identity

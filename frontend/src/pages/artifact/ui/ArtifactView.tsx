@@ -5,6 +5,9 @@ import { ScrollArea } from "@/shared/ui/scroll-area";
 import { MarkdownRenderer } from "@/shared/ui/MarkdownRenderer";
 import { useArtifact } from "@/shared/api/artifacts";
 import { downloadArtifact } from "@/shared/api/artifacts";
+import { SlidesViewer } from "./SlidesViewer";
+import { ImageViewer } from "./ImageViewer";
+import { AudioViewer } from "./AudioViewer";
 
 export function ArtifactView() {
   const { id, aid } = useParams();
@@ -26,6 +29,23 @@ export function ArtifactView() {
     );
   }
 
+  // Type-based dispatch — T6c viewers (group B, mock data, no backend contract)
+  const type = data?.type ?? "";
+  const formattedDate = data?.created_at
+    ? new Date(data.created_at).toLocaleDateString("ru-RU")
+    : undefined;
+
+  if (type === "slides") {
+    return <SlidesViewer title={data?.title} createdAt={formattedDate} />;
+  }
+  if (type === "image") {
+    return <ImageViewer title={data?.title} createdAt={formattedDate} />;
+  }
+  if (type === "audio") {
+    return <AudioViewer title={data?.title} createdAt={formattedDate} />;
+  }
+
+  // Default: markdown viewer (group A, T4d)
   return (
     <div className="flex h-full flex-col">
       {/* Header: serif title 26px + metadata + action buttons */}

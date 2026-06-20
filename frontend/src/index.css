@@ -59,6 +59,9 @@
   --shadow-lens: 0 24px 80px rgba(24, 16, 36, 0.35);
   /* Sphere lens overlay scrim */
   --scrim-overlay: rgba(24, 16, 36, 0.45);
+  /* Slides viewer — намеренно dark независимо от темы приложения (slides viewer design, T6c) */
+  --slides-bg: #181420;
+  --slides-fg: #ede8e2;
   /* Layout geometry */
   --content-max-w: 680px;
   /* Орб-токены (единственное место с градиентом) */

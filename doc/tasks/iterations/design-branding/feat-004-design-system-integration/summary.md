@@ -343,3 +343,37 @@ UI версионирования сферы на mock-данных. Никак�
 4. `VersionBadge` — не экспортируется из файла (только `SphereVersionPanel`): внутренняя вспомогательная функция компонента, не предназначена для внешнего использования.
 
 **Verification:** `make check-fe` GREEN (exit 0: tsc чистый, ESLint 0 errors, Prettier чистый), `tsc -b && vite build` GREEN (exit 0). {L0.3} shadcn-примитивы не тронуты ✓; {L0.4} нет hardcoded hex/numeric-цветов в тронутых .tsx (grep чистый) ✓; {L0.5} новые файлы без API-вызовов (grep чистый) ✓. Статический {T6.3} — пройден (дропдаун, бейджи, панель на моках без сети). Полное 🔍 (визуальное vs хэндофф экран 2) — на VISUAL_REVIEW.
+
+---
+
+## T6c — Вьюеры артефактов по типу + rich-редактор сферы (заглушки)
+
+Вьюеры slides/image/audio выбираются по `type` артефакта и rich-редактор сферы — всё на mock-данных, без бэкенд-контрактов (группа B, {L0.5}). Существующий md-вьюер (T4d) и базовый редактор не сломаны.
+
+**Новые файлы:**
+
+- **`pages/artifact/model/mock-artifact-data.ts`** — единственный источник mock-данных T6c (не-компонентные экспорты вынесены в `.ts`, react-refresh чист). Содержит: `MockSlide[]`/`MockKeyMoment[]` типы; 5 слайдов (title + body); заголовки/даты/подпись изображения; заголовок/длительность аудио (742 сек = 12:22), саммари/транскрипт/заметки, 4 ключевых момента с таймкодами и `timeSeconds`.
+
+- **`pages/artifact/ui/SlidesViewer.tsx`** — презентация. Слайд 16:9 (`aspectRatio: "16 / 9"`) в **намеренно ТЁМНОЙ теме слайдов** через CSS-переменные `--slides-bg`/`--slides-fg` (не реагируют на тему приложения — часть дизайна вьюера): orb-лого + mono-колонтитул `LearnFlowAI`, serif-заголовок 44px, mono-футер «N / M». Лента миниатюр 86×50 (активная — `ring-2 ring-ring ring-offset`, прочие — `opacity-60 ring-1 ring-border`). Навигация «‹ N / M ›» (`icon-sm`-кнопки + mono-счётчик), кнопки `.pdf` (primary) / `.pptx` (outline). Локальный стейт `currentIndex`. Guard `if (!slide) return null` для strict array access.
+
+- **`pages/artifact/ui/ImageViewer.tsx`** — изображение. Плейсхолдер-карточка (реального URL нет) с масштабированием по `zoom%`; зум-пилюля по центру низа (`absolute bottom-4 left-1/2 -translate-x-1/2`): «− {zoom}% +» + разделитель + «По ширине» (сброс к 100%). Шаги зума `[50,75,100,125,150,200]`, дефолт 100%. Подпись с происхождением внизу. Кнопки `.png` (primary) / «Открыть в окне» (outline). Локальный стейт `zoomIndex`.
+
+- **`pages/artifact/ui/AudioViewer.tsx`** — аудио. Плеер: play/pause-круг 40px (`bg-primary`), прогресс-бар 5px (`<input type="range">` с кастомным `::-webkit-slider-thumb` 12px primary, отформатированные таймкоды mono), кнопка скорости (цикл `[0.5…2]`, дефолт 1.5×). Табы Саммари/Транскрипт/Заметки агента (локальный стейт, активный — `text-primary [box-shadow:inset_0_-2px_0_var(--ring)]`). В «Саммари» — текст + «Ключевые моменты» с кликабельными mono-таймкодами (`text-ring`, при клике `seekTo` → выставляет `currentTime` и `isPlaying`). Транскрипт/Заметки — `pre` с `whitespace-pre-wrap`.
+
+**Изменённые файлы:**
+
+- **`pages/artifact/ui/ArtifactView.tsx`** — добавлен type-dispatch перед существующим md-вьюером: `type === "slides"|"image"|"audio"` → соответствующий вьюер; иначе — md-вьюер группы A без изменений. Дата форматируется один раз (`new Date(...).toLocaleDateString("ru-RU")`) и пробрасывается как `createdAt` (вьюеры дефолтят к mock-дате при отсутствии). Loading/error/markdown-логика не тронута.
+
+- **`pages/sphere/ui/SphereEditor.tsx`** — апгрейд до rich-редактора при **сохранённом интерфейсе пропсов** (`content`/`isPending`/`error`/`onSave`/`onCancel` — реальное сохранение работает). Тулбар: дропдаун «Абзац ▾» (Абзац/Заголовок 2/Заголовок 3), B/I/S, H2/H3, список, цитата, код, ссылка, переключатель «Markdown-режим». Форматирование вставляет markdown-синтаксис в textarea через манипуляцию `selectionStart/End` (`applyInline`/`applyLinePrefix`). «Markdown-режим» (дефолт on) переключает между raw-textarea и предпросмотром через `MarkdownRenderer` (`.sphere-prose`). Автосейв-строка «черновик сохранён · HH:MM» (локальный `useEffect`-таймер 2 сек после ввода, без API). Правый рейл истории версий 252px (`w-[252px] border-l`) на `MOCK_SPHERE_HISTORY` из T6b: версия (mono) + `BumpBadge` (мажор — `bg-primary`; минор/патч — `bg-secondary`) + summary + метаданные.
+
+- **`frontend/src/index.css`** — в `:root` добавлены `--slides-bg: #181420` / `--slides-fg: #ede8e2` (намеренно dark-палитра слайдов, не зависит от темы приложения; единственный способ держать слайды dark без hex в .tsx → {L0.4}).
+
+**Принятые решения:**
+
+1. Тёмная тема слайдов — через CSS-переменные `--slides-bg`/`--slides-fg`, а не классы `.dark`/инлайн-hex: слайд всегда dark независимо от темы приложения (по хэндоффу «слайды всегда dark `#181420`»), при этом {L0.4} соблюдён (нет hex в .tsx).
+2. Date-форматирование — в `ArtifactView` при диспетче (real `created_at` → ISO), вьюеры получают уже отформатированную строку; mock-дефолты остаются человекочитаемыми для standalone-демонстрации.
+3. ImageViewer рендерит плейсхолдер, а не реальное изображение: бэкенд бинарных артефактов нет (группа B), зум применяется к плейсхолдер-карточке для демонстрации интерактива.
+4. Rich-редактор работает с реальным сохранением сферы (`onSave`/`onCancel`/`isPending`/`error` не тронуты) — тулбар/автосейв/история навешаны поверх; автосейв и история — заглушки ({L0.5}), реальное сохранение — существующий `useUpdateSphere`.
+5. `BumpBadge`/`formatTime`/`applyInline`/`applyLinePrefix` — внутренние хелперы, не экспортируются из файлов компонентов (react-refresh чист).
+
+**Verification:** `make check-fe` GREEN (exit 0: tsc + ESLint 0 errors + Prettier чистый), `tsc -b && vite build` GREEN (built ~16s). {L0.3} shadcn-примитивы не тронуты ✓; {L0.4} нет hardcoded hex в новых/тронутых .tsx (grep чистый — слайды через CSS-переменные) ✓; {L0.5} новые вьюер-файлы без API-вызовов (grep `fetch|axios|apiClient|useQuery|useMutation` чистый) ✓; md-вьюер группы A не сломан (диспетч добавлен перед ним, логика идентична) ✓. Статические {T6.4}/{T6.5} — пройдены (вьюеры на заглушках, нет несуществующих endpoint'ов). Полное 🔍 (визуальное vs хэндофф экраны 4/8) — на VISUAL_REVIEW.

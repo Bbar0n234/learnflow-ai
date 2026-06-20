@@ -63,3 +63,39 @@
 5. `public/` директория создана (ранее отсутствовала).
 
 **Verification:** `make check-fe` GREEN (tsc + ESLint + Prettier), `tsc -b && vite build` GREEN. Статические грепы: «LearnFlowAI» отсутствует в Sidebar/WelcomePage {T2.2} ✓; `gradient` не в фоне обычных UI-элементов {T2.3} ✓; фавиконы прилинкованы {T2.4} ✓; shadcn-примитивы не тронуты {L0.3} ✓. Визуальное 🔍-подтверждение {T2.1}–{T2.4} — на VISUAL_REVIEW.
+
+---
+
+## T3 — Ассет-пайплайн + иллюстрации ✅
+
+**Ассеты** (`frontend/src/shared/assets/illustrations/{light,dark}/`): скопированы 6 сцен × 2 темы из `doc/.../feat-001-poc/refs/illustrations/candidates/transparent/soft-balanced/{light,dark}/`. Имена сохранены: `welcome-hero`, `sidebar-vignette`, `empty-chats`, `empty-sphere`, `empty-artifacts`, `error-state`.
+
+**Централизованная карта** (`frontend/src/shared/assets/illustrations/index.ts`): единственная точка импорта PNG-ассетов. Типы:
+
+```typescript
+type Scene = "welcome-hero" | "sidebar-vignette" | "empty-chats" | "empty-sphere" | "empty-artifacts" | "error-state";
+type IllustrationTheme = "light" | "dark";
+
+function getIllustration(scene: Scene, theme: IllustrationTheme): string;
+```
+
+Все 12 PNG импортируются статически (Vite resolves to asset URL) и хранятся в объекте `Record<IllustrationTheme, Record<Scene, string>>`. `getIllustration` — единственный публичный API; компоненты не импортируют PNG напрямую.
+
+**Обёртка** (`frontend/src/shared/ui/Illustration.tsx`): принимает `{ scene: Scene; alt: string; className?: string }`. Читает тему из `useThemeStore` (T1), вызывает `getIllustration(scene, theme)`, рендерит `<img>`. Переключение light↔dark происходит реактивно вместе с темой.
+
+**Врезки (5 сцен)**:
+- `welcome-hero` → `pages/welcome/ui/WelcomePage.tsx`: под подзаголовком, `max-w-[460px]`.
+- `sidebar-vignette` → `app/components/Sidebar.tsx`: между scrollable-областью проектов/чатов и user-footer; `pointer-events-none`, full-width.
+- `empty-chats` → `pages/project-chats/ui/ChatList.tsx`: обёртка пустого state, `max-w-[280px]`.
+- `empty-sphere` → `pages/sphere/ui/SphereViewer.tsx`: обёртка пустого state, `max-w-[280px]`.
+- `empty-artifacts` → `pages/artifacts/ui/ArtifactList.tsx`: обёртка пустого state, `max-w-[280px]`.
+- `error-state` — не тронут; потребляется T5 в ErrorBoundary.
+
+**Отклонения:** нет. Рестайл экранов не выполнялся (T4). ErrorBoundary не тронут (T5).
+
+**Принятые решения:**
+1. Статические `import` PNG (не `import.meta.glob`) — детерминированный бандл, все 12 файлов всегда включены; объём приемлем (cutout RGBA).
+2. `sidebar-vignette` рендерится всегда (не только при пустом state) — декоративный низ sidebar, `pointer-events-none`.
+3. `alt=""` для sidebar-vignette (декоративный ассет); осмысленный `alt` у остальных.
+
+**Verification:** `make check-fe` GREEN (tsc + ESLint + Prettier), `tsc -b && vite build` GREEN. Грепы: {T3.1} 6×6 файлов ✓; {T3.2} нет прямых PNG-импортов в `pages/` и `app/` ✓; {T3.4} врезки в 5 файлах ✓. Визуальное 🔍 {T3.3} (тема переключает иллюстрации) — на VISUAL_REVIEW.

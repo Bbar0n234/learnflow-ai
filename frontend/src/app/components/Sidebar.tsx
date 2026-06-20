@@ -17,6 +17,7 @@ import { getIsAdminFromAccessToken, getMe, logout } from "@/shared/api/auth";
 import { clearAccessToken, getAccessToken } from "@/shared/api/client";
 import { Button } from "@/shared/ui/button";
 import { Wordmark } from "@/shared/ui/Wordmark";
+import { Illustration } from "@/shared/ui/Illustration";
 import { useUIStore } from "@/stores/ui-store";
 import { useThemeStore } from "@/stores/theme-store";
 import { useRecentChats } from "@/shared/api/chats";
@@ -138,6 +139,13 @@ export function Sidebar() {
           </div>
         ) : null}
       </div>
+
+      {/* Sidebar vignette illustration */}
+      <Illustration
+        scene="sidebar-vignette"
+        alt=""
+        className="pointer-events-none w-full select-none"
+      />
 
       {/* User footer */}
       {user && (

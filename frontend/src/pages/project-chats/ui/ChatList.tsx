@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { MessageSquare, SendHorizontal } from "lucide-react";
 import { Textarea } from "@/shared/ui/textarea";
 import { Button } from "@/shared/ui/button";
+import { Illustration } from "@/shared/ui/Illustration";
 import { useChats } from "@/shared/api/chats";
 import { useCreateChat } from "@/shared/api/chats";
 
@@ -62,7 +63,16 @@ export function ChatList() {
       {isLoading && <p className="text-muted-foreground">Loading chats...</p>}
       {isError && <p className="text-destructive">Failed to load chats.</p>}
       {data && data.items.length === 0 && (
-        <p className="text-muted-foreground">No chats yet. Start one above!</p>
+        <div className="flex flex-col items-center gap-4 py-8">
+          <Illustration
+            scene="empty-chats"
+            alt="No chats yet"
+            className="max-w-[280px] w-full"
+          />
+          <p className="text-muted-foreground">
+            No chats yet. Start one above!
+          </p>
+        </div>
       )}
       {data && data.items.length > 0 && (
         <div className="flex flex-col gap-1">

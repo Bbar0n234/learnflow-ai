@@ -1,4 +1,5 @@
 import { Wordmark } from "@/shared/ui/Wordmark";
+import { Illustration } from "@/shared/ui/Illustration";
 
 export function WelcomePage() {
   return (
@@ -7,9 +8,14 @@ export function WelcomePage() {
         <h1 className="mb-4 text-4xl">
           <Wordmark />
         </h1>
-        <p className="text-lg text-muted-foreground">
+        <p className="mb-8 text-lg text-muted-foreground">
           Your AI-powered learning companion
         </p>
+        <Illustration
+          scene="welcome-hero"
+          alt="Welcome to LearnFlowAI"
+          className="mx-auto max-w-[460px] w-full"
+        />
       </div>
     </div>
   );

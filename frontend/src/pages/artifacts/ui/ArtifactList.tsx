@@ -1,5 +1,6 @@
 import { Link, useParams } from "react-router";
 import { FileText } from "lucide-react";
+import { Illustration } from "@/shared/ui/Illustration";
 import { useArtifacts } from "@/shared/api/artifacts";
 
 export function ArtifactList() {
@@ -15,9 +16,16 @@ export function ArtifactList() {
       )}
       {isError && <p className="text-destructive">Failed to load artifacts.</p>}
       {data && data.items.length === 0 && (
-        <p className="text-muted-foreground">
-          No artifacts yet. They will appear here as the AI generates them.
-        </p>
+        <div className="flex flex-col items-center gap-4 py-8">
+          <Illustration
+            scene="empty-artifacts"
+            alt="No artifacts yet"
+            className="max-w-[280px] w-full"
+          />
+          <p className="text-muted-foreground">
+            No artifacts yet. They will appear here as the AI generates them.
+          </p>
+        </div>
       )}
       {data && data.items.length > 0 && (
         <div className="flex flex-col gap-1">

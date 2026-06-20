@@ -2,6 +2,7 @@ import { Pencil } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import { ScrollArea } from "@/shared/ui/scroll-area";
 import { MarkdownRenderer } from "@/shared/ui/MarkdownRenderer";
+import { Illustration } from "@/shared/ui/Illustration";
 
 interface SphereViewerProps {
   content: string;
@@ -21,9 +22,16 @@ export function SphereViewer({ content, onEdit }: SphereViewerProps) {
         {content ? (
           <MarkdownRenderer>{content}</MarkdownRenderer>
         ) : (
-          <p className="text-muted-foreground">
-            Knowledge sphere is empty. Click the edit button to add content.
-          </p>
+          <div className="flex flex-col items-center gap-4 py-8">
+            <Illustration
+              scene="empty-sphere"
+              alt="Knowledge sphere is empty"
+              className="max-w-[280px] w-full"
+            />
+            <p className="text-muted-foreground">
+              Knowledge sphere is empty. Click the edit button to add content.
+            </p>
+          </div>
         )}
       </ScrollArea>
     </div>

@@ -39,7 +39,7 @@
 | feat-005 | ✅ Done | agent | Agent runtime slice: langgraph-patterns (авторский) + кандидаты langgraph-* от langchain-ai + поглощение Reasoning ChatOpenAI everywhere (langchain-architecture отклонён в feat-001) |
 | feat-006 | ✅ Done | frontend | Frontend slice: `feature-sliced-design` skill + миграция на канон FSD (pages/features), фабрика query keys, ось состояния в conventions |
 | feat-007 | ✅ Done | cross-cutting | Кросс-резрезные конвенции: error return types + error handling philosophy (graceful degradation vs fail-fast) |
-| feat-008 | 🚧 In Progress | enforcement | Arch-checker (детерминированные проверки) + Reviewer-промпты (logging, error returns, doc-first) |
+| feat-008 | ✅ Done | enforcement | Arch-checker (детерминированные проверки) + 2 ревьюера A/B + harvest-механизм + дробление конвенций |
 | feat-009 | 📋 Planned | testing | Test philosophy + test engineering + покрытие критичных участков |
 
 ## Параллелизация
@@ -352,7 +352,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** автоматизировать многоуровневое ревью изменений — детерминированные арх-проверки + LLM-reviewer по чек-листам (проектные конвенции + фундаментальное качество кода + соответствие документации) — и привести сам `conventions.md` в поддерживаемую форму (анти-раздувание). Предварительный шаг — deep research по состоянию инструментов code review.
 
-**Статус:** 🚧 In Progress — проработка и реализация в [design-brief.md](iterations/codebase-maturity/feat-008-enforcement/design-brief.md)
+**Статус:** ✅ Done — итоги в [summary.md](iterations/codebase-maturity/feat-008-enforcement/summary.md); проработка в [design-brief.md](iterations/codebase-maturity/feat-008-enforcement/design-brief.md)
 **Scope:** enforcement (workflow / CI)
 **Зависимости:** feat-007 (нужны зафиксированные конвенции для enforcement'а)
 
@@ -407,7 +407,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 - [x] Документация: реестр arch-checker.md + README `tools/arch-checker/`; harvest и ре-верификация в workflow.md.
 - [x] Конвенции: § Enforcement добавлен; рычаг-1 (плотность) — лёгкий проход при дроблении; рычаг-2 (per-domain дробление) применён, решение — ADR-025; рычаг-3 (удаление норм, ушедших в checker) — **отложен явно** (страховка на период обкатки).
 - [x] Точки остановки на теорию пройдены (граница детерминированное/LLM, import-linter vs AST, severity-модели, формат конвенций).
-- [ ] Pre-commit gate архитектора → перевод 🚧→✅.
+- [x] Pre-commit gate архитектора пройден; PR #73 смержен в develop → 🚧→✅.
 
 ---
 

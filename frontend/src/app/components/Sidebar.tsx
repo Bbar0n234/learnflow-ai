@@ -51,9 +51,9 @@ export function Sidebar() {
   }
 
   return (
-    <div className="flex h-full w-64 flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+    <div className="flex h-full w-[252px] flex-col">
+      {/* Header — target height 52–58px per handoff */}
+      <div className="flex h-[56px] items-center justify-between border-b border-border px-4">
         <h2 className="text-lg text-sidebar-foreground">
           <Wordmark short />
         </h2>
@@ -65,9 +65,9 @@ export function Sidebar() {
       {/* Actions */}
       <div className="flex flex-col gap-1 px-3 py-3">
         <Button
-          variant="ghost"
+          variant="default"
           size="sm"
-          className="justify-start"
+          className="w-full justify-start"
           disabled={!projectId || createChat.isPending}
           onClick={() => {
             if (!projectId) return;
@@ -81,17 +81,16 @@ export function Sidebar() {
             );
           }}
         >
-          <Plus className="mr-2 h-4 w-4" />
-          New Chat
+          <Plus className="mr-2 h-4 w-4" />+ Новый чат
         </Button>
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
-          className="justify-start"
+          className="w-full justify-start"
           onClick={() => setCreateOpen(true)}
         >
           <Plus className="mr-2 h-4 w-4" />
-          New Project
+          Новый проект
         </Button>
         {isAdmin && (
           <Button

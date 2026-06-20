@@ -18,9 +18,13 @@ export function ProjectLayout() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="border-b border-border px-6 py-4">
-        <h1 className="mb-3 text-xl font-semibold">{projectName}</h1>
-        <nav className="flex gap-4">
+      {/* Header — 52–58px per handoff; project name + tabs inline.
+          T4e will add serif font, sphere-status chip, and tab underline styling. */}
+      <header className="flex h-[56px] items-center gap-6 border-b border-border px-6">
+        <h1 className="shrink-0 text-sm font-semibold text-foreground">
+          {projectName}
+        </h1>
+        <nav className="flex gap-1">
           <NavLink
             to={`/projects/${id}`}
             end
@@ -28,7 +32,7 @@ export function ProjectLayout() {
               `rounded-md px-3 py-1.5 text-sm ${isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`
             }
           >
-            Chats
+            Чаты
           </NavLink>
           <NavLink
             to={`/projects/${id}/sphere`}
@@ -36,7 +40,7 @@ export function ProjectLayout() {
               `rounded-md px-3 py-1.5 text-sm ${isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`
             }
           >
-            Sphere
+            Сфера
           </NavLink>
           <NavLink
             to={`/projects/${id}/artifacts`}
@@ -44,7 +48,7 @@ export function ProjectLayout() {
               `rounded-md px-3 py-1.5 text-sm ${isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`
             }
           >
-            Artifacts
+            Артефакты
           </NavLink>
           <NavLink
             to={`/projects/${id}/settings`}
@@ -52,7 +56,7 @@ export function ProjectLayout() {
               `rounded-md px-3 py-1.5 text-sm ${isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`
             }
           >
-            Settings
+            Настройки
           </NavLink>
         </nav>
       </header>

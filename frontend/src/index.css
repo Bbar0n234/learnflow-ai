@@ -49,6 +49,8 @@
   /* Extra brand tokens */
   --brand-lavender: #c5a9f9;
   --bubble-user: #ede7da;
+  /* Layout geometry */
+  --content-max-w: 680px;
   /* Орб-токены (единственное место с градиентом) */
   --orb-gradient: radial-gradient(
     circle at 38% 32%,
@@ -160,6 +162,12 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* Studio-open modifier: applied by T6 to the chat content wrapper when the
+   studio panel is open; narrows the center content column from 680px to 520px */
+.studio-open {
+  --content-max-w: 520px;
 }
 
 @layer base {

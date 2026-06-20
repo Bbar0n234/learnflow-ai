@@ -28,7 +28,7 @@ feat-008 заводит **слой обратной связи**. Но по хо
 
 ### Встройка в пайплайн оркестратора
 
-Усиление садится в **существующую фазу `CODE_REVIEW`** конвейера `aidd-orchestrator` (между интеграционными тестами и pre-commit-гейтом). Severity-модель (blocker / nit / nice-to-have), эскалация blocker'а в whitelist и изоляция фазы перед гейтом — **уже есть** и переиспользуются; FSM меняется минимально (одиночный `code-reviewer` → веер на двоих + детерминированный под-шаг; добавляется фаза `HARVEST` перед коммитом).
+Усиление садится в **существующую фазу `CODE_REVIEW`** конвейера `aidd-orchestrator` (между интеграционными тестами и pre-commit-гейтом). Механизм фазы (изоляция перед гейтом, эскалация blocker'а в whitelist) **уже есть** и переиспользуется; FSM меняется минимально (одиночный `code-reviewer` → веер на двоих + детерминированный под-шаг; добавляется фаза `HARVEST` перед коммитом). Severity-модель обновлена по deep research: `blocker / nit / pre-existing` (pre-existing отделяет унаследованное от внесённого итерацией) + ортогональная ось намерения `issue / suggestion / question`.
 
 ```mermaid
 flowchart TD
@@ -43,15 +43,17 @@ flowchart TD
     CR --> FIX{находки?}
     FIX -- да --> IMPL2[implementer правит по обоим отчётам<br/>конфликт A↔B разруливает,<br/>неразрешимый → эскалация]
     IMPL2 --> REV[ре-верификация:<br/>ручные кейсы затронутой области]
-    REV --> HARV
-    FIX -- нет --> HARV
+    REV --> DOC
+    FIX -- нет --> DOC
+
+    DOC[DOC_UPDATE] --> SOFA[SOFA опц.]
+    SOFA --> HARV
 
     subgraph HARV[фаза HARVEST]
-        PROP[harvester собирает<br/>harvest-proposals.md] --> GATE2[ГЕЙТ архитектора:<br/>backlog / конвенции]
+        PROP[harvester собирает<br/>harvest-proposals.md]
     end
 
-    HARV --> DOC[DOC_UPDATE]
-    DOC --> GATE[PRE-COMMIT GATE<br/>архитектор]
+    HARV --> GATE[PRE-COMMIT GATE архитектор:<br/>апрув завершённости +<br/>landing harvest-кандидатов в backlog/конвенции]
     GATE --> COMMIT[COMMIT 🚧→✅]
 
     style CR fill:#3fb95015,stroke:#3fb950,color:#3fb950
@@ -60,7 +62,6 @@ flowchart TD
     style RA stroke:#bc8cff
     style RB stroke:#bc8cff
     style GATE stroke:#f85149
-    style GATE2 stroke:#f85149
 ```
 
 ### Блок 1 — Enforcement-ревью
@@ -84,7 +85,7 @@ flowchart LR
 
     L1 --> RA
     L1 --> RB
-    RA --> OUT[review-A.md / review-B.md<br/>severity blocker/nit/nice-to-have]
+    RA --> OUT[review-A.md / review-B.md<br/>severity blocker/nit/pre-existing<br/>+ намерение issue/suggestion/question]
     RB --> OUT
 
     style L1 fill:#39c5cf15,stroke:#39c5cf,color:#39c5cf

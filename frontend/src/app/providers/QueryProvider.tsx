@@ -6,6 +6,7 @@ import {
   QueryClientProvider,
 } from "@tanstack/react-query";
 import { AxiosError } from "axios";
+import { toast } from "sonner";
 import { getApiErrorMessage } from "@/shared/lib/api-error";
 import { logger } from "@/shared/lib/logger";
 
@@ -34,12 +35,16 @@ const queryClient = new QueryClient({
   },
   queryCache: new QueryCache({
     onError: (error) => {
-      logger.error("[QueryCache]", getApiErrorMessage(error));
+      const message = getApiErrorMessage(error);
+      logger.error("[QueryCache]", message);
+      toast.error(message);
     },
   }),
   mutationCache: new MutationCache({
     onError: (error) => {
-      logger.error("[MutationCache]", getApiErrorMessage(error));
+      const message = getApiErrorMessage(error);
+      logger.error("[MutationCache]", message);
+      toast.error(message);
     },
   }),
 });

@@ -99,3 +99,24 @@ function getIllustration(scene: Scene, theme: IllustrationTheme): string;
 3. `alt=""` для sidebar-vignette (декоративный ассет); осмысленный `alt` у остальных.
 
 **Verification:** `make check-fe` GREEN (tsc + ESLint + Prettier), `tsc -b && vite build` GREEN. Грепы: {T3.1} 6×6 файлов ✓; {T3.2} нет прямых PNG-импортов в `pages/` и `app/` ✓; {T3.4} врезки в 5 файлах ✓. Визуальное 🔍 {T3.3} (тема переключает иллюстрации) — на VISUAL_REVIEW.
+
+---
+
+## T5 — Error UX: sonner-тосты + ErrorBoundary ✅
+
+**Адаптация `sonner.tsx`** — **санкционированное отклонение от {L0.3}:** shadcn CLI сгенерировал файл с `import { useTheme } from "next-themes"` (Next.js-специфичный). Поскольку проект работает на Vite/React без `next-themes ThemeProvider`, источник темы заменён на `useThemeStore` (T1, Zustand): `const theme = useThemeStore((s) => s.theme)`. Иконки, CSS-переменные тоста (`--normal-bg`, `--normal-text`, `--normal-border`, `--border-radius`) и `toastOptions` — не тронуты. `next-themes` остаётся в `package.json` (добавлен CI при генерации), но больше не импортируется — при следующей чистке зависимостей можно удалить.
+
+**Монтаж `<Toaster/>`** (`frontend/src/app/providers/index.tsx`): добавлен как sibling к `{children}` внутри `<QueryProvider>` — единственное место монтажа в дереве приложения. Тема тоста следует за `useThemeStore`, тостер рендерится поверх всего контента через портал sonner.
+
+**QueryClient onError → тост** (`frontend/src/app/providers/QueryProvider.tsx`): в `QueryCache.onError` и `MutationCache.onError` добавлен `toast.error(message)` с сообщением из `getApiErrorMessage(error)` (переиспользует существующий парсер `shared/lib/api-error.ts`). Логирование через `logger.error` сохранено. 4xx-политика без ретраев (существующий `shouldRetryQuery`) не затронута.
+
+**ErrorBoundary — брендовый error-state** (`frontend/src/app/components/ErrorBoundary.tsx`): добавлена `<Illustration scene="error-state" alt="Иллюстрация ошибки" className="h-48 w-auto select-none" />` из T3. Токены оставлены как есть (были перенесены с инлайн-hex в T1). Класс `gap-4` увеличен до `gap-8` для воздушности; текст кнопки сохранён; описание ошибки расширено уточнением «Попробуйте обновить страницу».
+
+**Error-bars** — существующие инлайн-сообщения об ошибках (ArtifactView, ChatView, SphereView, ProjectList, AuthGate, CreateProjectModal, ProjectActions, CustomInstructionsSection, SphereEditor, ChatList, ArtifactList, MessageList, SecurityRules, SecurityEvents, SecurityAlerts, RuleForm, MCPServerForm) уже переведены на токены `destructive` в T1 — дополнительных изменений не требуется.
+
+**Принятые решения:**
+1. `toast` импортируется из `"sonner"` напрямую (пакет), не из обёртки `@/shared/ui/sonner` — обёртка экспортирует только `Toaster` (компонент монтажа); `toast` — это сам API sonner, импортируемый везде по-прямой.
+2. `<Toaster>` размещён в `providers/index.tsx`, а не в `App.tsx` — провайдерный слой; `<ErrorBoundary>` находится ниже в `App.tsx` и потому всегда может показывать тосты (тостер уже смонтирован выше).
+3. Класс ErrorBoundary — не функциональный компонент, поэтому `useThemeStore` нельзя вызвать напрямую; `<Illustration>` — функциональный компонент, который сам читает стор — это корректно (хуки вызываются в контексте Illustration, не ErrorBoundary).
+
+**Verification:** `make check-fe` GREEN (tsc + ESLint + Prettier — после `prettier --write sonner.tsx`), `tsc -b && vite build` GREEN. Статические проверки: {T5.1} `toast.error` в обоих `onError`, `shouldRetryQuery` не тронут ✓; {T5.3} `<Illustration scene="error-state">` в ErrorBoundary ✓; {L0.4} нет hex в тронутых файлах ✓; `next-themes` не импортируется ✓. Полное 🔍 {T5.1}–{T5.3} — на VISUAL_REVIEW (эмуляция 4xx/5xx).

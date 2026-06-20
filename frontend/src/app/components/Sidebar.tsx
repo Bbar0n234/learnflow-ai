@@ -33,6 +33,7 @@ export function Sidebar() {
   const navigate = useNavigate();
   const projectMatch = useMatch("/projects/:id/*");
   const projectId = projectMatch?.params.id;
+  const isSettings = !!useMatch("/settings");
 
   const { data: recentChats } = useRecentChats();
   const createChat = useCreateChat();
@@ -107,16 +108,16 @@ export function Sidebar() {
 
       {/* Projects */}
       <div className="flex-1 overflow-auto px-3">
-        <p className="mb-1 px-3 text-xs font-medium text-muted-foreground uppercase">
-          Projects
+        <p className="mb-1 px-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Проекты
         </p>
         <ProjectList />
 
         {/* Recent chats */}
         {recentChats?.items.length ? (
           <div className="mt-4">
-            <p className="mb-1 px-3 text-xs font-medium text-muted-foreground uppercase">
-              Recents
+            <p className="mb-1 px-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Недавнее
             </p>
             <div className="flex flex-col gap-0.5">
               {recentChats.items.map((chat) => (
@@ -149,7 +150,11 @@ export function Sidebar() {
       {/* User footer */}
       {user && (
         <div className="border-t border-border px-3 py-3">
-          <div className="flex items-center justify-between">
+          <div
+            className={`flex items-center justify-between rounded-lg px-2 py-1 transition-colors ${
+              isSettings ? "bg-sidebar-accent" : ""
+            }`}
+          >
             <div className="flex min-w-0 items-center gap-2">
               <User className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span className="truncate text-sm text-sidebar-foreground">

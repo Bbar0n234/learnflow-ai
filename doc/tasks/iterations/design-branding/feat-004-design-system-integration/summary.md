@@ -236,3 +236,39 @@ _Примечание: `next-themes` удалён из зависимостей 
 5. `cn()` из `@/shared/lib/utils` использован для условного className в ArtifactList.
 
 **Verification:** `make check-fe` GREEN (tsc + ESLint + Prettier), `tsc -b && vite build` GREEN. {L0.3} shadcn-примитивы не правлены ✓; {L0.4} нет hex/numeric-цветов в тронутых .tsx ✓; {L0.5} заглушка «Редактировать» без endpoint-вызовов ✓; T3 empty-state иллюстрации сохранены ✓. Статические проверки {T4.4}/{T4.5} — пройдены. Полное 🔍 (seed-данные vs макеты) — на VISUAL_REVIEW.
+
+---
+
+## T4e — Проект + Настройки + Sidebar-полировка ✅
+
+**Новые токены** (`frontend/src/index.css`): добавлены три группы переменных с маппингом в `@theme inline`:
+- `--destructive-warm: #B0573F` (light) / `#D06050` (dark) → `text-destructive-warm`, `bg-destructive-warm` — терракота для деструктивных текстовых ссылок.
+- `--mcp-connected: #4C9A6E` (light) / `#6AB88A` (dark) → `bg-mcp-connected` — зелёная точка статуса MCP.
+- `--mcp-disabled: #C8C0AE` (light) / `#7E7490` (dark) → `bg-mcp-disabled` — серая точка отключённого сервера.
+
+**Табы проекта** (`frontend/src/app/layouts/ProjectLayout.tsx`): активный таб — `text-primary [box-shadow:inset_0_-2px_0_var(--ring)]` (цвет акцента + подчёркивание снизу). Nav расширен до `h-full`, элементы — `flex h-full items-center px-3`. Имя проекта переведено на `font-serif font-semibold`. Кнопочный стиль `bg-primary rounded-md` убран.
+
+**Проект — Чаты** (`frontend/src/pages/project-chats/ui/ChatList.tsx`): инпут нового чата обёрнут в карточку `rounded-xl border border-border bg-card p-3` с `boxShadow: var(--shadow-input)`. Textarea: `border-0 bg-transparent focus-visible:ring-0`. Чипы «Прикрепить» / «Модель» (secondary, rounded-full). Кнопка отправки: `h-[34px] w-[34px] rounded-full`. Список чатов: title через `font-serif font-semibold`, превью `truncate text-xs text-muted-foreground`, чипы вклада (заглушки на index, per plan: «N артефакта» / «+N в сферу»), дата. Empty-state illustration сохранена (T3).
+
+**Проект — Настройки** (`frontend/src/pages/project-settings/ui/ProjectSettingsPage.tsx`): 4 карточки-секции `rounded-xl border border-border bg-card p-5`. Секция Модели (ModelSelector). Секция MCP-серверов. Секция «Имя проекта»: `input border-input` + кнопка «Сохранить» (через существующие `useProject`/`useUpdateProject`). Секция «Удалить проект»: текстовая кнопка `text-destructive-warm` без красной кнопки (через существующий `useDeleteProject` → navigate «/» после успеха). Заголовок `font-serif text-xl`.
+
+**Настройки пользователя** (`frontend/src/pages/user-settings/ui/SettingsPage.tsx`): `max-w-[640px]`, заголовок `font-serif text-xl`. Каждая секция обёрнута в `rounded-xl border border-border bg-card p-5`. Порядок: Модель → Свои инструкции → Память агента → MCP-серверы.
+
+**Custom instructions** (`CustomInstructionsSection.tsx`): textarea в `div rounded-lg border border-border bg-background` (textarea-card), textarea прозрачная без собственной рамки. Метки и placeholder переведены на русский.
+
+**Память агента** (`AgentMemorySection.tsx`): шапка секции с `Switch checked={true}` (визуальный тоггл; управление включением — группа B) + счётчик `{n} записей`. Записи в карточках `rounded-lg border bg-background`. Метки русифицированы.
+
+**features/model-selector** (`ModelSelector.tsx`): метка «Модель», опция «По умолчанию» / «Наследовать» (ru). Подсказка для scope=«project»: «Переопределяет модель пользователя для этого проекта».
+
+**features/mcp-servers** (`MCPServersSection.tsx`): рефакторинг на `OwnedServerRow` (`MCPServer`, `is_active`) / `InheritedServerRow` (`InheritedMCPServer`, `is_disabled`) — исправлена проблема типов (оригинальный код использовал `is_disabled` для обоих). `StatusDot` компонент с `bg-mcp-connected` / `bg-mcp-disabled`. Mono-шрифт для URL/transport (`font-mono text-[10px]`). Метки русифицированы.
+
+**Sidebar** (`frontend/src/app/components/Sidebar.tsx`): метки «Projects» → «Проекты», «Recents» → «Недавнее» + `tracking-wide`. Активный юзер-блок: `useMatch('/settings')` → `bg-sidebar-accent rounded-lg` на footer-строке (highlight per handoff item 11).
+
+**Принятые решения:**
+1. `Switch` в AgentMemorySection — `checked={true}` как визуальная заглушка: реального управления включением памяти нет (группа B). {L0.5} соблюдён.
+2. Contribution chips в ChatList — stub-данные на основе index: явно помечены комментарием `visual only, no backend contract`.
+3. `useDeleteProject` навигирует на «/» при успехе — естественный UX без нового контракта.
+4. `OwnedServerRow` не показывает Switch — у `MCPServer` нет поля `is_disabled`; управление активацией через `is_active` планируется в отдельном тикете (группа B).
+5. Терракота в `.dark` — `#D06050` (осветлённый вариант `#B0573F` для читаемости на тёмном фоне); точный тёмный вариант не задан в хэндоффе.
+
+**Verification:** `make check-fe` GREEN (tsc + ESLint + Prettier), `tsc -b && vite build` GREEN. {L0.3} shadcn-примитивы не правлены ✓; {L0.4} нет hardcoded hex в тронутых .tsx (grep чистый) ✓; {L0.5} stub-chips/тоггл без endpoint-вызовов ✓; T3 empty-state сохранён ✓. Статические проверки {T4.6} — пройдены. Полное 🔍 (vs макеты screens 9–11) — на VISUAL_REVIEW.

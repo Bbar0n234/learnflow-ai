@@ -18,18 +18,20 @@ export function ProjectLayout() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header — 52–58px per handoff; project name + tabs inline.
-          T4e will add serif font, sphere-status chip, and tab underline styling. */}
       <header className="flex h-[56px] items-center gap-6 border-b border-border px-6">
-        <h1 className="shrink-0 text-sm font-semibold text-foreground">
+        <h1 className="shrink-0 font-serif text-sm font-semibold text-foreground">
           {projectName}
         </h1>
-        <nav className="flex gap-1">
+        <nav className="flex h-full gap-1">
           <NavLink
             to={`/projects/${id}`}
             end
             className={({ isActive }) =>
-              `rounded-md px-3 py-1.5 text-sm ${isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`
+              `flex h-full items-center px-3 text-sm transition-colors ${
+                isActive
+                  ? "text-primary [box-shadow:inset_0_-2px_0_var(--ring)]"
+                  : "text-muted-foreground hover:text-foreground"
+              }`
             }
           >
             Чаты
@@ -37,7 +39,11 @@ export function ProjectLayout() {
           <NavLink
             to={`/projects/${id}/sphere`}
             className={({ isActive }) =>
-              `rounded-md px-3 py-1.5 text-sm ${isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`
+              `flex h-full items-center px-3 text-sm transition-colors ${
+                isActive
+                  ? "text-primary [box-shadow:inset_0_-2px_0_var(--ring)]"
+                  : "text-muted-foreground hover:text-foreground"
+              }`
             }
           >
             Сфера
@@ -45,7 +51,11 @@ export function ProjectLayout() {
           <NavLink
             to={`/projects/${id}/artifacts`}
             className={({ isActive }) =>
-              `rounded-md px-3 py-1.5 text-sm ${isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`
+              `flex h-full items-center px-3 text-sm transition-colors ${
+                isActive
+                  ? "text-primary [box-shadow:inset_0_-2px_0_var(--ring)]"
+                  : "text-muted-foreground hover:text-foreground"
+              }`
             }
           >
             Артефакты
@@ -53,7 +63,11 @@ export function ProjectLayout() {
           <NavLink
             to={`/projects/${id}/settings`}
             className={({ isActive }) =>
-              `rounded-md px-3 py-1.5 text-sm ${isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`
+              `flex h-full items-center px-3 text-sm transition-colors ${
+                isActive
+                  ? "text-primary [box-shadow:inset_0_-2px_0_var(--ring)]"
+                  : "text-muted-foreground hover:text-foreground"
+              }`
             }
           >
             Настройки

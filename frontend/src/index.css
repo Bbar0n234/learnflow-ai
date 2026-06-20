@@ -49,6 +49,11 @@
   /* Extra brand tokens */
   --brand-lavender: #c5a9f9;
   --bubble-user: #ede7da;
+  /* Terracotta — destructive soft (Delete, Revert) */
+  --destructive-warm: #b0573f;
+  /* MCP server status indicators */
+  --mcp-connected: #4c9a6e;
+  --mcp-disabled: #c8c0ae;
   /* Shadows */
   --shadow-input: 0 2px 10px rgba(80, 70, 50, 0.06);
   /* Layout geometry */
@@ -99,6 +104,11 @@
   --sidebar-accent-foreground: #cdb6ff;
   --sidebar-border: #322a44;
   --sidebar-ring: #b194ff;
+  /* Terracotta — destructive soft (Delete, Revert) */
+  --destructive-warm: #d06050;
+  /* MCP server status indicators */
+  --mcp-connected: #6ab88a;
+  --mcp-disabled: #7e7490;
   /* Extra brand tokens */
   --brand-lavender: #b194ff;
   --bubble-user: #262031;
@@ -124,6 +134,9 @@
   --font-sans: "Instrument Sans", sans-serif;
   --font-serif: "Source Serif 4", serif;
   --font-mono: "IBM Plex Mono", monospace;
+  --color-destructive-warm: var(--destructive-warm);
+  --color-mcp-connected: var(--mcp-connected);
+  --color-mcp-disabled: var(--mcp-disabled);
   --color-brand-lavender: var(--brand-lavender);
   --color-bubble-user: var(--bubble-user);
   --color-sidebar-ring: var(--sidebar-ring);

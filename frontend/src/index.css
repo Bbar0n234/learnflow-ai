@@ -183,3 +183,110 @@
     @apply font-sans;
   }
 }
+
+/* ─── Sphere / Artifact markdown prose (T4d) ───────────────────────────────
+   Wraps MarkdownRenderer output in sphere viewer and artifact viewer.
+   H-tags: Source Serif 4. List markers: «—» in primary accent.
+   Scope: .sphere-prose (applied by SphereViewer, ArtifactView).
+   ─────────────────────────────────────────────────────────────────────────── */
+.sphere-prose h1,
+.sphere-prose h2,
+.sphere-prose h3,
+.sphere-prose h4,
+.sphere-prose h5,
+.sphere-prose h6 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: var(--foreground);
+}
+.sphere-prose h1 {
+  font-size: 1.375rem;
+}
+.sphere-prose h2 {
+  font-size: 1.125rem;
+}
+.sphere-prose h3 {
+  font-size: 1rem;
+}
+.sphere-prose h1:first-child,
+.sphere-prose h2:first-child,
+.sphere-prose h3:first-child {
+  margin-top: 0;
+}
+.sphere-prose p {
+  margin-bottom: 0.75rem;
+  line-height: 1.65;
+}
+.sphere-prose ul {
+  list-style: none;
+  padding-left: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+.sphere-prose ul > li {
+  position: relative;
+  margin-bottom: 0.3rem;
+}
+.sphere-prose ul > li::before {
+  content: "—";
+  position: absolute;
+  left: -1.5rem;
+  color: var(--primary);
+  font-weight: 500;
+}
+.sphere-prose ol {
+  list-style: decimal;
+  padding-left: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+.sphere-prose ol > li {
+  margin-bottom: 0.3rem;
+}
+.sphere-prose ol > li::marker {
+  color: var(--primary);
+}
+.sphere-prose blockquote {
+  border-left: 3px solid var(--primary);
+  padding-left: 1rem;
+  color: var(--muted-foreground);
+  margin-bottom: 0.75rem;
+  margin-left: 0;
+}
+.sphere-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background-color: var(--muted);
+  padding: 0.15rem 0.3rem;
+  border-radius: 0.25rem;
+}
+.sphere-prose pre {
+  background-color: var(--muted);
+  padding: 1rem;
+  border-radius: var(--radius);
+  overflow-x: auto;
+  margin-bottom: 0.75rem;
+}
+.sphere-prose pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.875rem;
+}
+.sphere-prose a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.sphere-prose hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.25rem 0;
+}
+.sphere-prose strong {
+  font-weight: 600;
+  color: var(--foreground);
+}
+.sphere-prose em {
+  font-style: italic;
+}

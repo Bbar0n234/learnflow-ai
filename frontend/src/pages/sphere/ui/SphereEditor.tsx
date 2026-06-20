@@ -26,17 +26,27 @@ export function SphereEditor({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b px-6 py-3">
-        <h2 className="text-lg font-semibold">Edit Knowledge Sphere</h2>
+      {/* Header */}
+      <div className="flex h-[56px] shrink-0 items-center justify-between border-b border-border px-6">
+        <h2 className="font-serif text-lg font-semibold text-foreground">
+          Редактировать сферу
+        </h2>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={onCancel} disabled={isPending}>
-            Cancel
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onCancel}
+            disabled={isPending}
+          >
+            Отмена
           </Button>
-          <Button onClick={() => onSave(text)} disabled={isPending}>
-            {isPending ? "Saving..." : "Save"}
+          <Button size="sm" onClick={() => onSave(text)} disabled={isPending}>
+            {isPending ? "Сохраняется…" : "Сохранить"}
           </Button>
         </div>
       </div>
+
+      {/* Editor area */}
       <div className="flex flex-1 flex-col p-6">
         {isSecurityViolation(error) ? (
           <p className="mb-2 text-sm text-destructive">
@@ -47,13 +57,15 @@ export function SphereEditor({
             {getApiErrorMessage(error)}
           </p>
         ) : null}
-        <Textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          className="h-full min-h-[300px] resize-none font-mono text-sm"
-          placeholder="Write your knowledge sphere content in Markdown..."
-          disabled={isPending}
-        />
+        <div className="flex flex-1 flex-col rounded-xl border border-border bg-card shadow-none">
+          <Textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            className="h-full min-h-[300px] flex-1 resize-none rounded-xl border-0 bg-transparent font-mono text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
+            placeholder="Напишите содержимое сферы знаний в формате Markdown…"
+            disabled={isPending}
+          />
+        </div>
       </div>
     </div>
   );

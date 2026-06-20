@@ -185,3 +185,54 @@ _Примечание: `next-themes` удалён из зависимостей 
 4. Текст «Продолжить …» без имени проекта — по хэндоффу; имя видно в карточке.
 
 **Verification:** `make check-fe` GREEN (tsc + ESLint + Prettier), `tsc -b && vite build` GREEN. {L0.3} shadcn-примитивы не правлены ✓; {L0.4} нет hex/numeric-цветов в тронутом файле ✓; {L0.5} только существующие endpoints (`/projects`) ✓; wordmark и hero-иллюстрация не сломаны ✓. Полное 🔍 {T4.3} (vs макет) — на VISUAL_REVIEW.
+
+---
+
+## T4d — Сфера + Артефакты (базовый вид группы A) ✅
+
+Рестайл вьюера/редактора сферы и списка/вьюера артефактов. Группа B (rich-редактор, вьюеры slides/image/audio) не тронута.
+
+**Сфера — вьюер (`SphereViewer.tsx`):**
+- Заголовок «Сфера знаний» переведён в `font-serif text-lg font-semibold`.
+- Кнопка редактирования — `<Button variant="outline" size="sm">` с accent-бордером (`border-ring/60 text-ring hover:bg-accent`).
+- Markdown-контент обёрнут в `<div className="sphere-prose max-w-[680px]">` — применяет H-serif и маркеры «—» из нового CSS-блока.
+- Empty-state `<Illustration scene="empty-sphere" …>` (T3) сохранён; текст placeholder переведён на русский.
+
+**Сфера — редактор (`SphereEditor.tsx`):**
+- Заголовок «Редактировать сферу» в serif, кнопки «Отмена» (outline) / «Сохранить» (primary, sm).
+- Textarea обёрнут в `rounded-xl border border-border bg-card` — textarea прозрачная внутри карточки, `border-0 bg-transparent focus-visible:ring-0`.
+- Placeholder переведён на русский; семантика без изменений.
+
+**Артефакты — новый сплит-лэйаут (`ArtifactsPage.tsx`, новый):**
+- Обёртка `<div className="flex h-full">` с `<aside className="w-[318px] shrink-0 border-r">` (список) + `<div className="flex-1">` (Outlet).
+- Роутер обновлён: `<Route path="artifacts" element={<ArtifactsPage />}>` с вложенными `<Route index ...>` (заглушка «выберите артефакт») и `<Route path=":aid">` (ArtifactView).
+- `pages/artifacts/index.ts` экспортирует `ArtifactsPage`.
+
+**Артефакты — список (`ArtifactList.tsx`):**
+- Заголовок «Артефакты» в `font-serif text-base font-semibold` внутри 56px-шапки панели.
+- Вспомогательная функция `ArtifactIcon({ type })`: `FileText` (md/text/default) / `Image` / `Mic` (audio) / `LayoutDashboard` (slides).
+- Иконка в контейнере `h-9 w-9 rounded-md bg-muted` (36px).
+- Выбранный элемент (сравнение `artifact.id === selectedId` из `useParams()`): `border border-secondary bg-secondary/30 [border-left-color:var(--ring)] [border-left-width:3px]` — лавандовая граница + 3px акцент слева.
+- Empty-state `<Illustration scene="empty-artifacts" …>` (T3) сохранён; текст переведён.
+
+**Артефакты — markdown-вьюер (`ArtifactView.tsx`):**
+- Заголовок `font-serif text-[26px] font-semibold leading-tight`.
+- Метаданные: `{type} · {created_at}` в `text-xs text-muted-foreground`.
+- Кнопки (3 шт.): «Редактировать» — `variant="outline" disabled className="border-ring/60 text-ring"` (визуальная заглушка, группа B не активирована, {L0.5}); «.md» — `variant="default"` (primary); «.pdf» — `variant="outline"`.
+- Контент в карточке: `rounded-xl border border-border bg-card px-8 py-6`, внутри `<div className="sphere-prose">` + `MarkdownRenderer`.
+- Кнопка «← Назад» удалена (в сплит-лэйауте список всегда виден).
+
+**CSS — `.sphere-prose` (добавлено в `index.css`):**
+- H1–H6: `font-family: var(--font-serif)`, weight 600, line-height 1.3; первый заголовок без верхнего margin.
+- `ul > li::before`: `content: "—"`, `color: var(--primary)`, absolute left.
+- `ol > li::marker`: `color: var(--primary)`.
+- Базовый prose-стиль: параграфы, blockquote (border-left 3px primary), code/pre (font-mono, bg-muted), ссылки (primary underline), hr, strong, em.
+
+**Принятые решения:**
+1. Сплит-лэйаут реализован новым компонентом `ArtifactsPage` — минимальное изменение роутера (вложенные роуты), логика загрузки не тронута.
+2. `border-left` выбранного элемента через произвольные CSS-свойства Tailwind v4 `[border-left-*:...]` — чище, чем inline style; работает с Tailwind v4 CSS-first.
+3. «Редактировать» в ArtifactView — `disabled` без onClick: редактирование артефактов — группа B (T6c); заглушка не вызывает несуществующий endpoint ({L0.5}).
+4. `.sphere-prose` — единый класс для сферы и артефактов (одинаковые требования к типографике H-serif и маркерам); именование по основному контексту.
+5. `cn()` из `@/shared/lib/utils` использован для условного className в ArtifactList.
+
+**Verification:** `make check-fe` GREEN (tsc + ESLint + Prettier), `tsc -b && vite build` GREEN. {L0.3} shadcn-примитивы не правлены ✓; {L0.4} нет hex/numeric-цветов в тронутых .tsx ✓; {L0.5} заглушка «Редактировать» без endpoint-вызовов ✓; T3 empty-state иллюстрации сохранены ✓. Статические проверки {T4.4}/{T4.5} — пройдены. Полное 🔍 (seed-данные vs макеты) — на VISUAL_REVIEW.

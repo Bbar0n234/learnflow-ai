@@ -151,3 +151,37 @@ _Примечание: `next-themes` удалён из зависимостей 
 - **ChatHeader**: `h-[56px]`, serif-название, два чипа (Модель/Инструменты) открывают Dialog (инлайн-ModelSelector перенесён в Dialog), кнопка ← назад.
 
 **Verification:** `make check-fe` + `tsc -b && vite build` GREEN. Hardcoded-цветов в тронутых .tsx нет; shadcn-примитивы не правлены; {L0.5} соблюдён. Полное 🔍 (на seed-данных vs макет) — на VISUAL_REVIEW.
+
+---
+
+## T4c — Welcome ✅
+
+Рестайл `frontend/src/pages/welcome/ui/WelcomePage.tsx`. Элементы T2 (wordmark) и T3 (hero-иллюстрация) сохранены; добавлены: serif-приветствие, CTA, карточки проектов.
+
+**Структура (сверху вниз, центр по вертикали):**
+
+- **Wordmark** — `<Wordmark />` полная форма (из T2), сохранён как `<h1>`.
+- **Hero-врезка 460×270** — `<Illustration scene="welcome-hero" … className="h-[270px] max-w-[460px] object-contain" />` (из T3), сохранена.
+- **Serif-приветствие** — `<h2>Добро пожаловать</h2>`, `font-serif text-[38px] font-semibold leading-tight text-foreground`.
+- **Подзаголовок** — `text-base text-muted-foreground`.
+- **CTA** — `<Button size="lg">` (primary, «+ Новый проект») и `<Button variant="outline" size="lg">` («Продолжить …», появляется только при наличии проектов, ведёт на последний по `updated_at`).
+- **Карточки проектов** — `flex gap-4`; до 3 штук, сортированных по `updated_at` desc (client-side из `useProjects()`). Каждая карточка: `w-[220px]`, `border border-border bg-card rounded-xl`, мини-`<SphereOrb size={20} />` с `opacity` по «свежести» (`getOrbOpacity`), serif-название `line-clamp-2`. При нулевом списке проектов блок карточек скрыт.
+
+**Вспомогательная функция `getOrbOpacity(updatedAt)`:**
+
+| Давность | Opacity |
+|---|---|
+| < 1 дня | 1.0 |
+| 1–3 дня | 0.8 |
+| 3–14 дней | 0.6 |
+| > 14 дней | 0.4 |
+
+**Диалог создания проекта** — инлайн в WelcomePage (дублировать `app/components/CreateProjectModal` нельзя: `pages/` не импортирует из `app/` по FSD). Использует `Dialog/Input/Button` из `shared/ui` и `useCreateProject` из `shared/api/projects`.
+
+**Принятые решения:**
+1. FSD: диалог инлайн — не импортируем из `app/components/`, чтобы не нарушать направление зависимостей layers.
+2. Сортировка по `updated_at` — client-side (API возвращает все проекты за один запрос с limit=200; данные уже в кеше TanStack Query из sidebar).
+3. `SphereOrb size=20` — без колец и искр (`showSparks = size >= 30 = false`); чистый mini-орб, как рекомендует docstring компонента.
+4. Текст «Продолжить …» без имени проекта — по хэндоффу; имя видно в карточке.
+
+**Verification:** `make check-fe` GREEN (tsc + ESLint + Prettier), `tsc -b && vite build` GREEN. {L0.3} shadcn-примитивы не правлены ✓; {L0.4} нет hex/numeric-цветов в тронутом файле ✓; {L0.5} только существующие endpoints (`/projects`) ✓; wordmark и hero-иллюстрация не сломаны ✓. Полное 🔍 {T4.3} (vs макет) — на VISUAL_REVIEW.

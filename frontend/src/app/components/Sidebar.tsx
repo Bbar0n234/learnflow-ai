@@ -5,9 +5,11 @@ import { queryKeys } from "@/shared/api/query-keys";
 import {
   LogOut,
   MessageSquare,
+  Moon,
   PanelLeftClose,
   Plus,
   Settings,
+  Sun,
   User,
   Shield,
 } from "lucide-react";
@@ -15,6 +17,7 @@ import { getIsAdminFromAccessToken, getMe, logout } from "@/shared/api/auth";
 import { clearAccessToken, getAccessToken } from "@/shared/api/client";
 import { Button } from "@/shared/ui/button";
 import { useUIStore } from "@/stores/ui-store";
+import { useThemeStore } from "@/stores/theme-store";
 import { useRecentChats } from "@/shared/api/chats";
 import { useCreateChat } from "@/shared/api/chats";
 import { ProjectList } from "./ProjectList";
@@ -23,6 +26,8 @@ import { CreateProjectModal } from "./CreateProjectModal";
 export function Sidebar() {
   const [createOpen, setCreateOpen] = useState(false);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
+  const theme = useThemeStore((s) => s.theme);
+  const toggleTheme = useThemeStore((s) => s.toggleTheme);
   const navigate = useNavigate();
   const projectMatch = useMatch("/projects/:id/*");
   const projectId = projectMatch?.params.id;
@@ -143,6 +148,18 @@ export function Sidebar() {
                 {user.name}
               </span>
             </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={toggleTheme}
+              title={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
+            >
+              {theme === "dark" ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
+            </Button>
             <Button
               variant="ghost"
               size="icon-sm"

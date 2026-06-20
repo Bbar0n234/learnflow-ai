@@ -1,7 +1,14 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "@fontsource/source-serif-4/600.css";
+@import "@fontsource/source-serif-4/700.css";
+@import "@fontsource/instrument-sans/400.css";
+@import "@fontsource/instrument-sans/500.css";
+@import "@fontsource/instrument-sans/600.css";
+@import "@fontsource/instrument-sans/700.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
 
 @source "../node_modules/streamdown/dist/*.js";
 @source "../node_modules/@streamdown/code/dist/*.js";
@@ -11,76 +18,90 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  /* Чернила / Электрик — light tokens */
+  --background: #faf7f1;
+  --foreground: #2e2a24;
+  --card: #fffefa;
+  --card-foreground: #2e2a24;
+  --popover: #fffefa;
+  --popover-foreground: #2e2a24;
+  --primary: #7434f4;
+  --primary-foreground: #f6f1ff;
+  --secondary: #efe7fe;
+  --secondary-foreground: #5b21ce;
+  --muted: #f1ede3;
+  --muted-foreground: #8b8370;
+  --accent: #efe7fe;
+  --accent-foreground: #5b21ce;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: #e2dcd0;
+  --input: #d8d1c2;
+  --ring: #7434f4;
+  --radius: 0.7rem;
+  --sidebar: #f1ede3;
+  --sidebar-foreground: #2e2a24;
+  --sidebar-primary: #7434f4;
+  --sidebar-primary-foreground: #f6f1ff;
+  --sidebar-accent: #efe7fe;
+  --sidebar-accent-foreground: #5b21ce;
+  --sidebar-border: #e2dcd0;
+  --sidebar-ring: #7434f4;
+  /* Extra brand tokens */
+  --brand-lavender: #c5a9f9;
+  --bubble-user: #ede7da;
+  /* Chart tokens */
   --chart-1: oklch(0.809 0.105 251.813);
   --chart-2: oklch(0.623 0.214 259.815);
   --chart-3: oklch(0.546 0.245 262.881);
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  /* Чернила / Электрик — dark tokens */
+  --background: #181420;
+  --foreground: #ede8e2;
+  --card: #221c30;
+  --card-foreground: #ede8e2;
+  --popover: #221c30;
+  --popover-foreground: #ede8e2;
+  --primary: #8a5cf6;
+  --primary-foreground: #f7f4ff;
+  --secondary: rgba(177, 148, 255, 0.15);
+  --secondary-foreground: #cdb6ff;
+  --muted: #1e1929;
+  --muted-foreground: #9a90a8;
+  --accent: rgba(177, 148, 255, 0.15);
+  --accent-foreground: #cdb6ff;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: #322a44;
+  --input: #3a3150;
+  --ring: #b194ff;
+  --sidebar: #1e1929;
+  --sidebar-foreground: #ede8e2;
+  --sidebar-primary: #8a5cf6;
+  --sidebar-primary-foreground: #f7f4ff;
+  --sidebar-accent: rgba(177, 148, 255, 0.15);
+  --sidebar-accent-foreground: #cdb6ff;
+  --sidebar-border: #322a44;
+  --sidebar-ring: #b194ff;
+  /* Extra brand tokens */
+  --brand-lavender: #b194ff;
+  --bubble-user: #262031;
+  /* Chart tokens */
   --chart-1: oklch(0.809 0.105 251.813);
   --chart-2: oklch(0.623 0.214 259.815);
   --chart-3: oklch(0.546 0.245 262.881);
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
 }
 
 @theme inline {
-  --font-sans: "Geist Variable", sans-serif;
+  --font-sans: "Instrument Sans", sans-serif;
+  --font-serif: "Source Serif 4", serif;
+  --font-mono: "IBM Plex Mono", monospace;
+  --color-brand-lavender: var(--brand-lavender);
+  --color-bubble-user: var(--bubble-user);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);

@@ -38,7 +38,7 @@ export function SecurityEvents() {
 
   if (error) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+      <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-destructive">
         Ошибка загрузки событий: {getApiErrorMessage(error)}
       </div>
     );

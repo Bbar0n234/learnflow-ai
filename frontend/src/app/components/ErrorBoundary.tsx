@@ -23,31 +23,14 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            height: "100vh",
-            gap: "1rem",
-            fontFamily: "system-ui, sans-serif",
-          }}
-        >
-          <h1 style={{ fontSize: "1.5rem", margin: 0 }}>Что-то пошло не так</h1>
-          <p style={{ color: "#666", margin: 0 }}>
+        <div className="flex h-screen flex-col items-center justify-center gap-4 bg-background text-foreground">
+          <h1 className="text-2xl font-semibold">Что-то пошло не так</h1>
+          <p className="text-muted-foreground">
             Произошла непредвиденная ошибка.
           </p>
           <button
             onClick={() => window.location.reload()}
-            style={{
-              padding: "0.5rem 1rem",
-              fontSize: "1rem",
-              cursor: "pointer",
-              borderRadius: "0.375rem",
-              border: "1px solid #ccc",
-              background: "#fff",
-            }}
+            className="rounded-lg border border-border bg-card px-4 py-2 text-base text-foreground hover:bg-muted"
           >
             Обновить страницу
           </button>

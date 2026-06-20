@@ -49,6 +49,16 @@
   /* Extra brand tokens */
   --brand-lavender: #c5a9f9;
   --bubble-user: #ede7da;
+  /* Орб-токены (единственное место с градиентом) */
+  --orb-gradient: radial-gradient(
+    circle at 38% 32%,
+    #a47cfa 0%,
+    #7434f4 52%,
+    #4c16b8 100%
+  );
+  --orb-shadow: 0 6px 26px rgba(116, 52, 244, 0.35);
+  --orb-ring-1: #e5dcfc;
+  --orb-ring-2: #cdb9f8;
   /* Chart tokens */
   --chart-1: oklch(0.809 0.105 251.813);
   --chart-2: oklch(0.623 0.214 259.815);
@@ -88,6 +98,16 @@
   /* Extra brand tokens */
   --brand-lavender: #b194ff;
   --bubble-user: #262031;
+  /* Орб-токены — dark */
+  --orb-gradient: radial-gradient(
+    circle at 38% 32%,
+    #d0baff 0%,
+    #9d6fff 50%,
+    #5520c8 100%
+  );
+  --orb-shadow: 0 0 46px rgba(177, 148, 255, 0.47);
+  --orb-ring-1: rgba(177, 148, 255, 0.25);
+  --orb-ring-2: rgba(177, 148, 255, 0.45);
   /* Chart tokens */
   --chart-1: oklch(0.809 0.105 251.813);
   --chart-2: oklch(0.623 0.214 259.815);

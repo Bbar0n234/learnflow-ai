@@ -1,0 +1,10 @@
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="orb16" cx="38%" cy="32%" r="60%" gradientUnits="objectBoundingBox">
+      <stop offset="0%" stop-color="#A47CFA"/>
+      <stop offset="52%" stop-color="#7434F4"/>
+      <stop offset="100%" stop-color="#4C16B8"/>
+    </radialGradient>
+  </defs>
+  <circle cx="8" cy="8" r="8" fill="url(#orb16)"/>
+</svg>

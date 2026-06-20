@@ -16,6 +16,7 @@ import {
 import { getIsAdminFromAccessToken, getMe, logout } from "@/shared/api/auth";
 import { clearAccessToken, getAccessToken } from "@/shared/api/client";
 import { Button } from "@/shared/ui/button";
+import { Wordmark } from "@/shared/ui/Wordmark";
 import { useUIStore } from "@/stores/ui-store";
 import { useThemeStore } from "@/stores/theme-store";
 import { useRecentChats } from "@/shared/api/chats";
@@ -52,8 +53,8 @@ export function Sidebar() {
     <div className="flex h-full w-64 flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <h2 className="text-lg font-semibold text-sidebar-foreground">
-          LearnFlowAI
+        <h2 className="text-lg text-sidebar-foreground">
+          <Wordmark short />
         </h2>
         <Button variant="ghost" size="icon-sm" onClick={toggleSidebar}>
           <PanelLeftClose className="h-4 w-4" />

@@ -272,3 +272,38 @@ _Примечание: `next-themes` удалён из зависимостей 
 5. Терракота в `.dark` — `#D06050` (осветлённый вариант `#B0573F` для читаемости на тёмном фоне); точный тёмный вариант не задан в хэндоффе.
 
 **Verification:** `make check-fe` GREEN (tsc + ESLint + Prettier), `tsc -b && vite build` GREEN. {L0.3} shadcn-примитивы не правлены ✓; {L0.4} нет hardcoded hex в тронутых .tsx (grep чистый) ✓; {L0.5} stub-chips/тоггл без endpoint-вызовов ✓; T3 empty-state сохранён ✓. Статические проверки {T4.6} — пройдены. Полное 🔍 (vs макеты screens 9–11) — на VISUAL_REVIEW.
+
+---
+
+## T6a — Студия-панель S1.2 + линза S2 + peek S3 (заглушки)
+
+Реализованы три новых жеста доступа к сфере из чата. Весь интерактив — на локальном состоянии, без сетевых вызовов. Mock-данные захардкожены в коде слайса чата.
+
+**Новые файлы (все в `frontend/src/pages/chat/`):**
+
+- **`model/useStudio.ts`** — хук `useStudio()` возвращает стейт `{ open, tab, selectedArtifactId, lensOpen }` + контролы. `StudioControls = ReturnType<typeof useStudio>`. Состояние на уровне `ChatView`, персистентно по маунту чата.
+
+- **`ui/StudioPanel.tsx`** — Студия-панель S1.2, 470px, `bg-muted`, `border-l`. Шапка: сегментный переключатель «Сфера | Артефакты» (трек `bg-bubble-user`, активный таб `bg-card shadow-sm`) + кнопка ✕ `close`. Вкладка «Сфера»: `SphereOrb size=80` (без колец, с искрами), метаданные `font-mono`, кнопка «Открыть в линзе», превью контента через `.sphere-prose`. Вкладка «Артефакты»: чипы материалов (3 мока: md/slides/audio), мини-вьюер с превью, футер «Открыть / .md / .pdf».
+
+- **`ui/SphereLens.tsx`** — Оверлей-линза S2, модал 920×620. Скрим `var(--scrim-overlay)`, тень `var(--shadow-lens)` (добавлены в `index.css`). Содержимое: документ сферы (`.sphere-prose`) + рейл истории версий 252px. Текущая версия (`v2.4.1`) подсвечена `bg-secondary/30`. Найденный фрагмент — `<span className="bg-secondary text-secondary-foreground">`. Закрытие — ✕ или Esc (`useEffect` → `document.addEventListener('keydown')`).
+
+- **`ui/SphereWriteCard.tsx`** — Peek-карточка S3. Шапка на `bg-secondary` (лаванда): «Записано в сферу → ‹раздел›» + mono-чип версии `v2.4.0 → v2.4.1 · патч`. Тело: diff-строки с зелёным `+` (`text-mcp-connected`) в `font-mono`. Действия: «Открыть в сфере» (`text-primary`) / «Подправить» (`text-muted-foreground`) / «Откатить» (`text-destructive-warm`, терракота). «Откатить» переключает локальное `reverted`-состояние без API-вызовов. Экспортирует `MOCK_SPHERE_WRITES` — константа с одним демо-событием.
+
+**Изменённые файлы:**
+
+- **`ui/ChatView.tsx`** — добавлен `useStudio()`, корневой `div` получает класс `studio-open` при `studio.open === true` (сужает `--content-max-w` до 520px по уже существующему CSS). Layout: `flex h-full` — чат-колонка (`flex-1 min-w-0`) + `{studio.open && <StudioPanel>}` + `<SphereLens>`.
+
+- **`ui/ChatHeader.tsx`** — добавлены props `studioOpen: boolean` + `onToggleStudio: () => void`. Новый чип «Студия» (`PanelRight` icon) справа от инструментов: лавандовый `bg-secondary text-secondary-foreground` при открытой студии, иначе `bg-muted text-muted-foreground`.
+
+- **`ui/MessageList.tsx`** — добавлен prop `onOpenLens: () => void`. Mock peek-карточки из `MOCK_SPHERE_WRITES` рендерятся после 2-го сообщения (index 1); при меньшем числе сообщений — в конце ленты (ключ `demo-{id}` исключает конфликт ключей).
+
+- **`index.css`** — в `:root` добавлены `--scrim-overlay: rgba(24, 16, 36, 0.45)` и `--shadow-lens: 0 24px 80px rgba(24, 16, 36, 0.35)` (рядом с `--shadow-input`).
+
+**Принятые решения:**
+
+1. Стейт студии — в `useStudio()` hook на уровне `ChatView` (не Zustand): студия chat-специфична, по FSD `features/` только для 2+ страниц.
+2. `--scrim-overlay` и `--shadow-lens` вынесены в CSS-переменные, а не инлайн rgba, чтобы не нарушать {L0.4}.
+3. Peek-карточка всегда видна (хотя бы в конце ленты) — для демонстрации интерактива при пустом чате.
+4. ESLint warning `react-refresh/only-export-components` для `SphereWriteCard.tsx` — не ошибка (`allowConstantExport: true` в конфиге); exit code 0.
+
+**Verification:** `make check-fe` GREEN (exit 0: tsc чистый, ESLint 0 errors, Prettier чистый), `tsc -b && vite build` GREEN (exit 0). {L0.3} shadcn-примитивы не тронуты ✓; {L0.4} нет hardcoded hex/numeric-цветов в тронутых .tsx (grep чистый) ✓; {L0.5} все 4 новых файла без API-вызовов (grep чистый) ✓. Статические {T6.1}/{T6.2} — пройдены (открытие/закрытие студии, состояние локальное, нет сетевых вызовов). Полное 🔍 (визуальное vs хэндофф) — на VISUAL_REVIEW.

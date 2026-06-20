@@ -56,6 +56,9 @@
   --mcp-disabled: #c8c0ae;
   /* Shadows */
   --shadow-input: 0 2px 10px rgba(80, 70, 50, 0.06);
+  --shadow-lens: 0 24px 80px rgba(24, 16, 36, 0.35);
+  /* Sphere lens overlay scrim */
+  --scrim-overlay: rgba(24, 16, 36, 0.45);
   /* Layout geometry */
   --content-max-w: 680px;
   /* Орб-токены (единственное место с градиентом) */

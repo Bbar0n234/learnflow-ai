@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { ArrowLeft, Bot, Settings2 } from "lucide-react";
+import { ArrowLeft, Bot, Settings2, PanelRight } from "lucide-react";
 import { useProject } from "@/shared/api/projects";
 import { useChat } from "@/shared/api/chats";
 import { ModelSelector } from "@/features/model-selector";
@@ -12,8 +12,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/shared/ui/dialog";
+import { cn } from "@/shared/lib/utils";
 
-export function ChatHeader() {
+interface ChatHeaderProps {
+  studioOpen: boolean;
+  onToggleStudio: () => void;
+}
+
+export function ChatHeader({ studioOpen, onToggleStudio }: ChatHeaderProps) {
   const { id: projectId, cid: threadId } = useParams();
   const navigate = useNavigate();
   const { data: project } = useProject(projectId!);
@@ -82,6 +88,21 @@ export function ChatHeader() {
               />
             </DialogContent>
           </Dialog>
+
+          {/* Studio toggle chip */}
+          <button
+            type="button"
+            onClick={onToggleStudio}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+              studioOpen
+                ? "bg-secondary text-secondary-foreground"
+                : "bg-muted text-muted-foreground hover:bg-secondary/50 hover:text-secondary-foreground",
+            )}
+          >
+            <PanelRight className="h-3 w-3" />
+            Студия
+          </button>
         </div>
       </div>
     </div>

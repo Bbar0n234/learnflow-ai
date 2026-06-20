@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { Fragment, useEffect, useRef } from "react";
 import type { Message } from "@/shared/api/chats";
 import { useStreamStore, type StreamingArtifact } from "@/stores/stream-store";
 import { MessageItem } from "./MessageItem";
@@ -6,6 +6,8 @@ import { MarkdownRenderer } from "@/shared/ui/MarkdownRenderer";
 import { ToolIndicator } from "./ToolIndicator";
 import { ReviewIndicator } from "./ReviewIndicator";
 import { ArtifactCard } from "./ArtifactCard";
+import { SphereWriteCard } from "./SphereWriteCard";
+import { MOCK_SPHERE_WRITES } from "../model/mock-sphere-writes";
 
 interface MessageListProps {
   messages: Message[];
@@ -16,6 +18,7 @@ interface MessageListProps {
   projectId: string;
   chatId: string;
   streamError: string | null;
+  onOpenLens: () => void;
 }
 
 export function MessageList({
@@ -27,6 +30,7 @@ export function MessageList({
   projectId,
   chatId,
   streamError,
+  onOpenLens,
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const isReviewing = useStreamStore((s) => s.isReviewing);
@@ -41,14 +45,30 @@ export function MessageList({
         className="mx-auto flex flex-col gap-4"
         style={{ maxWidth: "var(--content-max-w)" }}
       >
-        {messages.map((msg) => (
-          <MessageItem
-            key={msg.id}
-            message={msg}
-            projectId={projectId}
-            chatId={chatId}
-          />
+        {messages.map((msg, i) => (
+          <Fragment key={msg.id}>
+            <MessageItem message={msg} projectId={projectId} chatId={chatId} />
+            {/* Inject mock sphere write peek card after 2nd message */}
+            {i === 1 &&
+              MOCK_SPHERE_WRITES.map((entry) => (
+                <SphereWriteCard
+                  key={entry.id}
+                  entry={entry}
+                  onOpenLens={onOpenLens}
+                />
+              ))}
+          </Fragment>
         ))}
+
+        {/* When fewer than 2 messages, show demo peek card at end */}
+        {messages.length < 2 &&
+          MOCK_SPHERE_WRITES.map((entry) => (
+            <SphereWriteCard
+              key={`demo-${entry.id}`}
+              entry={entry}
+              onOpenLens={onOpenLens}
+            />
+          ))}
 
         {isStreaming && (
           <div className="flex justify-start">

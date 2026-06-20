@@ -307,3 +307,39 @@ _Примечание: `next-themes` удалён из зависимостей 
 4. ESLint warning `react-refresh/only-export-components` для `SphereWriteCard.tsx` — не ошибка (`allowConstantExport: true` в конфиге); exit code 0.
 
 **Verification:** `make check-fe` GREEN (exit 0: tsc чистый, ESLint 0 errors, Prettier чистый), `tsc -b && vite build` GREEN (exit 0). {L0.3} shadcn-примитивы не тронуты ✓; {L0.4} нет hardcoded hex/numeric-цветов в тронутых .tsx (grep чистый) ✓; {L0.5} все 4 новых файла без API-вызовов (grep чистый) ✓. Статические {T6.1}/{T6.2} — пройдены (открытие/закрытие студии, состояние локальное, нет сетевых вызовов). Полное 🔍 (визуальное vs хэндофф) — на VISUAL_REVIEW.
+
+---
+
+## T6b — Семвер-UI сферы (заглушки)
+
+UI версионирования сферы на mock-данных. Никаких сетевых вызовов — все данные из локальных констант (группа B, {L0.5}).
+
+**Новые файлы:**
+
+- **`pages/sphere/model/mock-sphere-version.ts`** — источник правды по mock-данным T6b. Типы: `SphereVersionBump` («мажор» | «минор» | «патч»), `SphereVersionEntry` (version, summary, author, timestamp, bump, isNew), `SphereStats`. Константы: `MOCK_SPHERE_CURRENT_VERSION = "v2.4.1"`, `MOCK_SPHERE_STATUS = "растёт"`, `MOCK_SPHERE_STATS` (42 записи / 18 связей / 7 версий), `MOCK_SPHERE_HISTORY` (4 версии — v2.4.1/патч новый, v2.4.0/минор, v2.3.0/минор, v2.0.0/мажор), `MOCK_AGENT_SUGGESTION = "патч"`.
+
+- **`pages/sphere/ui/SaveVersionDropdown.tsx`** — дропдаун «Сохранить версию ▾». Триггер через `render` prop (паттерн Base UI из `ProjectActions.tsx`). В раскрытом меню: лейбл «Предложение агента: патч» + разделитель + три пункта (патч/минор/мажор); пункт агента предвыбран — `bg-secondary text-secondary-foreground` (лаванда). Каждый пункт — двустрочный (название + описание). При клике: локальный setState → 3 сек. показывает inline-бейдж «Сохранено · патч» (`bg-secondary`, иконка Check), затем сброс. Никаких API-вызовов.
+
+- **`pages/sphere/ui/SphereVersionPanel.tsx`** — правая панель «Жизнь сферы», 318px. Компоновка: заголовок 56px + `ScrollArea flex-1`. Содержимое сверху вниз:
+  - `SphereOrb size={148}` — с кольцами и искрами (defaults).
+  - Чип `v2.4.1 · растёт` — mono-шрифт, `bg-secondary`.
+  - Счётчики: 3 карточки в `grid-cols-3` — записи / связи / версии (цифра + подпись).
+  - Хроника (4 записи): точка-маркер `h-2 w-2 rounded-full` — `bg-primary` (isNew=true) / `bg-brand-lavender` (старое); рядом summary + «N часов назад · агент/вы».
+  - История версий: каждая запись — `VersionBadge` (мажор → `bg-primary text-primary-foreground`; минор/патч → `bg-secondary text-secondary-foreground`) + summary + метаданные; текущая версия подсвечена `bg-secondary/30`.
+
+**Изменённые файлы:**
+
+- **`pages/sphere/ui/SphereViewer.tsx`** — добавлен `<SaveVersionDropdown />` в header рядом с кнопкой «Редактировать»; обёртка `flex gap-2`.
+
+- **`pages/sphere/ui/SphereView.tsx`** — viewer-режим реструктурирован в `flex h-full overflow-hidden`: `<SphereViewer>` (`flex-1 min-w-0`) + `<SphereVersionPanel />` (318px). Режим редактирования (`SphereEditor`) без изменений — панель не добавляется.
+
+- **`app/layouts/ProjectLayout.tsx`** — в шапке проекта: `projectName` обёрнут в `flex gap-2.5`, рядом добавлен чип `сфера v2.4.1 · растёт` (`rounded-full bg-secondary font-mono text-[10px]`). Mock-константы (`SPHERE_CHIP_VERSION`, `SPHERE_CHIP_STATUS`) определены локально в файле — без импорта из `pages/`, чтобы не нарушать FSD-направление зависимостей.
+
+**Принятые решения:**
+
+1. `DropdownMenuTrigger` использует `render` prop (Base UI паттерн, как в `ProjectActions.tsx`) — не `asChild`, т.к. Base UI не поддерживает `asChild`.
+2. Чип состояния сферы в `ProjectLayout.tsx` — mock-значения инлайн (не импорт из `pages/sphere/`): app-слой не должен импортировать из internals page-слоя.
+3. `SphereVersionPanel` не появляется в режиме редактора — правая панель с историей версий в редакторе относится к T6c (rich-редактор), не T6b.
+4. `VersionBadge` — не экспортируется из файла (только `SphereVersionPanel`): внутренняя вспомогательная функция компонента, не предназначена для внешнего использования.
+
+**Verification:** `make check-fe` GREEN (exit 0: tsc чистый, ESLint 0 errors, Prettier чистый), `tsc -b && vite build` GREEN (exit 0). {L0.3} shadcn-примитивы не тронуты ✓; {L0.4} нет hardcoded hex/numeric-цветов в тронутых .tsx (grep чистый) ✓; {L0.5} новые файлы без API-вызовов (grep чистый) ✓. Статический {T6.3} — пройден (дропдаун, бейджи, панель на моках без сети). Полное 🔍 (визуальное vs хэндофф экран 2) — на VISUAL_REVIEW.

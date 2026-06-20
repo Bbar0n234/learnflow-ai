@@ -3,6 +3,7 @@ import { Button } from "@/shared/ui/button";
 import { ScrollArea } from "@/shared/ui/scroll-area";
 import { MarkdownRenderer } from "@/shared/ui/MarkdownRenderer";
 import { Illustration } from "@/shared/ui/Illustration";
+import { SaveVersionDropdown } from "./SaveVersionDropdown";
 
 interface SphereViewerProps {
   content: string;
@@ -17,15 +18,18 @@ export function SphereViewer({ content, onEdit }: SphereViewerProps) {
         <h2 className="font-serif text-lg font-semibold text-foreground">
           Сфера знаний
         </h2>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onEdit}
-          className="border-ring/60 text-ring hover:bg-accent hover:text-accent-foreground"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-          Редактировать
-        </Button>
+        <div className="flex items-center gap-2">
+          <SaveVersionDropdown />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onEdit}
+            className="border-ring/60 text-ring hover:bg-accent hover:text-accent-foreground"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Редактировать
+          </Button>
+        </div>
       </div>
 
       {/* Content */}

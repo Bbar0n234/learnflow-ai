@@ -1,6 +1,10 @@
 import { Outlet, NavLink, useParams, useMatch } from "react-router";
 import { useProject } from "@/shared/api/projects";
 
+// T6b mock — чип состояния сферы (L0.5, без бэкенд-контракта)
+const SPHERE_CHIP_VERSION = "v2.4.1";
+const SPHERE_CHIP_STATUS = "растёт";
+
 export function ProjectLayout() {
   const { id } = useParams();
   const { data: project, isLoading } = useProject(id!);
@@ -19,9 +23,15 @@ export function ProjectLayout() {
   return (
     <div className="flex h-full flex-col">
       <header className="flex h-[56px] items-center gap-6 border-b border-border px-6">
-        <h1 className="shrink-0 font-serif text-sm font-semibold text-foreground">
-          {projectName}
-        </h1>
+        <div className="flex shrink-0 items-center gap-2.5">
+          <h1 className="font-serif text-sm font-semibold text-foreground">
+            {projectName}
+          </h1>
+          {/* Чип состояния сферы — T6b (mock, L0.5, без бэкенд-контракта) */}
+          <span className="rounded-full bg-secondary px-2 py-0.5 font-mono text-[10px] text-secondary-foreground">
+            {SPHERE_CHIP_VERSION} · {SPHERE_CHIP_STATUS}
+          </span>
+        </div>
         <nav className="flex h-full gap-1">
           <NavLink
             to={`/projects/${id}`}

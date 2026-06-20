@@ -361,7 +361,7 @@ graph TD
     style SHRD fill:#d299221a,stroke:#d29922,color:#d29922
 ```
 
-Структура каноническая по FSD с осознанными отступлениями (зафиксированы в [conventions.md](conventions.md#frontend)): `stores/` на верхнем уровне (`stream-store` cross-feature), `shared/` импортируется по доменным файлам без barrel-индексов, слои `widgets/` и `entities/` не вводятся.
+Структура каноническая по FSD с осознанными отступлениями (зафиксированы в [conventions/frontend.md](conventions/frontend.md#frontend)): `stores/` на верхнем уровне (`stream-store` cross-feature), `shared/` импортируется по доменным файлам без barrel-индексов, слои `widgets/` и `entities/` не вводятся.
 
 ```
 frontend/

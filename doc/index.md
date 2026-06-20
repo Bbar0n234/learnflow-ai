@@ -20,7 +20,8 @@ doc/
 │   ├── user-memory.md   # User Memory: instructions, agent memory, персонализация
 │   ├── prompt-management.md # Prompt Management: Langfuse, dev/prod, seed/sync
 │   ├── observability.md # Observability: Langfuse, трейсинг, feedback
-│   ├── conventions.md   # Git, code quality, naming, logging, documentation
+│   ├── conventions.md   # Git, code quality, naming, logging, documentation (ядро)
+│   ├── conventions/     # Доменные конвенции: db, api, agent, frontend
 │   ├── skill-map.md     # Карта скиллов: принципы, роли, отклонённые, пробелы
 │   ├── setup/            # Инструкции настройки dev/cloud окружений
 │   └── adr/             # Architecture Decision Records
@@ -57,13 +58,16 @@ doc/
 - [security/architecture.md](security/architecture.md) — Защита агента: семь I/O checkpoints, детекторы, trust boundaries, block mechanics, SIEM observability
 
 **Соглашения и решения:**
-- [tech/conventions.md](tech/conventions.md) — git flow, code quality, naming, logging, Docker
+- [tech/conventions.md](tech/conventions.md) — ядро: git flow, code quality, naming, logging, error handling, Docker, documentation, типизация
+- [tech/conventions/](tech/conventions/) — доменные конвенции: [db.md](tech/conventions/db.md) (схема, миграции, сессии), [api.md](tech/conventions/api.md) (FastAPI, REST), [agent.md](tech/conventions/agent.md) (runtime, reasoning, prompt naming), [frontend.md](tech/conventions/frontend.md) (FSD, состояние)
+- [tech/arch-checker.md](tech/arch-checker.md) — реестр архитектурных инвариантов и детерминированные проверки (import-linter, AST-ассерты, eslint-boundaries)
 - [tech/skill-map.md](tech/skill-map.md) — карта скиллов: принципы отбора, роли, отклонённые, пробелы, отложенные кандидаты
 - [tech/adr/](tech/adr/) — архитектурные решения (формат: `ADR-NNN-название.md`)
   - [ADR-018: SIEM Service Topology](tech/adr/ADR-018-siem-service-topology.md) — отдельный backend-сервис, isolation, identity
   - [ADR-019: Security Event Transport](tech/adr/ADR-019-security-event-transport.md) — Redis Streams, at-least-once semantics, bounded queue
   - [ADR-020: Security Event Contract](tech/adr/ADR-020-security-event-contract.md) — Pydantic SecurityEvent, vocabulary, identifiers, forward compatibility
   - [ADR-021: SIEM Correlation Engine](tech/adr/ADR-021-siem-correlation-engine.md) — polling-based engine, three strategies, open-alert deduplication, 24h age limit
+  - [ADR-025: Conventions per Domain](tech/adr/ADR-025-conventions-per-domain.md) — дробление conventions.md: ядро + доменные файлы, progressive disclosure
 
 **Setup manuals:**
 - [tech/setup/codex-cloud.md](tech/setup/codex-cloud.md) — настройка ChatGPT Codex Environment для cloud-сессий

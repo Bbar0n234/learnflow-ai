@@ -10,7 +10,8 @@ export function ArtifactCard({ artifact, projectId }: ArtifactCardProps) {
   return (
     <Link
       to={`/projects/${projectId}/artifacts/${artifact.id}`}
-      className="mt-2 flex items-center gap-3 rounded-md border border-border bg-card p-3 transition-colors hover:bg-accent"
+      className="mt-2 flex items-center gap-3 rounded-md bg-card p-3 transition-colors hover:bg-accent"
+      style={{ borderLeft: "3px solid var(--ring)" }}
     >
       <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
       <div className="min-w-0">

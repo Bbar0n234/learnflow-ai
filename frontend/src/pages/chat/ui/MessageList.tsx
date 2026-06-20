@@ -37,7 +37,10 @@ export function MessageList({
 
   return (
     <div className="flex-1 overflow-auto p-6">
-      <div className="mx-auto flex max-w-3xl flex-col gap-4">
+      <div
+        className="mx-auto flex flex-col gap-4"
+        style={{ maxWidth: "var(--content-max-w)" }}
+      >
         {messages.map((msg) => (
           <MessageItem
             key={msg.id}
@@ -49,7 +52,7 @@ export function MessageList({
 
         {isStreaming && (
           <div className="flex justify-start">
-            <div className="max-w-[80%] rounded-lg bg-muted px-4 py-3 text-foreground">
+            <div className="w-full text-foreground">
               {streamingText && (
                 <MarkdownRenderer isStreaming>{streamingText}</MarkdownRenderer>
               )}

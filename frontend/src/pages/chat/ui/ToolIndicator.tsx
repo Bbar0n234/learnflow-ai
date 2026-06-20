@@ -1,14 +1,14 @@
-import { Loader2 } from "lucide-react";
-
 interface ToolIndicatorProps {
   toolName: string;
 }
 
 export function ToolIndicator({ toolName }: ToolIndicatorProps) {
   return (
-    <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-      <span>Using {toolName}...</span>
+    <div className="mt-2">
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-60" />
+        {toolName}
+      </span>
     </div>
   );
 }

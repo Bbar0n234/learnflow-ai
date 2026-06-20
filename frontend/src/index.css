@@ -49,6 +49,8 @@
   /* Extra brand tokens */
   --brand-lavender: #c5a9f9;
   --bubble-user: #ede7da;
+  /* Shadows */
+  --shadow-input: 0 2px 10px rgba(80, 70, 50, 0.06);
   /* Layout geometry */
   --content-max-w: 680px;
   /* Орб-токены (единственное место с градиентом) */

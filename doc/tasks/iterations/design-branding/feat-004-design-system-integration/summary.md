@@ -120,3 +120,34 @@ function getIllustration(scene: Scene, theme: IllustrationTheme): string;
 3. Класс ErrorBoundary — не функциональный компонент, поэтому `useThemeStore` нельзя вызвать напрямую; `<Illustration>` — функциональный компонент, который сам читает стор — это корректно (хуки вызываются в контексте Illustration, не ErrorBoundary).
 
 **Verification:** `make check-fe` GREEN (tsc + ESLint + Prettier — после `prettier --write sonner.tsx`), `tsc -b && vite build` GREEN. Статические проверки: {T5.1} `toast.error` в обоих `onError`, `shouldRetryQuery` не тронут ✓; {T5.3} `<Illustration scene="error-state">` в ErrorBoundary ✓; {L0.4} нет hex в тронутых файлах ✓; `next-themes` не импортируется ✓. Полное 🔍 {T5.1}–{T5.3} — на VISUAL_REVIEW (эмуляция 4xx/5xx).
+
+_Примечание: `next-themes` удалён из зависимостей оркестратором при коммите T5._
+
+---
+
+## T4a — Каркас (layout shell) ✅
+
+**Геометрия по хэндоффу:** Sidebar 252px (`AppLayout.tsx` aside `w-[252px]`, было `w-64`; `Sidebar.tsx` внутренний div `w-[252px]`; фон `--sidebar` + граница справа сохранены). Sidebar header 56px (`py-3` → `h-[56px]`). `ProjectLayout` header реструктурирован с вертикального (~90px) на горизонтальный `flex h-[56px] items-center gap-6` (имя проекта + табы inline; serif/цвет таба/sphere-chip — T4e).
+
+**Центр-колонка:** в `index.css` добавлены `--content-max-w: 680px` (`:root`) и `.studio-open { --content-max-w: 520px; }` (T6 навесит класс при открытой студии).
+
+**Структура sidebar:** «+ Новый чат» → `variant="default"` (primary) `w-full`; «Новый проект» → `variant="outline"` `w-full`; тексты русифицированы. Wordmark/переключатель/vignette (T1–T3) сохранены. `ProjectCard.tsx`: иконка `FolderOpen` → точка-статус `bg-brand-lavender` (динамика по статусу сферы — когда бэкенд добавит поле).
+
+**Verification:** `make check-fe` + `tsc -b && vite build` GREEN. {T4.1} статически: sidebar 252px, центр max≈680px, шапки 56px. Полное 🔍 (`getComputedStyle`) — на VISUAL_REVIEW.
+
+---
+
+## T4b — Главный экран (чат) ✅
+
+Рестайл ленты и инпут-бара по макету «Главный экран» (`frontend/src/pages/chat/ui/*` + токен тени в `index.css`). Логика стрима/отправки/контракты не тронуты.
+
+- **MessageItem**: bubble пользователя `bg-bubble-user`, скошенный угол `rounded-[14px_4px_14px_14px]` (dark — `+ border-border`); ответ агента плоским текстом без bubble (markdown через `MarkdownRenderer`).
+- **MessageList**: центр-колонка `max-width: var(--content-max-w)`; стрим-контейнер тоже плоский.
+- **ToolIndicator**: лавандовый чип `bg-secondary rounded-full` + точка-маркер (spinner убран).
+- **ReviewIndicator**: акцентный прямоугольник `h-4 w-2 bg-primary` + текст.
+- **ArtifactCard**: `border-left: 3px solid var(--ring)` на card (обычная рамка убрана).
+- **FeedbackButtons**: метки «Полезно / Не то / Перегенерировать» («Перегенерировать» — визуальная заготовка, API не вызывает, {L0.5}).
+- **ChatInput**: card + тень через новый токен `--shadow-input: 0 2px 10px rgba(80,70,50,0.06)`; send/cancel — круг 34px `rounded-full` (primary / destructive); textarea прозрачная внутри card.
+- **ChatHeader**: `h-[56px]`, serif-название, два чипа (Модель/Инструменты) открывают Dialog (инлайн-ModelSelector перенесён в Dialog), кнопка ← назад.
+
+**Verification:** `make check-fe` + `tsc -b && vite build` GREEN. Hardcoded-цветов в тронутых .tsx нет; shadcn-примитивы не правлены; {L0.5} соблюдён. Полное 🔍 (на seed-данных vs макет) — на VISUAL_REVIEW.

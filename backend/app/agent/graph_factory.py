@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Protocol
 
 import structlog
+from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 from langgraph.graph.state import CompiledStateGraph
 
@@ -15,6 +16,20 @@ from app.infra.llm import create_llm_from_config, create_summarization_llm
 from app.infra.prompt_provider import PromptProvider
 
 logger = structlog.get_logger()
+
+
+class ModelFactory(Protocol):
+    """Callable that builds the agent chat model from a resolved config.
+
+    The production factory is ``create_llm_from_config``; tests inject a factory
+    returning a fake chat model so graph logic runs without network or API key.
+    Injecting the factory (rather than a module-level singleton) keeps the seam
+    free of module-level state per the project's hard rules.
+    """
+
+    def __call__(
+        self, settings: Settings, model_config: ResolvedModelConfig
+    ) -> BaseChatModel: ...
 
 
 class GraphFactory:
@@ -32,6 +47,7 @@ class GraphFactory:
         store: Any,
         prompt_provider: PromptProvider,
         security_guard: SecurityGuard | None = None,
+        model_factory: ModelFactory | None = None,
     ) -> None:
         self._settings = settings
         self._agent_config = agent_config
@@ -43,13 +59,14 @@ class GraphFactory:
         self._store = store
         self._prompt_provider = prompt_provider
         self._security_guard = security_guard
+        self._model_factory: ModelFactory = model_factory or create_llm_from_config
 
     def build(
         self,
         model_config: ResolvedModelConfig,
         extra_tools: list[BaseTool] | None = None,
     ) -> CompiledStateGraph[Any, Any, Any, Any]:
-        llm = create_llm_from_config(self._settings, model_config)
+        llm = self._model_factory(self._settings, model_config)
 
         summarization_llm = None
         if self._agent_config.summarization is not None:

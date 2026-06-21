@@ -1,0 +1,23 @@
+[project]
+name = "learnflow-testing"
+version = "0.1.0"
+description = "Shared test harness: fixtures helpers, factories, LLM/guard fakes, SSE helpers"
+requires-python = ">=3.12"
+dependencies = [
+    "pytest>=9.0",
+    "pytest-asyncio>=1.0",
+    "factory-boy>=3.3",
+    "async-factory-boy>=1.0",
+    "testcontainers[postgres]>=4.0",
+    "httpx>=0.28.1",
+    "sqlalchemy[asyncio]>=2.0.48",
+    "alembic>=1.15",
+    "langchain-core>=0.3",
+]
+
+[project.entry-points.pytest11]
+learnflow_testing = "learnflow_testing.plugin"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

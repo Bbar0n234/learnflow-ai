@@ -1,4 +1,4 @@
-.PHONY: docker-up docker-up-db docker-up-redis docker-down docker-build docker-logs lint format type-check arch-check check lint-fe check-fe format-fe dev dev-remote dev-fe test migrate migration downgrade migrate-siem sync-prompts security-scan-validate security-scan-redteam security-scan-report
+.PHONY: docker-up docker-up-db docker-up-redis docker-down docker-build docker-logs lint format type-check arch-check check lint-fe check-fe format-fe dev dev-remote dev-fe test test-cov test-fe migrate migration downgrade migrate-siem sync-prompts security-scan-validate security-scan-redteam security-scan-report
 
 # Load .env (base) then .env.local (overrides) into shell environment
 LOAD_ENV = set -a && [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; set +a
@@ -28,8 +28,12 @@ format:  ## Format Python code (auto-fix safe lint issues + format)
 	uv run ruff check --fix .
 	uv run ruff format .
 
+# mypy runs per source root: backend and siem-service each own a top-level
+# `tests` package, and a single mypy process rejects two same-named modules.
 type-check:  ## Run mypy type checking
-	uv run mypy backend/ services/siem-service/ tools/security-scan/ tools/arch-checker/
+	uv run mypy backend/
+	uv run mypy services/siem-service/
+	uv run mypy tools/security-scan/ tools/arch-checker/
 
 arch-check:  ## Run architecture checks (import-linter contracts + AST asserts)
 	PYTHONPATH=backend:services/siem-service uv run lint-imports
@@ -38,7 +42,9 @@ arch-check:  ## Run architecture checks (import-linter contracts + AST asserts)
 check:  ## Run all backend checks (CI gate)
 	uv run ruff check .
 	uv run ruff format --check .
-	uv run mypy backend/ services/siem-service/ tools/security-scan/ tools/arch-checker/
+	uv run mypy backend/
+	uv run mypy services/siem-service/
+	uv run mypy tools/security-scan/ tools/arch-checker/
 	PYTHONPATH=backend:services/siem-service uv run lint-imports
 	uv run python -m arch_checker
 
@@ -62,8 +68,16 @@ dev-remote:  ## Run backend dev server (accessible by IP)
 dev-fe:  ## Run frontend dev server
 	cd frontend && npx vite
 
-test:  ## Run pytest (treats exit 5 = "no tests collected" as success)
-	@$(LOAD_ENV) && uv run --package learnflow-backend pytest -c backend/pyproject.toml --rootdir backend; ec=$$?; [ $$ec -eq 0 ] || [ $$ec -eq 5 ]
+test:  ## Run backend + siem-service pytest (exit 5 = "no tests collected" is OK)
+	@$(LOAD_ENV) && uv run --package learnflow-backend pytest -c backend/pyproject.toml --rootdir backend backend/tests; ec=$$?; [ $$ec -eq 0 ] || [ $$ec -eq 5 ]
+	@$(LOAD_ENV) && uv run --package siem-service pytest -c services/siem-service/pyproject.toml --rootdir services/siem-service services/siem-service/tests; ec=$$?; [ $$ec -eq 0 ] || [ $$ec -eq 5 ]
+
+test-cov:  ## Run backend pytest with branch coverage (per-package, term-missing)
+	@$(LOAD_ENV) && uv run --package learnflow-backend pytest -c backend/pyproject.toml --rootdir backend backend/tests \
+	  --cov=app --cov-branch --cov-report=term-missing; ec=$$?; [ $$ec -eq 0 ] || [ $$ec -eq 5 ]
+
+test-fe:  ## Run frontend tests (Vitest, jsdom)
+	cd frontend && npx vitest run
 
 migrate:  ## Run alembic upgrade head
 	$(LOAD_ENV) && uv run alembic -c backend/alembic.ini upgrade head

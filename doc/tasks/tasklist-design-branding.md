@@ -144,6 +144,7 @@ feat-001 (PoC ✅) ─┤                                                       
 - [Test cases](iterations/design-branding/feat-004-design-system-integration/test-cases.md)
 - [Summary](iterations/design-branding/feat-004-design-system-integration/summary.md)
 - [Harvest proposals](iterations/design-branding/feat-004-design-system-integration/harvest-proposals.md)
+- [SOFA proposals](iterations/design-branding/feat-004-design-system-integration/sofa-proposals.md) (A/B доведены до финала, не опубликованы)
 
 #### Документация
 - [design-system.md](../tech/design-system.md) — визуальный язык «Чернила / Электрик» (создан этой итерацией); ссылки добавлены в [frontend.md](../tech/frontend.md), [conventions.md § Frontend](../tech/conventions.md#frontend), [index.md](../index.md)

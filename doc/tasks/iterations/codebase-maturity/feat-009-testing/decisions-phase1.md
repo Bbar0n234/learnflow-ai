@@ -21,15 +21,15 @@ Convention-first: по итогам этого разбора пишем раз�
 | A4 | Строгость DoD «нет тестов — нет мержа» | поведенческая норма, жёстко для services/repos | **архитектор** |
 | A5 | Ручные test-cases (практика прошлых итераций) | ✅ РЕШЕНО: остаются для длинного хвоста, меньшим объёмом | архитектор |
 | A6 | TDD как методология | ✅ РЕШЕНО: тесты — да; strict TDD — контекстно; гейты целостности тестов в оркестратор | архитектор |
-| B1 | Async-движок | pytest-asyncio 1.x, `asyncio_mode="auto"` | дефолт |
-| B2 | Тестовая БД: откуда Postgres | testcontainers (cloud Anthropic: Docker доступен → риск снят) | **архитектор** |
-| B3 | Подготовка схемы в тестах | гибрид: `create_all` + страж-тест дрейфа миграций | **архитектор** (hard-rule) |
-| B4 | Изоляция тестов БД | savepoint-rollback на тест | дефолт |
+| B1 | Async-движок | ✅ pytest-asyncio 1.x `asyncio_mode="auto"` (Trio не нужен) | архитектор |
+| B2 | Тестовая БД: откуда Postgres | ✅ testcontainers (session-scoped, cloud-safe) | архитектор |
+| B3 | Подготовка схемы в тестах | ✅ миграции (`upgrade head`) + downgrade критичных + 2 цепочки | архитектор |
+| B4 | Изоляция тестов БД | ✅ transaction-rollback на тест + per-worker DB под xdist | архитектор |
 | B5 | Общие тест-утилиты | отдельный пакет `packages/testing` | **архитектор** (+1 пакет) |
 | B6 | Тестовые данные | factory_boy + async-обёртка | дефолт |
 | B7 | Фикстура аутентифицированного клиента | override `Depends` на тест-юзера | **архитектор** |
 | B8 | Контрактные тесты main app ↔ siem-service | страж дрейфа `siem-contracts` vocabulary | **архитектор** |
-| C1 | **Шов инъекции модели** (частично уже есть) | дотянуть шов в `GraphFactory`/composition root | **архитектор** |
+| C1 | **Шов инъекции модели** (частично уже есть) | ✅ вариант (а): model-factory в `GraphFactory` | архитектор |
 | C2 | Фейки vs VCR record/replay | фейки — основа, VCR точечно (с фильтрацией секретов в кассетах) | дефолт |
 | C3 | Checkpointer в тестах | InMemorySaver + тонкий PG-контур | дефолт |
 | C4 | Граница unit vs eval; eval в feat-009? | ✅ РЕШЕНО: границу фиксируем, eval-контур → backlog (dogfooding/прод) | архитектор |
@@ -65,8 +65,23 @@ Convention-first: по итогам этого разбора пишем раз�
   смыслом (Hypothesis для чистых функций, coverage `branch=true`, `with_server.py` при необходимости).
   Свой проектный testing-skill — кандидат в backlog. Разбор — `theory/07-skills-deep-dive.md`.
 - **B2 — cloud-контекст.** Целевой workflow — облако Anthropic, где Docker доступен → testcontainers/Docker-
-  Postgres работают и в CI; риск «негде поднять БД» снят. Выбор testcontainers vs dev-контейнер остаётся, но
-  без блокера.
+  Postgres работают и в CI; риск «негде поднять БД» снят.
+- **B1/B2/B3/B4/C1 — закрыты на разборе `02`/`03`.** B1: pytest-asyncio `auto` (Trio — структурная concurrency,
+  нам не нужна; единственная выгода anyio-маршрута — Trio-совместимость — для нас мёртвый груз). B2: testcontainers
+  session-scoped (cloud-safe). B3: **миграции (`alembic upgrade head`)** для консистентности с продом —
+  **отмена прежней hybrid-рекомендации**; плюс тест-цикл upgrade→downgrade→upgrade на критичные ревизии и страж
+  autogenerate-дрейфа на каждую из двух alembic-цепочек (backend + siem). B4: transaction-rollback на тест + под
+  xdist **отдельная БД на воркер** (создаётся/мигрируется раз на старте воркера) — шарить одну БД только на
+  rollback хрупко. C1: вариант (а) — model-factory в `GraphFactory`; guard тестируем стабом (проверяем «наш код
+  блокирует при вердикте INJECTION», не качество вердикта — это evals).
+- **Frontend — Vitest-фундамент в scope, Playwright e2e → backlog.** Vitest/RTL/MSW (jsdom, без браузера) ставим
+  в feat-009 — работает и в облаке. Реальный browser-e2e / visual-regression откладываем в существующий backlog-
+  пункт «Подход к тестированию/ревью фронтенда» (P1, Agent Harness & Workflow; PR #74): в облаке headless-браузер
+  к HTTPS не работает (issue #11791), тема уже выделена отдельной итерацией. `webapp-testing`-скилл — skip (та же
+  причина + дубль Playwright MCP).
+- **Скиллы — skip, свой позже.** Официального pytest-скилла/MCP с актуальным синтаксисом нет; актуальный синтаксис
+  уже собран в research → кладём в конвенции (single source of truth), пакуем в **свой проектный testing-skill**
+  (backlog) когда конвенции устоятся.
 
 ---
 

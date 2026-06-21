@@ -40,7 +40,7 @@
 | feat-006 | ✅ Done | frontend | Frontend slice: `feature-sliced-design` skill + миграция на канон FSD (pages/features), фабрика query keys, ось состояния в conventions |
 | feat-007 | ✅ Done | cross-cutting | Кросс-резрезные конвенции: error return types + error handling philosophy (graceful degradation vs fail-fast) |
 | feat-008 | ✅ Done | enforcement | Arch-checker (детерминированные проверки) + 2 ревьюера A/B + harvest-механизм + дробление конвенций |
-| feat-009 | 📋 Planned | testing | Test philosophy + test engineering + покрытие критичных участков |
+| feat-009 | 🚧 In Progress | testing | Test philosophy + test engineering + покрытие критичных участков |
 
 ## Параллелизация
 
@@ -415,7 +415,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** сформировать тестовую культуру проекта и покрыть критичные участки.
 
-**Статус:** 📋 Planned
+**Статус:** 🚧 In Progress
 **Scope:** testing
 **Зависимости:** feat-002 — feat-007 (понимаем код → понимаем что тестировать)
 

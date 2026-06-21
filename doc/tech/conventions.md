@@ -2,6 +2,15 @@
 
 Практические соглашения по работе с репозиторием и кодом. Стек и обоснования — в [vision.md](../vision.md).
 
+Ядро ниже читается на любой задаче. Доменные конвенции вынесены в `doc/tech/conventions/` и подгружаются при работе в соответствующем домене:
+
+| Домен | Файл | Когда читать |
+|-------|------|--------------|
+| БД | [conventions/db.md](conventions/db.md) | Схема, миграции, сессии и транзакции — при работе с моделями и БД |
+| API | [conventions/api.md](conventions/api.md) | Инфраструктура FastAPI и REST-контракты — при работе с эндпоинтами |
+| Agent | [conventions/agent.md](conventions/agent.md) | Agent runtime, reasoning-модели, именование промптов — при работе с агентом |
+| Frontend | [conventions/frontend.md](conventions/frontend.md) | FSD-раскладка, состояние, мутации — при работе с фронтендом |
+
 ## Git
 
 ### Ветки
@@ -194,82 +203,13 @@ Dockerfile живёт рядом с `pyproject.toml` пакета (`backend/Dock
 
 Если кажется, что без singleton не обойтись — это сигнал, что компонент пытается достать state из места, где у него нет доступа. Решение почти всегда в том, чтобы пробросить зависимость явно (closure, partial, dependency injection), а не закрепить её в модуле.
 
-## Схема БД
+## Enforcement
 
-Проектные решения по схеме (выбранные развилки; теория — skill `postgresql`):
+Конвенции соблюдаются не на доверии, а тремя уровнями по убыванию детерминизма — что машина проверяет точно, проверяет машина; ревьюеру остаётся то, для чего нужно понять смысл, а не форму.
 
-- **ORM-стиль — SQLAlchemy 2.0**: `Mapped[...]` + `mapped_column()`, declarative `Base` сервиса. Старый `Column()`-стиль порождает каскад `# type: ignore` и запрещён.
-- **Строки — `Text`**, не `String(n)`/`VARCHAR(n)`: в Postgres лимит длины не даёт ни места, ни скорости, но требует миграции на каждое изменение. Лимиты длины — на API-границе (Pydantic-схемы).
-- **Время — `DateTime(timezone=True)`** (`timestamptz`); в Python-коде только aware-datetime: `datetime.now(UTC)`, никогда `datetime.utcnow()` (naive, deprecated).
-- **`created_at` / `updated_at`**: `server_default=func.now()`, для `updated_at` дополнительно `onupdate=func.now()`. Руками `updated_at` не проставляется.
-- **`server_default`** — только `func.now()` / `text(...)`, не голые строковые литералы.
-- **FK — всегда с индексом** (`index=True`): Postgres не индексирует referencing-колонки автоматически, а по ним идут и наши фильтры, и проверки каскадов. `ondelete` указывается явно.
-- **Naming convention** задана в `MetaData` обоих `Base` (backend и siem): `pk_` / `fk_` / `uq_` / `ck_` / `ix_`. Имена constraints руками не пишутся — кроме объектов вне convention (GIN-индексы, partial unique), где имя задаётся явно с тем же префиксом.
-- **Enum-подобные строки, зашитые в код** (`severity`, `status`, `rule_type`, `scope_type`), получают `CHECK`-constraint. Расширение набора значений требует и кода, и миграции — они едут в одном PR. Postgres-`ENUM`-тип не используем (дороже в эволюции).
-- **Индексы — по фактическим путям доступа.** Низкоселективные колонки (3–5 значений, фильтр совпадает с большой долей таблицы) не индексируются — планировщик такой индекс игнорирует; для редкого «горячего» подмножества — partial index. Прецедент решения: дроп `idx_siem_events_severity`.
-- **Полиморфные ссылки без FK** (`mcp_server_disables.scope_id`/`server_id`) каскадом не чистятся — их подчищает приложение в сервисном слое при удалении родителя (см. `MCPServerRepository.cleanup_disables_for_project`).
-- **Бизнес-инварианты — в БД, где это возможно**: уникальность/единственность выражается constraint'ом или (partial) unique-индексом, а не проверкой «SELECT, потом INSERT» в коде (гонка). Прецедент: `uq_siem_alerts_open_alert` + атомарный `INSERT ... ON CONFLICT DO UPDATE` в дедупликации алертов.
-
-## Database migrations
-
-Миграции — единственный способ изменения схемы БД. Канонический путь:
-
-1. Поднять локальную БД (`make docker-up-db` или `make docker-up-siem-db`).
-2. Накатить все существующие миграции (`make migrate` / `make migrate-siem`).
-3. Изменить SQLAlchemy-модели.
-4. Сгенерировать миграцию (`make migration msg="..."` / эквивалент для siem).
-5. Прочитать сгенерированный файл, при необходимости отредактировать (autogenerate не покрывает rename column, индексы по выражениям, сложные data migrations).
-6. Накатить локально и проверить.
-
-Ручное написание миграции с нуля — анти-паттерн. Источник правды о схеме — модели; миграция должна следовать из diff между моделями и БД, а не из памяти разработчика. Ручная миграция теряет attribute'ы, server defaults, comments, индексы — всё то, что autogenerate подхватывает автоматически.
-
-Допустимые исключения, требующие явного разрешения архитектора:
-
-- **DML / data migration** — миграция меняет данные, не схему (например, локализация baseline-правил, заполнение колонки на основе другой).
-- **DDL за пределами autogenerate** — partial unique index, CHECK constraint с выражением, RENAME колонки/таблицы (Alembic генерирует drop+add, теряя данные).
-
-В таких случаях шапка файла начинается с комментария `# Manual migration: <reason>`. Без обоснования — миграция отклоняется на ревью.
-
-«БД не запущена» — не обоснование. Поднимается БД, не пишется миграция руками.
-
-## DB-сессии и commit
-
-Базовый паттерн — yield-dependency `get_db_session` (`backend/app/api/deps.py`): commit выполняется после `yield`, то есть **после** отправки response клиенту. Этого достаточно для read-only routes и для случаев, когда клиент не делает следующий запрос немедленно.
-
-`get_db_session` откатывает транзакцию на **любом** исключении (`except: rollback`). Из этого — два правила, когда эффект должен пережить выход из handler'а:
-
-- **Эффект нужен клиенту следующим запросом.** Routes/services, чьи возвращаемые данные клиент сразу читает следующим запросом (например, `POST /chats` → клиент тут же делает `POST /messages` по новому `thread_id`), должны выполнять `await session.commit()` **до return**, иначе следующий запрос в параллельной сессии увидит missing row (race на ownership/lookup).
-- **Эффект должен пережить исключение.** Если перед `raise` выполняется запись, которая обязана сохраниться несмотря на ошибочный ответ (например, ревокация всех refresh-токенов при детекте replay перед `ReplayDetectedError` → HTTP 401), commit делается **до** `raise` — иначе rollback в `get_db_session` откатит и её. Предусловие: к этому моменту в сессии не должно быть незакоммиченного, что *должно* было откатиться при ошибке (commit фиксирует всё pending, а не только целевую запись); если такое есть — выделить запись-«которая-переживает» в отдельную сессию/транзакцию.
-
-Дублирующий commit на уже закоммиченной сессии — no-op в SQLAlchemy.
-
-## FastAPI
-
-Проектные решения по инфраструктуре FastAPI (оба сервиса: main app + siem-service). База — skill `fastapi`; здесь только выбранные развилки и специфика репозитория.
-
-### Владение состоянием: lifespan → app.state → Depends
-
-Всё состояние уровня приложения создаётся в `lifespan` и живёт в `app.state`; handlers получают его через dependency, читающий `request.app.state`. Module-level синглтоны (`_instance + get_x()`, `@lru_cache`-фабрики, глобальные клиенты) запрещены жёстким правилом — `app.state` отличается от них владением: состояние привязано к экземпляру приложения (создаётся/умирает вместе с ним, в тестах каждый `create_app()` изолирован), а не к импортированному модулю.
-
-- **lifespan** — создание/teardown ресурсов: engine, session_factory, Redis, `Settings`, `RateLimiter`, `MetaEmitter`, `JWTValidator`, фоновые задачи (`asyncio.create_task` + cancel после `yield`). Фоновым задачам глобальные переменные не нужны — локальные переменные lifespan живут через `yield`.
-- **app.state** — хранение созданного; ключи именуются по объекту (`app.state.session_factory`, `app.state.meta_emitter`).
-- **Depends** — доступ из handlers: тонкий getter (`def get_x(request): return request.app.state.x`) + type-alias.
-
-`Settings()` инстанцируется один раз в `lifespan` (плюс один раз в `create_app()` для middleware-конфигурации). В handlers/dependencies — только `SettingsDep`; повторный `Settings()` на запрос — это повторный парсинг env.
-
-### Annotated и type-alias для зависимостей
-
-Параметры с метаданными (`Query`, `Path`, `Cookie`, `Depends`) — только в `Annotated`, дефолт остаётся обычным значением: `limit: Annotated[int, Query(ge=1, le=200)] = 50`. Переиспользуемые зависимости оборачиваются в type-alias рядом с определением (`DBSession`, `CurrentUser`, `SettingsDep` — `backend/app/api/deps.py`; `SessionDep`, `AdminPayload`, `MetaEmitterDep` — `siem_service/api/deps.py`). Правило ruff `B008` включено: вызовы в дефолтах параметров — ошибка линта, Annotated-стиль её не триггерит.
-
-### Блокирующий код и async
-
-Приоритет: (1) истинно асинхронный вариант, если у библиотеки он есть (`httpx.AsyncClient` вместо sync `httpx`); (2) чисто синхронный handler без await внутри — объявлять `def`, FastAPI сам уведёт его в threadpool; (3) смешанный код (await БД + блокирующий вызов) — блокирующий кусок уводить через `anyio.to_thread.run_sync` (anyio — фундамент Starlette, отдельной зависимости asyncer не заводим).
-
-Эталонные случаи: argon2 hash/verify (`app/services/auth.py`), wkhtmltopdf (`app/api/routes/artifacts.py`), `langfuse.flush()` (`app/api/routes/feedback.py`).
-
-### CSV для списков в env
-
-Списочные env-значения (`CORS_ORIGINS`, `SIEM_FRONTEND_ORIGIN`) — CSV-строка, не JSON: `.env` шелл-сорсится (Makefile `LOAD_ENV`), JSON-список с кавычками такую загрузку не переживает. Реализация — **пара** `Annotated[list[str], NoDecode]` + `field_validator(mode="before")` со split: без `NoDecode` pydantic-settings декодирует complex-типы из env как JSON ещё до validator'а и падает на CSV-строке (`SettingsError` на старте).
+1. **Детерминированный arch-checker.** Слоевые зависимости (import-linter), FSD-границы (eslint-boundaries), порядок middleware и зеркала `problem.py` (AST-ассерты), стиль и импорты (ruff). В gate: `make check` / `make check-fe`, pre-commit, CI. Реестр инвариантов — какая норма каким механизмом ловится, что остаётся ревьюеру — в [arch-checker.md](arch-checker.md). Норма, ушедшая в детерминированную проверку, **пока остаётся и в тексте** (страховка на период обкатки checker'а) — дублирование снимется, когда механизм докажет надёжность.
+2. **Два LLM-ревьюера** в фазе CODE_REVIEW: режим A (качество кода — баги, сложность, читаемость) и режим B (соответствие контракту — конвенции, doc-first, архитектура). Параллельно, read-only; severity `blocker/nit/pre-existing`. Промпты и разрешение конфликтов A↔B — в `.claude/skills/aidd-orchestrator/prompts/reviewer-{a,b}.md`.
+3. **Harvest** в конце итерации: незакрытые долги и кандидаты в конвенции собираются по рубрике и проходят через апрув архитектора, чтобы ценное не умирало в summary. Роль `harvester`, процесс — в [workflow.md](../workflow.md) § Завершение.
 
 ## Секреты и fail-fast
 
@@ -281,7 +221,7 @@ Dockerfile живёт рядом с `pyproject.toml` пакета (`backend/Dock
 
 ## Обработка ошибок
 
-Кросс-резрезные правила обработки ошибок (оба сервиса + agent + frontend). Решение в любой точке кода ведётся по последовательности: *это ошибка? → чем сигналим? → где ловим? → как транслируем? → как восстанавливаемся?*. Ниже — проектные правила; частные аспекты — в § REST API (форма problem+json), § Logging (уровни, security-события), § Секреты и fail-fast (старт), § DB-сессии (транзакции).
+Кросс-резрезные правила обработки ошибок (оба сервиса + agent + frontend). Решение в любой точке кода ведётся по последовательности: *это ошибка? → чем сигналим? → где ловим? → как транслируем? → как восстанавливаемся?*. Ниже — проектные правила; частные аспекты — в [REST API](conventions/api.md#rest-api) (форма problem+json), § Logging (уровни, security-события), § Секреты и fail-fast (старт), [DB-сессии](conventions/db.md#db-сессии-и-commit) (транзакции).
 
 ### Сигнал: исключения + Optional
 
@@ -353,6 +293,10 @@ Dockerfile живёт рядом с `pyproject.toml` пакета (`backend/Dock
 ## Тестирование
 
 Pytest. Системную тестовую философию и инфраструктуру проектирует с нуля отдельная итерация (feat-009 Testing фазы Codebase Maturity). До неё в slice-итерациях основная страховка — **ручные тест-кейсы** на затронутые участки (документ + прогон независимым агентом-тестировщиком; артефакт итерации). Точечные автотесты, если писались по ходу slice'а, не оседают в живой `backend/tests/`, а архивируются в артефакты итерации — feat-009 решает, что из них влить в общую рамку. Так тестовая инфраструктура не складывается стихийно до своей итерации.
+
+Тест-кейсы заводятся из шаблона `doc/tasks/iterations/_templates/test-cases-template.md` (конвенции прохождения — инлайн в документе, тестировщик их не ищет в `conventions.md`). Статус кейса несёт **run-log** — историю флипов при перепрогонах.
+
+**Ре-верификация после правок.** Правка кода аннулирует прошлый зелёный статус затронутого — тривиальность правки гарантий не даёт (фикс под один кейс красит другой, ранее зелёный). После любой code-touching правки: детерминированный гейт (`make check`/`make check-fe`; с тестовой инфрой feat-009 — `make test`) перепрогоняется всегда (цена ≈ ноль); ручные/UI-кейсы — только в затронутой области (полный прогон дорог). Перепрогон фиксируется в run-log.
 
 ## Docker
 
@@ -505,55 +449,6 @@ style LAYER fill:#58a6ff1a,stroke:#58a6ff,color:#58a6ff
 
 **Верификация связей.** Диаграмма, утверждающая структуру (слои, зависимости, потоки данных), рисуется не по памяти: связи сверяются с кодом — grep по импортам или ревью отдельным сабагентом («взгляд со стороны» ловит связи, которые автор не удержал в голове). Перед фиксацией — проверить рендер на тёмной теме.
 
-## REST API
-
-Проектные решения по REST-контрактам (оба сервиса: main app + siem-service). База — skill `api-design-principles`; здесь только выбранные развилки и специфика репозитория.
-
-### Pagination и list envelope
-
-- Пагинация — **offset/limit** (cursor не используем: коллекции — десятки-сотни элементов на пользователя). Query-параметры: `limit` (default 50, max 200), `offset` (≥0); общий dependency `Pagination` в `app/api/deps.py`.
-- Envelope списочных ответов един для **всех** list-эндпоинтов, включая маленькие фиксированные списки (models, mcp-servers): `{ items, total, limit, offset }`. Generic `Page[T]` — `app/api/schemas/common.py`; endpoint-специфичные поля добавляются наследованием (пример — `inherited` в `MCPServerListResponse`).
-- Решение «пагинация везде» — осознанное: не держим в голове, какой список «может вырасти», а какой нет.
-
-### Status codes
-
-- `201` — POST, создающий ресурс; `204` — DELETE без тела (повторный DELETE того же ресурса — тоже `204`, идемпотентность).
-- `409` — конфликт с текущим состоянием (занятый username, превышен лимит ресурсов в scope).
-- `422` — ошибки валидации запроса; валидация значений выражается схемой (`Literal`, типы, constraints), а не ручными `if` + `400` в handler'е.
-- **Auth-эндпоинты (`/auth/*`) — RPC-семантика**: ответ — токен-сессия, а не представление ресурса, поэтому resource-правила (201 на register, Location) на них не распространяются.
-- `Location`-header на 201 не используем.
-
-### Ошибки — RFC 9457 Problem Details
-
-Все ошибки обоих сервисов — `application/problem+json`: `{ type, title, status, detail, …extensions }`. Реализация — глобальные handlers (`app/api/problem.py`, зеркало в `siem_service/api/problem.py`); слои перехвата (доменный / инфра / generic) — см. § Обработка ошибок → Барьерный стек.
-
-- `type` — машинный код ошибки в форме `urn:learnflow:<code>` (пример: `urn:learnflow:security-policy-violation`); для ошибок без машинной семантики — `about:blank`, клиент ориентируется на `status`.
-- `detail` — человекочитаемое сообщение; ошибки валидации несут расширение `errors` (список полей).
-- В handler'ах ошибки поднимаются как обычно (`HTTPException(status, detail=...)`); структурный код передаётся dict-detail (`{"error": <code>, "message": ...}`) и конвертируется handler'ом в `type` + расширения.
-
-### Ownership и нейминг
-
-- Принадлежность ресурсов по path-цепочке валидируется зависимостями: `UserProject` (project → user), `UserThread` (chat → project → user). Endpoint, принимающий `{project_id}`/`{chat_id}`, обязан использовать соответствующий dependency — ручные проверки в handler'ах не пишем.
-- **Граница нейминга chat/thread проходит по path**: URL-сегменты и path-параметры — `chats` / `chat_id` (user-facing язык), поля payload и внутренние слои — `thread_id` (domain язык, происходит из LangGraph).
-- Action-эндпоинты (`/cancel`, `/test`, `/toggle`) допустимы как controller-паттерн для операций, не ложащихся в CRUD.
-
-### Versioning
-
-API не версионируется (`/api` без `v1`) до появления публичного API.
-
-## Prompt Naming
-
-Системные промпты в Langfuse именуются по формату `{name}--{label}`:
-
-```
-system--development
-system--production
-summarization--development
-summarization--production
-```
-
-Двойной дефис (`--`) разделяет имя промпта и label окружения. Обеспечивает полную изоляцию dev/prod: каждое окружение имеет собственную историю версий. Подробнее — [prompt-management.md](prompt-management.md).
-
 ## Logging Conventions
 
 ### Семантика уровней
@@ -599,38 +494,6 @@ logger.warning(
 - `severity` обязателен — одно из: info, warning, critical
 - `metadata` опциональна — event-specific детали (не identifiers — они вытягиваются автоматически)
 
-## Agent Runtime
-
-Проектные решения по структуре agent runtime (`backend/app/agent/`). База — skill `langgraph-patterns`; здесь только выбранные развилки.
-
-**Топология графа.** ReAct-цикл строится на pre-defined edges (`add_conditional_edges("agent", tools_condition)` + `add_edge("tools", "agent")`), не на Command API: топология известна на этапе компиляции, динамический routing не нужен. Checkpointer и Store (`AsyncPostgresSaver`/`AsyncPostgresStore`) — shared, создаются один раз в `lifespan` через `async with`; per-request пересобирается только граф (`GraphFactory`).
-
-**Runner — оркестратор, не God Object.** `LangGraphAgentRunner` реализует контракт `AgentRunner` (stream / get_history / get_last_ai_message_id / cancel) и только оркеструет: стримит, принимает решения, эмитит SSE. Сквозные заботы вынесены в инжектируемых коллабораторов, у каждого своя причина меняться:
-
-| Коллаборатор | Ответственность |
-|--------------|-----------------|
-| `RuntimeSecurityEnforcer` | Четыре runtime-чекпоинта guard'а (user input / mid-stream / final output / in-graph inspection) + редакция сообщений + пометка thread'а blocked. Каждый `check_*` делает свои сайд-эффекты и возвращает `SecurityOutcome | None`; runner по исходу решает `yield security_block`. |
-| `AgentRunTracer` / `AgentRunSpan` | Langfuse-спан рана: score, finalize-on-block, output, mid-stream observation. Fail-safe (ошибки Langfuse подавляются). |
-| `CheckpointHistory` | Единственное место, знающее форму `channel_values["messages"]`: чтение, маппинг в `Message`, поиск редакций. |
-| `StreamEventMapper` | `stream_mode="updates"` → доменные `StreamEvent` (tool_start / tool_end / artifact_created). |
-
-Принцип: новая сквозная забота в runtime → отдельный коллаборатор за портом, а не ещё один метод в runner.
-
-## Reasoning LLMs
-
-Часть моделей (OpenRouter-совместимые) отдают цепочку рассуждений в нестандартном поле `reasoning`. Чтобы извлекать её в `AIMessage.additional_kwargs["reasoning"]` — используется `ReasoningChatOpenAI` из `app/infra/llm.py`.
-
-**Все модели проекта создаются как `ReasoningChatOpenAI` — безусловно.** Это безопасный надкласс `ChatOpenAI`: извлечение reasoning — no-op, когда провайдер не вернул поле `reasoning`. Поэтому ветки «`ReasoningChatOpenAI` или `ChatOpenAI` по флагу» нет — все фабрики (`create_llm_from_config` для агента, `create_summarization_llm` для summarizer, `create_guard_llm` для security guard) идут через единый приватный билдер `_build_chat_model`, который всегда возвращает `ReasoningChatOpenAI`.
-
-**Конфигурация.** `extra_body.include_reasoning: true` управляет тем, *вернёт* ли провайдер reasoning (а не выбором класса):
-
-- `configs/agent.yaml`: `llm.extra_body.include_reasoning`, `summarization.extra_body.include_reasoning`.
-- `configs/security.yaml`: `llm_classifier.extra_body.include_reasoning`.
-
-При `false`/отсутствии reasoning просто не приходит и его цена не списывается в Langfuse — но класс остаётся `ReasoningChatOpenAI`, поведение идентично `ChatOpenAI`.
-
-**Видимость.** В Langfuse generation `additional_kwargs.reasoning` попадает в поле output вместе с основным текстом; цена reasoning-токенов учитывается через `usage.completion_tokens_details.reasoning_tokens` — требуется корректный `prices.output_reasoning` в определении модели.
-
 ## Типизация
 
 В проекте соседствуют четыре способа описать «тип данных»: `Enum`, Pydantic `BaseModel`, `@dataclass`, `TypedDict`. Чтобы не размазывать один концепт по разным формам, следуем таблице ниже. Если сомневаетесь — `BaseModel` по умолчанию.
@@ -647,47 +510,3 @@ logger.warning(
 **Консистентность.** Одну сущность описываем одной формой. Если `Verdict` — Enum, его не дублируем как `Literal[...]`. Если конфиг-модель — `BaseModel`, её поля не превращаем в отдельные `dataclass`-обёртки ради «красоты». Смешение форм в одном файле = повод для ревью.
 
 **Паттерн для YAML-конфигов.** Каждый раздел `configs/*.yaml` имеет один `BaseModel` с явными полями (не `dict[str, Any]`). Loader пишется рядом с моделью: `load_<name>() -> <Model>`. Это дает: типизированный IDE-autocomplete, Pydantic-валидацию при старте (fail-fast вместо KeyError в рантайме), единый источник дефолтов.
-
-## Frontend
-
-Теория FSD и паттернов состояния — в skill `feature-sliced-design` и skill-map. Здесь — только решения проекта: выбранные развилки и осознанные отступления на нашем коде (`frontend/src`).
-
-### Раскладка по слоям (FSD-адаптация)
-
-Слои: `app/` (shell — providers, router, layouts, Sidebar и его project-компоненты), `pages/` (композиция уровня маршрута), `features/` (переиспользуемые interactions), `shared/` (инфраструктура). Слой `widgets/` и `entities/` **не вводим** — нет материала (нет UI-блоков, переиспользуемых между несколькими страницами; доменные модели не переиспользуются между страницами). Появится — заведём тогда, не «на вырост».
-
-Осознанные отступления от каноничного FSD (документируем, т.к. скилл требует фиксировать причину):
-
-- **`features/` = только реально переиспользуемое.** Слайс в `features/` заводится, когда interaction используется в 2+ страницах. Сейчас это `model-selector` и `mcp-servers` (оба тянут чат + user-settings + project-settings). Одиночные экраны — это `pages/`, а не `features/`.
-- **`stores/` живёт на верхнем уровне `src/`, а не в `model/`-сегментах слайсов.** Причина: `stream-store` — cross-feature (пишет `pages/chat`, читают компоненты чата), привязка к одному слайсу неверна. `ui-store` — глобальный UI-флаг сессии.
-- **`shared/` импортируется по доменным файлам, без barrel-индексов.** У `shared/` нет слайсов (правило публичного API FSD — про слайсы), поэтому `@/shared/api/projects`, `@/shared/ui/button` легальны и предпочтительны 13-экспортному баррелу (хуже tree-shaking, лишняя возня).
-
-### Публичные API слайсов
-
-Каждый слайс `pages/` и `features/` экспортирует наружу только через `index.ts`; внешние потребители (роутер, layouts, другие страницы) импортируют из него, не из внутренних файлов. Внутри слайса — сегменты `ui/` (компоненты), `model/` (оркестрация/состояние, напр. `pages/chat/model/useAgentStream.ts`). Это даёт свободу рефакторинга внутренностей слайса за стабильным контрактом.
-
-### Ось состояния: серверное в Query, клиентское в Zustand
-
-- **Серверные данные — только TanStack Query.** Data-хуки (`useProjects`, `useChat`, `useSecurityAPI`, …) живут в `shared/api/<domain>.ts` рядом с API-функциями и DTO-типами (CRUD — инфраструктура, по FSD место в `shared/api`). Компоненты вызывают хуки, не API-функции напрямую.
-- **Клиентское UI-состояние — Zustand** (`stores/`). Серверные данные в стор **не дублируем**; производное (активный таб, текущий проект/чат) вычисляем из URL (`useParams`), не храним.
-- **Подписки на стор — через селекторы** (`useUIStore((s) => s.sidebarOpen)`), не деструктуризацией всего стора: иначе компонент перерисовывается на любое изменение стора.
-
-### Фабрика query keys
-
-Единственный источник ключей — `shared/api/query-keys.ts` (объект `queryKeys`). Инлайн-литералов `["projects", id, …]` в хуках/компонентах нет. Иерархия ключей намеренная: префиксная инвалидация (`invalidateQueries({ queryKey: queryKeys.projects.detail(id) })`) задевает всех потомков. Новый ресурс → сначала ключ в фабрику, потом хук.
-
-### Optimistic vs пессимистичные мутации
-
-Дефолт — **пессимистичный**: дождаться ответа сервера, затем `invalidateQueries` (и/или `setQueryData` вернувшимся значением). Так сделаны все мутации, включая security ack/resolve — для admin-панели корректность важнее мгновенности. **Optimistic update с откатом** (`onMutate` снимает снапшот → `onError` восстанавливает) держим в резерве для частых низкорисковых взаимодействий. Оптимистичные патчи в текущем UI: `security_block` в `useAgentStream` (терминальный, отката не требует) и feedback-кнопки `FeedbackButtons` — с откатом при ошибке (`setFeedback(prevFeedback)`).
-
-### Граница shadcn в `shared/ui`
-
-`shared/ui/` — UI-kit: примитивы shadcn (генерируются CLI по `components.json`, **руками не правим** — перегенерация затрёт) и наши общие UI-композиции поверх них (напр. `MarkdownRenderer`, `Wordmark`, `SphereOrb`, `Illustration`). Отдельной папки под «наше» не заводим (одна композиция — оверинжиниринг); граница «сгенерированное / наше» — по этому соглашению, не по дереву каталогов.
-
-### Дизайн-токены и темизация
-
-Цвета, тени, радиусы, типографика — только через CSS-переменные токенов («Чернила / Электрик», `frontend/src/index.css`) и Tailwind-утилиты; хардкод hex/rgba в `.tsx` запрещён. Фиолетовый в UI всегда плоский — радиальный градиент живёт только в `SphereOrb` (токены `--orb-*`). Полный контракт системы (палитра, шрифты, переключатель темы, бренд-примитивы, иллюстрации, error UX) — [design-system.md](design-system.md).
-
-### Логирование
-
-`import { logger } from "@/shared/lib/logger"` вместо `console.*` (обёртка фильтрует по `DEV`/`PROD`). Прямых `console.*` в коде нет.

@@ -16,12 +16,14 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=packages/siem-contracts/pyproject.toml,target=packages/siem-contracts/pyproject.toml \
     --mount=type=bind,source=services/siem-service/pyproject.toml,target=services/siem-service/pyproject.toml \
     --mount=type=bind,source=tools/security-scan/pyproject.toml,target=tools/security-scan/pyproject.toml \
+    --mount=type=bind,source=tools/arch-checker/pyproject.toml,target=tools/arch-checker/pyproject.toml \
     uv sync --locked --no-install-workspace --all-packages
 
 # Copy project source
 COPY packages/ /app/packages/
 COPY services/ /app/services/
 COPY tools/security-scan/pyproject.toml /app/tools/security-scan/pyproject.toml
+COPY tools/arch-checker/pyproject.toml /app/tools/arch-checker/pyproject.toml
 COPY pyproject.toml uv.lock /app/
 # uv requires every workspace member declared in the root pyproject to exist
 # on disk; copy backend's pyproject only (no source) to satisfy the workspace

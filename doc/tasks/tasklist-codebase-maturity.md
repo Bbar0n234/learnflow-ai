@@ -39,8 +39,8 @@
 | feat-005 | ✅ Done | agent | Agent runtime slice: langgraph-patterns (авторский) + кандидаты langgraph-* от langchain-ai + поглощение Reasoning ChatOpenAI everywhere (langchain-architecture отклонён в feat-001) |
 | feat-006 | ✅ Done | frontend | Frontend slice: `feature-sliced-design` skill + миграция на канон FSD (pages/features), фабрика query keys, ось состояния в conventions |
 | feat-007 | ✅ Done | cross-cutting | Кросс-резрезные конвенции: error return types + error handling philosophy (graceful degradation vs fail-fast) |
-| feat-008 | 🚧 In Progress | enforcement | Arch-checker (детерминированные проверки) + Reviewer-промпты (logging, error returns, doc-first) |
-| feat-009 | 📋 Planned | testing | Test philosophy + test engineering + покрытие критичных участков |
+| feat-008 | ✅ Done | enforcement | Arch-checker (детерминированные проверки) + 2 ревьюера A/B + harvest-механизм + дробление конвенций |
+| feat-009 | 🚧 In Progress | testing | Test philosophy + test engineering + покрытие критичных участков |
 
 ## Параллелизация
 
@@ -352,9 +352,11 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** автоматизировать многоуровневое ревью изменений — детерминированные арх-проверки + LLM-reviewer по чек-листам (проектные конвенции + фундаментальное качество кода + соответствие документации) — и привести сам `conventions.md` в поддерживаемую форму (анти-раздувание). Предварительный шаг — deep research по состоянию инструментов code review.
 
-**Статус:** 🚧 In Progress
+**Статус:** ✅ Done — итоги в [summary.md](iterations/codebase-maturity/feat-008-enforcement/summary.md); проработка в [design-brief.md](iterations/codebase-maturity/feat-008-enforcement/design-brief.md)
 **Scope:** enforcement (workflow / CI)
 **Зависимости:** feat-007 (нужны зафиксированные конвенции для enforcement'а)
+
+> **Скоуп расширился по ходу проработки с архитектором** (зафиксировано в design-brief): итерация выросла из «enforcement кода» в «надёжность петель обратной связи». Добавлены: harvest-механизм (систематический сбор хвостов → backlog/конвенции), норма ре-верификации, формат тест-кейсов (run-log) + шаблон, два ревьюера (A/B по когнитивным режимам, не один). Граница: tester-review и полная активация детерминированной ре-верификации → feat-009; обобщённая вставка ревью-шага, рычаг-3 (удаление норм из текста) → backlog.
 
 #### Из backlog
 
@@ -395,14 +397,17 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 #### Definition of Done
 
-- [ ] Arch-checker настроен, минимум 3-5 правил активны (направления зависимостей + module-level state + cross-slice imports).
-- [ ] Arch-checker запускается в pre-commit или CI, нарушения блокируют merge.
-- [ ] Deep research по code review проведён, findings зафиксированы (вендорские наработки, фундаментальные принципы, граница детерминированное/LLM).
-- [ ] Reviewer-промпты содержат чек-листы по: проектным конвенциям (logging / error returns / error handling), фундаментальному качеству кода, соответствию документации (doc-first).
-- [ ] Документация: как добавлять новые правила в arch-checker, как обновлять reviewer-чек-листы.
-- [ ] Конвенции прорежены: развёрнутое «почему» сжато где избыточно; нормы, перешедшие в arch-checker, удалены из текста.
-- [ ] Формат ведения конвенций решён (монолит / per-service) и, при выборе per-service, применён.
-- [ ] Точки остановки на теорию пройдены.
+- [x] Deep research по code review проведён, findings зафиксированы ([research-code-review.md](iterations/codebase-maturity/feat-008-enforcement/research-code-review.md): 13 источников, классы режима A, граница детерминированное/LLM, severity-модель).
+- [x] Arch-checker настроен: 9 контрактов import-linter (слои backend/siem, транспорт-в-домене, изоляция packages), 3 AST-ассерта (порядок middleware, зеркала `problem.py`, module-singletons), eslint-boundaries (FSD). Системный реестр инвариантов — [arch-checker.md](../tech/arch-checker.md).
+- [x] Arch-checker в gate: `make check` / `make check-fe` + pre-commit + CI; нарушения блокируют (проверено sanity-инъекцией: запрещённый импорт → BROKEN, откат → 0 broken).
+- [x] R1-нарушения (3 роута API→Repository) — все нетривиальны, в allowlist + карточки в backlog (harvest-proposals).
+- [x] Два LLM-ревьюера A/B (режим A качество / режим B контракт) в `.claude/skills/aidd-orchestrator/prompts/`; чек-листы по logging / error returns / error handling / фундаментальному качеству / doc-first; разрешение конфликтов A↔B; FSM-встройка в CODE_REVIEW.
+- [x] Harvest-механизм: роль `harvester`, рубрика (backlog/конвенции/known-trivial), проверка «не закрыто ли уже», канон секции `## Follow-ups`, гейт архитектора; в workflow.md + FSM.
+- [x] Норма ре-верификации + формат тест-кейсов (run-log) + шаблон с инлайн-конвенциями.
+- [x] Документация: реестр arch-checker.md + README `tools/arch-checker/`; harvest и ре-верификация в workflow.md.
+- [x] Конвенции: § Enforcement добавлен; рычаг-1 (плотность) — лёгкий проход при дроблении; рычаг-2 (per-domain дробление) применён, решение — ADR-025; рычаг-3 (удаление норм, ушедших в checker) — **отложен явно** (страховка на период обкатки).
+- [x] Точки остановки на теорию пройдены (граница детерминированное/LLM, import-linter vs AST, severity-модели, формат конвенций).
+- [x] Pre-commit gate архитектора пройден; PR #73 смержен в develop → 🚧→✅.
 
 ---
 
@@ -410,7 +415,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** сформировать тестовую культуру проекта и покрыть критичные участки.
 
-**Статус:** 📋 Planned
+**Статус:** 🚧 In Progress
 **Scope:** testing
 **Зависимости:** feat-002 — feat-007 (понимаем код → понимаем что тестировать)
 

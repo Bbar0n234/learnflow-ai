@@ -1,4 +1,4 @@
-.PHONY: docker-up docker-up-db docker-up-redis docker-down docker-build docker-logs lint format type-check check lint-fe check-fe format-fe dev dev-remote dev-fe test migrate migration downgrade migrate-siem sync-prompts security-scan-validate security-scan-redteam security-scan-report grant-admin seed-demo
+.PHONY: docker-up docker-up-db docker-up-redis docker-down docker-build docker-logs lint format type-check arch-check check lint-fe check-fe format-fe dev dev-remote dev-fe test migrate migration downgrade migrate-siem sync-prompts security-scan-validate security-scan-redteam security-scan-report grant-admin seed-demo
 
 # Load .env (base) then .env.local (overrides) into shell environment
 LOAD_ENV = set -a && [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; set +a
@@ -29,12 +29,18 @@ format:  ## Format Python code (auto-fix safe lint issues + format)
 	uv run ruff format .
 
 type-check:  ## Run mypy type checking
-	uv run mypy backend/ services/siem-service/ tools/security-scan/
+	uv run mypy backend/ services/siem-service/ tools/security-scan/ tools/arch-checker/
+
+arch-check:  ## Run architecture checks (import-linter contracts + AST asserts)
+	PYTHONPATH=backend:services/siem-service uv run lint-imports
+	uv run python -m arch_checker
 
 check:  ## Run all backend checks (CI gate)
 	uv run ruff check .
 	uv run ruff format --check .
-	uv run mypy backend/ services/siem-service/ tools/security-scan/
+	uv run mypy backend/ services/siem-service/ tools/security-scan/ tools/arch-checker/
+	PYTHONPATH=backend:services/siem-service uv run lint-imports
+	uv run python -m arch_checker
 
 lint-fe:  ## Run ESLint on frontend
 	cd frontend && npx eslint .

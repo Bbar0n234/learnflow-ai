@@ -1,7 +1,8 @@
 // Adaptation: shadcn CLI generated this file with `next-themes` (Next.js-specific).
-// We replaced `useTheme` from next-themes with `useThemeStore` (T1, Zustand)
-// because the project runs on Vite/React without a next-themes ThemeProvider.
-import { useThemeStore } from "@/stores/theme-store";
+// Заменили `useTheme` из next-themes на shared-хук `useTheme` (читает `.dark` с
+// <html> через DOM): проект на Vite/React без next-themes ThemeProvider, а
+// `shared/ui` не вправе зависеть от `stores` (граница FSD shared → shared).
+import { useTheme } from "@/shared/lib/use-theme";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 import {
   CircleCheckIcon,
@@ -12,7 +13,7 @@ import {
 } from "lucide-react";
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const theme = useThemeStore((s) => s.theme);
+  const theme = useTheme();
 
   return (
     <Sonner

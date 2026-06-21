@@ -62,30 +62,38 @@ unit/eval, антипаттерны, DoD через поведение, A6-guard
 промпты в `.claude/skills/aidd-orchestrator/prompts/`), single-source-of-truth (ссылки на conventions,
 не дубль). Снимаем `continue-on-error` в CI — тесты в гейт (F3). Гейт архитектора.
 
-## Партиция скоупов Ф3 (предложение — требует подтверждения)
+## Партиция скоупов Ф3 — вертикальная нарезка по подсистемам
 
-| Скоуп | Что покрывает | Тип тестов |
-|-------|---------------|------------|
-| S1 auth + security | JWT/refresh/ротация, rate limit, guard-ветвление (block/redact на стаб-вердиктах) | unit + integration |
-| S2 REST handlers (main) | критпути роутов через ASGI-клиент, статус-коды, авторизация, envelope | integration |
-| S3 services / бизнес-логика | sociable-unit на сервисы с fake-коллабораторами | unit (sociable) |
-| S4 repositories / DB | реальные запросы против testcontainers-Postgres, миграции up/down | integration |
-| S5 agent runtime | граф/ноды/edges, SSE-маппер, checkpointer — на fake LLM | unit + integration |
-| S6 SIEM pipeline + контракт | siem-логика + страж дрейфа `siem-contracts` (B8) | unit + contract |
-| S7 frontend | хуки/сторы/компоненты на Vitest/RTL/MSW (+SSE-мок) | unit + integration |
+Решение архитектора: режем **вертикально** (подсистема end-to-end: route → service → repository →
+model + её тесты), а не горизонтально по слоям. Сервис не пилится между агентами; директории тестов
+(`tests/<scope>/`) не пересекаются. Cross-cutting (страж дрейфа миграций, `packages/testing`, conftest,
+фейки) живёт в Ф2b-инфре, не в скоупах Ф3.
 
-6–7 агентов, директории не пересекаются.
+| Скоуп | Подсистема (end-to-end) | Ключевые модули | Бар |
+|-------|-------------------------|-----------------|-----|
+| S1 Auth & access | JWT/refresh/ротация, rate limit, шифрование | `routes/auth`, `services/auth`+`encryption`, `repos/refresh_token`+`user`, `models/user`+`refresh_token`, `api/deps`, `security_pipeline` | критпуть — глубина |
+| S2 Agent guard | prompt-injection guard, ветвление по вердикту | `agent/security/*` (classifier, guard, canary, corpus, detectors, observer, types), `agent/runtime_security` | критпуть — глубина |
+| S3 Agent runtime | граф/ноды/edges, SSE-маппер, checkpointer — на fake LLM | `agent/graph`, `graph_factory`, `runner`, `prompt_builder`, `error_mapper`, `stream_events`, `checkpoint_history`, `config`, `tracing` | критпуть — глубина |
+| S4 Projects & artifacts | основной REST-спайн продукта | `routes/projects`+`artifacts`, `services/project`+`artifact`, `repos/project`+`artifact`+`thread_view`, `models` | happy + ошибки |
+| S5 Chat & streaming | чат, сообщения, SSE-оркестрация, feedback | `routes/chats`+`messages`+`feedback`, `services/chat`+`agent_runner` | критпуть (SSE) — глубина |
+| S6 Knowledge sphere | sphere REST + agent-tool + fuzzy patch | `routes/sphere`, `services/sphere`, `agent/tools/knowledge_sphere`+`ks_helpers`+`store_helpers` | happy + ошибки |
+| S7 Memory · settings · MCP · models | персонализация + конфиг интеграций | `routes/user_memory`+`settings`+`mcp_servers`+`models`, `services/user_memory`+`model_config_resolver`+`mcp_server`+`mcp_tool_resolver`+`url_validator`, `repos/settings`+`mcp_server`, `agent/tools/user_memory`+`skills`, `agent/skills` | happy + ошибки |
+| S8 SIEM + contracts | siem-логика + страж дрейфа контракта | `services/siem-service`, `packages/siem-contracts`, `repos/trace_store` | unit + contract |
+| S9 Frontend | хуки/сторы/компоненты на Vitest/RTL/MSW (+SSE-мок) | `frontend/src` — features, stores, pages, shared | unit + integration |
 
-## Открытые форки для архитектора
+9 агентов в веере, директории не пересекаются.
 
-1. **F1 — глубина покрытия.** Критпути-приоритет (по DoD) vs широкое покрытие всех скоупов. Определяет
-   объём Ф3 и завершаемость. (Твоя формулировка «покрыть кодовую базу» тянет к широкому — нужно
-   подтвердить бар на скоуп.)
-2. **Партиция скоупов** — подтвердить/скорректировать таблицу выше (особенно границы S2/S3 и куда отнести
-   knowledge-sphere/user-memory tools).
-3. **A3 — coverage-политика** (диагностика + «не понижать» vs числовой floor) и **A4 — строгость DoD**.
-4. **Journaling — формат и место** run-log'ов (предлагаю: `runlog/<scope>.md` в директории итерации, по
-   образцу run-log feat-008).
+## Решения архитектора по форкам (закрыты)
+
+1. **F1 — глубина.** Широкое покрытие всех скоупов на уровне поведения (happy + основные ошибки/
+   авторизация) **+ глубина на критпутях**: S1/S2/S3/S5 дополнительно получают edge/negative-кейсы.
+   Бар на скоуп см. в колонке таблицы.
+2. **Партиция — вертикальная** (S1–S9 выше). Требует финального подтверждения архитектора (нужна
+   только к Ф3; Ф2a/Ф2b от неё не зависят).
+3. **A3/A4 — диагностика + ratchet, без числа.** Мерим branch-coverage, репортим, фиксируем правило
+   «не понижать». Жёсткого числового floor не ставим, пока база ~0%. DoD — через поведение, не процент.
+4. **Journaling — `runlog/<scope>.md`** в директории итерации, по образцу run-log feat-008. Ревьюер
+   дописывает findings, фиксер — примечания. Параллельные агенты не конфликтуют (разные файлы).
 
 ## Зафиксированные решения (см. `decisions-phase1.md`)
 

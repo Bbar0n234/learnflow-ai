@@ -274,9 +274,17 @@ Frontend различает две точки взаимодействия с с
 
 **Add-time block (формы записи).** Custom Instructions, Knowledge Sphere editor, MCP server form: при HTTP 422 с маркером security violation (helper `isSecurityViolation(error)`) форма показывает inline-сообщение под кнопкой Save. Текст в форме не сбрасывается — пользователь редактирует и пробует ещё раз. Конкретная причина детекции в UI не раскрывается.
 
+## Дизайн-система и темизация
+
+Визуальный язык продукта — система «Чернила / Электрик»: тёплая бумажная основа, один плоский фиолетовый акцент, serif-акценты, Сфера-орб как ядро бренда. Токены light/dark, типографика, бренд-примитивы (`Wordmark`, `SphereOrb`), иллюстрации и error UX — в [design-system.md](design-system.md). Здесь — только точки интеграции:
+
+- **Темизация.** Тема — клиентское состояние `stores/theme-store.ts` (Zustand + persist, ключ `learnflow-theme`); переключение вешает класс `.dark` на `<html>`, no-FOUC инлайн-скрипт в `index.html`. Переключатель — в user-строке Sidebar.
+- **Иллюстрации.** Welcome-hero, sidebar-vignette, empty-states и error-state идут через централизованную карту `shared/assets/illustrations/index.ts` (обёртка `shared/ui/Illustration`) — единственная точка свапа ассетов.
+- **Error UX.** Тосты `sonner` на ошибках мутаций (`MutationCache.onError` → `toast.error` из парсера `shared/lib/api-error.ts`); брендовый ErrorBoundary с иллюстрацией; инлайн error-бары на токене `--destructive`.
+
 ## Стек и инструменты
 
-Обоснование выбора, альтернативы и риски — в [ADR-008](adr/ADR-008-frontend-stack.md).
+Обоснование выбора, альтернативы и риски — в [ADR-008](adr/ADR-008-frontend-stack.md). Визуальный язык и токены — в [design-system.md](design-system.md).
 
 | Категория | Технология |
 |-----------|-----------|
@@ -290,6 +298,8 @@ Frontend различает две точки взаимодействия с с
 | UI state | Zustand v5 |
 | Роутинг | React Router v7 (library mode) |
 | Markdown/стриминг | Streamdown |
+| Тосты/уведомления | sonner |
+| Шрифты | @fontsource (Source Serif 4, Instrument Sans, IBM Plex Mono) |
 | Иконки | Lucide React |
 | Линтер | ESLint |
 | Форматер | Prettier |
@@ -440,4 +450,4 @@ logger.error("[context]", error);
 
 ### Error Boundary
 
-`frontend/src/app/components/ErrorBoundary.tsx` — React class component, оборачивает корень приложения. При непойманной ошибке рендера показывает fallback UI (сообщение + кнопка "обновить страницу") вместо белого экрана. Логирует ошибку через `logger.error`.
+`frontend/src/app/components/ErrorBoundary.tsx` — React class component, оборачивает корень приложения. При непойманной ошибке рендера показывает брендовый fallback UI (иллюстрация error-state + сообщение + кнопка «обновить страницу») вместо белого экрана. Логирует ошибку через `logger.error`. Ошибки API доводятся тостами `sonner` (мутации) и инлайн error-барами — см. [design-system.md § Error UX](design-system.md#error-ux).

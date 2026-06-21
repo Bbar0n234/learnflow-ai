@@ -140,7 +140,12 @@ feat-001 (PoC ✅) ─┤                                                       
 
 #### Артефакты
 - [Design brief](iterations/design-branding/feat-004-design-system-integration/design-brief.md)
+- [Implementation plan](iterations/design-branding/feat-004-design-system-integration/plan.md)
 - [Test cases](iterations/design-branding/feat-004-design-system-integration/test-cases.md)
+- [Summary](iterations/design-branding/feat-004-design-system-integration/summary.md)
+
+#### Документация
+- [design-system.md](../tech/design-system.md) — визуальный язык «Чернила / Электрик» (создан этой итерацией); ссылки добавлены в [frontend.md](../tech/frontend.md), [conventions.md § Frontend](../tech/conventions.md#frontend), [index.md](../index.md)
 
 ---
 

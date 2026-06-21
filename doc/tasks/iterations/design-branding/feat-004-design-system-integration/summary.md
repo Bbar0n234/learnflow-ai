@@ -391,3 +391,31 @@ UI версионирования сферы на mock-данных. Никак�
 **Verification:** `make check-fe` GREEN + `tsc -b && vite build` GREEN.
 
 **В предпродакшн-гейт (feat-006) — заглушки группы B видны в реальных вью** (не баг, by design scope, но не должно уехать в прод без gate/флага): peek-карточка `SphereWriteCard` рендерится в каждом реальном чате с fake-данными сферы; fake contribution-чипы в списке чатов; инертные кнопки-заглушки («Перегенерировать», футер студии, «Подправить»); всегда-включённый Switch памяти агента (`AgentMemorySection`); mock-подпись в `ImageViewer`; тулбар-префиксы rich-редактора не toggle (наслаивают `## ##`).
+
+---
+
+## DP — Data-prep: seed реальной БД ✅
+
+**Что это.** Идемпотентный seed-скрипт `backend/scripts/seed_demo.py` (+ цель `make seed-demo`) наполняет реальную БД детерминированными учебными данными для визуального ревью населённых экранов. Вариант A (согласован архитектором): данные пишутся напрямую через существующие code-paths — без LLM, без прогона графа, без изменения схемы.
+
+**Креды demo-пользователя** (dev/test-only):
+- логин: `demo`
+- пароль: `demo-pass-1234`
+- проект: «Демо: Высшая математика»
+
+Пользователь создаётся с `is_admin=True` (для security-экранов).
+
+**Что сеется и через какие code-paths:**
+- **User** `demo` — `UserRepository.create` + `hash_password`; admin-грант через `update(User).values(is_admin=True)` (как в `grant_admin.py`).
+- **Project** «Демо: Высшая математика» — `ProjectRepository.create`.
+- **3 чата** (`ThreadViewRepository.create`): «Цепное правило дифференцирования» (полный диалог с tool-вызовом), «С чего начать линейную алгебру» (простой двухходовой диалог), «Пределы и непрерывность» (пустой — для empty-state в ленте).
+- **Сообщения** — через LangGraph-checkpointer (`AsyncPostgresSaver`). Подход: минимальный `StateGraph(MessagesState)`-проход компилируется с реальным checkpointer и `ainvoke`-ится с детерминированными `id` сообщений (uuid5). Так переиспользуется собственная сериализация LangGraph (та же форма, что читает рантайм-граф через `checkpoint_history.py`), без ручного конструирования внутренностей чекпойнта. Чат 1: `HumanMessage` → `AIMessage` с `tool_calls` (`create_artifact`) → `ToolMessage` → финальный `AIMessage`. `additional_kwargs["created_at"]` — фиксированные таймстампы.
+- **Инлайн-артефакт** «Конспект: цепное правило» (`type=summary`) — `ArtifactRepository.create(thread_id=...)` + `set_message_id([id], <id финального AIMessage чата 1>)`; связь повторяет post-hoc-логику `ChatService.send_message`.
+- **Standalone-артефакты** — `ArtifactRepository.create` с разными `type`: `plan`, `outline`, `code`, `slides`, `image`, `audio` (тип freeform Text). Вьюеры группы B (slides/image/audio) на фронте mock-driven — рендерятся по `type` на реальных строках списка.
+- **Документ сферы** — `LangGraphSphereService.update(project_id, content=<markdown с ## разделами>)` (replace-by-section, идемпотентно по дизайну).
+
+**Идемпотентность.** Реляционные сущности матчатся по натуральным ключам (`user.name`, имя проекта, заголовок чата/артефакта) — повторный прогон переиспользует существующие id. Сообщения дедуплицируются reducer-ом `add_messages` по детерминированным `id`. Сфера — replace-by-section.
+
+**Запуск:** `make seed-demo` (грузит `.env`/`.env.local`, требует поднятую БД и применённые миграции; langgraph-таблицы создаёт сам через `store.setup()`/`checkpointer.setup()`).
+
+**Verification:** `make seed-demo` — зелёный, прогон ×2 не дублирует (проверено read-back: чат1/чат2 по 4 сообщения, 3 чата, 7 артефактов 7 разных типов, инлайн-артефакт связан с сообщением, admin=True). `make check` (ruff + mypy) — зелёный.

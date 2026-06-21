@@ -29,6 +29,11 @@
 - [`theory/04-frontend-testing.md`](theory/04-frontend-testing.md) — Vitest/RTL, MSW (+SSE), Playwright, Testing Trophy.
 - [`decisions-phase1.md`](decisions-phase1.md) — **свод развилок Фазы 1** для разбора с архитектором.
 
+Доуглубление по итогам разбора с архитектором (отдельные доки, чтобы не раздувать `01`):
+- [`theory/05-foundations.md`](theory/05-foundations.md) — фундамент + ответы на вопросы (unit/integration/e2e, статанализ, solitary vs sociable, дубли, mock-heavy, smoke vs Google-размеры, регрессии, модели) на примерах нашего кода.
+- [`theory/06-tdd.md`](theory/06-tdd.md) — отдельный research по TDD: теория, спор экспертов, AI/агентный контекст (reward hacking, held-out тесты).
+- [`theory/07-skills-deep-dive.md`](theory/07-skills-deep-dive.md) — разбор содержимого скиллов-кандидатов; решение «зависимостью не берём, переиспользуем 3 идеи».
+
 ## Ключевая находка Фазы 0
 
 Главный фокус — проверяемость security-/agent-путей (боль из feat-006). Уточнение по коду: шов для

@@ -5,6 +5,16 @@
 **title:** `Seeding deterministic chat history into a LangGraph checkpointer without running the model`
 **tags:** `langgraph`, `checkpointer`, `testing`, `fixtures`, `python`, `postgres`
 
+## Суть (для автора, RU)
+
+**Проблема.** Историю чата LangGraph держит в чекпойнтере (`AsyncPostgresSaver`), привязанной к `thread_id`. Это настоящие Postgres-таблицы, и INSERT в них технически возможен — но строки не доменные: сообщение лежит сериализованным бинарным блобом (внутренний serde) в `checkpoint_blobs` по каналу+версии, а строка `checkpoints` отслеживает актуальную версию канала. Собрать корректные строки руками = переписать сериализацию и учёт версий, завязано на внутреннюю схему.
+
+**Почему не «прогнать настоящий граф».** Это тянет реальный LLM-вызов в путь фикстур — недетерминизм, токены, флаки.
+
+**Решение.** Одноразовый минимальный `StateGraph` поверх `MessagesState` с узлом, отдающим заготовленные сообщения; скомпилировать с тем же чекпойнтером и вызвать `ainvoke` на нужный `thread_id` — чекпойнтер сам сериализует и проставит версии. **Идемпотентность:** задать сообщениям стабильные `id` — редьюсер `add_messages` заменяет по id, а не плодит дубли.
+
+**Тип:** TIL. Самый сильный кандидат итерации — переносимая нетривиальная интеракция систем.
+
 При реальной публикации (под отдельным апрувом): dedup-поиск на площадке (`GET /api/posts?search=...`),
 финальная сверка с `GET /guidelines/til`, затем `POST /api/posts`; после `201` — каноничная запись
 в `doc/content/sofa/posts/` + строка в `index.md`. Тело уже обобщено (без имени проекта, классов,
@@ -14,7 +24,7 @@
 
 ## Body
 
-LangGraph keeps conversation state in its checkpointer (for example `AsyncPostgresSaver`), keyed by `thread_id` — not in a table you can `INSERT` into. So when you need fixed chat history for a visual test, an e2e run, or a demo, there is no obvious seam: the messages do not live where your other fixtures do.
+LangGraph keeps conversation state in its checkpointer (for example `AsyncPostgresSaver`), keyed by `thread_id`. It is backed by real Postgres tables, so you *can* run `INSERT` against them — the catch is that the rows are not domain rows. A message is not stored as `role`/`content` columns; it is serialized by the checkpointer's own serde into a binary blob and kept in a `checkpoint_blobs` table, keyed by channel and a version number, while a separate `checkpoints` row tracks which blob version is current for each channel. Writing correct rows by hand means reproducing that serialization and version bookkeeping, against an internal schema that can change between releases. So when you need fixed chat history for a visual test, an e2e run, or a demo, there is no clean seam the way your other fixtures have — even though it is "just Postgres."
 
 The naive approach is to run the real agent graph so it "produces" the history. That drags a live model call into a fixture path: nondeterministic text, token cost, flaky tests. You do not want the model there.
 

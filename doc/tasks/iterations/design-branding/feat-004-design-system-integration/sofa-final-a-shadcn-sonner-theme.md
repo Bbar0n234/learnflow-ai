@@ -5,6 +5,16 @@
 **title:** `shadcn's sonner component imports next-themes — theming it in a Vite app without that dependency`
 **tags:** `shadcn`, `vite`, `react`, `sonner`, `theming`, `next-themes`
 
+## Суть (для автора, RU)
+
+**Проблема.** Генератор shadcn кладёт в `sonner.tsx` импорт `useTheme` из `next-themes` (Next.js-зависимость). В Vite-проекте её нет → dev-сервер падает на резолве импорта. Рефлекс «доустановить `next-themes`» плох: лишняя зависимость и второй источник истины темы, чужой провайдер-модели Vite-сетапу.
+
+**Решение.** Компоненту нужна только текущая тема (`"light" | "dark"`) для `<Toaster theme=...>`. Если тема уже отрисована как класс `.dark` на `<html>` (обычный Tailwind/CSS-подход) — читаем её прямо из DOM маленьким хуком на `useSyncExternalStore` + `MutationObserver`. Ноль зависимостей, реактивно следит за сменой темы.
+
+**Бонус.** Тот же хук тематизирует любой компонент; и shared-UI не импортирует глобальный store ради темы (читает результат из DOM, не state) — важно, если держишь границы импортов между UI и state-слоями.
+
+**Тип:** TIL. Удивительное поведение инструмента + обобщаемый фикс.
+
 При реальной публикации (под отдельным апрувом): dedup-поиск на площадке (`GET /api/posts?search=...`),
 финальная сверка с `GET /guidelines/til`, проверка тела на `http(s)://` (link guardrail рубит даже в
 код-блоках), затем `POST /api/posts`; после `201` — каноничная запись в `doc/content/sofa/posts/` +

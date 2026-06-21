@@ -419,3 +419,15 @@ UI версионирования сферы на mock-данных. Никак�
 **Запуск:** `make seed-demo` (грузит `.env`/`.env.local`, требует поднятую БД и применённые миграции; langgraph-таблицы создаёт сам через `store.setup()`/`checkpointer.setup()`).
 
 **Verification:** `make seed-demo` — зелёный, прогон ×2 не дублирует (проверено read-back: чат1/чат2 по 4 сообщения, 3 чата, 7 артефактов 7 разных типов, инлайн-артефакт связан с сообщением, admin=True). `make check` (ruff + mypy) — зелёный.
+
+---
+
+## VISUAL_REVIEW ✅ PASS
+
+Локальный стек (backend :8000 + frontend :5173 + Postgres/Redis) на seed-данных, Playwright MCP, light+dark. Полный отчёт + 7 скриншотов: `visual-review/visual-review-report.md`.
+
+**Детерминированные (🔍 getComputedStyle):** `--primary #7434f4`/`--background #faf7f1` (light), `#181420`/`#ede8e2`/`--primary #8a5cf6`/`--ring #b194ff` (dark), `--radius 0.7rem`, sidebar 252px, `--content-max-w 680px`, body=Instrument Sans, переключатель темы вешает/снимает `.dark`. Консоль на всех маршрутах — **0 ошибок/ворнингов**.
+
+**Экраны vs хэндофф:** welcome (light/dark, тема переключает иллюстрацию), chat (seed tool-flow: bubble/плоский ответ/ArtifactCard/peek), artifacts (сплит + 7 типов + чип сферы), slides-вьюер (dark-тема слайдов + миниатюры), sphere (документ + «Жизнь сферы»). Mismatch/blocker — нет.
+
+**Остаток:** вкусовая полировка архитектору ({T4.8}/{E2E.6}) + предпрод-пункты (края cutout soft-balanced; стабы группы B с fake-данными в реальных вью — gate в feat-006).

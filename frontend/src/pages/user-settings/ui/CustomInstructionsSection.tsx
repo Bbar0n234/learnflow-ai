@@ -28,30 +28,32 @@ export function CustomInstructionsSection() {
 
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium">
-        Custom Instructions
+      <label className="mb-1.5 block text-sm font-medium text-foreground">
+        Свои инструкции
       </label>
       <p className="mb-2 text-xs text-muted-foreground">
-        These instructions are included in every conversation.
+        Включаются в каждый разговор с агентом.
       </p>
-      <textarea
-        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-        rows={6}
-        maxLength={5000}
-        value={content}
-        onChange={(e) => {
-          setContent(e.target.value);
-          setDirty(true);
-        }}
-        placeholder="E.g., 'Always respond in Russian' or 'I'm a senior backend developer...'"
-      />
+      <div className="rounded-lg border border-border bg-background">
+        <textarea
+          className="w-full resize-none bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground"
+          rows={6}
+          maxLength={5000}
+          value={content}
+          onChange={(e) => {
+            setContent(e.target.value);
+            setDirty(true);
+          }}
+          placeholder="Например: «Всегда отвечай на русском» или «Я старший бэкенд-разработчик…»"
+        />
+      </div>
       <div className="mt-2 flex items-center gap-2">
         <Button
           size="sm"
           onClick={handleSave}
           disabled={!dirty || update.isPending}
         >
-          {update.isPending ? "Saving..." : "Save"}
+          {update.isPending ? "Сохраняем…" : "Сохранить"}
         </Button>
         <span className="text-xs text-muted-foreground">
           {content.length}/5000

@@ -1,23 +1,25 @@
 import { ModelSelector } from "@/features/model-selector";
+import { MCPServersSection } from "@/features/mcp-servers";
 import { CustomInstructionsSection } from "./CustomInstructionsSection";
 import { AgentMemorySection } from "./AgentMemorySection";
-import { MCPServersSection } from "@/features/mcp-servers";
 
 export function SettingsPage() {
   return (
-    <div className="mx-auto max-w-2xl px-6 py-8">
-      <h1 className="mb-6 text-xl font-semibold">Settings</h1>
-      <div className="space-y-8">
-        <section>
+    <div className="mx-auto max-w-[640px] px-6 py-8">
+      <h1 className="mb-6 font-serif text-xl font-semibold text-foreground">
+        Настройки
+      </h1>
+      <div className="space-y-4">
+        <section className="rounded-xl border border-border bg-card p-5">
           <ModelSelector scope="user" />
         </section>
-        <section>
+        <section className="rounded-xl border border-border bg-card p-5">
           <CustomInstructionsSection />
         </section>
-        <section>
+        <section className="rounded-xl border border-border bg-card p-5">
           <AgentMemorySection />
         </section>
-        <section>
+        <section className="rounded-xl border border-border bg-card p-5">
           <MCPServersSection scope="user" />
         </section>
       </div>

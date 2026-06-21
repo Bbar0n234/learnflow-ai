@@ -1,0 +1,19 @@
+<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="orb180" cx="38%" cy="32%" r="60%" gradientUnits="objectBoundingBox">
+      <stop offset="0%" stop-color="#A47CFA"/>
+      <stop offset="52%" stop-color="#7434F4"/>
+      <stop offset="100%" stop-color="#4C16B8"/>
+    </radialGradient>
+  </defs>
+  <!-- White/rounded background for Apple touch icon -->
+  <rect width="180" height="180" rx="38" fill="#FAF7F1"/>
+  <!-- Orb centered -->
+  <circle cx="90" cy="90" r="70" fill="url(#orb180)"/>
+  <!-- Diamond spark 1: brand-lavender, top-right edge ~40° -->
+  <!-- orb surface at 40°: (90+70*sin40°, 90-70*cos40°) = (90+45, 90-54) = (135, 36) -->
+  <rect x="128" y="28" width="16" height="16" fill="#C5A9F9" transform="rotate(45 136 36)"/>
+  <!-- Diamond spark 2: primary, ~65° -->
+  <!-- orb surface at 65°: (90+70*sin65°, 90-70*cos65°) = (90+63, 90-30) = (153, 60) -->
+  <rect x="148" y="55" width="10" height="10" fill="#7434F4" fill-opacity="0.6" transform="rotate(45 153 60)"/>
+</svg>

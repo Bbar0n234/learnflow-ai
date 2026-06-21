@@ -177,7 +177,7 @@ export function RuleForm({
         </DialogHeader>
 
         {submitError && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-800 text-sm">
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm">
             {submitError}
           </div>
         )}

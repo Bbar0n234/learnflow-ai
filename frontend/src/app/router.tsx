@@ -6,7 +6,7 @@ import { WelcomePage } from "@/pages/welcome";
 import { ChatList } from "@/pages/project-chats";
 import { ChatView } from "@/pages/chat";
 import { SphereView } from "@/pages/sphere";
-import { ArtifactList } from "@/pages/artifacts";
+import { ArtifactsPage } from "@/pages/artifacts";
 import { ArtifactView } from "@/pages/artifact";
 import { SettingsPage } from "@/pages/user-settings";
 import { ProjectSettingsPage } from "@/pages/project-settings";
@@ -45,8 +45,17 @@ export function AppRoutes() {
           <Route index element={<ChatList />} />
           <Route path="chats/:cid" element={<ChatView />} />
           <Route path="sphere" element={<SphereView />} />
-          <Route path="artifacts" element={<ArtifactList />} />
-          <Route path="artifacts/:aid" element={<ArtifactView />} />
+          <Route path="artifacts" element={<ArtifactsPage />}>
+            <Route
+              index
+              element={
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  Выберите артефакт из списка
+                </div>
+              }
+            />
+            <Route path=":aid" element={<ArtifactView />} />
+          </Route>
           <Route path="settings" element={<ProjectSettingsPage />} />
         </Route>
       </Route>

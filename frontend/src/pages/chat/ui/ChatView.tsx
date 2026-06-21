@@ -3,9 +3,14 @@ import { useParams } from "react-router";
 import { useChat } from "@/shared/api/chats";
 import { useAgentStream } from "../model/useAgentStream";
 import { useStreamStore } from "@/stores/stream-store";
+import { useStudio } from "../model/useStudio";
+import { cn } from "@/shared/lib/utils";
 import { ChatHeader } from "./ChatHeader";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
+import { StudioPanel } from "./StudioPanel";
+import { SphereLens } from "./SphereLens";
+import { SHOW_GROUP_B_STUBS } from "@/shared/config/feature-flags";
 import type { Message } from "@/shared/api/chats";
 
 export function ChatView() {
@@ -18,6 +23,8 @@ export function ChatView() {
   });
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [streamError, setStreamError] = useState<string | null>(null);
+
+  const studio = useStudio();
 
   const handleDone = useCallback(() => {
     setLocalMessages([]);
@@ -72,29 +79,49 @@ export function ChatView() {
   const allMessages = [...(data?.messages ?? []), ...localMessages];
 
   return (
-    <div className="flex h-full flex-col">
-      <ChatHeader />
-      <MessageList
-        messages={allMessages}
-        isStreaming={isStreaming}
-        streamingText={streamingText}
-        activeTool={activeTool}
-        streamingArtifacts={streamingArtifacts}
-        projectId={id!}
-        chatId={cid!}
-        streamError={streamError}
-      />
-      <ChatInput
-        onSend={handleSend}
-        isStreaming={isStreaming}
-        onCancel={cancel}
-        disabled={data?.security_blocked}
-        placeholder={
-          data?.security_blocked
-            ? "Чат заблокирован системой безопасности"
-            : undefined
-        }
-      />
+    <div className={cn("flex h-full", studio.open && "studio-open")}>
+      {/* Chat column */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <ChatHeader studioOpen={studio.open} onToggleStudio={studio.toggle} />
+        <MessageList
+          messages={allMessages}
+          isStreaming={isStreaming}
+          streamingText={streamingText}
+          activeTool={activeTool}
+          streamingArtifacts={streamingArtifacts}
+          projectId={id!}
+          chatId={cid!}
+          streamError={streamError}
+          onOpenLens={() => studio.setLensOpen(true)}
+        />
+        <ChatInput
+          onSend={handleSend}
+          isStreaming={isStreaming}
+          onCancel={cancel}
+          disabled={data?.security_blocked}
+          placeholder={
+            data?.security_blocked
+              ? "Чат заблокирован системой безопасности"
+              : undefined
+          }
+        />
+      </div>
+
+      {/* Studio panel dock (group B stub) */}
+      {SHOW_GROUP_B_STUBS && studio.open && (
+        <StudioPanel
+          studio={studio}
+          onOpenLens={() => studio.setLensOpen(true)}
+        />
+      )}
+
+      {/* Overlay lens (group B stub) */}
+      {SHOW_GROUP_B_STUBS && (
+        <SphereLens
+          open={studio.lensOpen}
+          onClose={() => studio.setLensOpen(false)}
+        />
+      )}
     </div>
   );
 }

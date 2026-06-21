@@ -28,7 +28,7 @@ UI согласуется с frontend-треком).
 | Итерация | Статус | Закрывает |
 |----------|--------|-----------|
 | feat-001 | ✅ Done | Proof of Concept: идентичность, иллюстрации, dark-адаптация, PoC прозрачных cutout |
-| feat-004 | ✅ Done | Design-system integration: соглашения, рефактор стилей, интеграция текущих ассетов, лейаут (cross: frontend) |
+| feat-004 | 🚧 In Progress | Design-system integration: соглашения, рефактор стилей, интеграция текущих ассетов, лейаут (cross: frontend) |
 | feat-005 | 🚧 In Progress | Бренд-кит и оформление репозитория / платформ |
 | feat-002 | ⏸️ Paused | Массовое качественное вырезание фона — предпродакшн-гейт (блокеры: HF-подписка / карта / эксперименты) |
 | feat-003 | ⏸️ Paused | Векторизация в SVG — предпродакшн-гейт; open question: нужен ли SVG сценам вообще |
@@ -124,7 +124,7 @@ feat-001 (PoC ✅) ─┤                                                       
 
 **Цель:** затащить визуальную идентичность внутрь продукта на текущих ассетах PoC — завести дизайн-соглашения в документацию, отрефакторить существующие стили под дизайн-систему, интегрировать ассеты и токены light/dark в UI, при необходимости поправить лейаут. Цель — продукт перестаёт выглядеть generic (Фаза 4 «не стыдно показать»). Production-качество ассетов (чистый cutout, SVG) — отдельный предпродакшн-гейт (feat-002/003/006), эту итерацию не блокирует.
 
-**Статус:** ✅ Done
+**Статус:** 🚧 In Progress — дизайн принят архитектором; PR #74 открыт, добавлены пост-приёмочный stub-gating (`SHOW_GROUP_B_STUBS`) и фаза HARVEST. ✅ Done — после merge в develop
 **Зависит от:** feat-001 (стиль, токены, текущий пак с локальным cutout-fallback)
 **Cross:** frontend (рефактор стилей и интеграция согласуются с frontend-треком; FSD-канон уже зафиксирован в codebase-maturity feat-006)
 
@@ -143,6 +143,7 @@ feat-001 (PoC ✅) ─┤                                                       
 - [Implementation plan](iterations/design-branding/feat-004-design-system-integration/plan.md)
 - [Test cases](iterations/design-branding/feat-004-design-system-integration/test-cases.md)
 - [Summary](iterations/design-branding/feat-004-design-system-integration/summary.md)
+- [Harvest proposals](iterations/design-branding/feat-004-design-system-integration/harvest-proposals.md)
 
 #### Документация
 - [design-system.md](../tech/design-system.md) — визуальный язык «Чернила / Электрик» (создан этой итерацией); ссылки добавлены в [frontend.md](../tech/frontend.md), [conventions.md § Frontend](../tech/conventions.md#frontend), [index.md](../index.md)

@@ -90,3 +90,65 @@
 - **Downgrade критичных ревизий** (upgrade→downgrade→upgrade) — паттерн из
   testing.md; заводится в Ф3 per-scope (S1/S8), не в фундаменте.
 - CI-гейтинг (снять `continue-on-error`, `make test-fe` в `check-fe`) — Ф6.
+
+## Фикс по ревью (adversarial)
+
+Точечные правки по итогам adversarial-ревью перед заморозкой. Швы C1/фейки/откат/
+authed-клиент/фронтовый QueryClient+MSW — подтверждены корректными, не трогались.
+
+### F1 — xdist стал настоящим (был мёртвый код)
+- `pytest-xdist>=3.6` добавлен в dev-зависимости **обоих** пакетов
+  (`backend/pyproject.toml`, `services/siem-service/pyproject.toml`), `uv.lock`
+  обновлён (`uv lock` → execnet+pytest-xdist резолвятся).
+- `make test` оставлен **серийным** (быстрый фидбэк, меньше ресурсов). Добавлена
+  отдельная цель `make test-parallel` (`-n auto`, backend + siem).
+- Принята честная модель **«контейнер на воркер»**: session-scope под xdist =
+  каждый воркер сам себе сессия → свой контейнер + своя БД, гонок на
+  `CREATE DATABASE` между воркерами нет (разные серверы). Исправлены вводящие в
+  заблуждение формулировки «one shared container» в
+  `packages/testing/learnflow_testing/plugin.py` (docstring `postgres_container`)
+  и в `packages/testing/learnflow_testing/db.py` (module docstring). Per-worker
+  DB-имя (`PYTEST_XDIST_WORKER`) остаётся — внутри воркера процесс один.
+- **Доказано**: backend под `-n 2` → `created: 2/2 workers`, `10 passed`. Замер
+  одновременных контейнеров `postgres:16-alpine` во время прогона: **MAX = 2** —
+  по контейнеру на воркер, полная изоляция. siem под `-n 2` → `2 passed`.
+
+### F2 — задокументировано ограничение одной сессии (footgun S5 chat/SSE)
+- Громкая `LIMITATION`-заметка в docstring фикстур `app` и `client`
+  (`backend/tests/conftest.py`): хендлер делит одну транзакционную `AsyncSession`
+  с телом теста → конкурентные запросы в одном тесте
+  (`asyncio.gather(client...)`, открытый SSE + второй вызов) падают «another
+  operation is in progress». Это следствие транзакционного отката, не дефект
+  харнесса.
+- Короткая заметка в `doc/tech/conventions/testing.md` § HTTP-тесты со ссылкой на
+  механику отката (§ Тестовая БД): тесты с конкурентностью — последовательны либо
+  через commit + `TRUNCATE` (узко).
+
+### F3 — фабрики падают громко без `db_session`
+- `packages/testing/learnflow_testing/factories.py`: введён базовый
+  `_SessionBoundFactory` (abstract), перехватывает `create` и бросает понятный
+  `RuntimeError` («`<Factory>` requires an active db_session fixture»), когда
+  `sqlalchemy_session` не привязана (`None`) — вместо непрозрачного
+  `AttributeError` в глубине SQLAlchemy. `UserFactory`/`ProjectFactory` наследуют
+  его. Предусловие задокументировано в module- и class-docstring.
+- Проверено: `await UserFactory.create()` без `db_session` → ясный `RuntimeError`.
+
+### F4 — мелочи
+- `engine`-фикстура (backend + siem `conftest.py`): добавлен
+  `asyncio.run(eng.dispose())` после `yield` — убран dangling-ресурс (с NullPool
+  безвреден, но чисто).
+- Frontend canary на сброс Zustand-стора:
+  `frontend/src/test/store-reset.canary.test.ts` — первый тест мутирует
+  `useUIStore` (`toggleSidebar`), второй проверяет, что стор сброшен к initial.
+  Защита от протечки сторов покрыта зелёным.
+
+### Верификация фикса
+- `make check` — зелено (ruff, mypy ×3, import-linter, arch-checker).
+- `make check-fe` — зелено (tsc, eslint, prettier).
+- `make test` (серийно) — backend `10 passed`, siem `2 passed`.
+- `make test-fe` — `4 passed` (3 файла; добавлен store-reset canary, 2 теста).
+- `-n 2` (per-worker изоляция): backend `10 passed` / 2 контейнера одновременно;
+  siem `2 passed`.
+- Примечание по окружению: `uv sync` на корне workspace вычищает не-root пакеты
+  из общего `.venv` — восстановление через `uv sync --all-packages` (или
+  on-demand через `uv run --package` в make-целях).

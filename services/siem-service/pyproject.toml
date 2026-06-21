@@ -38,4 +38,5 @@ learnflow-testing = { workspace = true }
 [dependency-groups]
 dev = [
     "learnflow-testing",
+    "pytest-xdist>=3.6",
 ]

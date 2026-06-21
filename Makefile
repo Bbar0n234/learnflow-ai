@@ -1,4 +1,4 @@
-.PHONY: docker-up docker-up-db docker-up-redis docker-down docker-build docker-logs lint format type-check arch-check check lint-fe check-fe format-fe dev dev-remote dev-fe test test-cov test-fe migrate migration downgrade migrate-siem sync-prompts security-scan-validate security-scan-redteam security-scan-report
+.PHONY: docker-up docker-up-db docker-up-redis docker-down docker-build docker-logs lint format type-check arch-check check lint-fe check-fe format-fe dev dev-remote dev-fe test test-parallel test-scope test-cov test-fe migrate migration downgrade migrate-siem sync-prompts security-scan-validate security-scan-redteam security-scan-report
 
 # Load .env (base) then .env.local (overrides) into shell environment
 LOAD_ENV = set -a && [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; set +a
@@ -71,6 +71,13 @@ dev-fe:  ## Run frontend dev server
 test:  ## Run backend + siem-service pytest (exit 5 = "no tests collected" is OK)
 	@$(LOAD_ENV) && uv run --package learnflow-backend pytest -c backend/pyproject.toml --rootdir backend backend/tests; ec=$$?; [ $$ec -eq 0 ] || [ $$ec -eq 5 ]
 	@$(LOAD_ENV) && uv run --package siem-service pytest -c services/siem-service/pyproject.toml --rootdir services/siem-service services/siem-service/tests; ec=$$?; [ $$ec -eq 0 ] || [ $$ec -eq 5 ]
+
+test-parallel:  ## Run backend + siem-service pytest under xdist (-n auto, container per worker)
+	@$(LOAD_ENV) && uv run --package learnflow-backend pytest -c backend/pyproject.toml --rootdir backend -n auto backend/tests; ec=$$?; [ $$ec -eq 0 ] || [ $$ec -eq 5 ]
+	@$(LOAD_ENV) && uv run --package siem-service pytest -c services/siem-service/pyproject.toml --rootdir services/siem-service -n auto services/siem-service/tests; ec=$$?; [ $$ec -eq 0 ] || [ $$ec -eq 5 ]
+
+test-scope:  ## Run a subset of backend tests under Docker. Usage: make test-scope P=backend/tests/auth
+	@$(LOAD_ENV) && uv run --package learnflow-backend pytest -c backend/pyproject.toml --rootdir backend $(P); ec=$$?; [ $$ec -eq 0 ] || [ $$ec -eq 5 ]
 
 test-cov:  ## Run backend pytest with branch coverage (per-package, term-missing)
 	@$(LOAD_ENV) && uv run --package learnflow-backend pytest -c backend/pyproject.toml --rootdir backend backend/tests \

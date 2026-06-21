@@ -51,4 +51,5 @@ learnflow-testing = { workspace = true }
 dev = [
     "types-pyyaml>=6.0.12.20250915",
     "learnflow-testing",
+    "pytest-xdist>=3.6",
 ]

@@ -70,6 +70,7 @@ def engine(_migrated_db: DbUrls) -> Iterator[AsyncEngine]:
     """
     eng = create_async_engine(_migrated_db.db_url, poolclass=NullPool)
     yield eng
+    asyncio.run(eng.dispose())
 
 
 @pytest_asyncio.fixture
@@ -97,6 +98,18 @@ def app(db_session: AsyncSession, current_user: User) -> FastAPI:
 
     Lifespan does not run under ASGITransport, so app.state is never populated;
     we override the providers that would have read it.
+
+    LIMITATION — single shared session: the handler is given the *same*
+    ``db_session`` the test body and factories use, so the client sees fixture
+    data without committing. The cost is that this one ``AsyncSession`` cannot
+    run two operations at once: **concurrent requests in a single test**
+    (``asyncio.gather(client.get(...), client.get(...))``, or an open SSE stream
+    plus a second call) raise ``InterfaceError: another operation is in
+    progress``. This is fundamental to transactional-rollback isolation (one
+    connection per test), not a harness bug — see ``transactional_session`` in
+    ``learnflow_testing.db``. Tests needing concurrency must serialize their
+    requests, or commit data and clean up with ``TRUNCATE`` instead of relying
+    on the shared transaction (narrow).
     """
     # lazy: app.main builds Settings() at import (module-level create_app); the
     # JWT_SECRET default above must be set first.
@@ -117,7 +130,11 @@ def app(db_session: AsyncSession, current_user: User) -> FastAPI:
 
 @pytest_asyncio.fixture
 async def client(app: FastAPI) -> AsyncIterator[AsyncClient]:
-    """Authenticated async ASGI client (in-memory, no socket)."""
+    """Authenticated async ASGI client (in-memory, no socket).
+
+    Shares one transactional ``db_session`` with the test body (see ``app``):
+    concurrent requests in a single test are unsupported — issue them serially.
+    """
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as http_client:
         yield http_client

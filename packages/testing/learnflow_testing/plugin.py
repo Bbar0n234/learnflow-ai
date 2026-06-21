@@ -19,9 +19,16 @@ from testcontainers.postgres import PostgresContainer
 def postgres_container() -> Iterator[object]:
     """Session-scoped Postgres via testcontainers (cheap, immutable).
 
-    Both services point their own per-worker database at this one container;
-    only the SQLAlchemy driver in the URL differs (backend ``psycopg`` / siem
-    ``asyncpg``). The container is lazy — it starts only when a test requests it.
+    Session scope = **one container per pytest session**. Serially that is a
+    single container for the whole run; under ``pytest -n`` each xdist worker
+    is its own session, so each worker spins up its own container — workers are
+    fully isolated (separate server *and* separate per-worker database), with no
+    ``CREATE DATABASE`` races between workers (different servers entirely).
+
+    Within a session both services point their own per-worker database at this
+    container; only the SQLAlchemy driver in the URL differs (backend
+    ``psycopg`` / siem ``asyncpg``). The container is lazy — it starts only when
+    a test requests it.
     """
     with PostgresContainer("postgres:16-alpine") as container:
         yield container

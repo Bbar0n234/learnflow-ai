@@ -57,6 +57,7 @@ def _migrated_db(db_urls: DbUrls) -> DbUrls:
 def engine(_migrated_db: DbUrls) -> Iterator[AsyncEngine]:
     eng = create_async_engine(_migrated_db.db_url, poolclass=NullPool)
     yield eng
+    asyncio.run(eng.dispose())
 
 
 @pytest_asyncio.fixture

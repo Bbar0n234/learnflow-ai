@@ -3,9 +3,12 @@
 Shared building blocks used by each package's conftest. The flow per the testing
 conventions:
 
-* one session-scoped Postgres container (cheap, immutable);
+* a session-scoped Postgres container (cheap, immutable) — one container per
+  worker under ``pytest -n`` (each xdist worker is its own session), a single
+  container serially;
 * schema via ``alembic upgrade head`` (same path as prod, catches migration drift);
-* a per-worker database under ``pytest -n`` (``PYTEST_XDIST_WORKER``);
+* a per-worker database name under ``pytest -n`` (``PYTEST_XDIST_WORKER``) — under
+  xdist that DB lives on the worker's own container, so workers never collide;
 * per-test isolation via an outer transaction + savepoint, rolled back in teardown.
 """
 

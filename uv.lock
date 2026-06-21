@@ -1291,6 +1291,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "learnflow-testing" },
+    { name = "pytest-xdist" },
     { name = "types-pyyaml" },
 ]
 
@@ -1328,6 +1329,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "learnflow-testing", editable = "packages/testing" },
+    { name = "pytest-xdist", specifier = ">=3.6" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20250915" },
 ]
 
@@ -2545,6 +2547,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "learnflow-testing" },
+    { name = "pytest-xdist" },
 ]
 
 [package.metadata]
@@ -2563,7 +2566,10 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "learnflow-testing", editable = "packages/testing" }]
+dev = [
+    { name = "learnflow-testing", editable = "packages/testing" },
+    { name = "pytest-xdist", specifier = ">=3.6" },
+]
 
 [[package]]
 name = "sniffio"

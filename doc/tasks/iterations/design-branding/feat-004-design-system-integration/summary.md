@@ -377,3 +377,17 @@ UI версионирования сферы на mock-данных. Никак�
 5. `BumpBadge`/`formatTime`/`applyInline`/`applyLinePrefix` — внутренние хелперы, не экспортируются из файлов компонентов (react-refresh чист).
 
 **Verification:** `make check-fe` GREEN (exit 0: tsc + ESLint 0 errors + Prettier чистый), `tsc -b && vite build` GREEN (built ~16s). {L0.3} shadcn-примитивы не тронуты ✓; {L0.4} нет hardcoded hex в новых/тронутых .tsx (grep чистый — слайды через CSS-переменные) ✓; {L0.5} новые вьюер-файлы без API-вызовов (grep `fetch|axios|apiClient|useQuery|useMutation` чистый) ✓; md-вьюер группы A не сломан (диспетч добавлен перед ним, логика идентична) ✓. Статические {T6.4}/{T6.5} — пройдены (вьюеры на заглушках, нет несуществующих endpoint'ов). Полное 🔍 (визуальное vs хэндофф экраны 4/8) — на VISUAL_REVIEW.
+
+---
+
+## Code-review fixes ✅
+
+По итогам CODE_REVIEW (0 blockers, 6 nit, 3 nice-to-have) применены 3 точечных фикса:
+
+1. **Тост только на мутациях** (`QueryProvider.tsx`): `toast.error` убран из `QueryCache.onError` (оставлено логирование) — устраняет двойное отображение с инлайн-error-барами и toast-спам на фоновых refetch. В `MutationCache.onError` тост сохранён.
+2. **InheritedServerRow без теста** (`MCPServersSection.tsx`): убрана кнопка «Проверить соединение» (`Zap`) у наследованных серверов — возврат к прежнему поведению (тест остался только у собственных серверов `OwnedServerRow`), т.к. валидность `test` по inherited-id не верифицирована и это было поведенческим выходом за рамки рестайла.
+3. **Алиас иконки** (`ArtifactList.tsx`): `Image` → `Image as ImageIcon` для консистентности со `StudioPanel`/`ImageViewer`.
+
+**Verification:** `make check-fe` GREEN + `tsc -b && vite build` GREEN.
+
+**В предпродакшн-гейт (feat-006) — заглушки группы B видны в реальных вью** (не баг, by design scope, но не должно уехать в прод без gate/флага): peek-карточка `SphereWriteCard` рендерится в каждом реальном чате с fake-данными сферы; fake contribution-чипы в списке чатов; инертные кнопки-заглушки («Перегенерировать», футер студии, «Подправить»); всегда-включённый Switch памяти агента (`AgentMemorySection`); mock-подпись в `ImageViewer`; тулбар-префиксы rich-редактора не toggle (наслаивают `## ##`).

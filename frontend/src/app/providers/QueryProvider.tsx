@@ -37,7 +37,6 @@ const queryClient = new QueryClient({
     onError: (error) => {
       const message = getApiErrorMessage(error);
       logger.error("[QueryCache]", message);
-      toast.error(message);
     },
   }),
   mutationCache: new MutationCache({

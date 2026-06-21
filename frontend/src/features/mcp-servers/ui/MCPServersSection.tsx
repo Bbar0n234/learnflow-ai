@@ -85,13 +85,9 @@ function OwnedServerRow({
 function InheritedServerRow({
   server,
   onToggle,
-  onTest,
-  testResult,
 }: {
   server: InheritedMCPServer;
   onToggle: (enabled: boolean) => void;
-  onTest: () => void;
-  testResult?: string;
 }) {
   return (
     <div className="flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2.5 opacity-90">
@@ -101,22 +97,11 @@ function InheritedServerRow({
         <p className="truncate font-mono text-[10px] text-muted-foreground">
           {server.transport} · {server.url}
         </p>
-        {testResult && (
-          <p className="text-[10px] text-muted-foreground">{testResult}</p>
-        )}
       </div>
       <Switch
         checked={!server.is_disabled}
         onCheckedChange={(checked) => onToggle(checked)}
       />
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        onClick={onTest}
-        title="Проверить соединение"
-      >
-        <Zap className="h-3.5 w-3.5" />
-      </Button>
     </div>
   );
 }
@@ -223,11 +208,9 @@ export function MCPServersSection({ scope, projectId, threadId }: Props) {
                 <InheritedServerRow
                   key={s.id}
                   server={s}
-                  onTest={() => handleTest(s.id)}
                   onToggle={(checked) =>
                     toggle.mutate({ id: s.id, disabled: !checked })
                   }
-                  testResult={testResults[s.id]}
                 />
               ))}
               {servers.length > 0 && (

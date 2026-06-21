@@ -1,5 +1,10 @@
 import { Link, useParams } from "react-router";
-import { FileText, Image, Mic, LayoutDashboard } from "lucide-react";
+import {
+  FileText,
+  Image as ImageIcon,
+  Mic,
+  LayoutDashboard,
+} from "lucide-react";
 import { Illustration } from "@/shared/ui/Illustration";
 import { useArtifacts } from "@/shared/api/artifacts";
 import { cn } from "@/shared/lib/utils";
@@ -8,7 +13,7 @@ import { cn } from "@/shared/lib/utils";
 function ArtifactIcon({ type }: { type: string }) {
   const cls = "h-[18px] w-[18px] shrink-0 text-muted-foreground";
   const t = type.toLowerCase();
-  if (t === "image") return <Image className={cls} />;
+  if (t === "image") return <ImageIcon className={cls} />;
   if (t === "audio") return <Mic className={cls} />;
   if (t === "slides") return <LayoutDashboard className={cls} />;
   return <FileText className={cls} />;

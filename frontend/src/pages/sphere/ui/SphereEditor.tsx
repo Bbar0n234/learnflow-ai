@@ -32,6 +32,7 @@ import {
   MOCK_SPHERE_HISTORY,
   type SphereVersionBump,
 } from "../model/mock-sphere-version";
+import { SHOW_GROUP_B_STUBS } from "@/shared/config/feature-flags";
 
 interface SphereEditorProps {
   content: string;
@@ -389,38 +390,40 @@ export function SphereEditor({
         </div>
       </div>
 
-      {/* ── Right rail: история версий ───────────────────────────────────── */}
-      <div className="flex w-[252px] shrink-0 flex-col border-l border-border">
-        <div className="flex h-[56px] shrink-0 items-center border-b border-border px-4">
-          <h3 className="text-sm font-medium text-foreground">
-            История версий
-          </h3>
-        </div>
-        <ScrollArea className="flex-1">
-          <div className="p-3">
-            {MOCK_SPHERE_HISTORY.map((entry) => (
-              <div
-                key={entry.version}
-                className="rounded-lg px-2 py-2.5 transition-colors hover:bg-muted/60"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-xs text-foreground">
-                    {entry.version}
-                  </span>
-                  <BumpBadge bump={entry.bump} />
-                </div>
-                <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted-foreground">
-                  {entry.summary}
-                </p>
-                <p className="mt-1 font-mono text-[10px] text-muted-foreground/60">
-                  {entry.timestamp} ·{" "}
-                  {entry.author === "agent" ? "агент" : "вы"}
-                </p>
-              </div>
-            ))}
+      {/* ── Right rail: история версий (group B stub) ────────────────────── */}
+      {SHOW_GROUP_B_STUBS && (
+        <div className="flex w-[252px] shrink-0 flex-col border-l border-border">
+          <div className="flex h-[56px] shrink-0 items-center border-b border-border px-4">
+            <h3 className="text-sm font-medium text-foreground">
+              История версий
+            </h3>
           </div>
-        </ScrollArea>
-      </div>
+          <ScrollArea className="flex-1">
+            <div className="p-3">
+              {MOCK_SPHERE_HISTORY.map((entry) => (
+                <div
+                  key={entry.version}
+                  className="rounded-lg px-2 py-2.5 transition-colors hover:bg-muted/60"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs text-foreground">
+                      {entry.version}
+                    </span>
+                    <BumpBadge bump={entry.bump} />
+                  </div>
+                  <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted-foreground">
+                    {entry.summary}
+                  </p>
+                  <p className="mt-1 font-mono text-[10px] text-muted-foreground/60">
+                    {entry.timestamp} ·{" "}
+                    {entry.author === "agent" ? "агент" : "вы"}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
+      )}
     </div>
   );
 }

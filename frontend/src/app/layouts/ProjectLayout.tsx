@@ -1,7 +1,8 @@
 import { Outlet, NavLink, useParams, useMatch } from "react-router";
 import { useProject } from "@/shared/api/projects";
+import { SHOW_GROUP_B_STUBS } from "@/shared/config/feature-flags";
 
-// T6b mock — чип состояния сферы (L0.5, без бэкенд-контракта)
+// T6b mock — чип состояния сферы (L0.5, без бэкенд-контракта, group B stub)
 const SPHERE_CHIP_VERSION = "v2.4.1";
 const SPHERE_CHIP_STATUS = "растёт";
 
@@ -27,10 +28,12 @@ export function ProjectLayout() {
           <h1 className="font-serif text-sm font-semibold text-foreground">
             {projectName}
           </h1>
-          {/* Чип состояния сферы — T6b (mock, L0.5, без бэкенд-контракта) */}
-          <span className="rounded-full bg-secondary px-2 py-0.5 font-mono text-[10px] text-secondary-foreground">
-            {SPHERE_CHIP_VERSION} · {SPHERE_CHIP_STATUS}
-          </span>
+          {/* Чип состояния сферы — T6b (mock, L0.5, без бэкенд-контракта, group B stub) */}
+          {SHOW_GROUP_B_STUBS && (
+            <span className="rounded-full bg-secondary px-2 py-0.5 font-mono text-[10px] text-secondary-foreground">
+              {SPHERE_CHIP_VERSION} · {SPHERE_CHIP_STATUS}
+            </span>
+          )}
         </div>
         <nav className="flex h-full gap-1">
           <NavLink

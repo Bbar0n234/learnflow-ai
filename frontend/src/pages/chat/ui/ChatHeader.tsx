@@ -13,6 +13,7 @@ import {
   DialogTrigger,
 } from "@/shared/ui/dialog";
 import { cn } from "@/shared/lib/utils";
+import { SHOW_GROUP_B_STUBS } from "@/shared/config/feature-flags";
 
 interface ChatHeaderProps {
   studioOpen: boolean;
@@ -89,20 +90,22 @@ export function ChatHeader({ studioOpen, onToggleStudio }: ChatHeaderProps) {
             </DialogContent>
           </Dialog>
 
-          {/* Studio toggle chip */}
-          <button
-            type="button"
-            onClick={onToggleStudio}
-            className={cn(
-              "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-              studioOpen
-                ? "bg-secondary text-secondary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-secondary/50 hover:text-secondary-foreground",
-            )}
-          >
-            <PanelRight className="h-3 w-3" />
-            Студия
-          </button>
+          {/* Studio toggle chip (group B stub) */}
+          {SHOW_GROUP_B_STUBS && (
+            <button
+              type="button"
+              onClick={onToggleStudio}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                studioOpen
+                  ? "bg-secondary text-secondary-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-secondary/50 hover:text-secondary-foreground",
+              )}
+            >
+              <PanelRight className="h-3 w-3" />
+              Студия
+            </button>
+          )}
         </div>
       </div>
     </div>

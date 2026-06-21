@@ -8,6 +8,7 @@ import { ReviewIndicator } from "./ReviewIndicator";
 import { ArtifactCard } from "./ArtifactCard";
 import { SphereWriteCard } from "./SphereWriteCard";
 import { MOCK_SPHERE_WRITES } from "../model/mock-sphere-writes";
+import { SHOW_GROUP_B_STUBS } from "@/shared/config/feature-flags";
 
 interface MessageListProps {
   messages: Message[];
@@ -48,8 +49,9 @@ export function MessageList({
         {messages.map((msg, i) => (
           <Fragment key={msg.id}>
             <MessageItem message={msg} projectId={projectId} chatId={chatId} />
-            {/* Inject mock sphere write peek card after 2nd message */}
-            {i === 1 &&
+            {/* Inject mock sphere write peek card after 2nd message (group B stub) */}
+            {SHOW_GROUP_B_STUBS &&
+              i === 1 &&
               MOCK_SPHERE_WRITES.map((entry) => (
                 <SphereWriteCard
                   key={entry.id}
@@ -60,8 +62,9 @@ export function MessageList({
           </Fragment>
         ))}
 
-        {/* When fewer than 2 messages, show demo peek card at end */}
-        {messages.length < 2 &&
+        {/* When fewer than 2 messages, show demo peek card at end (group B stub) */}
+        {SHOW_GROUP_B_STUBS &&
+          messages.length < 2 &&
           MOCK_SPHERE_WRITES.map((entry) => (
             <SphereWriteCard
               key={`demo-${entry.id}`}

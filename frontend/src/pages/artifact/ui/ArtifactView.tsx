@@ -8,6 +8,7 @@ import { downloadArtifact } from "@/shared/api/artifacts";
 import { SlidesViewer } from "./SlidesViewer";
 import { ImageViewer } from "./ImageViewer";
 import { AudioViewer } from "./AudioViewer";
+import { SHOW_GROUP_B_STUBS } from "@/shared/config/feature-flags";
 
 export function ArtifactView() {
   const { id, aid } = useParams();
@@ -29,19 +30,21 @@ export function ArtifactView() {
     );
   }
 
-  // Type-based dispatch — T6c viewers (group B, mock data, no backend contract)
+  // Type-based dispatch — T6c viewers (group B, mock data, no backend contract).
+  // За фиче-флагом: в прод-сборке эти типы падают в дефолтный markdown-viewer,
+  // т.к. тело (слайды/аудио/изображение) пока берётся из моков.
   const type = data?.type ?? "";
   const formattedDate = data?.created_at
     ? new Date(data.created_at).toLocaleDateString("ru-RU")
     : undefined;
 
-  if (type === "slides") {
+  if (SHOW_GROUP_B_STUBS && type === "slides") {
     return <SlidesViewer title={data?.title} createdAt={formattedDate} />;
   }
-  if (type === "image") {
+  if (SHOW_GROUP_B_STUBS && type === "image") {
     return <ImageViewer title={data?.title} createdAt={formattedDate} />;
   }
-  if (type === "audio") {
+  if (SHOW_GROUP_B_STUBS && type === "audio") {
     return <AudioViewer title={data?.title} createdAt={formattedDate} />;
   }
 

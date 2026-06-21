@@ -10,6 +10,7 @@ import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
 import { StudioPanel } from "./StudioPanel";
 import { SphereLens } from "./SphereLens";
+import { SHOW_GROUP_B_STUBS } from "@/shared/config/feature-flags";
 import type { Message } from "@/shared/api/chats";
 
 export function ChatView() {
@@ -106,19 +107,21 @@ export function ChatView() {
         />
       </div>
 
-      {/* Studio panel dock */}
-      {studio.open && (
+      {/* Studio panel dock (group B stub) */}
+      {SHOW_GROUP_B_STUBS && studio.open && (
         <StudioPanel
           studio={studio}
           onOpenLens={() => studio.setLensOpen(true)}
         />
       )}
 
-      {/* Overlay lens */}
-      <SphereLens
-        open={studio.lensOpen}
-        onClose={() => studio.setLensOpen(false)}
-      />
+      {/* Overlay lens (group B stub) */}
+      {SHOW_GROUP_B_STUBS && (
+        <SphereLens
+          open={studio.lensOpen}
+          onClose={() => studio.setLensOpen(false)}
+        />
+      )}
     </div>
   );
 }

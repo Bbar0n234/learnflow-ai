@@ -5,6 +5,7 @@ import { useUpdateSphere } from "@/shared/api/sphere";
 import { SphereViewer } from "./SphereViewer";
 import { SphereEditor } from "./SphereEditor";
 import { SphereVersionPanel } from "./SphereVersionPanel";
+import { SHOW_GROUP_B_STUBS } from "@/shared/config/feature-flags";
 
 export function SphereView() {
   const { id } = useParams();
@@ -54,8 +55,8 @@ export function SphereView() {
           onEdit={() => setIsEditing(true)}
         />
       </div>
-      {/* Правая панель «Жизнь сферы» — T6b (на моках) */}
-      <SphereVersionPanel />
+      {/* Правая панель «Жизнь сферы» — T6b (на моках, group B stub) */}
+      {SHOW_GROUP_B_STUBS && <SphereVersionPanel />}
     </div>
   );
 }

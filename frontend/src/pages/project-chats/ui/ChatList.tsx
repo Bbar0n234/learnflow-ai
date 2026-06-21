@@ -6,6 +6,7 @@ import { Button } from "@/shared/ui/button";
 import { Illustration } from "@/shared/ui/Illustration";
 import { useChats } from "@/shared/api/chats";
 import { useCreateChat } from "@/shared/api/chats";
+import { SHOW_GROUP_B_STUBS } from "@/shared/config/feature-flags";
 
 export function ChatList() {
   const { id } = useParams();
@@ -106,13 +107,13 @@ export function ChatList() {
                   Нет превью
                 </p>
                 <div className="mt-1.5 flex items-center gap-2">
-                  {/* Stub contribution chips — visual only, no backend contract */}
-                  {i % 2 === 0 && (
+                  {/* Stub contribution chips — visual only, no backend contract (group B stub) */}
+                  {SHOW_GROUP_B_STUBS && i % 2 === 0 && (
                     <span className="rounded-full bg-secondary px-2 text-[10px] leading-5 text-secondary-foreground">
                       {(i + 1) * 2} артефакта
                     </span>
                   )}
-                  {i % 3 !== 2 && (
+                  {SHOW_GROUP_B_STUBS && i % 3 !== 2 && (
                     <span className="rounded-full bg-secondary px-2 text-[10px] leading-5 text-secondary-foreground">
                       +{(i + 1) * 3} в сферу
                     </span>

@@ -4,6 +4,7 @@ import { ScrollArea } from "@/shared/ui/scroll-area";
 import { MarkdownRenderer } from "@/shared/ui/MarkdownRenderer";
 import { Illustration } from "@/shared/ui/Illustration";
 import { SaveVersionDropdown } from "./SaveVersionDropdown";
+import { SHOW_GROUP_B_STUBS } from "@/shared/config/feature-flags";
 
 interface SphereViewerProps {
   content: string;
@@ -19,7 +20,7 @@ export function SphereViewer({ content, onEdit }: SphereViewerProps) {
           Сфера знаний
         </h2>
         <div className="flex items-center gap-2">
-          <SaveVersionDropdown />
+          {SHOW_GROUP_B_STUBS && <SaveVersionDropdown />}
           <Button
             variant="outline"
             size="sm"

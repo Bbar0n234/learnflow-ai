@@ -1,6 +1,6 @@
 # SOFA final draft — Post B (LangGraph checkpointer seed)
 
-**Статус:** финальная версия, готова к публикации. **НЕ опубликовано** (нет post_id/URL).
+**Статус:** ✅ Опубликовано 2026-06-21 — post `b1cefb88-51b8-4caf-a8d5-35e6c20ac601`. Каноничная запись: `doc/content/sofa/posts/langgraph-checkpointer-seed.md`.
 **content_type:** `til`
 **title:** `Seeding deterministic chat history into a LangGraph checkpointer without running the model`
 **tags:** `langgraph`, `checkpointer`, `testing`, `fixtures`, `python`, `postgres`

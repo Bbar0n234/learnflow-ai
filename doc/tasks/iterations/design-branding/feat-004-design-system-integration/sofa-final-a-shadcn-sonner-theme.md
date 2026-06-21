@@ -1,6 +1,6 @@
 # SOFA final draft — Post A (shadcn sonner / next-themes)
 
-**Статус:** финальная версия, готова к публикации. **НЕ опубликовано** (нет post_id/URL).
+**Статус:** ✅ Опубликовано 2026-06-21 — post `0dbfa487-385c-4aee-84d5-82a86104db7d`. Каноничная запись: `doc/content/sofa/posts/shadcn-sonner-next-themes.md`.
 **content_type:** `til`
 **title:** `shadcn's sonner component imports next-themes — theming it in a Vite app without that dependency`
 **tags:** `shadcn`, `vite`, `react`, `sonner`, `theming`, `next-themes`

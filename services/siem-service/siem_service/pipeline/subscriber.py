@@ -314,9 +314,15 @@ class Subscriber:
             # No XACK — message stays in PEL for re-delivery.
 
     def _is_known_event_type(self, event_type: str) -> bool:
-        """Check if event_type is in known vocabulary.
+        """Check if event_type is in known vocabulary (vocabulary-soft mode).
 
-        For T2, accept all types (vocabulary-soft mode).
+        Deliberate defense-in-depth scaffolding per ADR-020 (strict-on-vocabulary):
+        today ``SecurityEvent.event_type`` is a strict ``Literal``, so unknown
+        types are rejected as poison at ``model_validate`` before this check ever
+        runs — this branch is intentionally inert. It activates only if the
+        contract is ever loosened from ``Literal`` to ``str``. Not dead code; do
+        not remove (nor the ``siem_unknown_event_type`` metric) without revising
+        ADR-020.
         """
         return True
 

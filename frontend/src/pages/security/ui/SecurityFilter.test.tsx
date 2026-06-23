@@ -17,7 +17,7 @@ describe("SecurityFilter", () => {
     const onFilterChange = vi.fn();
     renderWithProviders(<SecurityFilter onFilterChange={onFilterChange} />);
 
-    await user.type(screen.getByPlaceholderText("auth.login.failed"), "auth.x");
+    await user.type(screen.getByLabelText("Тип события"), "auth.x");
     await user.click(screen.getByRole("button", { name: "Применить" }));
 
     expect(onFilterChange).toHaveBeenCalledWith({ event_type: "auth.x" });
@@ -40,7 +40,7 @@ describe("SecurityFilter", () => {
     const onFilterChange = vi.fn();
     renderWithProviders(<SecurityFilter onFilterChange={onFilterChange} />);
 
-    await user.type(screen.getByPlaceholderText("auth.login.failed"), "auth.x");
+    await user.type(screen.getByLabelText("Тип события"), "auth.x");
     await user.click(screen.getByRole("button", { name: "Сброс" }));
 
     expect(onFilterChange).toHaveBeenLastCalledWith({});

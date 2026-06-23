@@ -98,8 +98,8 @@ describe("SphereView", () => {
     render();
     await screen.findByText("original");
 
-    // Only one button in the viewer header: the edit (pencil) icon button.
-    await user.click(screen.getByRole("button"));
+    // The edit (pencil) icon button in the viewer header, by accessible name.
+    await user.click(screen.getByRole("button", { name: "Edit" }));
 
     const textarea = await screen.findByLabelText("Knowledge sphere content");
     await user.clear(textarea);

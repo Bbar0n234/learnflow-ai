@@ -13,7 +13,7 @@ export function SphereViewer({ content, onEdit }: SphereViewerProps) {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b px-6 py-3">
         <h2 className="text-lg font-semibold">Knowledge Sphere</h2>
-        <Button variant="ghost" size="icon" onClick={onEdit}>
+        <Button variant="ghost" size="icon" onClick={onEdit} aria-label="Edit">
           <Pencil className="h-4 w-4" />
         </Button>
       </div>

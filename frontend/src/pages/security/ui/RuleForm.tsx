@@ -186,24 +186,31 @@ export function RuleForm({
           {/* Basic fields */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
+              <label
+                htmlFor="rule-name"
+                className="block text-sm font-medium text-foreground mb-2"
+              >
                 Название
               </label>
               <Input
+                id="rule-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="brute_force_auth"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
+              <label
+                htmlFor="rule-type"
+                className="block text-sm font-medium text-foreground mb-2"
+              >
                 Тип правила
               </label>
               <Select
                 value={ruleType}
                 onValueChange={(v) => setRuleType(v as RuleType)}
               >
-                <SelectTrigger>
+                <SelectTrigger id="rule-type">
                   <SelectValue>
                     {(value) =>
                       RULE_TYPES.find((opt) => opt.value === value)?.label ??
@@ -223,10 +230,14 @@ export function RuleForm({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
+            <label
+              htmlFor="rule-description"
+              className="block text-sm font-medium text-foreground mb-2"
+            >
               Описание
             </label>
             <Textarea
+              id="rule-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Описание правила и его назначение"
@@ -235,10 +246,17 @@ export function RuleForm({
           </div>
 
           <div className="flex items-center justify-between">
-            <label className="text-sm font-medium text-foreground">
+            <label
+              htmlFor="rule-enabled"
+              className="text-sm font-medium text-foreground"
+            >
               Активно
             </label>
-            <Switch checked={enabled} onCheckedChange={setEnabled} />
+            <Switch
+              id="rule-enabled"
+              checked={enabled}
+              onCheckedChange={setEnabled}
+            />
           </div>
 
           {/* Common config */}
@@ -247,10 +265,14 @@ export function RuleForm({
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
+                <label
+                  htmlFor="rule-window"
+                  className="block text-sm font-medium text-foreground mb-2"
+                >
                   Временное окно (сек)
                 </label>
                 <Input
+                  id="rule-window"
                   type="number"
                   value={window === "" ? "" : String(window)}
                   onChange={(e) =>
@@ -263,14 +285,17 @@ export function RuleForm({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
+                <label
+                  htmlFor="rule-severity"
+                  className="block text-sm font-medium text-foreground mb-2"
+                >
                   Серьезность алерта
                 </label>
                 <Select
                   value={severity}
                   onValueChange={(v) => setSeverity(v as Severity)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="rule-severity">
                     <SelectValue>
                       {(value) =>
                         SEVERITY_OPTIONS.find((opt) => opt.value === value)
@@ -293,10 +318,14 @@ export function RuleForm({
             {(ruleType === "threshold" || ruleType === "aggregate") && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
+                  <label
+                    htmlFor="rule-event-pattern"
+                    className="block text-sm font-medium text-foreground mb-2"
+                  >
                     Шаблон типа события
                   </label>
                   <Input
+                    id="rule-event-pattern"
                     value={eventTypePattern}
                     onChange={(e) => setEventTypePattern(e.target.value)}
                     placeholder="auth.login.failed или agent.guard.%.injection"
@@ -304,10 +333,14 @@ export function RuleForm({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
+                  <label
+                    htmlFor="rule-threshold"
+                    className="block text-sm font-medium text-foreground mb-2"
+                  >
                     Порог срабатывания
                   </label>
                   <Input
+                    id="rule-threshold"
                     type="number"
                     value={threshold === "" ? "" : String(threshold)}
                     onChange={(e) =>
@@ -324,14 +357,17 @@ export function RuleForm({
             {/* Threshold specific */}
             {ruleType === "threshold" && (
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
+                <label
+                  htmlFor="rule-group-key"
+                  className="block text-sm font-medium text-foreground mb-2"
+                >
                   Группировать по
                 </label>
                 <Select
                   value={String(groupKey ?? "")}
                   onValueChange={(v) => setGroupKey(v === "" ? null : v)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="rule-group-key">
                     <SelectValue>
                       {(value) =>
                         GROUP_KEY_OPTIONS.find(
@@ -358,10 +394,14 @@ export function RuleForm({
             {ruleType === "sequence" && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
+                  <label
+                    htmlFor="rule-sequence-a"
+                    className="block text-sm font-medium text-foreground mb-2"
+                  >
                     Событие А (шаблон)
                   </label>
                   <Input
+                    id="rule-sequence-a"
                     value={sequenceA}
                     onChange={(e) => setSequenceA(e.target.value)}
                     placeholder="auth.login.failed"
@@ -369,10 +409,14 @@ export function RuleForm({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
+                  <label
+                    htmlFor="rule-sequence-b"
+                    className="block text-sm font-medium text-foreground mb-2"
+                  >
                     Событие Б (шаблон)
                   </label>
                   <Input
+                    id="rule-sequence-b"
                     value={sequenceB}
                     onChange={(e) => setSequenceB(e.target.value)}
                     placeholder="agent.guard.input.injection"
@@ -380,14 +424,17 @@ export function RuleForm({
                 </div>
 
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-foreground mb-2">
+                  <label
+                    htmlFor="rule-group-key-seq"
+                    className="block text-sm font-medium text-foreground mb-2"
+                  >
                     Группировать по (опционально)
                   </label>
                   <Select
                     value={String(groupKey ?? "")}
                     onValueChange={(v) => setGroupKey(v === "" ? null : v)}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="rule-group-key-seq">
                       <SelectValue>
                         {(value) =>
                           GROUP_KEY_OPTIONS.find(

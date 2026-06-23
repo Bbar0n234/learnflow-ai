@@ -14,8 +14,8 @@ import { CustomInstructionsSection } from "./CustomInstructionsSection";
 // edits via PUT (resetting the dirty flag on success). The 422 security-policy
 // branch surfaces the violation message. Network is MSW.
 //
-// The <label> is not associated with the <textarea> (no htmlFor/id — a11y gap,
-// see run-log), so the textarea is reached by role.
+// The <label> is associated with the <textarea> via htmlFor/id, so the field is
+// reachable by its accessible name ("Custom Instructions").
 
 const URL = "/api/users/me/instructions";
 
@@ -26,6 +26,7 @@ describe("CustomInstructionsSection", () => {
     renderWithProviders(<CustomInstructionsSection />);
 
     expect(await screen.findByDisplayValue("initial")).toBeInTheDocument();
+    expect(screen.getByLabelText("Custom Instructions")).toHaveValue("initial");
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   });
 

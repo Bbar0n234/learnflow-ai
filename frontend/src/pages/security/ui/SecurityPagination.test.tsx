@@ -9,8 +9,7 @@ import { SecurityPagination } from "./SecurityPagination";
 
 // Unit: the security list pager. It renders the current page summary and emits
 // offset/limit changes through callbacks. The prev/next controls are icon-only
-// buttons without accessible names (a11y gap, see run-log); they are
-// distinguished here by their disabled state at the page boundaries.
+// buttons reached by their accessible names ("Previous page" / "Next page").
 
 function setup(over: Partial<Parameters<typeof SecurityPagination>[0]> = {}) {
   const onLimitChange = vi.fn();
@@ -39,9 +38,8 @@ describe("SecurityPagination", () => {
     const user = userEvent.setup();
     const { onOffsetChange } = setup();
 
-    const buttons = screen.getAllByRole("button");
-    const prev = buttons[0]!;
-    const next = buttons[1]!;
+    const prev = screen.getByRole("button", { name: "Previous page" });
+    const next = screen.getByRole("button", { name: "Next page" });
     expect(prev).toBeDisabled();
     expect(next).toBeEnabled();
 
@@ -53,7 +51,7 @@ describe("SecurityPagination", () => {
     const user = userEvent.setup();
     const { onOffsetChange } = setup({ offset: 50 });
 
-    const prev = screen.getAllByRole("button")[0]!;
+    const prev = screen.getByRole("button", { name: "Previous page" });
     expect(prev).toBeEnabled();
 
     await user.click(prev);
@@ -63,7 +61,7 @@ describe("SecurityPagination", () => {
   it("disables next on the last page", () => {
     setup({ offset: 100 });
 
-    const next = screen.getAllByRole("button")[1]!;
+    const next = screen.getByRole("button", { name: "Next page" });
     expect(next).toBeDisabled();
   });
 

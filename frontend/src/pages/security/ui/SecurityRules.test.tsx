@@ -98,9 +98,8 @@ describe("SecurityRules", () => {
     renderWithProviders(<SecurityRules />);
     const row = (await screen.findByText("brute_force_auth")).closest("tr")!;
 
-    // The row holds two icon-only buttons (edit, delete); delete is the second.
-    const buttons = within(row).getAllByRole("button");
-    await user.click(buttons[buttons.length - 1]!);
+    // The row holds two icon-only buttons reached by accessible name.
+    await user.click(within(row).getByRole("button", { name: "Delete rule" }));
 
     // Confirm in the modal.
     await user.click(await screen.findByRole("button", { name: "Удалить" }));
@@ -132,14 +131,11 @@ describe("SecurityRules", () => {
     await user.click(screen.getByRole("button", { name: /Создать правило/ }));
 
     // Threshold rule (the form default) needs a name and an event-type pattern;
-    // window (60) and threshold (5) are prefilled. Labels are not associated with
-    // inputs (a11y gap, see run-log), so fields are reached by placeholder.
+    // window (60) and threshold (5) are prefilled. Fields are reached by their
+    // associated labels.
+    await user.type(screen.getByLabelText("Название"), "new_rule");
     await user.type(
-      screen.getByPlaceholderText("brute_force_auth"),
-      "new_rule",
-    );
-    await user.type(
-      screen.getByPlaceholderText(/auth\.login\.failed/),
+      screen.getByLabelText("Шаблон типа события"),
       "auth.login.failed",
     );
     await user.click(screen.getByRole("button", { name: "Сохранить" }));

@@ -65,10 +65,14 @@ export function SecurityFilter({
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         {showEventType && (
           <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
+            <label
+              htmlFor="filter-event-type"
+              className="block text-sm font-medium text-foreground mb-2"
+            >
               Тип события
             </label>
             <Input
+              id="filter-event-type"
               placeholder="auth.login.failed"
               value={eventType}
               onChange={(e) => setEventType(e.target.value)}
@@ -77,14 +81,17 @@ export function SecurityFilter({
         )}
 
         <div>
-          <label className="block text-sm font-medium text-foreground mb-2">
+          <label
+            htmlFor="filter-severity"
+            className="block text-sm font-medium text-foreground mb-2"
+          >
             Серьезность
           </label>
           <Select
             value={severity}
             onValueChange={(v: string | null) => v !== null && setSeverity(v)}
           >
-            <SelectTrigger>
+            <SelectTrigger id="filter-severity">
               <SelectValue placeholder="Все">
                 {(value) =>
                   SEVERITY_OPTIONS.find((opt) => opt.value === value)?.label ??
@@ -105,14 +112,17 @@ export function SecurityFilter({
 
         {showStatus && (
           <div>
-            <label className="block text-sm font-medium text-foreground mb-2">
+            <label
+              htmlFor="filter-status"
+              className="block text-sm font-medium text-foreground mb-2"
+            >
               Статус
             </label>
             <Select
               value={status}
               onValueChange={(v: string | null) => v !== null && setStatus(v)}
             >
-              <SelectTrigger>
+              <SelectTrigger id="filter-status">
                 <SelectValue placeholder="Все">
                   {(value) =>
                     statusOptions.find((opt) => opt.value === value)?.label ??
@@ -133,10 +143,14 @@ export function SecurityFilter({
         )}
 
         <div>
-          <label className="block text-sm font-medium text-foreground mb-2">
+          <label
+            htmlFor="filter-from"
+            className="block text-sm font-medium text-foreground mb-2"
+          >
             От
           </label>
           <Input
+            id="filter-from"
             type="datetime-local"
             value={fromDate}
             onChange={(e) => setFromDate(e.target.value)}
@@ -144,10 +158,14 @@ export function SecurityFilter({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-foreground mb-2">
+          <label
+            htmlFor="filter-to"
+            className="block text-sm font-medium text-foreground mb-2"
+          >
             До
           </label>
           <Input
+            id="filter-to"
             type="datetime-local"
             value={toDate}
             onChange={(e) => setToDate(e.target.value)}

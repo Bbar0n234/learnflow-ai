@@ -147,9 +147,7 @@ async def test_update_section_overwrite_replaces_content(store: BaseStore) -> No
         section_id="goals", description="d", content="old text", runtime=runtime
     )
 
-    result = await _update(
-        section_id="goals", content="new text", runtime=runtime
-    )
+    result = await _update(section_id="goals", content="new text", runtime=runtime)
 
     assert "Updated section 'goals'" in result
     assert (await _require_section(store, "goals"))["content"] == "new text"
@@ -214,9 +212,7 @@ async def test_update_section_updates_description(store: BaseStore) -> None:
 async def test_update_section_missing_returns_error(store: BaseStore) -> None:
     runtime = _runtime(store)
 
-    result = await _update(
-        section_id="absent", content="x", runtime=runtime
-    )
+    result = await _update(section_id="absent", content="x", runtime=runtime)
 
     assert "not found" in result
 
@@ -226,9 +222,7 @@ async def test_update_section_missing_returns_error(store: BaseStore) -> None:
 
 async def test_delete_section_removes_from_store(store: BaseStore) -> None:
     runtime = _runtime(store)
-    await _create(
-        section_id="goals", description="d", content="body", runtime=runtime
-    )
+    await _create(section_id="goals", description="d", content="body", runtime=runtime)
 
     result = await _delete(section_id="goals", runtime=runtime)
 

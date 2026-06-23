@@ -1,4 +1,4 @@
-.PHONY: docker-up docker-up-db docker-up-redis docker-down docker-build docker-logs lint format type-check arch-check check lint-fe check-fe format-fe dev dev-remote dev-fe test test-parallel test-scope test-cov test-fe migrate migration downgrade migrate-siem sync-prompts security-scan-validate security-scan-redteam security-scan-report
+.PHONY: docker-up docker-up-db docker-up-redis docker-down docker-build docker-logs lint format type-check arch-check check lint-fe check-fe format-fe dev dev-remote dev-fe test test-contracts test-parallel test-scope test-cov test-fe migrate migration downgrade migrate-siem sync-prompts security-scan-validate security-scan-redteam security-scan-report
 
 # Load .env (base) then .env.local (overrides) into shell environment
 LOAD_ENV = set -a && [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; set +a
@@ -68,13 +68,18 @@ dev-remote:  ## Run backend dev server (accessible by IP)
 dev-fe:  ## Run frontend dev server
 	cd frontend && npx vite
 
-test:  ## Run backend + siem-service pytest (exit 5 = "no tests collected" is OK)
+test:  ## Run backend + siem-service + siem-contracts pytest (exit 5 = "no tests collected" is OK)
 	@$(LOAD_ENV) && uv run --package learnflow-backend pytest -c backend/pyproject.toml --rootdir backend backend/tests; ec=$$?; [ $$ec -eq 0 ] || [ $$ec -eq 5 ]
 	@$(LOAD_ENV) && uv run --package siem-service pytest -c services/siem-service/pyproject.toml --rootdir services/siem-service services/siem-service/tests; ec=$$?; [ $$ec -eq 0 ] || [ $$ec -eq 5 ]
+	@$(MAKE) --no-print-directory test-contracts
+
+test-contracts:  ## Run siem-contracts library contract tests (Literal <-> constants guards)
+	@uv run --package siem-contracts pytest -c packages/siem-contracts/pyproject.toml --rootdir packages/siem-contracts packages/siem-contracts/tests; ec=$$?; [ $$ec -eq 0 ] || [ $$ec -eq 5 ]
 
 test-parallel:  ## Run backend + siem-service pytest under xdist (-n auto, container per worker)
 	@$(LOAD_ENV) && uv run --package learnflow-backend pytest -c backend/pyproject.toml --rootdir backend -n auto backend/tests; ec=$$?; [ $$ec -eq 0 ] || [ $$ec -eq 5 ]
 	@$(LOAD_ENV) && uv run --package siem-service pytest -c services/siem-service/pyproject.toml --rootdir services/siem-service -n auto services/siem-service/tests; ec=$$?; [ $$ec -eq 0 ] || [ $$ec -eq 5 ]
+	@$(MAKE) --no-print-directory test-contracts
 
 test-scope:  ## Run a subset of backend tests under Docker. Usage: make test-scope P=backend/tests/auth
 	@$(LOAD_ENV) && uv run --package learnflow-backend pytest -c backend/pyproject.toml --rootdir backend $(P); ec=$$?; [ $$ec -eq 0 ] || [ $$ec -eq 5 ]

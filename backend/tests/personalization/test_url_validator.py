@@ -39,6 +39,11 @@ def _stub_resolution(monkeypatch: pytest.MonkeyPatch, *ips: str) -> None:
         "::1",
         "fc00::1",
         "fe80::1",
+        # SSRF bypass forms that must not slip through:
+        "::ffff:10.0.0.1",  # IPv4-mapped IPv6 of a private v4
+        "::ffff:127.0.0.1",  # IPv4-mapped IPv6 of loopback
+        "0.0.0.0",  # "this host" / localhost on Linux
+        "100.64.0.1",  # CGNAT (RFC 6598) shared address space
     ],
 )
 def test_validate_url_private_ip_raises_security_violation(

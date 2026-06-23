@@ -33,8 +33,9 @@ from app.models.mcp_server import (
 )
 from app.repositories.mcp_server import MCPServerRepository
 from app.services.encryption import EncryptionService
+from app.services.exceptions import InvalidURLError, SecurityPolicyViolationError
 from app.services.mcp_server import McpServerService
-from app.services.url_validator import validate_url
+from app.services.url_validator import mcp_no_redirect_client_factory, validate_url
 
 logger = structlog.get_logger()
 
@@ -104,8 +105,10 @@ async def _test_connection(
     """Test MCP server connection."""
     try:
         validate_url(url)
-    except ValueError as e:
-        return TestConnectionResponse(success=False, error=str(e))
+    except (InvalidURLError, SecurityPolicyViolationError) as e:
+        # validate_url raises AppError subclasses (not ValueError): map the SSRF
+        # / bad-URL rejection into the contract result instead of a 4xx.
+        return TestConnectionResponse(success=False, error=e.detail)
 
     headers = {}
     if api_key:
@@ -115,7 +118,10 @@ async def _test_connection(
         conn: SSEConnection | StreamableHttpConnection
         if transport == "sse":
             conn = SSEConnection(
-                transport="sse", url=url, sse_read_timeout=float(timeout)
+                transport="sse",
+                url=url,
+                sse_read_timeout=float(timeout),
+                httpx_client_factory=mcp_no_redirect_client_factory,
             )
             if headers:
                 conn["headers"] = headers
@@ -126,6 +132,7 @@ async def _test_connection(
                 transport="streamable_http",
                 url=url,
                 timeout=timeout,  # type: ignore[typeddict-item]
+                httpx_client_factory=mcp_no_redirect_client_factory,
             )
             if headers:
                 conn["headers"] = headers

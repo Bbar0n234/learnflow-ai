@@ -40,7 +40,7 @@ async def _event_generator(
             yield f"data: {json.dumps(payload)}\n\n"
     except Exception:
         logger.error("sse stream error", exc_info=True)
-        error_payload = json.dumps({"type": "error", "message": "Stream failed"})
+        error_payload = json.dumps({"type": "error", "detail": "Stream failed"})
         yield f"data: {error_payload}\n\n"
 
 

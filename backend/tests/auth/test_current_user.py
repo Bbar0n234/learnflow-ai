@@ -7,7 +7,9 @@ observable 401 contract, not the decoder internals.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
+import jwt
 import pytest
 from app.config import Settings
 from app.services.security import create_access_token
@@ -56,6 +58,46 @@ async def test_wrong_signature_access_token_is_unauthorized(
 
     response = await auth_client.get(
         "/api/auth/me", headers={"Authorization": f"Bearer {forged}"}
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid or expired token"
+
+
+@pytest.mark.integration
+async def test_valid_signature_with_non_uuid_sub_is_unauthorized(
+    auth_client: AsyncClient, settings: Settings
+) -> None:
+    # Correctly signed and unexpired, but "sub" is not a UUID. The decoder must
+    # normalize this to a 401, not let uuid.UUID(...) raise ValueError -> 500.
+    token = jwt.encode(
+        {"sub": "not-a-uuid", "exp": datetime.now(UTC) + timedelta(minutes=30)},
+        settings.jwt_secret,
+        algorithm="HS256",
+    )
+
+    response = await auth_client.get(
+        "/api/auth/me", headers={"Authorization": f"Bearer {token}"}
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid or expired token"
+
+
+@pytest.mark.integration
+async def test_valid_signature_without_sub_is_unauthorized(
+    auth_client: AsyncClient, settings: Settings
+) -> None:
+    # Correctly signed and unexpired, but "sub" claim is absent. Missing claim
+    # must yield 401, not a KeyError -> 500.
+    token = jwt.encode(
+        {"exp": datetime.now(UTC) + timedelta(minutes=30)},
+        settings.jwt_secret,
+        algorithm="HS256",
+    )
+
+    response = await auth_client.get(
+        "/api/auth/me", headers={"Authorization": f"Bearer {token}"}
     )
 
     assert response.status_code == 401

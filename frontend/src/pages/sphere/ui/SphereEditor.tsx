@@ -52,6 +52,7 @@ export function SphereEditor({
           onChange={(e) => setText(e.target.value)}
           className="h-full min-h-[300px] resize-none font-mono text-sm"
           placeholder="Write your knowledge sphere content in Markdown..."
+          aria-label="Knowledge sphere content"
           disabled={isPending}
         />
       </div>

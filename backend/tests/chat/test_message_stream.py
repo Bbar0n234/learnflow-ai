@@ -107,7 +107,9 @@ async def test_stream_runner_exception_yields_terminal_error_event(
 
     last = events[-1].json()
     assert last["type"] == "error"
-    assert last["message"] == "Stream failed"
+    # The terminal error payload uses ``detail`` per the SSE contract
+    # (streaming.md, runner.py); the frontend reads ``event.detail``.
+    assert last["detail"] == "Stream failed"
 
 
 async def test_stream_accepts_empty_content(

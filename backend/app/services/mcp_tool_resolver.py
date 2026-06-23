@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.models.mcp_server import ProjectMCPServer, ThreadMCPServer, UserMCPServer
 from app.repositories.mcp_server import MCPServerRepository
 from app.services.encryption import EncryptionService
-from app.services.url_validator import validate_url
+from app.services.url_validator import mcp_no_redirect_client_factory, validate_url
 
 logger = structlog.get_logger()
 
@@ -154,6 +154,7 @@ class MCPToolResolver:
                 transport="sse",
                 url=server.url,
                 sse_read_timeout=float(self._mcp_timeout),
+                httpx_client_factory=mcp_no_redirect_client_factory,
             )
             if headers:
                 conn["headers"] = headers
@@ -164,6 +165,7 @@ class MCPToolResolver:
                 transport="streamable_http",
                 url=server.url,
                 timeout=self._mcp_timeout,  # type: ignore[typeddict-item]
+                httpx_client_factory=mcp_no_redirect_client_factory,
             )
             if headers:
                 conn["headers"] = headers

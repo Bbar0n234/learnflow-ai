@@ -9,6 +9,7 @@ per-scope cap (409), and a successful create that invalidates the tool cache.
 
 from __future__ import annotations
 
+import socket
 import uuid
 from typing import Any
 
@@ -108,6 +109,45 @@ async def test_create_user_server_persists_and_invalidates_cache(
 
     listed = await api_client.get("/api/users/me/mcp-servers")
     assert listed.json()["total"] == 1
+
+
+@pytest.mark.integration
+async def test_test_user_server_private_url_returns_success_false(
+    api_client: AsyncClient,
+    db_session: AsyncSession,
+    current_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``/test`` on a server whose URL resolves to a private IP returns the
+    contract body ``{success: False, error: ...}`` — not a 4xx.
+
+    ``validate_url`` raises ``SecurityPolicyViolationError`` (an ``AppError``,
+    not ``ValueError``); the endpoint must translate that SSRF rejection into a
+    failed connection result instead of letting it bubble into a 422.
+    """
+    repo = MCPServerRepository(db_session)
+    server = await repo.create_user_server(
+        user_id=current_user.id,
+        name="ssrf-probe",
+        transport="http",
+        url="http://internal.example.com",
+    )
+
+    # Hostname resolves to a private IP → real validate_url raises the SSRF error.
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda host, port, *a, **k: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.1", 0))
+        ],
+    )
+
+    resp = await api_client.post(f"/api/users/me/mcp-servers/{server.id}/test")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["success"] is False
+    assert body["error"]
 
 
 @pytest.mark.integration

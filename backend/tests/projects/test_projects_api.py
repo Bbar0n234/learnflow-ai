@@ -169,14 +169,6 @@ async def test_delete_project_owned_by_other_user_returns_404(
     assert response.status_code == 404
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "api.md mandates idempotent DELETE (repeat → 204); the handler resolves "
-        "the project via UserProject, so a second DELETE returns 404. "
-        "Documented as a bug for Ф5 (runlog projects.md)."
-    ),
-)
 async def test_delete_project_is_idempotent(
     client: AsyncClient, current_user: User
 ) -> None:

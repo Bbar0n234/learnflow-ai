@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Response, status
+import uuid
+
+from fastapi import APIRouter, HTTPException, Response, status
 
 from app.api.deps import CurrentUser, Pagination, ProjectServiceDep, UserProject
 from app.api.schemas.projects import (
@@ -9,6 +11,7 @@ from app.api.schemas.projects import (
     ProjectResponse,
     ProjectUpdate,
 )
+from app.services.exceptions import EntityNotFoundError
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -59,8 +62,18 @@ async def update_project(
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(
-    project: UserProject,
+    project_id: uuid.UUID,
+    user: CurrentUser,
     service: ProjectServiceDep,
 ) -> Response:
+    # Idempotent DELETE (api.md): an already-removed project resolves as a
+    # no-op 204 instead of 404. Ownership is still enforced — an existing
+    # project owned by another user stays hidden behind a 404.
+    try:
+        project = await service.get_project(project_id)
+    except EntityNotFoundError:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    if project.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Project not found")
     await service.delete_project(project.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -58,11 +58,8 @@ describe("MCPServerForm", () => {
       />,
     );
 
-    await user.type(screen.getByPlaceholderText("my-server"), "my-mcp");
-    await user.type(
-      screen.getByPlaceholderText("https://mcp.example.com/v1"),
-      "https://mcp.example.com/v1",
-    );
+    await user.type(screen.getByLabelText("Name"), "my-mcp");
+    await user.type(screen.getByLabelText("URL"), "https://mcp.example.com/v1");
     await user.click(screen.getByRole("button", { name: "Add Server" }));
 
     expect(onSubmit).toHaveBeenCalledWith({
@@ -84,15 +81,9 @@ describe("MCPServerForm", () => {
       />,
     );
 
-    await user.type(screen.getByPlaceholderText("my-server"), "keyed");
-    await user.type(
-      screen.getByPlaceholderText("https://mcp.example.com/v1"),
-      "https://mcp.example.com/v1",
-    );
-    await user.type(
-      screen.getByPlaceholderText("Bearer token"),
-      "secret-token",
-    );
+    await user.type(screen.getByLabelText("Name"), "keyed");
+    await user.type(screen.getByLabelText("URL"), "https://mcp.example.com/v1");
+    await user.type(screen.getByLabelText(/API Key/), "secret-token");
     await user.click(screen.getByRole("button", { name: "Add Server" }));
 
     expect(onSubmit).toHaveBeenCalledWith({

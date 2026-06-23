@@ -249,16 +249,20 @@ class Subscriber:
             if isinstance(data_json, bytes):
                 data_json = data_json.decode("utf-8")
 
-            event_dict = json.loads(data_json)
-
-            # Extract real event_id from parsed dict; fallback to message_id
-            raw_event_id = event_dict.get("event_id")
-            event_id_str = str(raw_event_id) if raw_event_id is not None else message_id
-
-            # Validate with SecurityEvent (strict)
+            # Parse + validate. Both malformed JSON (JSONDecodeError) and
+            # schema-invalid JSON (ValidationError) are poison → drop + XACK
+            # (no retry). Handling them symmetrically prevents a non-JSON
+            # payload from escaping to the run() barrier and crash-looping the
+            # supervisor until terminal drop (D-ERR-7).
             try:
+                event_dict = json.loads(data_json)
+                # Extract real event_id from parsed dict; fallback to message_id
+                raw_event_id = event_dict.get("event_id")
+                event_id_str = (
+                    str(raw_event_id) if raw_event_id is not None else message_id
+                )
                 event = SecurityEvent.model_validate(event_dict)
-            except ValidationError:
+            except (json.JSONDecodeError, ValidationError):
                 # Poison: malformed or schema-invalid → drop + XACK (no retry)
                 self._metrics["siem_events_invalid"] += 1
                 logger.warning(

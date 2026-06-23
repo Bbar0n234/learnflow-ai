@@ -210,23 +210,24 @@ async def test_subscriber_transient_db_error_is_not_acked(
     assert subscriber.get_metrics()["siem_events_transient"] == 1
 
 
-async def test_subscriber_malformed_non_json_payload_is_not_acked(
+async def test_subscriber_malformed_non_json_payload_is_poison_dropped(
     db_session: AsyncSession,
 ) -> None:
-    # A payload that is not even valid JSON fails json.loads *before* validation,
-    # so it takes the "unexpected" branch: re-raised to the supervisor barrier
-    # (run() propagates) rather than the poison drop+ack. It is therefore NOT
-    # acked, and no write session is opened; re-delivery is bounded only by the
-    # terminal-drop counter.
+    # A payload that is not even valid JSON fails json.loads. It must be treated
+    # as poison — symmetric with schema-invalid JSON — i.e. drop + XACK + the
+    # siem_events_invalid metric, never opening a write session. Re-raising it to
+    # the supervisor barrier (the old behavior) would crash-loop the task until
+    # the terminal-drop counter eventually evicts it (DoS-flavored).
     redis = FakeStreamRedis([raw_message("1-0", "not-json{")])
     factory = _session_factory(db_session)
     subscriber = make_subscriber(redis, factory, make_settings())
 
-    with pytest.raises(json.JSONDecodeError):
-        await subscriber.run()
+    await _drain(subscriber)
 
-    assert redis.acked == []
+    assert redis.acked == ["1-0"]
     assert factory.calls == 0
+    assert subscriber.get_metrics()["siem_events_invalid"] == 1
+    assert await _count_events(db_session) == 0
 
 
 async def test_subscriber_consumes_producer_serialized_envelope(

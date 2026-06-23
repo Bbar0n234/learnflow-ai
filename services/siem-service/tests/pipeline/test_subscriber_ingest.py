@@ -153,6 +153,7 @@ async def test_subscriber_duplicate_event_id_is_deduplicated_and_acked(
             "missing_required_fields",
         ),
     ],
+    ids=["invalid_severity", "unknown_event_type", "missing_required_fields"],
 )
 async def test_subscriber_poison_event_is_dropped_acked_without_db_write(
     db_session: AsyncSession, bad_payload: str, reason: str

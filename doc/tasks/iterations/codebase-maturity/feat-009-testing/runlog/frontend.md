@@ -104,3 +104,101 @@ MSW) поверх замороженного фундамента Ф2b. Инфр
 
 Нет. Заморожённую инфру (`setup.ts`, `test-utils.tsx`, `msw/*`,
 `__mocks__/zustand.ts`) не трогал; новые хелперы — отдельными файлами в `test/`.
+
+---
+
+# Ф5c — усиление по ревью S9 + добор слайсов
+
+Вход: **78 passed / 15 файлов**. Выход: **120 passed / 22 файла** (+42 теста,
++7 файлов). `make test-fe` и `make check-fe` — зелёные. Инфру не трогал; прод не
+правил.
+
+## Ключевая находка: Base UI Select РАСКРЫВАЕТСЯ в jsdom
+
+Ограничение из Ф2b (popup Select не драйвится) **снято**. С точечным импортом
+`@/test/pointer-event-polyfill` Base UI Select под jsdom открывается штатно:
+триггер — `role="combobox"`, пункты — `role="option"`. Драйв: `user.click(триггер)`
+→ `findByRole("option",{name})` → `user.click`. На этом построены все M1-тесты
+ниже. Обходов нет.
+
+## A. Усиление по находкам ревью
+
+### M1 — Select реально в действии
+- **ModelSelector** (`ui/ModelSelector.test.tsx`, 4→7): выбор явной модели из
+  открытого списка → перехваченный MSW `PUT /users/me/settings` с
+  `{model_name:"claude-sonnet"}`; выбор «Default» при заданной модели → PUT с
+  `{model_name:null}`; триггер `disabled` во время pending мутации (MSW `delay`).
+  Существующие 3 теста усилил: вместо `getAllByText(...).length>0` —
+  `getByRole("combobox")` + `toHaveTextContent(...)` (минор «слабый ассерт»).
+- **MCPServerForm** (`ui/MCPServerForm.test.tsx`, 7→8): открыть transport-Select,
+  выбрать «SSE», сабмит → `onSubmit` с `transport:"sse"` (наблюдаемый эффект формы).
+
+### M3 — SSE-критпуть, глубина (`useAgentStream.test.ts`, 6→14)
+Добрал ветки: грациозная отмена (`cancel()` шлёт `POST …/cancel`, терминальный
+`done` после отмены, `onError` не зовётся); сброс стора + abort на unmount;
+first-byte timeout (fake timers + `delay("infinite")` → `onError("Превышено время
+ожидания")`); 401→refresh→retry (near-expiry JWT → `/auth/refresh`, первый POST
+401, второй отдаёт поток → `onDone`); `artifact_created` → инвалидация
+`projects.artifacts` (наблюдаемо через `getQueryState(...).isInvalidated`);
+незавершённый поток → `onError("Соединение прервано")`; не-Abort бросок
+(`HttpResponse.error()`) → `onError("Ошибка соединения")`.
+
+Подавление `onError` при отмене покрыто на **событийном** уровне (терминальный
+`error`-фрейм после `cancel()` глотается через `isCancellingRef`). Подавление на
+**abort**-уровне (catch-ветка `AbortError && isCancellingRef`) под jsdom+MSW
+недостижимо: `controller.abort()` НЕ отклоняет ожидающий `reader.read()`
+замоканного `ReadableStream` (реальный fetch рвёт тело при abort, MSW — нет). Это
+ограничение харнесса, не прячу обходом; ветку покрывает unmount-тест, где
+`endStream()` вызывается напрямую.
+
+### Миноры
+- toggle (`MCPServersSection.test.tsx`): inherited-Switch теперь ассертит видимое
+  состояние — `toBeChecked()` до, `not.toBeChecked()` после рефетча, плюс payload.
+- icon-button accessible name (SphereView edit): прод имени НЕ даёт (`<Button
+  size="icon">` без `aria-label`/`title`), поэтому ассертить по name нельзя —
+  оставил существующий `getByRole("button")` (один в шапке viewer'а). Зафиксировал
+  как прод-наблюдение ниже.
+
+## B. Добор слайсов (D1)
+
+### pages/security/ui (новые файлы)
+- **SecurityRouteGuard** (4, integration + MemoryRouter): admin по `/auth/me` →
+  контент; не-admin → редирект на `/`; loading-состояние; доступ по JWT-claim
+  `is_admin` даже когда `/auth/me` его не даёт.
+- **SecurityRules** (6, MSW SIEM API): loading/empty/error/happy; удаление с
+  подтверждением в модалке + рефетч; создание через `RuleForm` (threshold:
+  name+event_type_pattern) → POST → «Правило создано» + строка после рефетча.
+- **SecurityEvents** (5): loading/empty/error/happy (тип + SeverityBadge);
+  модалка деталей с `event_id`.
+- **SecurityFilter** (3, unit): контракт `onFilterChange` — event_type на
+  «Применить», severity из открытого списка, `{}` на «Сброс».
+- **SecurityPagination** (5, unit): сводка страницы; prev/next по disabled-границам
+  (кнопки без имени — см. наблюдение); `onLimitChange` из открытого page-size
+  Select.
+
+### pages/user-settings/ui (новые файлы)
+- **CustomInstructionsSection** (3): загрузка контента, Save заблокирован пока не
+  dirty; правка→PUT с телом→Save снова disabled на success; 422
+  security-violation → `SECURITY_VIOLATION_MESSAGE`.
+- **AgentMemorySection** (4): loading/empty/happy; удаление по `«Delete memory»` →
+  DELETE с ключом + рефетч (пусто).
+
+## Прод-баги/наблюдения (НЕ правил — A6/прод вне скоупа тестов)
+- **a11y, untested-слайсы:** `<label>` не связаны с инпутами (нет `htmlFor`/`id`)
+  в `CustomInstructionsSection` (textarea), `SecurityFilter`, `RuleForm`. Фикс P9
+  (Ф5b) покрыл `MCPServerForm`/`SphereEditor`, но не эти слайсы (они были без
+  тестов). Запрашивал поля по `role="textbox"`/placeholder. Кандидат на дрейф-фикс.
+- **a11y:** icon-кнопки без accessible name — SphereView edit (Pencil),
+  SecurityPagination prev/next (Chevron), строки SecurityRules edit/delete. Тесты
+  обходят по позиции/`within(row)`; имена бы упростили и тест, и screen-reader.
+- **DOM-nesting warning:** `SecurityEvents.tsx:158` рендерит `<SeverityBadge>`
+  (`<div>`) внутри `<p>` → React `validateDOMNesting` warning в модалке деталей.
+  Косметика, на поведение не влияет.
+
+## Верификация
+- `make test-fe` — **120 passed** (22 файла; было 78/15).
+- `make check-fe` — зелено (tsc, eslint, prettier).
+
+## Отложено
+Ничего из A/B не отложил. Abort-уровень подавления `onError` — ограничение
+харнесса (см. M3), покрыт через unmount; не «отложено», а недостижимо в jsdom+MSW.

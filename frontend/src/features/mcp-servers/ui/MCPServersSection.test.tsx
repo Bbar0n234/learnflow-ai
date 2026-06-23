@@ -181,7 +181,8 @@ describe("MCPServersSection", () => {
 
   it("renders inherited servers and toggles their enabled state", async () => {
     const PROJECT_URL = "/api/projects/p1/mcp-servers";
-    const inherited: InheritedMCPServer = {
+    let disabled = false;
+    const inherited = (): InheritedMCPServer => ({
       id: "inh-1",
       name: "inherited-server",
       transport: "sse",
@@ -189,14 +190,15 @@ describe("MCPServersSection", () => {
       has_api_key: false,
       api_key_hint: null,
       is_active: true,
-      is_disabled: false,
-    };
+      is_disabled: disabled,
+    });
     let toggledDisabled: boolean | null = null;
     server.use(
-      http.get(PROJECT_URL, () => listResponse([], [inherited])),
+      http.get(PROJECT_URL, () => listResponse([], [inherited()])),
       http.put(`${PROJECT_URL}/inherited/inh-1/toggle`, async ({ request }) => {
         const body = (await request.json()) as { disabled: boolean };
         toggledDisabled = body.disabled;
+        disabled = body.disabled;
         return new HttpResponse(null, { status: 204 });
       }),
     );
@@ -205,8 +207,13 @@ describe("MCPServersSection", () => {
     renderWithProviders(<MCPServersSection scope="project" projectId="p1" />);
     await screen.findByText("inherited-server");
 
+    // Enabled inherited server reads as a checked switch.
+    expect(screen.getByRole("switch")).toBeChecked();
+
     await user.click(screen.getByRole("switch"));
 
+    // Payload disables it, and after the refetch the switch reflects the off state.
     await waitFor(() => expect(toggledDisabled).toBe(true));
+    await waitFor(() => expect(screen.getByRole("switch")).not.toBeChecked());
   });
 });

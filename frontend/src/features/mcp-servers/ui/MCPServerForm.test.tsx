@@ -1,3 +1,4 @@
+import "@/test/pointer-event-polyfill";
 import { AxiosError, AxiosHeaders, type AxiosResponse } from "axios";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -65,6 +66,34 @@ describe("MCPServerForm", () => {
     expect(onSubmit).toHaveBeenCalledWith({
       name: "my-mcp",
       transport: "http",
+      url: "https://mcp.example.com/v1",
+    });
+  });
+
+  it("submits transport 'sse' after switching it in the open transport listbox", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    renderWithProviders(
+      <MCPServerForm
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+        isPending={false}
+        error={null}
+      />,
+    );
+
+    await user.type(screen.getByLabelText("Name"), "sse-server");
+    await user.type(screen.getByLabelText("URL"), "https://mcp.example.com/v1");
+
+    // Drive the Base UI Select: open the transport listbox and pick SSE.
+    await user.click(screen.getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "SSE" }));
+
+    await user.click(screen.getByRole("button", { name: "Add Server" }));
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      name: "sse-server",
+      transport: "sse",
       url: "https://mcp.example.com/v1",
     });
   });

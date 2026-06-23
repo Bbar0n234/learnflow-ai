@@ -15,7 +15,9 @@ unblocks graph tests without touching the frozen package.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+import json
+import re
+from collections.abc import AsyncIterator, Iterable
 from typing import Any
 
 import pytest
@@ -28,8 +30,11 @@ from app.agent.config import (
 from app.agent.graph import AgentContext, build_graph, compile_graph
 from app.agent.security.types import SecurityMessages
 from app.infra.prompt_provider import PromptProvider
+from langchain_core.callbacks import AsyncCallbackManagerForLLMRun
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage
+from langchain_core.messages.tool import tool_call_chunk
+from langchain_core.outputs import ChatGenerationChunk
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.store.memory import InMemoryStore
@@ -61,6 +66,69 @@ def tool_binding_fake(
         m if isinstance(m, AIMessage) else AIMessage(content=m) for m in responses
     ]
     return ToolBindingFakeChatModel(messages=iter(messages))
+
+
+class StreamingToolCallFakeChatModel(ToolBindingFakeChatModel):
+    """Tool-binding fake that streams *tool calls* as proper chunks.
+
+    The runner drives the graph with ``stream_mode=["messages", ...]``, which
+    forces the agent node's ``ainvoke`` through the streaming path
+    (``generate_from_stream``). Stock ``GenericFakeChatModel`` only streams
+    ``content``/``additional_kwargs``, so a programmed ``AIMessage(tool_calls=...)``
+    loses its tool calls during reconstruction (and an empty-content turn yields
+    *no* chunks → ``ValueError``). This override emits a terminal
+    ``tool_call_chunks`` chunk so the reconstructed message keeps its tool calls
+    and the ReAct loop routes to the tools node — letting runner tests exercise
+    ``tool_start``/``tool_end`` through the real ``astream``.
+    """
+
+    async def _astream(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: AsyncCallbackManagerForLLMRun | None = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[ChatGenerationChunk]:
+        message = next(self.messages)
+        if not isinstance(message, AIMessage):
+            message = AIMessage(content=str(message))
+        content = message.content if isinstance(message.content, str) else ""
+        for token in (t for t in re.split(r"(\s)", content) if t):
+            chunk = ChatGenerationChunk(
+                message=AIMessageChunk(content=token, id=message.id)
+            )
+            if run_manager:
+                await run_manager.on_llm_new_token(token, chunk=chunk)
+            yield chunk
+        if message.tool_calls:
+            tccs = [
+                tool_call_chunk(
+                    name=tc["name"],
+                    args=json.dumps(tc["args"]),
+                    id=tc.get("id"),
+                    index=i,
+                )
+                for i, tc in enumerate(message.tool_calls)
+            ]
+            chunk = ChatGenerationChunk(
+                message=AIMessageChunk(content="", id=message.id, tool_call_chunks=tccs)
+            )
+            if run_manager:
+                await run_manager.on_llm_new_token("", chunk=chunk)
+            yield chunk
+        if not content and not message.tool_calls:
+            # Terminal empty chunk so ``generate_from_stream`` has a generation.
+            yield ChatGenerationChunk(message=AIMessageChunk(content="", id=message.id))
+
+
+def streaming_tool_fake(
+    responses: Iterable[AIMessage | str],
+) -> StreamingToolCallFakeChatModel:
+    """Replay fake that streams tool calls (for runner ``astream`` tool tests)."""
+    messages: list[AIMessage] = [
+        m if isinstance(m, AIMessage) else AIMessage(content=m) for m in responses
+    ]
+    return StreamingToolCallFakeChatModel(messages=iter(messages))
 
 
 class RecordingPromptProvider(PromptProvider):

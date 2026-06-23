@@ -7,6 +7,8 @@ mapping — which a fake session could not exercise.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta, timezone
+
 import pytest
 from siem_service.domain.models import SiemEvent
 from siem_service.pipeline.event_writer import EventWriter
@@ -79,3 +81,45 @@ async def test_write_duplicate_does_not_overwrite_first_payload(
         )
     ).scalar_one()
     assert stored.event_metadata == {"v": "first"}
+
+
+@pytest.mark.parametrize("severity", ["info", "warning", "critical"])
+async def test_write_persists_every_valid_severity_past_the_check_constraint(
+    db_session: AsyncSession, severity: str
+) -> None:
+    # severity is a Text column gated by a CHECK (info|warning|critical). A real
+    # INSERT proves each contract value actually clears the constraint and lands
+    # in the column — a fake session would never run the constraint.
+    event = make_event(severity=severity)
+
+    assert await EventWriter(db_session).write(event) is True
+    stored = (
+        await db_session.execute(
+            select(SiemEvent).where(SiemEvent.event_id == event.event_id)
+        )
+    ).scalar_one()
+    assert stored.severity == severity
+
+
+async def test_write_normalizes_non_utc_timestamp_to_the_same_instant(
+    db_session: AsyncSession,
+) -> None:
+    # The producer's timestamp is timezone-aware but need not be UTC. The column
+    # is DateTime(timezone=True); Postgres stores the instant and reads it back
+    # tz-aware. Assert the stored value is the *same instant* (not a wall-clock
+    # value shifted by the offset) and that sub-second precision survives.
+    tashkent = timezone(timedelta(hours=5))
+    ts = datetime(2026, 6, 22, 14, 30, 15, 123456, tzinfo=tashkent)
+    event = make_event().model_copy(update={"timestamp": ts})
+
+    await EventWriter(db_session).write(event)
+
+    stored = (
+        await db_session.execute(
+            select(SiemEvent).where(SiemEvent.event_id == event.event_id)
+        )
+    ).scalar_one()
+    assert stored.event_timestamp == ts  # equal as instants regardless of tz repr
+    assert stored.event_timestamp.astimezone(UTC) == datetime(
+        2026, 6, 22, 9, 30, 15, 123456, tzinfo=UTC
+    )

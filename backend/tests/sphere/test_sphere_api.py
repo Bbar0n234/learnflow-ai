@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 import pytest
-from app.agent.security.types import Verdict
+from app.agent.security.types import DetectionLayer, Verdict
 from app.models.user import User
 from httpx import AsyncClient
 from learnflow_testing.factories import ProjectFactory, UserFactory
@@ -151,7 +151,16 @@ async def test_put_sphere_injection_verdict_returns_422_problem(
     install_sphere_service: Callable[..., object],
 ) -> None:
     project = await ProjectFactory.create(user=current_user, name="P")
-    install_sphere_service(guard=StubGuard(Verdict.INJECTION))
+    # A real guard tags an INJECTION verdict with the layer that caught it; the
+    # service surfaces that layer as the problem+json ``reason``. Asserting
+    # ``"llm_classifier"`` (not the ``"ks_write_rest"`` fallback, which only fires
+    # for the unreachable ``detection_layer is None`` case) pins the wire contract
+    # the client actually observes.
+    install_sphere_service(
+        guard=StubGuard(
+            Verdict.INJECTION, detection_layer=DetectionLayer.LLM_CLASSIFIER
+        )
+    )
 
     response = await client.put(
         f"/api/projects/{project.id}/sphere",
@@ -162,7 +171,7 @@ async def test_put_sphere_injection_verdict_returns_422_problem(
     assert response.headers["content-type"].startswith("application/problem+json")
     body = response.json()
     assert body["type"].endswith("security-policy-violation")
-    assert body["reason"] == "ks_write_rest"
+    assert body["reason"] == "llm_classifier"
 
 
 async def test_put_sphere_clean_verdict_persists_content(

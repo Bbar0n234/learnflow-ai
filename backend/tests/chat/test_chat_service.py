@@ -9,19 +9,29 @@ through the HTTP layer.
 
 from __future__ import annotations
 
+import ast
 import uuid
+from pathlib import Path
 
 import pytest
+from app.agent import runner as runner_module
+from app.agent import stream_events as stream_events_module
 from app.models.thread_view import ThreadView
 from app.services.agent_runner import Message, StreamEvent
 from app.services.chat import ChatService
 from app.services.exceptions import EntityNotFoundError
 
 from tests.chat.conftest import (
+    RUNNER_FORWARDED_TYPES,
     FakeAgentRunner,
     FakeArtifactRepo,
     FakeThreadViewRepo,
     FakeTraceStore,
+    artifact_created_event,
+    error_event,
+    security_block_event,
+    text_chunk_event,
+    trace_id_event,
 )
 
 pytestmark = pytest.mark.unit
@@ -169,16 +179,17 @@ async def test_send_message_filters_trace_id_and_appends_done() -> None:
     runner = FakeAgentRunner()
     runner.last_ai_message_id = "m1"
     runner.events = [
-        StreamEvent(type="trace_id", data={"trace_id": "tr-9"}),
-        StreamEvent(type="token", data={"content": "Hello"}),
-        StreamEvent(type="token", data={"content": " world"}),
+        trace_id_event("tr-9"),
+        text_chunk_event("Hello"),
+        text_chunk_event(" world"),
     ]
     service = _build_service(thread_repo=repo, runner=runner)
 
     events = await _drain(service, thread)
 
     # trace_id event is consumed internally, never forwarded.
-    assert [e.type for e in events] == ["token", "token", "done"]
+    assert [e.type for e in events] == ["text_chunk", "text_chunk", "done"]
+    assert [e.data["content"] for e in events[:2]] == ["Hello", " world"]
     done = events[-1]
     assert done.data == {"message_id": "m1", "trace_id": "tr-9"}
     assert thread.thread_id in repo.touched
@@ -191,9 +202,7 @@ async def test_send_message_links_created_artifacts_to_message() -> None:
     artifact_id = uuid.uuid4()
     runner = FakeAgentRunner()
     runner.last_ai_message_id = "msg-1"
-    runner.events = [
-        StreamEvent(type="artifact_created", data={"id": str(artifact_id)}),
-    ]
+    runner.events = [artifact_created_event(artifact_id)]
     artifact_repo = FakeArtifactRepo()
     service = _build_service(
         thread_repo=repo, runner=runner, artifact_repo=artifact_repo
@@ -201,25 +210,36 @@ async def test_send_message_links_created_artifacts_to_message() -> None:
 
     await _drain(service, thread)
 
-    assert artifact_repo.set_message_id_calls == [([artifact_id], "msg-1")]
+    # Assert the resulting linkage state (the effect), not just that the spy
+    # method fired: the streamed artifact is now bound to the resolved message.
+    assert artifact_repo.linked == {artifact_id: "msg-1"}
 
 
-@pytest.mark.parametrize("terminal_type", ["error", "security_block"])
-async def test_send_message_terminal_failure_skips_done(terminal_type: str) -> None:
+@pytest.mark.parametrize(
+    ("terminal_event", "terminal_type"),
+    [
+        (error_event("graph failed"), "error"),
+        (security_block_event("llm_classifier"), "security_block"),
+    ],
+)
+async def test_send_message_terminal_failure_skips_done(
+    terminal_event: StreamEvent, terminal_type: str
+) -> None:
     thread = _thread()
     repo = FakeThreadViewRepo()
     repo.add(thread)
     runner = FakeAgentRunner()
-    runner.events = [
-        StreamEvent(type="token", data={"content": "partial"}),
-        StreamEvent(type=terminal_type, data={"message": "stopped"}),
-    ]
+    runner.events = [text_chunk_event("partial"), terminal_event]
     service = _build_service(thread_repo=repo, runner=runner)
 
     events = await _drain(service, thread)
 
-    # error and done are mutually exclusive terminal events (SSE contract).
-    assert [e.type for e in events] == ["token", terminal_type]
+    # error/security_block and done are mutually exclusive terminal events.
+    # Partial text emitted before the terminal must survive unchanged, and the
+    # terminal payload is forwarded verbatim (detail / reason per prod shape).
+    assert [e.type for e in events] == ["text_chunk", terminal_type]
+    assert events[0].data == {"content": "partial"}
+    assert events[-1].data == terminal_event.data
     assert all(e.type != "done" for e in events)
 
 
@@ -229,7 +249,7 @@ async def test_send_message_saves_trace_id_to_store() -> None:
     repo.add(thread)
     runner = FakeAgentRunner()
     runner.last_ai_message_id = "m1"
-    runner.events = [StreamEvent(type="trace_id", data={"trace_id": "tr-7"})]
+    runner.events = [trace_id_event("tr-7")]
     trace_store = FakeTraceStore()
     service = _build_service(thread_repo=repo, runner=runner, trace_store=trace_store)
 
@@ -244,7 +264,7 @@ async def test_send_message_emits_done_when_post_hoc_resolution_fails() -> None:
     repo.add(thread)
     runner = FakeAgentRunner()
     runner.raise_on_last_id = True
-    runner.events = [StreamEvent(type="token", data={"content": "ok"})]
+    runner.events = [text_chunk_event("ok")]
     service = _build_service(thread_repo=repo, runner=runner)
 
     events = await _drain(service, thread)
@@ -265,3 +285,89 @@ async def test_cancel_returns_runner_result(expected: bool) -> None:
     service = _build_service(thread_repo=FakeThreadViewRepo(), runner=runner)
 
     assert await service.cancel(thread_id=uuid.uuid4()) is expected
+
+
+# --- event vocabulary contract --------------------------------------------
+#
+# The runner ↔ ChatService ↔ frontend triangle agrees on one closed set of wire
+# event types. These tests pin that contract from both ends so a drift (runner
+# starts emitting a type the service silently drops, or someone adds a wire type
+# without teaching the frontend about it) fails loudly instead of green.
+
+
+def _stream_event_type_literals(*modules: object) -> set[str]:
+    """Collect every ``StreamEvent(type="literal", ...)`` string in the sources.
+
+    AST-scans the runner/mapper modules for ``StreamEvent(...)`` constructions
+    and extracts the ``type`` argument when it is a string literal (positional or
+    keyword). A new emission site with a fresh literal type widens this set and
+    trips the contract test below — forcing the vocabulary (and the frontend
+    switch) to be updated deliberately.
+    """
+    found: set[str] = set()
+    for module in modules:
+        source = Path(module.__file__).read_text(encoding="utf-8")  # type: ignore[attr-defined]
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)):
+                continue
+            if node.func.id != "StreamEvent":
+                continue
+            type_arg: ast.expr | None = None
+            for kw in node.keywords:
+                if kw.arg == "type":
+                    type_arg = kw.value
+            if type_arg is None and node.args:
+                type_arg = node.args[0]
+            if isinstance(type_arg, ast.Constant) and isinstance(type_arg.value, str):
+                found.add(type_arg.value)
+    return found
+
+
+def test_runner_emits_only_the_agreed_wire_vocabulary() -> None:
+    emitted = _stream_event_type_literals(runner_module, stream_events_module)
+
+    # trace_id is emitted by the runner but consumed inside ChatService; every
+    # other emitted type is forwarded to the wire. Nothing the runner emits may
+    # fall outside the union the frontend (and ChatService) know how to handle.
+    assert emitted == RUNNER_FORWARDED_TYPES | {"trace_id"}
+
+
+async def test_chat_service_forwards_each_runner_type_and_consumes_trace_id() -> None:
+    thread = _thread()
+    repo = FakeThreadViewRepo()
+    repo.add(thread)
+    runner = FakeAgentRunner()
+    runner.last_ai_message_id = "m1"
+    # One non-terminal event of every forwarded type, plus trace_id which must be
+    # swallowed. Terminals (error/security_block) are exercised separately so we
+    # can reach the synthesised ``done`` here.
+    runner.events = [
+        trace_id_event("tr-1"),
+        text_chunk_event("hi"),
+        StreamEvent(type="tool_start", data={"tool": "search", "call_id": "c1"}),
+        StreamEvent(type="tool_end", data={"tool": "search", "call_id": "c1"}),
+        artifact_created_event(uuid.uuid4()),
+        StreamEvent(type="final_output_review_started", data={}),
+        StreamEvent(type="final_output_review_complete", data={}),
+    ]
+    service = _build_service(thread_repo=repo, runner=runner)
+
+    events = await _drain(service, thread)
+    forwarded = [e.type for e in events]
+
+    # trace_id consumed; all other types forwarded in order; done synthesised.
+    assert "trace_id" not in forwarded
+    assert forwarded == [
+        "text_chunk",
+        "tool_start",
+        "tool_end",
+        "artifact_created",
+        "final_output_review_started",
+        "final_output_review_complete",
+        "done",
+    ]
+    assert set(forwarded) - {"done"} == RUNNER_FORWARDED_TYPES - {
+        "error",
+        "security_block",
+    }

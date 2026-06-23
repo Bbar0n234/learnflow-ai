@@ -11,10 +11,13 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+import sqlalchemy as sa
 from app.models.artifact import Artifact
+from app.models.thread_view import ThreadView
 from app.models.user import User
 from app.repositories.thread_view import ThreadViewRepository
 from learnflow_testing.factories import ProjectFactory, UserFactory
+from sqlalchemy import inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.projects.conftest import ArtifactFactory, ThreadViewFactory
@@ -106,10 +109,18 @@ async def test_list_recent_returns_only_users_threads_with_project_loaded(
     await ThreadViewFactory.create(project=other_project, title="theirs")
     repo = ThreadViewRepository(db_session)
 
+    # Detach the freshly-created rows so the identity map cannot satisfy the
+    # ``.project`` access from cache: the relationship must come from the
+    # ``contains_eager`` JOIN. Without this, even a regression that dropped the
+    # eager-load (→ lazy-load → MissingGreenlet → 500 in prod) would stay green.
+    db_session.expunge_all()
+
     threads = await repo.list_recent(owner.id)
 
     assert [t.title for t in threads] == ["mine"]
-    # JOIN eager-loaded the parent project (contains_eager).
+    # JOIN eager-loaded the parent project: accessing ``.project`` issues no
+    # lazy SELECT (which under async would raise MissingGreenlet).
+    assert "project" not in inspect(threads[0]).unloaded
     assert threads[0].project.user_id == owner.id
 
 
@@ -202,11 +213,19 @@ async def test_deleting_thread_nulls_artifact_thread_id(
     project = await ProjectFactory.create()
     thread = await ThreadViewFactory.create(project=project)
     artifact = await ArtifactFactory.create(project=project, thread_id=thread.thread_id)
-    repo = ThreadViewRepository(db_session)
 
-    await repo.delete(thread)
-    # Detach so the read issues a fresh async SELECT (expire_all would
-    # lazy-refresh the expired row outside the greenlet → MissingGreenlet).
+    # Delete the parent thread through Core (``sa.delete``), NOT the ORM
+    # ``session.delete`` the repo uses: the ORM unit-of-work would itself NULL
+    # the child FK in Python (no ``passive_deletes``), so an ORM delete would
+    # pass even if the ``ON DELETE SET NULL`` DB constraint were dropped. The
+    # Core statement bypasses the UoW and lets Postgres apply the constraint —
+    # this is what exercises it.
+    await db_session.execute(
+        sa.delete(ThreadView).where(ThreadView.thread_id == thread.thread_id)
+    )
+    await db_session.flush()
+    # Detach so the read issues a fresh async SELECT against Postgres rather
+    # than returning the now-stale child from the identity map.
     db_session.expunge_all()
 
     surviving = await db_session.get(Artifact, artifact.id)

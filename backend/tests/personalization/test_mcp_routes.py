@@ -20,7 +20,10 @@ from app.services import mcp_server as mcp_module
 from fastapi import FastAPI
 from httpx import AsyncClient
 from learnflow_testing.factories import ProjectFactory
+from learnflow_testing.fakes import StubGuard
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.agent.security.types import DetectionLayer, Verdict  # isort: skip
 
 _VALID_CREATE = {
     "name": "weather",
@@ -109,6 +112,37 @@ async def test_create_user_server_persists_and_invalidates_cache(
 
     listed = await api_client.get("/api/users/me/mcp-servers")
     assert listed.json()["total"] == 1
+
+
+@pytest.mark.integration
+async def test_create_user_server_injection_returns_422_problem_json(
+    api_client: AsyncClient,
+    configured_app: FastAPI,
+    current_user: User,
+    _offline_mcp: None,
+) -> None:
+    """A guard injection verdict on the metadata blob blocks the create.
+
+    The metadata guard runs on the assembled name/url/tools blob after the
+    remote fetch; an INJECTION verdict must surface as a 422 problem+json with
+    the detection layer as ``reason``, persist nothing, and leave the tool
+    cache untouched (no invalidation on a rejected write).
+    """
+    configured_app.state.security_guard = StubGuard(
+        Verdict.INJECTION, detection_layer=DetectionLayer.LLM_CLASSIFIER
+    )
+
+    resp = await api_client.post("/api/users/me/mcp-servers", json=_VALID_CREATE)
+
+    assert resp.status_code == 422
+    assert resp.headers["content-type"].startswith("application/problem+json")
+    body = resp.json()
+    assert body["type"] == "urn:learnflow:security-policy-violation"
+    assert body["reason"] == "llm_classifier"
+    # Rejected create persists nothing and never fires cache invalidation.
+    listed = await api_client.get("/api/users/me/mcp-servers")
+    assert listed.json()["total"] == 0
+    assert configured_app.state.tool_resolver.invalidations == []
 
 
 @pytest.mark.integration

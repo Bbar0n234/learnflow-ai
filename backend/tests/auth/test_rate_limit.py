@@ -1,8 +1,12 @@
-"""Rate limiter: solitary-unit on the sliding window + one HTTP wiring check.
+"""Rate limiter: solitary-unit on the sliding window + HTTP wiring checks.
 
 The window (infra/rate_limit.py) reads ``time.monotonic()`` directly, so the
 clock is the only collaborator worth faking — injected via monkeypatch to make
 window expiry deterministic without sleeping.
+
+The integration cases prove each route is wired to a *distinct* limiter key:
+login keys on ``name:ip``, register and refresh on ``ip`` alone, with their own
+budgets — a regression that swapped or merged the keys would surface here.
 """
 
 from __future__ import annotations
@@ -11,7 +15,7 @@ import pytest
 from app.infra.rate_limit import RateLimiter
 from httpx import AsyncClient
 
-from tests.auth._helpers import login
+from tests.auth._helpers import login, register
 
 
 class FakeClock:
@@ -43,10 +47,10 @@ def test_allows_up_to_limit_then_blocks(clock: FakeClock) -> None:
     verdicts = [limiter.is_allowed("k", max_requests=3, window_seconds=60)[0]]
     verdicts.append(limiter.is_allowed("k", 3, 60)[0])
     verdicts.append(limiter.is_allowed("k", 3, 60)[0])
-    blocked, retry_after = limiter.is_allowed("k", 3, 60)
+    allowed, retry_after = limiter.is_allowed("k", 3, 60)
 
     assert verdicts == [True, True, True]
-    assert blocked is False
+    assert allowed is False  # fourth call over the budget
     assert retry_after is not None and retry_after > 0
 
 
@@ -98,6 +102,41 @@ async def test_login_over_limit_returns_429_with_retry_after(
         statuses.append(response.status_code)
 
     assert statuses[:5] == [401, 401, 401, 401, 401]
+    assert response.status_code == 429
+    assert response.json()["detail"] == "Too many requests"
+    assert "retry-after" in {k.lower() for k in response.headers}
+
+
+@pytest.mark.integration
+async def test_register_over_limit_returns_429_with_retry_after(
+    auth_client: AsyncClient,
+) -> None:
+    # Register allows 3 attempts per window keyed on IP alone (no username), so
+    # distinct usernames from the same client share one budget; the 4th is 429.
+    statuses = []
+    for i in range(4):
+        response = await register(auth_client, name=f"newcomer-{i}")
+        statuses.append(response.status_code)
+
+    assert statuses[:3] == [200, 200, 200]
+    assert response.status_code == 429
+    assert response.json()["detail"] == "Too many requests"
+    assert "retry-after" in {k.lower() for k in response.headers}
+
+
+@pytest.mark.integration
+async def test_refresh_over_limit_returns_429_with_retry_after(
+    auth_client: AsyncClient,
+) -> None:
+    # Refresh allows 10 attempts per window keyed on IP alone; the rate gate
+    # runs before the cookie check, so cookieless 401s still burn the budget.
+    auth_client.cookies.clear()
+    statuses = []
+    for _ in range(11):
+        response = await auth_client.post("/api/auth/refresh")
+        statuses.append(response.status_code)
+
+    assert statuses[:10] == [401] * 10
     assert response.status_code == 429
     assert response.json()["detail"] == "Too many requests"
     assert "retry-after" in {k.lower() for k in response.headers}

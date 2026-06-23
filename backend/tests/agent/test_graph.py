@@ -17,7 +17,8 @@ import uuid
 from typing import Any
 
 import pytest
-from app.agent.graph import AgentContext
+from app.agent.config import AgentConfig, ContextConfig
+from app.agent.graph import AgentContext, _reduce_context
 from app.agent.security.types import (
     Checkpoint,
     Direction,
@@ -25,9 +26,18 @@ from app.agent.security.types import (
     SecurityMessages,
     Verdict,
 )
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    HumanMessage,
+    RemoveMessage,
+    ToolMessage,
+)
 from langchain_core.tools import tool
-from tests.agent.conftest import RaisingFakeChatModel, tool_binding_fake
+from tests.agent.conftest import (
+    RaisingFakeChatModel,
+    RecordingPromptProvider,
+    tool_binding_fake,
+)
 
 
 def _thread_config() -> dict[str, Any]:
@@ -263,6 +273,121 @@ async def test_guard_injection_on_tool_result_redacts_tool_message(
     assert tool_msg.content == SecurityMessages().redacted_tool_result
     assert tool_msg.additional_kwargs.get("security_redacted") is True
     assert Checkpoint.TOOL_RESULT in guard.checkpoints
+
+
+@pytest.mark.unit
+async def test_guard_suspicious_on_tool_call_args_does_not_redact(
+    build_compiled_graph: Any, agent_context: AgentContext
+) -> None:
+    # Only INJECTION strips/redacts; SUSPICIOUS is observed-and-allowed. The
+    # tool_calls must survive and execute (no security_redacted marker), proving
+    # the redaction branch keys on INJECTION, not "anything non-CLEAN".
+    model = tool_binding_fake(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "echo", "args": {"text": "ok"}, "id": "c1"}],
+            ),
+            AIMessage(content="done"),
+        ]
+    )
+    guard = _SelectiveGuard({Checkpoint.TOOL_CALL_ARG: Verdict.SUSPICIOUS})
+    graph = build_compiled_graph(model, tools=[echo], security_guard=guard)
+
+    out = await graph.ainvoke(
+        {"messages": [HumanMessage(content="go")]},
+        _thread_config(),
+        context=agent_context,
+    )
+
+    assert any(isinstance(m, ToolMessage) for m in out["messages"])  # tool ran
+    assert out["messages"][-1].content == "done"
+    assert not any(
+        m.additional_kwargs.get("security_redacted") for m in out["messages"]
+    )
+    assert Checkpoint.TOOL_CALL_ARG in guard.checkpoints
+
+
+# --- context compaction: _reduce_context (direct unit) ----------------------
+
+
+def _with_context(agent_config: AgentConfig, **context: Any) -> AgentConfig:
+    return agent_config.model_copy(update={"context": ContextConfig(**context)})
+
+
+@pytest.mark.unit
+async def test_reduce_context_below_threshold_is_passthrough(
+    agent_config: AgentConfig,
+) -> None:
+    # max_tokens huge => threshold far above the tiny payload => no compaction.
+    config = _with_context(
+        agent_config,
+        max_tokens=100_000,
+        compaction_threshold_ratio=0.75,
+        recent_messages_to_keep=2,
+    )
+    messages = [HumanMessage(content="short", id=f"m{i}") for i in range(5)]
+    provider = RecordingPromptProvider()
+    # A raising summarizer proves the model is never invoked on passthrough.
+    summarizer = RaisingFakeChatModel(messages=iter([AIMessage(content="x")]))
+
+    remaining, ops = await _reduce_context(messages, summarizer, config, provider)
+
+    assert remaining == messages
+    assert ops == []
+    assert provider.calls == []  # summarization prompt never fetched
+
+
+@pytest.mark.unit
+async def test_reduce_context_above_threshold_summarizes_and_removes_old(
+    agent_config: AgentConfig,
+) -> None:
+    config = _with_context(
+        agent_config,
+        max_tokens=10,
+        compaction_threshold_ratio=0.5,
+        recent_messages_to_keep=2,
+    )
+    old = [HumanMessage(content="x" * 80, id=f"old{i}") for i in range(3)]
+    recent = [HumanMessage(content="y" * 80, id=f"recent{i}") for i in range(2)]
+    messages = [*old, *recent]
+    provider = RecordingPromptProvider()
+    summarizer = tool_binding_fake([AIMessage(content="THE SUMMARY")])
+
+    remaining, ops = await _reduce_context(messages, summarizer, config, provider)
+
+    # remaining == [summary, *recent]; recent turns preserved verbatim.
+    assert isinstance(remaining[0], AIMessage)
+    assert "THE SUMMARY" in remaining[0].content
+    assert remaining[1:] == recent
+    # ops_prefix: a RemoveMessage per old id, then the summary AIMessage appended.
+    removes = [o for o in ops if isinstance(o, RemoveMessage)]
+    assert {r.id for r in removes} == {"old0", "old1", "old2"}
+    assert isinstance(ops[-1], AIMessage)
+    assert "THE SUMMARY" in ops[-1].content
+    assert provider.calls == [("summarization", {})]
+
+
+@pytest.mark.unit
+async def test_reduce_context_summarizer_failure_falls_back_to_trim_only(
+    agent_config: AgentConfig,
+) -> None:
+    config = _with_context(
+        agent_config,
+        max_tokens=10,
+        compaction_threshold_ratio=0.5,
+        recent_messages_to_keep=2,
+    )
+    messages = [HumanMessage(content="x" * 80, id=f"m{i}") for i in range(5)]
+    provider = RecordingPromptProvider()
+    # Compaction is attempted (threshold crossed) but the model raises.
+    summarizer = RaisingFakeChatModel(messages=iter([AIMessage(content="x")]))
+
+    remaining, ops = await _reduce_context(messages, summarizer, config, provider)
+
+    # Fall back to the untouched message list with no remove/summary ops.
+    assert remaining == messages
+    assert ops == []
 
 
 # --- HITL: interrupt + resume + partial run ---------------------------------

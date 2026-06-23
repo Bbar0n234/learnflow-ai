@@ -23,7 +23,7 @@ from app.agent.security.types import (
     SecurityMessages,
     Verdict,
 )
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from learnflow_testing.fakes import StubGuard
 from tests.security.conftest import FakeCheckpointer, RecordingGraph
 
@@ -206,7 +206,9 @@ async def test_check_user_input_clean_passes_silently(
 async def test_check_final_output_injection_redacts_and_blocks(
     recording_graph: RecordingGraph,
 ) -> None:
-    enforcer = _enforcer(StubGuard(Verdict.INJECTION))
+    enforcer = _enforcer(
+        StubGuard(Verdict.INJECTION, detection_layer=DetectionLayer.LLM_CLASSIFIER)
+    )
     config = {"configurable": {"thread_id": str(_THREAD)}}
 
     outcome = await enforcer.check_final_output(
@@ -220,12 +222,22 @@ async def test_check_final_output_injection_redacts_and_blocks(
 
     assert isinstance(outcome, SecurityOutcome)
     assert outcome.result.verdict is Verdict.INJECTION
+    # The SSE security_block reason is the detection layer (not the fallback): a
+    # classifier verdict reaches the client as "llm_classifier". Asserting this
+    # pins block_reason -> detection_layer.value, the branch a None layer hides.
+    assert outcome.reason == "llm_classifier"
     # Assistant message replaced by redaction placeholder, keyed by message id.
     assert len(recording_graph.updates) == 1
     redacted = recording_graph.updates[0]["values"]["messages"][0]
     assert isinstance(redacted, AIMessage)
     assert redacted.id == "msg-1"
     assert redacted.additional_kwargs.get("security_redacted") is True
+    # The real detection layer is stamped into the placeholder, exercising the
+    # non-fallback branch of _redact_final_output (else: LLM_CLASSIFIER default).
+    assert (
+        redacted.additional_kwargs.get("original_detection_layer")
+        == DetectionLayer.LLM_CLASSIFIER.value
+    )
 
 
 @pytest.mark.unit
@@ -255,7 +267,9 @@ async def test_check_final_output_non_injection_passes(
 async def test_check_mid_stream_injection_redacts(
     recording_graph: RecordingGraph,
 ) -> None:
-    enforcer = _enforcer(StubGuard(Verdict.INJECTION))
+    enforcer = _enforcer(
+        StubGuard(Verdict.INJECTION, detection_layer=DetectionLayer.CANARY)
+    )
 
     outcome = await enforcer.check_mid_stream(
         thread_id=_THREAD,
@@ -268,7 +282,74 @@ async def test_check_mid_stream_injection_redacts(
     )
 
     assert isinstance(outcome, SecurityOutcome)
+    # Mid-stream catches the canary leak deterministically; the layer surfaces as
+    # the security_block reason instead of the "final_output" fallback.
+    assert outcome.reason == "canary"
     assert len(recording_graph.updates) == 1
+
+
+# --- guard-invocation contract: mid-stream (deterministic) vs final-output ----
+#
+# The two end-of-response checks differ by design and that difference must hold:
+# mid-stream is a cheap tail-only deterministic scan (skip_classifier=True,
+# observe=False), the end-of-stream check runs the full LLM classifier over the
+# whole response. The verdict-reaction tests above cannot see this — they only
+# observe the outcome. We assert it directly via guard.call_records, so a
+# refactor that e.g. makes mid-stream run the classifier (cost/latency blow-up)
+# or makes final-output skip it (missed injections) turns this red.
+
+
+@pytest.mark.unit
+async def test_check_mid_stream_invokes_guard_deterministically(
+    recording_graph: RecordingGraph,
+) -> None:
+    guard = StubGuard(Verdict.CLEAN)
+    enforcer = _enforcer(guard)
+
+    await enforcer.check_mid_stream(
+        thread_id=_THREAD,
+        full_response="full text with leak",
+        tail="trailing leak",
+        canary_token="tok",
+        graph=recording_graph,
+        config={"configurable": {"thread_id": str(_THREAD)}},
+        last_message_id="msg-1",
+    )
+
+    record = guard.call_records[-1]
+    assert record["checkpoint"] is Checkpoint.FINAL_OUTPUT
+    # Tail-only: the deterministic scan sees the trailing window, not the full
+    # response (the canary/marker lives at the boundary).
+    assert record["content"] == "trailing leak"
+    assert record["skip_classifier"] is True
+    assert record["observe"] is False
+    assert record["canary_token"] == "tok"
+
+
+@pytest.mark.unit
+async def test_check_final_output_invokes_full_classifier(
+    recording_graph: RecordingGraph,
+) -> None:
+    guard = StubGuard(Verdict.CLEAN)
+    enforcer = _enforcer(guard)
+
+    await enforcer.check_final_output(
+        thread_id=_THREAD,
+        full_response="the complete assistant answer",
+        canary_token="tok",
+        graph=recording_graph,
+        config={"configurable": {"thread_id": str(_THREAD)}},
+        last_message_id="msg-1",
+    )
+
+    record = guard.call_records[-1]
+    assert record["checkpoint"] is Checkpoint.FINAL_OUTPUT
+    # Whole response, not a tail window — the classifier reasons over full text.
+    assert record["content"] == "the complete assistant answer"
+    # The defining difference from mid-stream: the classifier runs and observes.
+    assert record["skip_classifier"] is False
+    assert record["observe"] is True
+    assert record["canary_token"] == "tok"
 
 
 @pytest.mark.unit
@@ -294,24 +375,57 @@ async def test_check_mid_stream_clean_passes(
 # --- post-stream in-graph redaction inspection ----------------------------
 
 
-@pytest.mark.unit
-async def test_inspect_in_graph_returns_outcome_on_redaction() -> None:
-    redacted = AIMessage(
+def _redacted_ai(layer: DetectionLayer) -> AIMessage:
+    return AIMessage(
         content="[redacted]",
         additional_kwargs={
             "security_redacted": True,
-            "original_detection_layer": DetectionLayer.LLM_CLASSIFIER.value,
+            "original_detection_layer": layer.value,
         },
     )
+
+
+def _redacted_tool(layer: DetectionLayer) -> ToolMessage:
+    return ToolMessage(
+        content="[redacted]",
+        tool_call_id="call-1",
+        additional_kwargs={
+            "security_redacted": True,
+            "original_detection_layer": layer.value,
+        },
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("redacted_message", "expected_checkpoint"),
+    [
+        # An AIMessage redaction is an outbound tool-call argument scrub.
+        (_redacted_ai(DetectionLayer.LLM_CLASSIFIER), Checkpoint.TOOL_CALL_ARG),
+        # A ToolMessage redaction is an inbound tool-result scrub — distinct
+        # checkpoint, the branch the AIMessage-only case never reached.
+        (_redacted_tool(DetectionLayer.FRAGMENT), Checkpoint.TOOL_RESULT),
+    ],
+)
+async def test_inspect_in_graph_returns_outcome_on_redaction(
+    redacted_message: AIMessage | ToolMessage,
+    expected_checkpoint: Checkpoint,
+) -> None:
     enforcer = _enforcer(
-        StubGuard(Verdict.CLEAN), messages=[HumanMessage(content="hi"), redacted]
+        StubGuard(Verdict.CLEAN),
+        messages=[HumanMessage(content="hi"), redacted_message],
     )
 
     outcome = await enforcer.inspect_in_graph(thread_id=_THREAD)
 
     assert isinstance(outcome, SecurityOutcome)
     assert outcome.result.verdict is Verdict.INJECTION
-    assert outcome.result.checkpoint is Checkpoint.TOOL_CALL_ARG
+    assert outcome.result.checkpoint is expected_checkpoint
+    # The in-graph hit drives both the trace detection_layer and the SSE reason
+    # from the stored original_detection_layer marker — message-type independent.
+    layer = redacted_message.additional_kwargs["original_detection_layer"]
+    assert outcome.result.detection_layer is DetectionLayer(layer)
+    assert outcome.reason == layer
 
 
 @pytest.mark.unit

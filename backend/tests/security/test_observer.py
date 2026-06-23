@@ -40,6 +40,22 @@ class _SpyObservation:
         self.score_calls.append(kwargs)
 
 
+class _RaisingObservation:
+    """Observation whose every call raises — models a misbehaving Langfuse SDK.
+
+    The fail-safe contract is that the guard never lets an observability error
+    bubble into the request. We assert that by handing this to the handle and
+    proving the handle methods still return normally — exercising the
+    ``contextlib.suppress`` blocks, which a ``None`` observation never enters.
+    """
+
+    def update(self, **kwargs: Any) -> None:
+        raise RuntimeError("langfuse update exploded")
+
+    def score_trace(self, **kwargs: Any) -> None:
+        raise RuntimeError("langfuse score exploded")
+
+
 @pytest.mark.unit
 async def test_observe_disabled_yields_inert_handle() -> None:
     observer = GuardObserver(enabled=False)
@@ -90,6 +106,33 @@ def test_observation_handle_generation_methods_are_fail_safe() -> None:
     # No Langfuse generation started; these must all be inert, not crash.
     handle.update_generation(raw_output="INJECTION", token_usage=None)
     handle._close_generation()
+
+
+@pytest.mark.unit
+def test_finalize_swallows_observation_errors() -> None:
+    # Both sinks raise on every call; finalize must absorb the failures so a
+    # broken Langfuse SDK cannot crash the guard. A None observation would skip
+    # the suppress blocks entirely, so we use a live raising one to reach them.
+    handle = ObservationHandle(_RaisingObservation(), root_obs=_RaisingObservation())
+    result = GuardResult(
+        verdict=Verdict.INJECTION,
+        checkpoint=Checkpoint.FINAL_OUTPUT,
+        direction=Direction.OUTBOUND,
+    )
+
+    # Returns normally despite update()/score_trace() raising underneath.
+    handle.finalize(result)
+
+
+@pytest.mark.unit
+def test_generation_methods_swallow_observation_errors() -> None:
+    # A started generation whose update/close raise — the suppress blocks in
+    # update_generation/_close_generation must absorb it (fail-safe).
+    handle = ObservationHandle(None)
+    handle._gen_obs = _RaisingObservation()
+
+    handle.update_generation(raw_output="INJECTION", token_usage=None)
+    handle._close_generation(error=True)
 
 
 # --- finalize: the payload our code builds over a verdict ------------------

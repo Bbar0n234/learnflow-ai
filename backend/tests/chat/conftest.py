@@ -34,6 +34,65 @@ from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # ---------------------------------------------------------------------------
+# Production wire vocabulary
+# ---------------------------------------------------------------------------
+#
+# The real ``AgentRunner`` (``app.agent.runner`` + ``StreamEventMapper``) only
+# ever emits the event types below; ``ChatService`` forwards them verbatim and
+# the frontend (``pages/chat/model/useAgentStream.ts``) switches on exactly this
+# set (plus the service-synthesised ``done``). Tests MUST program the fake with
+# these builders rather than ad-hoc dicts, otherwise a green test can pin a type
+# that prod never produces (the M1 finding: the fake used ``type="token"`` while
+# prod emits ``text_chunk``). Payload shapes mirror prod exactly:
+#   text_chunk        -> {"content": str}        (runner.py:218)
+#   error             -> {"detail": str}         (runner.py:234, streaming.md:29)
+#   security_block    -> {"reason": str}         (runner.py:128/210/264/281)
+#   trace_id          -> {"trace_id": str}       (consumed by ChatService)
+#   artifact_created  -> {"id": str, ...}        (stream_events.py:48)
+#
+# ``security_block`` carries ``reason`` (a detection-layer name or the
+# ``"prompt_injection"`` fallback from ``RuntimeSecurityEnforcer.block_reason``),
+# NOT ``{checkpoint, detection_layer}``. streaming.md still documents the latter
+# — a doc/prod drift flagged for the architect (the frontend reads no field off
+# ``security_block`` at all, so the wire payload is whatever prod sends).
+
+# The wire types ChatService forwards to the frontend (trace_id is consumed
+# internally and never forwarded; done is synthesised by the service).
+RUNNER_FORWARDED_TYPES = frozenset(
+    {
+        "text_chunk",
+        "tool_start",
+        "tool_end",
+        "artifact_created",
+        "final_output_review_started",
+        "final_output_review_complete",
+        "security_block",
+        "error",
+    }
+)
+
+
+def text_chunk_event(content: str) -> StreamEvent:
+    return StreamEvent(type="text_chunk", data={"content": content})
+
+
+def error_event(detail: str = "Stream failed") -> StreamEvent:
+    return StreamEvent(type="error", data={"detail": detail})
+
+
+def security_block_event(reason: str = "llm_classifier") -> StreamEvent:
+    return StreamEvent(type="security_block", data={"reason": reason})
+
+
+def trace_id_event(trace_id: str) -> StreamEvent:
+    return StreamEvent(type="trace_id", data={"trace_id": trace_id})
+
+
+def artifact_created_event(artifact_id: uuid.UUID) -> StreamEvent:
+    return StreamEvent(type="artifact_created", data={"id": str(artifact_id)})
+
+
+# ---------------------------------------------------------------------------
 # Fakes for service sociable-unit tests
 # ---------------------------------------------------------------------------
 
@@ -131,8 +190,15 @@ class FakeThreadViewRepo:
 
 @dataclass
 class FakeArtifactRepo:
-    """Spy artifact repo: records ``set_message_id`` linking calls."""
+    """In-memory artifact repo holding the message_id linkage as state.
 
+    ``set_message_id`` mutates ``linked`` (artifact_id -> message_id) so tests
+    assert the *effect* — which artifacts ended up bound to which message — not
+    merely that the method was called. ``set_message_id_calls`` is kept for tests
+    that need to observe call multiplicity/ordering.
+    """
+
+    linked: dict[uuid.UUID, str] = field(default_factory=dict)
     set_message_id_calls: list[tuple[list[uuid.UUID], str]] = field(
         default_factory=list
     )
@@ -141,6 +207,8 @@ class FakeArtifactRepo:
         self, artifact_ids: list[uuid.UUID], message_id: str
     ) -> None:
         self.set_message_id_calls.append((artifact_ids, message_id))
+        for artifact_id in artifact_ids:
+            self.linked[artifact_id] = message_id
 
     async def list_by_thread(self, thread_id: uuid.UUID) -> list[object]:
         return []

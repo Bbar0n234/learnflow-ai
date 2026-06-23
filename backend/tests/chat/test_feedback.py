@@ -4,17 +4,19 @@ Feedback sends a score to Langfuse — an external system. Per the testing
 conventions that single call **is** the contract, so the Langfuse client is the
 one legitimate mock here and we assert on the payload it receives. Everything
 else is real: ownership goes through the dependency chain, and the Redis-backed
-``TraceStore`` runs against an in-memory fake redis.
+``TraceStore`` runs against a real Redis (the session ``redis_client`` fixture),
+so the score persistence the routes promise is asserted against actual Redis
+state — not a hand-rolled fake whose behaviour we'd merely be confirming.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
 from unittest.mock import MagicMock
 
 import httpx
 import langfuse
 import pytest
+import redis.asyncio as aioredis
 from app.config import Settings
 from app.models.project import Project
 from app.models.thread_view import ThreadView
@@ -26,43 +28,14 @@ from httpx import AsyncClient
 from learnflow_testing.factories import ProjectFactory
 from sqlalchemy.ext.asyncio import AsyncSession
 
-if TYPE_CHECKING:
-    import redis.asyncio as aioredis
-
 pytestmark = pytest.mark.integration
 
 
-class FakeRedis:
-    """Minimal in-memory redis covering the surface ``TraceStore`` uses."""
-
-    def __init__(self) -> None:
-        self.hashes: dict[str, dict[str, str]] = {}
-        self.strings: dict[str, str] = {}
-
-    async def hset(self, key: str, field: str, value: str) -> None:
-        self.hashes.setdefault(key, {})[field] = value
-
-    async def expire(self, key: str, ttl: int) -> None:
-        pass
-
-    async def hgetall(self, key: str) -> dict[bytes, bytes]:
-        return {k.encode(): v.encode() for k, v in self.hashes.get(key, {}).items()}
-
-    async def set(self, key: str, value: str, ex: int | None = None) -> None:
-        self.strings[key] = value
-
-    async def delete(self, key: str) -> None:
-        self.strings.pop(key, None)
-
-    async def mget(self, keys: list[str]) -> list[bytes | None]:
-        return [self.strings[k].encode() if k in self.strings else None for k in keys]
-
-
 @pytest.fixture
-def fake_redis(app: FastAPI) -> FakeRedis:
-    redis = FakeRedis()
-    app.state.redis = redis
-    return redis
+def feedback_redis(app: FastAPI, redis_client: aioredis.Redis) -> aioredis.Redis:
+    """Wire the route's ``app.state.redis`` to the isolated real Redis client."""
+    app.state.redis = redis_client
+    return redis_client
 
 
 @pytest.fixture
@@ -74,15 +47,13 @@ def langfuse_client(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
 
 
 async def _owned_thread_with_trace(
-    db_session: AsyncSession, user: User, redis: FakeRedis, trace_id: str
+    db_session: AsyncSession, user: User, redis: aioredis.Redis, trace_id: str
 ) -> tuple[Project, ThreadView]:
     project = await ProjectFactory.create(user=user)
     thread = await ThreadViewRepository(db_session).create(
         project_id=project.id, title="Chat"
     )
-    await TraceStore(cast("aioredis.Redis", redis)).save(
-        thread.thread_id, "m1", trace_id
-    )
+    await TraceStore(redis).save(thread.thread_id, "m1", trace_id)
     return project, thread
 
 
@@ -91,13 +62,13 @@ async def test_set_feedback_sends_score_to_langfuse(
     client: AsyncClient,
     current_user: User,
     db_session: AsyncSession,
-    fake_redis: FakeRedis,
+    feedback_redis: aioredis.Redis,
     langfuse_client: MagicMock,
     score: bool,
     expected_value: int,
 ) -> None:
     project, thread = await _owned_thread_with_trace(
-        db_session, current_user, fake_redis, "tr-1"
+        db_session, current_user, feedback_redis, "tr-1"
     )
 
     response = await client.put(
@@ -114,17 +85,21 @@ async def test_set_feedback_sends_score_to_langfuse(
         data_type="BOOLEAN",
         score_id="tr-1-user-feedback",
     )
+    # The route also persists the score in Redis so it survives localStorage
+    # clearing; assert the real round-trip, not just the Langfuse call.
+    persisted = await TraceStore(feedback_redis).get_feedback_batch(["tr-1"])
+    assert persisted == {"tr-1": score}
 
 
 async def test_set_feedback_unknown_trace_returns_404(
     client: AsyncClient,
     current_user: User,
     db_session: AsyncSession,
-    fake_redis: FakeRedis,
+    feedback_redis: aioredis.Redis,
     langfuse_client: MagicMock,
 ) -> None:
     project, thread = await _owned_thread_with_trace(
-        db_session, current_user, fake_redis, "tr-1"
+        db_session, current_user, feedback_redis, "tr-1"
     )
 
     response = await client.put(
@@ -159,11 +134,11 @@ async def test_set_feedback_langfuse_unreachable_returns_503(
     client: AsyncClient,
     current_user: User,
     db_session: AsyncSession,
-    fake_redis: FakeRedis,
+    feedback_redis: aioredis.Redis,
     langfuse_client: MagicMock,
 ) -> None:
     project, thread = await _owned_thread_with_trace(
-        db_session, current_user, fake_redis, "tr-1"
+        db_session, current_user, feedback_redis, "tr-1"
     )
     langfuse_client.create_score.side_effect = httpx.ConnectError("down")
 
@@ -173,13 +148,15 @@ async def test_set_feedback_langfuse_unreachable_returns_503(
     )
 
     assert response.status_code == 503
+    # Langfuse failed before persistence — nothing must be written to Redis.
+    assert await TraceStore(feedback_redis).get_feedback_batch(["tr-1"]) == {}
 
 
 async def test_delete_feedback_returns_204(
     client: AsyncClient,
     current_user: User,
     db_session: AsyncSession,
-    fake_redis: FakeRedis,
+    feedback_redis: aioredis.Redis,
     langfuse_client: MagicMock,
     monkeypatch: pytest.MonkeyPatch,
     app: FastAPI,
@@ -191,21 +168,27 @@ async def test_delete_feedback_returns_204(
 
     monkeypatch.setattr("app.api.routes.feedback._delete_score_via_api", _noop_delete)
     project, thread = await _owned_thread_with_trace(
-        db_session, current_user, fake_redis, "tr-1"
+        db_session, current_user, feedback_redis, "tr-1"
     )
+    # Pre-seed a persisted score so we can prove the route clears it.
+    store = TraceStore(feedback_redis)
+    await store.save_feedback("tr-1", True)
+    assert await store.get_feedback_batch(["tr-1"]) == {"tr-1": True}
 
     response = await client.delete(
         f"/api/projects/{project.id}/chats/{thread.thread_id}/feedback/tr-1"
     )
 
     assert response.status_code == 204
+    # Delete clears the persisted score from Redis (the feature's point).
+    assert await store.get_feedback_batch(["tr-1"]) == {}
 
 
 async def test_delete_feedback_idempotent_when_score_already_gone(
     client: AsyncClient,
     current_user: User,
     db_session: AsyncSession,
-    fake_redis: FakeRedis,
+    feedback_redis: aioredis.Redis,
     langfuse_client: MagicMock,
     monkeypatch: pytest.MonkeyPatch,
     app: FastAPI,
@@ -219,7 +202,7 @@ async def test_delete_feedback_idempotent_when_score_already_gone(
 
     monkeypatch.setattr("app.api.routes.feedback._delete_score_via_api", _raise_404)
     project, thread = await _owned_thread_with_trace(
-        db_session, current_user, fake_redis, "tr-1"
+        db_session, current_user, feedback_redis, "tr-1"
     )
 
     response = await client.delete(

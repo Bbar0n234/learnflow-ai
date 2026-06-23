@@ -45,6 +45,99 @@ class _RaisingSpan:
         raise RuntimeError("langfuse down")
 
 
+class _RecordingSpan:
+    """Fake observation that records the exact kwargs of each call.
+
+    Lets the positive contract assert the precise Langfuse payload the span emits
+    (score name/value/type/comment, update output+metadata) — not just that it
+    did not raise.
+    """
+
+    trace_id = "trace-xyz"
+    id = "obs-1"
+
+    def __init__(self) -> None:
+        self.score_trace_calls: list[dict[str, Any]] = []
+        self.update_calls: list[dict[str, Any]] = []
+
+    def update(self, **kwargs: Any) -> None:
+        self.update_calls.append(kwargs)
+
+    def score_trace(self, **kwargs: Any) -> None:
+        self.score_trace_calls.append(kwargs)
+
+
+# --- positive contract: enabled span emits the expected Langfuse payload ----
+
+
+@pytest.mark.unit
+def test_score_emits_security_verdict_score_trace() -> None:
+    rec = _RecordingSpan()
+    span = AgentRunSpan(rec, None, enabled=True, security_messages=SecurityMessages())
+
+    span.score(Verdict.SUSPICIOUS, DetectionLayer.UNICODE)
+
+    assert rec.score_trace_calls == [
+        {
+            "name": "security_verdict",
+            "value": "SUSPICIOUS",
+            "data_type": "CATEGORICAL",
+            "comment": "unicode",
+        }
+    ]
+    assert rec.update_calls == []  # score does not touch the span output
+
+
+@pytest.mark.unit
+def test_score_without_detection_layer_sends_null_comment() -> None:
+    rec = _RecordingSpan()
+    span = AgentRunSpan(rec, None, enabled=True, security_messages=SecurityMessages())
+
+    span.score(Verdict.CLEAN, None)
+
+    assert rec.score_trace_calls[0]["value"] == "CLEAN"
+    assert rec.score_trace_calls[0]["comment"] is None
+
+
+@pytest.mark.unit
+def test_finalize_blocked_scores_injection_and_updates_block_metadata() -> None:
+    rec = _RecordingSpan()
+    messages = SecurityMessages()
+    span = AgentRunSpan(rec, None, enabled=True, security_messages=messages)
+
+    span.finalize_blocked(_guard_result())
+
+    assert rec.score_trace_calls == [
+        {
+            "name": "security_verdict",
+            "value": "INJECTION",
+            "data_type": "CATEGORICAL",
+            "comment": "canary",
+        }
+    ]
+    assert rec.update_calls == [
+        {
+            "output": messages.redacted_user_facing,
+            "metadata": {
+                "blocked": True,
+                "checkpoint": "user_input",
+                "detection_layer": "canary",
+            },
+            "level": "ERROR",
+        }
+    ]
+
+
+@pytest.mark.unit
+def test_set_output_updates_span_output() -> None:
+    rec = _RecordingSpan()
+    span = AgentRunSpan(rec, None, enabled=True, security_messages=SecurityMessages())
+
+    span.set_output("final text")
+
+    assert rec.update_calls == [{"output": "final text"}]
+
+
 # --- disabled tracer --------------------------------------------------------
 
 

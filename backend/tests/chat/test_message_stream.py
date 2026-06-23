@@ -17,13 +17,18 @@ from app.models.project import Project
 from app.models.thread_view import ThreadView
 from app.models.user import User
 from app.repositories.thread_view import ThreadViewRepository
-from app.services.agent_runner import StreamEvent
 from httpx import AsyncClient
 from learnflow_testing.factories import ProjectFactory, UserFactory
 from learnflow_testing.sse import collect_sse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.chat.conftest import FakeAgentRunner
+from tests.chat.conftest import (
+    FakeAgentRunner,
+    error_event,
+    security_block_event,
+    text_chunk_event,
+    trace_id_event,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -48,9 +53,9 @@ async def test_stream_maps_events_in_order_and_terminates_with_done(
     project, thread = await _make_thread(db_session, current_user)
     wired_runner.last_ai_message_id = "m1"
     wired_runner.events = [
-        StreamEvent(type="trace_id", data={"trace_id": "tr-1"}),
-        StreamEvent(type="token", data={"content": "Hello"}),
-        StreamEvent(type="token", data={"content": " world"}),
+        trace_id_event("tr-1"),
+        text_chunk_event("Hello"),
+        text_chunk_event(" world"),
     ]
 
     url = f"/api/projects/{project.id}/chats/{thread.thread_id}/messages"
@@ -61,7 +66,7 @@ async def test_stream_maps_events_in_order_and_terminates_with_done(
 
     types = [e.json()["type"] for e in events]
     # trace_id is consumed by the service, never sent on the wire.
-    assert types == ["token", "token", "done"]
+    assert types == ["text_chunk", "text_chunk", "done"]
     assert events[0].json()["content"] == "Hello"
     done = events[-1].json()
     assert done == {"type": "done", "message_id": "m1", "trace_id": "tr-1"}
@@ -75,8 +80,8 @@ async def test_stream_error_event_is_terminal_without_done(
 ) -> None:
     project, thread = await _make_thread(db_session, current_user)
     wired_runner.events = [
-        StreamEvent(type="token", data={"content": "partial"}),
-        StreamEvent(type="error", data={"message": "graph failed"}),
+        text_chunk_event("partial"),
+        error_event("graph failed"),
     ]
 
     url = f"/api/projects/{project.id}/chats/{thread.thread_id}/messages"
@@ -84,7 +89,38 @@ async def test_stream_error_event_is_terminal_without_done(
         events = await collect_sse(response)
 
     types = [e.json()["type"] for e in events]
-    assert types == ["token", "error"]
+    # token-before-error ordering and the prod ``detail`` payload (frontend reads
+    # ``event.detail``) are both pinned; partial text survives the terminal.
+    assert types == ["text_chunk", "error"]
+    assert events[0].json()["content"] == "partial"
+    assert events[-1].json()["detail"] == "graph failed"
+    assert all(e.json()["type"] != "done" for e in events)
+
+
+async def test_stream_security_block_is_terminal_without_done(
+    client: AsyncClient,
+    current_user: User,
+    db_session: AsyncSession,
+    wired_runner: FakeAgentRunner,
+) -> None:
+    project, thread = await _make_thread(db_session, current_user)
+    wired_runner.events = [
+        text_chunk_event("partial answer"),
+        security_block_event("llm_classifier"),
+    ]
+
+    url = f"/api/projects/{project.id}/chats/{thread.thread_id}/messages"
+    async with client.stream("POST", url, json={"content": "hi"}) as response:
+        assert response.status_code == 200
+        events = await collect_sse(response)
+
+    types = [e.json()["type"] for e in events]
+    # security_block is a terminal event distinct from error: no trailing done,
+    # the partial text emitted before the block is preserved on the wire, and the
+    # prod ``reason`` field is forwarded verbatim.
+    assert types == ["text_chunk", "security_block"]
+    assert events[0].json()["content"] == "partial answer"
+    assert events[-1].json()["reason"] == "llm_classifier"
     assert all(e.json()["type"] != "done" for e in events)
 
 
@@ -95,7 +131,7 @@ async def test_stream_runner_exception_yields_terminal_error_event(
     wired_runner: FakeAgentRunner,
 ) -> None:
     project, thread = await _make_thread(db_session, current_user)
-    wired_runner.events = [StreamEvent(type="token", data={"content": "partial"})]
+    wired_runner.events = [text_chunk_event("partial")]
     # Raise after the first event — models an in-graph crash not wrapped as an
     # error event; the API generator's try/except must emit a terminal error.
     wired_runner.raise_after = 1
@@ -119,7 +155,7 @@ async def test_stream_accepts_empty_content(
     wired_runner: FakeAgentRunner,
 ) -> None:
     project, thread = await _make_thread(db_session, current_user)
-    wired_runner.events = [StreamEvent(type="token", data={"content": "x"})]
+    wired_runner.events = [text_chunk_event("x")]
 
     url = f"/api/projects/{project.id}/chats/{thread.thread_id}/messages"
     async with client.stream("POST", url, json={"content": ""}) as response:
@@ -128,7 +164,7 @@ async def test_stream_accepts_empty_content(
 
     # Empty content is accepted at the API contract level (no min_length); the
     # stream runs and terminates normally. See runlog "Баги для Ф5".
-    assert [e.json()["type"] for e in events] == ["token", "done"]
+    assert [e.json()["type"] for e in events] == ["text_chunk", "done"]
 
 
 async def test_send_message_to_blocked_thread_returns_403(

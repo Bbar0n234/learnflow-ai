@@ -109,8 +109,16 @@ async def test_subscriber_duplicate_event_id_is_deduplicated_and_acked(
     # Both deliveries are acked (idempotent ingest), one counted as duplicate.
     assert redis.acked == ["1-0", "2-0"]
     metrics = subscriber.get_metrics()
+    # Metric semantics (intentional): `ingested` counts every successfully
+    # processed delivery, dedup included; `duplicate` is the subset that hit
+    # ON CONFLICT DO NOTHING. So unique rows == ingested - duplicate, which must
+    # reconcile with the single DB row. A dashboard reading `ingested` as "unique
+    # events" would double-count here — this asserts the documented relationship.
     assert metrics["siem_events_ingested"] == 2
     assert metrics["siem_events_duplicate"] == 1
+    assert metrics["siem_events_ingested"] - metrics[
+        "siem_events_duplicate"
+    ] == await _count_events(db_session)
 
 
 @pytest.mark.parametrize(

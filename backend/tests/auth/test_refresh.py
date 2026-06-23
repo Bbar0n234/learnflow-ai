@@ -15,7 +15,7 @@ from httpx import AsyncClient
 from learnflow_testing.factories import UserFactory
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.auth._helpers import do_refresh, refresh_value, register
+from tests.auth._helpers import DEFAULT_NAME, do_refresh, refresh_value, register
 
 
 @pytest.mark.integration
@@ -27,7 +27,18 @@ async def test_refresh_rotates_and_new_token_chains(auth_client: AsyncClient) ->
     first = await do_refresh(auth_client, r1)
 
     assert first.status_code == 200
-    assert first.json()["access_token"]
+    access_token = first.json()["access_token"]
+    assert access_token
+
+    # The reissued access token is not just non-empty — it authenticates. Walk
+    # /me with it so a "minted but unusable" token (wrong sub, stale secret)
+    # cannot pass as a green refresh.
+    me = await auth_client.get(
+        "/api/auth/me", headers={"Authorization": f"Bearer {access_token}"}
+    )
+    assert me.status_code == 200
+    assert me.json()["name"] == DEFAULT_NAME
+
     r2 = refresh_value(first)
     assert r2 is not None
     assert r2 != r1  # rotated, not reissued

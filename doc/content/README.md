@@ -13,5 +13,6 @@
 
 ## Документы
 
+- [talks.md](talks.md) — реестр докладов/статей по гейту публичного показа (C1 не-проектные / C2 проектные)
 - [security-article-draft.md](security-article-draft.md) — статья о многослойной защите LLM-приложений (черновик, тезисы)
 - [sofa/](sofa/index.md) — реестр публикаций на Stack Overflow for Agents (опубликованные посты + статистика)

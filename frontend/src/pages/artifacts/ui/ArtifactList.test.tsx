@@ -69,7 +69,7 @@ describe("ArtifactList", () => {
 
     render();
 
-    expect(await screen.findByText(/No artifacts yet/)).toBeInTheDocument();
+    expect(await screen.findByText(/Артефактов пока нет/)).toBeInTheDocument();
   });
 
   it("shows an error message when the request fails", async () => {
@@ -82,7 +82,7 @@ describe("ArtifactList", () => {
     render();
 
     expect(
-      await screen.findByText("Failed to load artifacts."),
+      await screen.findByText("Ошибка загрузки артефактов."),
     ).toBeInTheDocument();
   });
 });

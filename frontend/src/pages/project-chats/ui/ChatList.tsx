@@ -1,10 +1,12 @@
 import { useState, type KeyboardEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import { MessageSquare, SendHorizontal } from "lucide-react";
+import { SendHorizontal } from "lucide-react";
 import { Textarea } from "@/shared/ui/textarea";
 import { Button } from "@/shared/ui/button";
+import { Illustration } from "@/shared/ui/Illustration";
 import { useChats } from "@/shared/api/chats";
 import { useCreateChat } from "@/shared/api/chats";
+import { SHOW_GROUP_B_STUBS } from "@/shared/config/feature-flags";
 
 export function ChatList() {
   const { id } = useParams();
@@ -37,21 +39,33 @@ export function ChatList() {
 
   return (
     <div className="h-full overflow-auto p-6">
-      {/* New chat input */}
-      <div className="mb-6">
-        <div className="flex gap-2">
-          <Textarea
-            value={newChatText}
-            onChange={(e) => setNewChatText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Chat title..."
-            disabled={createChat.isPending}
-            className="min-h-10 resize-none"
-          />
+      {/* New chat input — card+shadow per handoff screen 9 */}
+      <div
+        className="mb-6 rounded-xl border border-border bg-card p-3"
+        style={{ boxShadow: "var(--shadow-input)" }}
+      >
+        <Textarea
+          value={newChatText}
+          onChange={(e) => setNewChatText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Название нового чата..."
+          disabled={createChat.isPending}
+          className="min-h-[52px] resize-none border-0 bg-transparent text-sm focus-visible:ring-0"
+        />
+        <div className="mt-2 flex items-center justify-between">
+          <div className="flex gap-1.5">
+            <span className="rounded-full bg-secondary px-3 py-0.5 text-xs text-secondary-foreground">
+              Прикрепить
+            </span>
+            <span className="rounded-full bg-secondary px-3 py-0.5 text-xs text-secondary-foreground">
+              Модель
+            </span>
+          </div>
           <Button
             size="icon"
             onClick={handleCreate}
             disabled={createChat.isPending || !trimmed}
+            className="h-[34px] w-[34px] rounded-full"
           >
             <SendHorizontal className="h-4 w-4" />
           </Button>
@@ -59,25 +73,58 @@ export function ChatList() {
       </div>
 
       {/* Chat list */}
-      {isLoading && <p className="text-muted-foreground">Loading chats...</p>}
-      {isError && <p className="text-destructive">Failed to load chats.</p>}
+      {isLoading && (
+        <p className="text-sm text-muted-foreground">Загрузка чатов...</p>
+      )}
+      {isError && (
+        <p className="text-sm text-destructive">Не удалось загрузить чаты.</p>
+      )}
       {data && data.items.length === 0 && (
-        <p className="text-muted-foreground">No chats yet. Start one above!</p>
+        <div className="flex flex-col items-center gap-4 py-8">
+          <Illustration
+            scene="empty-chats"
+            alt="Нет чатов"
+            className="w-full max-w-[280px]"
+          />
+          <p className="text-sm text-muted-foreground">
+            Нет чатов. Создайте выше!
+          </p>
+        </div>
       )}
       {data && data.items.length > 0 && (
-        <div className="flex flex-col gap-1">
-          {data.items.map((chat) => (
+        <div className="flex flex-col gap-0.5">
+          {data.items.map((chat, i) => (
             <Link
               key={chat.thread_id}
               to={`/projects/${id}/chats/${chat.thread_id}`}
-              className="flex items-center gap-3 rounded-lg px-4 py-3 transition-colors hover:bg-muted"
+              className="group flex items-start rounded-lg px-3 py-3 transition-colors hover:bg-muted"
             >
-              <MessageSquare className="h-5 w-5 shrink-0 text-muted-foreground" />
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{chat.title}</p>
-                <p className="text-xs text-muted-foreground">
-                  {new Date(chat.updated_at).toLocaleDateString()}
+                <p className="truncate font-serif text-sm font-semibold text-foreground">
+                  {chat.title}
                 </p>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  Нет превью
+                </p>
+                <div className="mt-1.5 flex items-center gap-2">
+                  {/* Stub contribution chips — visual only, no backend contract (group B stub) */}
+                  {SHOW_GROUP_B_STUBS && i % 2 === 0 && (
+                    <span className="rounded-full bg-secondary px-2 text-[10px] leading-5 text-secondary-foreground">
+                      {(i + 1) * 2} артефакта
+                    </span>
+                  )}
+                  {SHOW_GROUP_B_STUBS && i % 3 !== 2 && (
+                    <span className="rounded-full bg-secondary px-2 text-[10px] leading-5 text-secondary-foreground">
+                      +{(i + 1) * 3} в сферу
+                    </span>
+                  )}
+                  <span className="text-[10px] text-muted-foreground">
+                    {new Date(chat.updated_at).toLocaleDateString("ru-RU", {
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </span>
+                </div>
               </div>
             </Link>
           ))}

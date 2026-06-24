@@ -15,7 +15,7 @@ import { CustomInstructionsSection } from "./CustomInstructionsSection";
 // branch surfaces the violation message. Network is MSW.
 //
 // The <label> is associated with the <textarea> via htmlFor/id, so the field is
-// reachable by its accessible name ("Custom Instructions").
+// reachable by its accessible name ("Свои инструкции").
 
 const URL = "/api/users/me/instructions";
 
@@ -26,8 +26,8 @@ describe("CustomInstructionsSection", () => {
     renderWithProviders(<CustomInstructionsSection />);
 
     expect(await screen.findByDisplayValue("initial")).toBeInTheDocument();
-    expect(screen.getByLabelText("Custom Instructions")).toHaveValue("initial");
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(screen.getByLabelText("Свои инструкции")).toHaveValue("initial");
+    expect(screen.getByRole("button", { name: "Сохранить" })).toBeDisabled();
   });
 
   it("saves edited instructions and re-disables Save on success", async () => {
@@ -45,13 +45,13 @@ describe("CustomInstructionsSection", () => {
     const textarea = await screen.findByDisplayValue("initial");
 
     await user.type(textarea, " more");
-    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Сохранить" })).toBeEnabled();
 
-    await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.click(screen.getByRole("button", { name: "Сохранить" }));
 
     await waitFor(() => expect(putBody).toEqual({ content: "initial more" }));
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Save" })).toBeDisabled(),
+      expect(screen.getByRole("button", { name: "Сохранить" })).toBeDisabled(),
     );
   });
 
@@ -71,7 +71,7 @@ describe("CustomInstructionsSection", () => {
     const textarea = await screen.findByDisplayValue("initial");
 
     await user.type(textarea, " bad");
-    await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.click(screen.getByRole("button", { name: "Сохранить" }));
 
     expect(
       await screen.findByText(SECURITY_VIOLATION_MESSAGE),

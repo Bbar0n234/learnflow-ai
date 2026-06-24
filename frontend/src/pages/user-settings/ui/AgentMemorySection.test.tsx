@@ -45,7 +45,7 @@ describe("AgentMemorySection", () => {
 
     renderWithProviders(<AgentMemorySection />);
 
-    expect(screen.getByText("Loading memories...")).toBeInTheDocument();
+    expect(screen.getByText("Загрузка памяти…")).toBeInTheDocument();
   });
 
   it("shows an empty-state message when there are no memories", async () => {
@@ -53,7 +53,7 @@ describe("AgentMemorySection", () => {
 
     renderWithProviders(<AgentMemorySection />);
 
-    expect(await screen.findByText(/No memories yet/)).toBeInTheDocument();
+    expect(await screen.findByText(/Нет записей/)).toBeInTheDocument();
   });
 
   it("renders a saved memory's key, description and content", async () => {
@@ -84,11 +84,11 @@ describe("AgentMemorySection", () => {
     renderWithProviders(<AgentMemorySection />);
     await screen.findByText("fav_language");
 
-    await user.click(screen.getByRole("button", { name: "Delete memory" }));
+    await user.click(screen.getByRole("button", { name: "Удалить запись" }));
 
     await waitFor(() => expect(deletedKey).toBe("fav_language"));
     await waitFor(() =>
-      expect(screen.getByText(/No memories yet/)).toBeInTheDocument(),
+      expect(screen.getByText(/Нет записей/)).toBeInTheDocument(),
     );
   });
 });

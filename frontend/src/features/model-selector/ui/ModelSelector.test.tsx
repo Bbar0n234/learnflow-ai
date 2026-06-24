@@ -48,7 +48,9 @@ describe("ModelSelector", () => {
 
     renderWithProviders(<ModelSelector scope="user" />);
 
-    expect(await screen.findByText("Current: GPT-4o")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Активная модель: GPT-4o"),
+    ).toBeInTheDocument();
     // The trigger reflects the selected model's display name.
     expect(screen.getByRole("combobox")).toHaveTextContent("GPT-4o");
   });
@@ -68,7 +70,9 @@ describe("ModelSelector", () => {
 
     renderWithProviders(<ModelSelector scope="user" />);
 
-    expect(await screen.findByText("Current: GPT-4o")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Активная модель: GPT-4o"),
+    ).toBeInTheDocument();
     expect(screen.getByRole("combobox")).toHaveTextContent("Default");
   });
 
@@ -87,8 +91,12 @@ describe("ModelSelector", () => {
 
     renderWithProviders(<ModelSelector scope="project" projectId="p1" />);
 
+    // Project scope renders a static override hint instead of the resolved
+    // model name (design-system merge changed this from the old "Current: <model>").
     expect(
-      await screen.findByText("Current: Claude Sonnet"),
+      await screen.findByText(
+        "Переопределяет модель пользователя для этого проекта.",
+      ),
     ).toBeInTheDocument();
     expect(screen.getByRole("combobox")).toHaveTextContent("Inherit");
   });
@@ -111,7 +119,7 @@ describe("ModelSelector", () => {
     renderWithProviders(<ModelSelector scope="user" />);
 
     expect(
-      await screen.findByText("Current: mystery-model"),
+      await screen.findByText("Активная модель: mystery-model"),
     ).toBeInTheDocument();
   });
 
@@ -140,7 +148,7 @@ describe("ModelSelector", () => {
     const user = userEvent.setup();
 
     renderWithProviders(<ModelSelector scope="user" />);
-    await screen.findByText("Current: GPT-4o");
+    await screen.findByText("Активная модель: GPT-4o");
 
     await user.click(screen.getByRole("combobox"));
     await user.click(
@@ -177,10 +185,12 @@ describe("ModelSelector", () => {
     const user = userEvent.setup();
 
     renderWithProviders(<ModelSelector scope="user" />);
-    await screen.findByText("Current: GPT-4o");
+    await screen.findByText("Активная модель: GPT-4o");
 
     await user.click(screen.getByRole("combobox"));
-    await user.click(await screen.findByRole("option", { name: "Default" }));
+    await user.click(
+      await screen.findByRole("option", { name: "По умолчанию" }),
+    );
 
     await waitFor(() => expect(putBody).toEqual({ model_name: null }));
   });
@@ -209,7 +219,7 @@ describe("ModelSelector", () => {
     const user = userEvent.setup();
 
     renderWithProviders(<ModelSelector scope="user" />);
-    await screen.findByText("Current: GPT-4o");
+    await screen.findByText("Активная модель: GPT-4o");
 
     await user.click(screen.getByRole("combobox"));
     await user.click(await screen.findByRole("option", { name: "GPT-4o" }));

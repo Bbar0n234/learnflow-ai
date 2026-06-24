@@ -4,6 +4,8 @@ import { useSphere } from "@/shared/api/sphere";
 import { useUpdateSphere } from "@/shared/api/sphere";
 import { SphereViewer } from "./SphereViewer";
 import { SphereEditor } from "./SphereEditor";
+import { SphereVersionPanel } from "./SphereVersionPanel";
+import { SHOW_GROUP_B_STUBS } from "@/shared/config/feature-flags";
 
 export function SphereView() {
   const { id } = useParams();
@@ -45,9 +47,16 @@ export function SphereView() {
   }
 
   return (
-    <SphereViewer
-      content={data?.content ?? ""}
-      onEdit={() => setIsEditing(true)}
-    />
+    <div className="flex h-full overflow-hidden">
+      {/* Viewer — flex-1 (до правой панели) */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <SphereViewer
+          content={data?.content ?? ""}
+          onEdit={() => setIsEditing(true)}
+        />
+      </div>
+      {/* Правая панель «Жизнь сферы» — T6b (на моках, group B stub) */}
+      {SHOW_GROUP_B_STUBS && <SphereVersionPanel />}
+    </div>
   );
 }

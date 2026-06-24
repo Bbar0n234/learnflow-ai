@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ThumbsUp, ThumbsDown } from "lucide-react";
+import { ThumbsUp, ThumbsDown, RotateCcw } from "lucide-react";
 import {
   deleteFeedback,
   setFeedback as putFeedback,
@@ -38,28 +38,39 @@ export function FeedbackButtons({
   }
 
   return (
-    <div className="mt-1 flex gap-1">
+    <div className="mt-2 flex items-center gap-1">
       <button
         type="button"
         onClick={() => handleClick(true)}
         className={cn(
-          "cursor-pointer rounded p-1 transition-colors hover:bg-muted-foreground/10",
-          feedback === true ? "text-primary" : "text-muted-foreground/50",
+          "inline-flex cursor-pointer items-center gap-1 rounded px-2 py-1 text-xs transition-colors hover:bg-muted-foreground/10",
+          feedback === true ? "text-primary" : "text-muted-foreground",
         )}
-        aria-label="Like"
+        aria-label="Полезно"
       >
-        <ThumbsUp className="h-3.5 w-3.5" />
+        <ThumbsUp className="h-3 w-3" />
+        Полезно
       </button>
       <button
         type="button"
         onClick={() => handleClick(false)}
         className={cn(
-          "cursor-pointer rounded p-1 transition-colors hover:bg-muted-foreground/10",
-          feedback === false ? "text-destructive" : "text-muted-foreground/50",
+          "inline-flex cursor-pointer items-center gap-1 rounded px-2 py-1 text-xs transition-colors hover:bg-muted-foreground/10",
+          feedback === false ? "text-destructive" : "text-muted-foreground",
         )}
-        aria-label="Dislike"
+        aria-label="Не то"
       >
-        <ThumbsDown className="h-3.5 w-3.5" />
+        <ThumbsDown className="h-3 w-3" />
+        Не то
+      </button>
+      <button
+        type="button"
+        onClick={() => {}}
+        className="inline-flex cursor-pointer items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted-foreground/10"
+        aria-label="Перегенерировать"
+      >
+        <RotateCcw className="h-3 w-3" />
+        Перегенерировать
       </button>
     </div>
   );

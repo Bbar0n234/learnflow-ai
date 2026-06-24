@@ -14,7 +14,7 @@ export function AppLayout() {
       <aside
         className={cn(
           "shrink-0 border-r border-border bg-sidebar transition-all duration-200 overflow-hidden",
-          sidebarOpen ? "w-64" : "w-0 border-r-0",
+          sidebarOpen ? "w-[252px]" : "w-0 border-r-0",
         )}
       >
         <Sidebar />

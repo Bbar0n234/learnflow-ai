@@ -64,7 +64,7 @@ export function SecurityAlerts() {
 
   if (error) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+      <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-destructive">
         Ошибка загрузки алертов: {getApiErrorMessage(error)}
       </div>
     );
@@ -73,7 +73,7 @@ export function SecurityAlerts() {
   return (
     <div className="space-y-4">
       {successMessage && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-green-800">
+        <div className="rounded-lg border border-border bg-muted p-4 text-foreground">
           {successMessage}
         </div>
       )}

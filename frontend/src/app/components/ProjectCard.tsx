@@ -1,5 +1,4 @@
 import { NavLink } from "react-router";
-import { FolderOpen } from "lucide-react";
 import type { Project } from "@/shared/api/projects";
 import { cn } from "@/shared/lib/utils";
 import { ProjectActions } from "./ProjectActions";
@@ -20,7 +19,8 @@ export function ProjectCard({ project }: ProjectCardProps) {
           )
         }
       >
-        <FolderOpen className="h-4 w-4 shrink-0" />
+        {/* Status dot — color reflects project activity; full logic arrives with backend status field */}
+        <span className="h-2 w-2 shrink-0 rounded-full bg-brand-lavender" />
         <span className="truncate">{project.name}</span>
       </NavLink>
       <div className="absolute right-1">

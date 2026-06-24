@@ -43,7 +43,9 @@ export function ModelSelector({ scope, projectId, threadId }: Props) {
 
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium">Model</label>
+      <label className="mb-1.5 block text-sm font-medium text-foreground">
+        Модель
+      </label>
       <Select
         value={currentValue}
         onValueChange={handleChange}
@@ -56,7 +58,7 @@ export function ModelSelector({ scope, projectId, threadId }: Props) {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="__default__">
-            {scope === "user" ? "Default" : "Inherit"}
+            {scope === "user" ? "По умолчанию" : "Наследовать"}
           </SelectItem>
           {models?.items.map((m) => (
             <SelectItem key={m.name} value={m.name}>
@@ -67,7 +69,10 @@ export function ModelSelector({ scope, projectId, threadId }: Props) {
       </Select>
       {settings && (
         <p className="mt-1 text-xs text-muted-foreground">
-          Current: {resolvedDisplayName}
+          {scope === "project"
+            ? "Переопределяет модель пользователя для этого проекта."
+            : "Активная модель:"}{" "}
+          {scope === "project" ? "" : resolvedDisplayName}
         </p>
       )}
     </div>

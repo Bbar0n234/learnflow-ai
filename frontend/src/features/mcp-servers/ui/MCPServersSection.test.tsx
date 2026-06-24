@@ -51,7 +51,7 @@ describe("MCPServersSection", () => {
 
     renderWithProviders(<MCPServersSection scope="user" />);
 
-    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    expect(screen.getByText("Загрузка…")).toBeInTheDocument();
   });
 
   it("shows an empty-state message when there are no servers", async () => {
@@ -60,7 +60,7 @@ describe("MCPServersSection", () => {
     renderWithProviders(<MCPServersSection scope="user" />);
 
     expect(
-      await screen.findByText("No MCP servers configured."),
+      await screen.findByText("MCP-серверы не настроены."),
     ).toBeInTheDocument();
   });
 
@@ -87,9 +87,11 @@ describe("MCPServersSection", () => {
     renderWithProviders(<MCPServersSection scope="user" />);
     await screen.findByText("my-server");
 
-    await user.click(screen.getByRole("button", { name: "Test connection" }));
+    await user.click(
+      screen.getByRole("button", { name: "Проверить соединение" }),
+    );
 
-    expect(await screen.findByText("OK (3 tools)")).toBeInTheDocument();
+    expect(await screen.findByText("OK (3 инструментов)")).toBeInTheDocument();
   });
 
   it("surfaces a failed connection test reason", async () => {
@@ -108,10 +110,12 @@ describe("MCPServersSection", () => {
     renderWithProviders(<MCPServersSection scope="user" />);
     await screen.findByText("my-server");
 
-    await user.click(screen.getByRole("button", { name: "Test connection" }));
+    await user.click(
+      screen.getByRole("button", { name: "Проверить соединение" }),
+    );
 
     expect(
-      await screen.findByText("Failed: handshake timeout"),
+      await screen.findByText("Ошибка: handshake timeout"),
     ).toBeInTheDocument();
   });
 
@@ -129,12 +133,10 @@ describe("MCPServersSection", () => {
     renderWithProviders(<MCPServersSection scope="user" />);
     await screen.findByText("my-server");
 
-    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: "Удалить" }));
 
     await waitFor(() =>
-      expect(
-        screen.getByText("No MCP servers configured."),
-      ).toBeInTheDocument(),
+      expect(screen.getByText("MCP-серверы не настроены.")).toBeInTheDocument(),
     );
   });
 
@@ -154,9 +156,9 @@ describe("MCPServersSection", () => {
     const user = userEvent.setup();
 
     renderWithProviders(<MCPServersSection scope="user" />);
-    await screen.findByText("No MCP servers configured.");
+    await screen.findByText("MCP-серверы не настроены.");
 
-    await user.click(screen.getByRole("button", { name: /Add/ }));
+    await user.click(screen.getByRole("button", { name: /Добавить/ }));
     await user.type(screen.getByPlaceholderText("my-server"), "fresh");
     await user.type(
       screen.getByPlaceholderText("https://mcp.example.com/v1"),
@@ -176,7 +178,7 @@ describe("MCPServersSection", () => {
     renderWithProviders(<MCPServersSection scope="user" />);
     await screen.findByText("server-0");
 
-    expect(screen.getByRole("button", { name: /Add/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Добавить/ })).toBeDisabled();
   });
 
   it("renders inherited servers and toggles their enabled state", async () => {

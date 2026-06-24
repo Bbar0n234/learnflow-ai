@@ -54,9 +54,7 @@ describe("SphereView", () => {
 
     render();
 
-    expect(
-      await screen.findByText(/Knowledge sphere is empty/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Сфера знаний пуста/)).toBeInTheDocument();
   });
 
   it("shows an error state when the sphere fails to load", async () => {
@@ -99,12 +97,12 @@ describe("SphereView", () => {
     await screen.findByText("original");
 
     // The edit (pencil) icon button in the viewer header, by accessible name.
-    await user.click(screen.getByRole("button", { name: "Edit" }));
+    await user.click(screen.getByRole("button", { name: "Редактировать" }));
 
-    const textarea = await screen.findByLabelText("Knowledge sphere content");
+    const textarea = await screen.findByLabelText("Содержимое сферы знаний");
     await user.clear(textarea);
     await user.type(textarea, "updated body");
-    await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.click(screen.getByRole("button", { name: "Сохранить" }));
 
     await waitFor(() =>
       expect(screen.getByText("updated body")).toBeInTheDocument(),

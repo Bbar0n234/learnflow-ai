@@ -1,4 +1,4 @@
-.PHONY: docker-up docker-up-db docker-up-redis docker-down docker-build docker-logs lint format type-check arch-check check lint-fe check-fe format-fe dev dev-remote dev-fe test test-contracts test-parallel test-scope test-cov test-fe migrate migration downgrade migrate-siem sync-prompts security-scan-validate security-scan-redteam security-scan-report grant-admin seed-demo
+.PHONY: docker-up docker-up-db docker-up-redis docker-down docker-build docker-logs lint format type-check arch-check check ci lint-fe check-fe format-fe build-fe dev dev-remote dev-fe test test-contracts test-parallel test-scope test-cov test-fe migrate migration downgrade migrate-siem sync-prompts security-scan-validate security-scan-redteam security-scan-report grant-admin seed-demo
 
 # Load .env (base) then .env.local (overrides) into shell environment
 LOAD_ENV = set -a && [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; set +a
@@ -22,7 +22,7 @@ docker-logs:  ## Show app container logs
 	docker compose logs -f app
 
 lint:  ## Run ruff linter
-	uv run ruff check .
+	uv run ruff check --no-cache .
 
 format:  ## Format Python code (auto-fix safe lint issues + format)
 	uv run ruff check --fix .
@@ -40,7 +40,7 @@ arch-check:  ## Run architecture checks (import-linter contracts + AST asserts)
 	uv run python -m arch_checker
 
 check:  ## Run all backend checks (CI gate)
-	uv run ruff check .
+	uv run ruff check --no-cache .
 	uv run ruff format --check .
 	uv run mypy backend/
 	uv run mypy services/siem-service/
@@ -58,6 +58,23 @@ check-fe:  ## Run all frontend checks (CI gate)
 
 format-fe:  ## Format frontend code with Prettier
 	cd frontend && npx prettier --write .
+
+build-fe:  ## Build frontend production bundle (Vite) — mirrors CI "Frontend build"
+	cd frontend && npm run build
+
+# Full local reproduction of the CI pipeline, in CI order, fail-fast on first
+# error. Heavy (frontend + docker build + testcontainers, ~5-10 min) — this is
+# the pre-push gate, not a per-edit check. Keeping it identical to .github/
+# workflows/ci.yml is what makes "green locally" mean "green in CI"; update both
+# together when the pipeline changes.
+ci:  ## Full local CI reproduction (heavy) — run before push
+	@$(MAKE) --no-print-directory check
+	@$(MAKE) --no-print-directory check-fe
+	@$(MAKE) --no-print-directory build-fe
+	@[ -f .env ] || cp .env.example .env
+	docker compose build
+	@$(MAKE) --no-print-directory test
+	@$(MAKE) --no-print-directory test-fe
 
 dev:  ## Run backend dev server (localhost only)
 	$(LOAD_ENV) && uv run --package learnflow-backend uvicorn app.main:app --reload --app-dir backend

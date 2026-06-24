@@ -358,6 +358,7 @@ export function SphereEditor({
                 onChange={(e) => setText(e.target.value)}
                 className="h-full min-h-[200px] flex-1 resize-none rounded-xl border-0 bg-transparent font-mono text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
                 placeholder="Напишите содержимое сферы знаний в формате Markdown…"
+                aria-label="Содержимое сферы знаний"
                 disabled={isPending}
               />
             </div>

@@ -249,16 +249,20 @@ class Subscriber:
             if isinstance(data_json, bytes):
                 data_json = data_json.decode("utf-8")
 
-            event_dict = json.loads(data_json)
-
-            # Extract real event_id from parsed dict; fallback to message_id
-            raw_event_id = event_dict.get("event_id")
-            event_id_str = str(raw_event_id) if raw_event_id is not None else message_id
-
-            # Validate with SecurityEvent (strict)
+            # Parse + validate. Both malformed JSON (JSONDecodeError) and
+            # schema-invalid JSON (ValidationError) are poison → drop + XACK
+            # (no retry). Handling them symmetrically prevents a non-JSON
+            # payload from escaping to the run() barrier and crash-looping the
+            # supervisor until terminal drop (D-ERR-7).
             try:
+                event_dict = json.loads(data_json)
+                # Extract real event_id from parsed dict; fallback to message_id
+                raw_event_id = event_dict.get("event_id")
+                event_id_str = (
+                    str(raw_event_id) if raw_event_id is not None else message_id
+                )
                 event = SecurityEvent.model_validate(event_dict)
-            except ValidationError:
+            except (json.JSONDecodeError, ValidationError):
                 # Poison: malformed or schema-invalid → drop + XACK (no retry)
                 self._metrics["siem_events_invalid"] += 1
                 logger.warning(
@@ -310,9 +314,15 @@ class Subscriber:
             # No XACK — message stays in PEL for re-delivery.
 
     def _is_known_event_type(self, event_type: str) -> bool:
-        """Check if event_type is in known vocabulary.
+        """Check if event_type is in known vocabulary (vocabulary-soft mode).
 
-        For T2, accept all types (vocabulary-soft mode).
+        Deliberate defense-in-depth scaffolding per ADR-020 (strict-on-vocabulary):
+        today ``SecurityEvent.event_type`` is a strict ``Literal``, so unknown
+        types are rejected as poison at ``model_validate`` before this check ever
+        runs — this branch is intentionally inert. It activates only if the
+        contract is ever loosened from ``Literal`` to ``str``. Not dead code; do
+        not remove (nor the ``siem_unknown_event_type`` metric) without revising
+        ADR-020.
         """
         return True
 

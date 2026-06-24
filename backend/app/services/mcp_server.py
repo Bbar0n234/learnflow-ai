@@ -26,7 +26,7 @@ from app.services.exceptions import (
     SecurityPolicyViolationError,
     UpstreamUnavailableError,
 )
-from app.services.url_validator import validate_url
+from app.services.url_validator import mcp_no_redirect_client_factory, validate_url
 
 logger = structlog.get_logger()
 
@@ -41,7 +41,10 @@ def _build_test_connection(
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else None
     if transport == "sse":
         conn_sse = SSEConnection(
-            transport="sse", url=url, sse_read_timeout=float(timeout)
+            transport="sse",
+            url=url,
+            sse_read_timeout=float(timeout),
+            httpx_client_factory=mcp_no_redirect_client_factory,
         )
         if headers:
             conn_sse["headers"] = headers
@@ -52,6 +55,7 @@ def _build_test_connection(
         transport="streamable_http",
         url=url,
         timeout=timeout,  # type: ignore[typeddict-item]
+        httpx_client_factory=mcp_no_redirect_client_factory,
     )
     if headers:
         conn_http["headers"] = headers

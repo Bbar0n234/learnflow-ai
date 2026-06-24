@@ -28,7 +28,10 @@ export function CustomInstructionsSection() {
 
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-medium text-foreground">
+      <label
+        htmlFor="custom-instructions"
+        className="mb-1.5 block text-sm font-medium text-foreground"
+      >
         Свои инструкции
       </label>
       <p className="mb-2 text-xs text-muted-foreground">
@@ -36,6 +39,7 @@ export function CustomInstructionsSection() {
       </p>
       <div className="rounded-lg border border-border bg-background">
         <textarea
+          id="custom-instructions"
           className="w-full resize-none bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground"
           rows={6}
           maxLength={5000}

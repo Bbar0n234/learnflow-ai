@@ -155,9 +155,9 @@ export function SecurityEvents() {
                 </div>
                 <div className="min-w-0">
                   <span className="font-semibold">Серьезность:</span>
-                  <p className="mt-1">
+                  <div className="mt-1">
                     <SeverityBadge severity={selectedEvent.severity} />
-                  </p>
+                  </div>
                 </div>
                 <div className="min-w-0">
                   <span className="font-semibold">Время события:</span>

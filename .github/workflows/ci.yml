@@ -56,6 +56,8 @@ jobs:
           cp .env.example .env
           docker compose build
 
-      - name: Tests
+      - name: Backend tests
         run: make test
-        continue-on-error: true
+
+      - name: Frontend tests
+        run: make test-fe

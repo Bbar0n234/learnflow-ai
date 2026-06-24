@@ -51,8 +51,11 @@ export function MCPServerForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div>
-        <label className="mb-1 block text-xs font-medium">Name</label>
+        <label htmlFor="mcp-name" className="mb-1 block text-xs font-medium">
+          Name
+        </label>
         <input
+          id="mcp-name"
           className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -62,12 +65,20 @@ export function MCPServerForm({
         />
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium">Transport</label>
+        <label
+          id="mcp-transport-label"
+          className="mb-1 block text-xs font-medium"
+        >
+          Transport
+        </label>
         <Select
           value={transport}
           onValueChange={(v) => setTransport(v as "http" | "sse")}
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger
+            className="w-full"
+            aria-labelledby="mcp-transport-label"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -77,8 +88,11 @@ export function MCPServerForm({
         </Select>
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium">URL</label>
+        <label htmlFor="mcp-url" className="mb-1 block text-xs font-medium">
+          URL
+        </label>
         <input
+          id="mcp-url"
           className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
           type="url"
           value={url}
@@ -88,10 +102,11 @@ export function MCPServerForm({
         />
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium">
+        <label htmlFor="mcp-api-key" className="mb-1 block text-xs font-medium">
           API Key {isEdit ? "(leave empty to keep current)" : "(optional)"}
         </label>
         <input
+          id="mcp-api-key"
           className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
           type="password"
           value={apiKey}

@@ -10,14 +10,22 @@ dev = [
     "mypy>=1.19",
     "pre-commit>=4.5",
     "pytest>=9.0",
+    "pytest-asyncio>=1.0",
+    "pytest-cov>=5.0",
+    "pytest-xdist>=3.6",
     "ruff>=0.15",
     "types-Markdown>=3.5",
+    "learnflow-testing",
 ]
+
+[tool.uv.sources]
+learnflow-testing = { workspace = true }
 
 [tool.uv.workspace]
 members = [
     "backend",
     "packages/siem-contracts",
+    "packages/testing",
     "services/siem-service",
     "tools/arch-checker",
     "tools/security-scan",
@@ -45,6 +53,12 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "fuzzysearch"
+ignore_missing_imports = true
+
+# Test-only libraries without bundled type stubs (same class as the entries
+# above). Used by the shared test harness in packages/testing.
+[[tool.mypy.overrides]]
+module = ["factory.*", "async_factory_boy.*", "testcontainers.*"]
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]

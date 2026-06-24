@@ -35,11 +35,21 @@ dependencies = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "unit: fast, no external infra",
+    "integration: requires real Postgres (testcontainers)",
+    "slow: long-running",
+]
 
 [tool.uv.sources]
 siem-contracts = { workspace = true }
+learnflow-testing = { workspace = true }
 
 [dependency-groups]
 dev = [
     "types-pyyaml>=6.0.12.20250915",
+    "learnflow-testing",
+    "pytest-xdist>=3.6",
 ]

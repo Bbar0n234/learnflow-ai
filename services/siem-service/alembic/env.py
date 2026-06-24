@@ -1,12 +1,11 @@
 import asyncio
 
+from alembic import context
 from siem_service.config import Settings
 from siem_service.domain.models import Base  # noqa: F401 — ensure all models registered
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
-
-from alembic import context
 
 
 def run_migrations_offline() -> None:

@@ -40,8 +40,13 @@ def create_access_token(
 
 
 def decode_access_token(token: str, secret: str) -> uuid.UUID:
-    payload = jwt.decode(token, secret, algorithms=["HS256"])
-    return uuid.UUID(payload["sub"])
+    payload = jwt.decode(
+        token, secret, algorithms=["HS256"], options={"require": ["sub"]}
+    )
+    try:
+        return uuid.UUID(payload["sub"])
+    except (ValueError, TypeError) as exc:
+        raise jwt.InvalidTokenError("Malformed subject claim") from exc
 
 
 def hash_raw_token(raw: str) -> str:

@@ -74,6 +74,7 @@ export function SecurityPagination({
           size="icon-sm"
           onClick={handlePrev}
           disabled={offset === 0}
+          aria-label="Previous page"
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
@@ -82,6 +83,7 @@ export function SecurityPagination({
           size="icon-sm"
           onClick={handleNext}
           disabled={offset + limit >= total}
+          aria-label="Next page"
         >
           <ChevronRight className="h-4 w-4" />
         </Button>

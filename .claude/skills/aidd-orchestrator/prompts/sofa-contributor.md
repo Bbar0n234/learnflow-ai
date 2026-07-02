@@ -8,11 +8,11 @@
 
 ## Входные артефакты
 
-1. `@{summary_path}` — post-implementation summary
-2. `@{plan_path}` — implementation plan
+1. `tracks/*/summary.md` — post-implementation summary каждого трека; при нескольких треках читай все
+2. `tracks/*/plan.md` — implementation plan каждого трека
 3. `decisions.md` / ADR, отчёты code-review и stand-validation итерации (если есть, в её директории)
 4. `git diff <base-branch>...HEAD` — изменения итерации
-5. Директория итерации — та же, где `{summary_path}`; туда пишешь `sofa-proposals.md`
+5. Директория итерации — родитель `tracks/` (там же лежит design-brief); туда пишешь `sofa-proposals.md`
 
 ## Задача
 

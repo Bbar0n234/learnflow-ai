@@ -41,6 +41,7 @@
 | feat-007 | ✅ Done | cross-cutting | Кросс-резрезные конвенции: error return types + error handling philosophy (graceful degradation vs fail-fast) |
 | feat-008 | ✅ Done | enforcement | Arch-checker (детерминированные проверки) + 2 ревьюера A/B + harvest-механизм + дробление конвенций |
 | feat-009 | ✅ Done | testing | Test philosophy + test engineering + покрытие критичных участков |
+| feat-010 | 🚧 In Progress | orchestrator / harness | Context bus (per-track документы) + двунаправленная SOFA-петля (consume/write-back/Question/Blueprint) + fan-out |
 
 ## Параллелизация
 
@@ -468,6 +469,38 @@ feat-001 (foundation) ── обязательное предусловие д�
 - [x] Критичные участки покрыты тестами (точный список — на этапе реализации).
 - [x] `make test` запускается локально и в CI, проходит без падений.
 - [x] Точки остановки на теорию пройдены.
+
+---
+
+### feat-010: Harness context bus, SOFA loop, fan-out
+
+**Статус:** 🚧 In Progress — дизайн в [design-brief.md](iterations/codebase-maturity/feat-010-harness-sofa-loop/design-brief.md)
+**Scope:** orchestrator / agent harness (промпты ролей, скиллы, процессные документы — не код продукта)
+**Зависимости:** feat-008 (роли reviewer/harvester, формат run-log тест-ролей), feat-009 (тестовая инфра, run-log fixer)
+
+> **Зонтичная итерация harness** — продолжает линию feat-008/009. Делает SOFA двунаправленным (consume + write-back) и укрепляет оркестратор двумя несущими механизмами. Четыре слоя; **Слой 0 (context bus) — keystone, делается первым** (предусловие и write-back, и fan-out). Полная проработка, матрица consume/produce, точки интеграции и модель реализации — в design-brief.
+
+#### Из backlog
+
+- **P2** SOFA как потребитель в AIDD-пайплайне (109) — добавить consume-вход (дизайн: blueprint; цикл фикса: TIL) + write-back (verify/vote/reply), замыкание петли доверия.
+- **P2** Параллельный запуск сабагентов в `aidd-orchestrator` (107) — обобщить fan-out: DAG непересекающихся треков, барьеры; **общая ветка без worktree-на-агента** (изоляция через непересечение файлов от planner'а — отступление от backlog:107, решение архитектора).
+- **P2** Per-subagent context persistence (108) — run-log на все мутирующие роли; **предусловие fan-out и write-back**.
+- **P3** SOFA producer: освоить blueprint-формат (61) — производство Blueprint (два источника) + **реверс**: Question становится целевым форматом (open-problem из follow-ups).
+
+#### Слои (фазы итерации)
+
+- **Слой 0 — context bus.** Per-track документы (`tracks/<id>/`: plan, summary, test-cases — три; прежние runlog+test-findings схлопнуты в `test-cases`) вместо single; имя по продукту, не по агенту; партиция треков — в design-brief (оркестратор + general-purpose ревью, без апрув-гейта). Секции «Решения и обоснования» и «SOFA-посты» — в `summary`. Keystone.
+- **Слой 1 — consume + write-back.** TIL-зонд в `fixer` (2-й заход); правило blueprint-ресёрча на дизайне в `conventions.md`; `planner` SOFA не потребляет; write-back из `summary`/design-brief через `sofa-contributor`; guardrail недоверенности.
+- **Слой 2 — producer ext.** Question с классификатором open-problem (источник — `## Follow-ups`); Blueprint producer (a по горячим следам, b периодический свип по `doc/tech/` + design-brief'ам с дедупом).
+- **Слой 3 — fan-out.** Детектор конфликтов файлов/контрактов в `planner`; механика + барьеры в FSM; **общая ветка без worktree-на-агента**; глубину параллелизации определяет вердикт planner'а.
+
+#### Модель реализации
+
+На каждый слой — пара субагентов: implementer (правит промпты/скиллы/доки) + reviewer («сухой прогон»: полнота по брифу + **замыкание потока данных** writer↔reader, нет осиротевших артефактов). Порядок 0 → 1 → 3; Слой 2 независим.
+
+#### Definition of Done
+
+Полный DoD по слоям — в [design-brief.md](iterations/codebase-maturity/feat-010-harness-sofa-loop/design-brief.md#definition-of-done). Кратко: per-track документы (plan/summary/test-cases) с секциями «Решения» и «SOFA-посты» в summary; consume-зонды (fixer TIL, conventions blueprint) + write-back; Question-классификатор + Blueprint producer/sweep; fan-out (партиция оркестратором + general-purpose ревью, барьеры); модельные тиры новых ролей → Opus; живой smoke-вызов SOFA; каждый слой прошёл reviewer-субагента; `workflow.md`/`backlog.md` обновлены.
 
 ## Что НЕ входит в фазу
 

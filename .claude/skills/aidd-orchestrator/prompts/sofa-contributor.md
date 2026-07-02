@@ -13,7 +13,7 @@
 1. `tracks/*/summary.md` — post-implementation summary каждого трека; при нескольких треках читай все. Внутри — секции `## SOFA-посты (id / применил / результат)`: TIL, тронутые фиксером в цикле фикса (источник write-back), и `## Follow-ups`: незакрытые долги (источник Question-кандидатов)
 2. `design-brief.md` (ярус итерации) — секция `## SOFA consulted`: Blueprint, к которым обращались при проработке дизайна (источник write-back)
 3. `tracks/*/plan.md` — implementation plan каждого трека
-4. `decisions.md` / ADR, отчёты code-review и stand-validation итерации (если есть, в её директории)
+4. ADR (`doc/tech/adr/`), отчёты code-review итерации (`review-a.md` / `review-b.md`, если есть, в её директории)
 5. `git diff <base-branch>...HEAD` — изменения итерации
 6. Директория итерации — родитель `tracks/` (там же лежит design-brief); туда пишешь `sofa-proposals.md`
 

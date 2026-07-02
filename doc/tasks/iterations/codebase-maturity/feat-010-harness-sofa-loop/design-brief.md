@@ -1,6 +1,6 @@
 # Design Brief: feat-010 — Harness: context bus, SOFA-петля, fan-out
 
-**Статус:** 🚧 In Progress
+**Статус:** ✅ Done
 **Scope:** orchestrator / agent harness (промпты ролей, скиллы, процессные документы — не код продукта)
 **Зависимости:** feat-008 (роли reviewer/harvester, фаза `CODE_REVIEW`, формат run-log тест-ролей), feat-009 (тестовая инфра, run-log fixer)
 **Tasklist:** [feat-010](../../../tasklist-codebase-maturity.md#feat-010-harness-context-bus-sofa-loop-fan-out)

@@ -272,13 +272,13 @@ consume-роль фиксирует тронутые посты → финали
 
 ## Definition of Done
 
-- [ ] **Слой 0:** документы переведены на per-track (`tracks/<id>/`: plan, summary, test-cases — три; прежние runlog+test-findings схлопнуты в `test-cases`); партиция треков — в `## Партиция треков` design-brief (оркестратор + general-purpose ревью, без апрув-гейта); обязательные секции в `summary`: «Решения и обоснования» и «SOFA-посты: id/применил/результат»; `test-cases` — автономный, с секциями дизайн-автотестов / кейсы+статусы / находки `[severity+owner]`; имена по продукту; механика в `SKILL.md` и `workflow.md`.
-- [ ] **Слой 1 consume:** TIL-зонд в `fixer.md` (2-й заход, перед реализацией); правило blueprint-ресёрча при дизайне — в `conventions.md`; зафиксировано, что `planner` в SOFA не ходит; guardrail недоверенности в consume-промптах.
-- [ ] **Слой 1 write-back:** `sofa-contributor` генерит verify/vote/reply-кандидатов из `summary` «SOFA-посты» (TIL) + design-brief «SOFA consulted» (blueprint); запись наружу — под апрувом; петля доверия описана.
-- [ ] **Слой 2 Question:** классификатор open-problem vs понятый-долг; источник — `## Follow-ups` (общий с harvester); реверс решения `backlog.md:61` зафиксирован.
-- [ ] **Слой 2 Blueprint:** producer-источник (a) в финализации; свип (b) по design-brief'ам + `doc/tech/` с дедупом против `doc/content/sofa/` — как режим скилла `sofa-contributor` (вызов словами).
-- [ ] **Слой 3 fan-out:** партицию треков считает оркестратор (`## Партиция треков` design-brief), проверяет general-purpose ревьюер, без апрув-гейта; механика fan-out + барьеры в FSM; **без worktree-на-агента** (изоляция через непересечение файлов).
+- [x] **Слой 0:** документы переведены на per-track (`tracks/<id>/`: plan, summary, test-cases — три; прежние runlog+test-findings схлопнуты в `test-cases`); партиция треков — в `## Партиция треков` design-brief (оркестратор + general-purpose ревью, без апрув-гейта); обязательные секции в `summary`: «Решения и обоснования» и «SOFA-посты: id/применил/результат»; `test-cases` — автономный, с секциями дизайн-автотестов / кейсы+статусы / находки `[severity+owner]`; имена по продукту; механика в `SKILL.md` и `workflow.md`.
+- [x] **Слой 1 consume:** TIL-зонд в `fixer.md` (2-й заход, перед реализацией); правило blueprint-ресёрча при дизайне — в `conventions.md`; зафиксировано, что `planner` в SOFA не ходит; guardrail недоверенности в consume-промптах.
+- [x] **Слой 1 write-back:** `sofa-contributor` генерит verify/vote/reply-кандидатов из `summary` «SOFA-посты» (TIL) + design-brief «SOFA consulted» (blueprint); запись наружу — под апрувом; петля доверия описана.
+- [x] **Слой 2 Question:** классификатор open-problem vs понятый-долг; источник — `## Follow-ups` (общий с harvester); реверс решения `backlog.md:61` зафиксирован.
+- [x] **Слой 2 Blueprint:** producer-источник (a) в финализации; свип (b) по design-brief'ам + `doc/tech/` с дедупом против `doc/content/sofa/` — как режим скилла `sofa-contributor` (вызов словами).
+- [x] **Слой 3 fan-out:** партицию треков считает оркестратор (`## Партиция треков` design-brief), проверяет general-purpose ревьюер, без апрув-гейта; механика fan-out + барьеры в FSM; **без worktree-на-агента** (изоляция через непересечение файлов).
 - [ ] **Smoke end-to-end:** живой прогон SOFA на тестовом хосте (search → read → одна verify на тестовом посте) проходит — механика consume+write-back доказана (полный прогон — на следующей продуктовой итерации).
-- [ ] **Модельные тиры:** тир-таблица в `SKILL.md` обновлена — новые/изменённые роли (sofa-contributor write-back/Question/Blueprint/свип, general-purpose ревьюер партиции) на Opus; неизменные фазы без изменений.
-- [ ] Каждый слой прошёл reviewer-субагента (полнота + замыкание потока данных writer↔reader).
-- [ ] `doc/workflow.md`, `doc/backlog.md` обновлены; затронутые промпты/скиллы консистентны.
+- [x] **Модельные тиры:** тир-таблица в `SKILL.md` обновлена — новые/изменённые роли (sofa-contributor write-back/Question/Blueprint/свип, general-purpose ревьюер партиции) на Opus; неизменные фазы без изменений.
+- [x] Каждый слой прошёл reviewer-субагента (полнота + замыкание потока данных writer↔reader).
+- [x] `doc/workflow.md`, `doc/backlog.md` обновлены; затронутые промпты/скиллы консистентны.

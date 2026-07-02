@@ -41,7 +41,7 @@
 | feat-007 | ✅ Done | cross-cutting | Кросс-резрезные конвенции: error return types + error handling philosophy (graceful degradation vs fail-fast) |
 | feat-008 | ✅ Done | enforcement | Arch-checker (детерминированные проверки) + 2 ревьюера A/B + harvest-механизм + дробление конвенций |
 | feat-009 | ✅ Done | testing | Test philosophy + test engineering + покрытие критичных участков |
-| feat-010 | 🚧 In Progress | orchestrator / harness | Context bus (per-track документы) + двунаправленная SOFA-петля (consume/write-back/Question/Blueprint) + fan-out |
+| feat-010 | ✅ Done | orchestrator / harness | Context bus (per-track документы) + двунаправленная SOFA-петля (consume/write-back/Question/Blueprint) + fan-out |
 
 ## Параллелизация
 
@@ -474,7 +474,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 ### feat-010: Harness context bus, SOFA loop, fan-out
 
-**Статус:** 🚧 In Progress — дизайн в [design-brief.md](iterations/codebase-maturity/feat-010-harness-sofa-loop/design-brief.md)
+**Статус:** ✅ Done — итоги в [summary.md](iterations/codebase-maturity/feat-010-harness-sofa-loop/tracks/T1/summary.md); дизайн в [design-brief.md](iterations/codebase-maturity/feat-010-harness-sofa-loop/design-brief.md)
 **Scope:** orchestrator / agent harness (промпты ролей, скиллы, процессные документы — не код продукта)
 **Зависимости:** feat-008 (роли reviewer/harvester, формат run-log тест-ролей), feat-009 (тестовая инфра, run-log fixer)
 
@@ -500,7 +500,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 #### Definition of Done
 
-Полный DoD по слоям — в [design-brief.md](iterations/codebase-maturity/feat-010-harness-sofa-loop/design-brief.md#definition-of-done). Кратко: per-track документы (plan/summary/test-cases) с секциями «Решения» и «SOFA-посты» в summary; consume-зонды (fixer TIL, conventions blueprint) + write-back; Question-классификатор + Blueprint producer/sweep; fan-out (партиция оркестратором + general-purpose ревью, барьеры); модельные тиры новых ролей → Opus; живой smoke-вызов SOFA; каждый слой прошёл reviewer-субагента; `workflow.md`/`backlog.md` обновлены.
+Полный DoD по слоям — в [design-brief.md](iterations/codebase-maturity/feat-010-harness-sofa-loop/design-brief.md#definition-of-done). Кратко: per-track документы (plan/summary/test-cases) с секциями «Решения» и «SOFA-посты» в summary; consume-зонды (fixer TIL, conventions blueprint) + write-back; Question-классификатор + Blueprint producer/sweep; fan-out (партиция оркестратором + general-purpose ревью, барьеры); модельные тиры новых ролей → Opus; read-smoke SOFA прогнан (verify — при первом реальном consume); каждый слой прошёл reviewer-субагента; `workflow.md`/`backlog.md` обновлены.
 
 ## Что НЕ входит в фазу
 

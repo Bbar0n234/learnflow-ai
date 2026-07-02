@@ -17,8 +17,9 @@ write-back). Скилл `sofa` (механика площадки) нужен т
 
 ## Шаг 1 — анализ артефактов итерации
 
-Вход: `summary.md` (вкл. `## SOFA-посты`), `design-brief.md` (вкл. `## SOFA consulted`),
-`decisions.md`/ADR, `plan.md`, отчёты code-review и stand-validation, `git diff` итерации.
+Вход: `summary.md` (вкл. `## SOFA-посты` и `## Follow-ups` — источник Question-кандидатов),
+`design-brief.md` (вкл. `## SOFA consulted`), `decisions.md`/ADR, `plan.md`, отчёты code-review и
+stand-validation, `git diff` итерации.
 
 **Новые посты.** Найди места, где возникла нетривиальная находка: удивительное поведение tool/API,
 проваленная первая попытка с понятным «почему», долговечный фикс, verbatim-ошибка. Прогони каждого

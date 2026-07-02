@@ -42,8 +42,8 @@ user-invocable: true
 
 Skill написан с примерами Claude Code (`Agent` tool, `subagent_type`, имена моделей Opus / Sonnet / Haiku). В OpenAI Codex Cloud sub-agent delegation идёт через встроенный механизм Codex; имена моделей в таблице тиров маппятся на capability-уровни:
 
-- **Opus** → highest reasoning (используется для критичных решений: planner, reviewer-a/reviewer-b, tester, test-author, test-reviewer, fixer)
-- **Sonnet** → balanced default (implementer на первом проходе, docs-updater)
+- **Opus** → highest reasoning (используется для критичных решений: planner, reviewer-a/reviewer-b, tester, test-author, test-reviewer, fixer, sofa-contributor, general-purpose ревьюер партиции)
+- **Sonnet** → balanced default (implementer на первом проходе, docs-updater, harvester)
 - **Haiku** → fast / cheap (если нужны лёгкие проверки)
 
 Логика фаз, escalation policy и acceptance gates — идентичны для обеих платформ. Если на текущей платформе нет аналога `Agent` tool — используй штатный sub-agent / sub-task механизм платформы; контракт по входам/выходам тот же.
@@ -73,7 +73,7 @@ Skill написан с примерами Claude Code (`Agent` tool, `subagent_
 - `harvest-proposals.md` — harvester → архитектор на гейте.
 - `sofa-proposals.md` — sofa-contributor → архитектор на апруве. Пост-кандидаты и write-back-кандидаты (verify/vote/reply).
 
-**Ярус трека** (`tracks/<id>/`, комплект из трёх документов на каждый трек). Идентификаторы треков берутся из секции `## Партиция треков` design-brief; в вырожденном случае трек один. Комплект:
+**Ярус трека** (`tracks/<id>/`, комплект из трёх документов на каждый трек). Идентификаторы треков берутся из секции `## Партиция треков` design-brief; в вырожденном случае (один трек) секция `## Партиция треков` может отсутствовать — трек именуется `T1`. Комплект:
 
 - `plan.md` — planner трека → implementer/tester/fixer трека. Секция `## Open Questions` → оркестратор/архитектор.
 - `summary.md` — содержательно пишут implementer и fixer → tester/reviewers/docs-updater/sofa-contributor/harvester. Обязательные секции:
@@ -177,12 +177,14 @@ END
 
 ### Фаза IMPLEMENT (по треку)
 
+IMPLEMENT трека — **цикл по фазам плана** (`T1.1`, `T1.2`, …): один вызов implementer'а = одна фаза (`{phase_id}`). Оркестратор идёт по фазам плана трека последовательно, передавая `{phase_id}` каждым вызовом. При fan-out циклы IMPLEMENT разных треков идут параллельно между собой (T1 ∥ T2), но внутри одного трека фазы строго последовательны.
+
 | Параметр | Значение |
 |----------|----------|
-| Когда | Текущий трек ещё не реализован |
+| Когда | Текущий трек ещё не реализован (есть незакрытые фазы плана трека) |
 | Сабагент | `prompts/implementer.md` |
 | Модель | Sonnet (default), Opus при перевызове после 2 fail подряд |
-| Вход | `tracks/<id>/plan.md`, `tracks/<id>/summary.md`, `{track_id}` |
+| Вход | `tracks/<id>/plan.md`, `tracks/<id>/summary.md`, `{track_id}`, `{phase_id}` |
 | Выход | Код + дополнения в `tracks/<id>/summary.md` (секция `## Решения и обоснования` обязательна) |
 | Cross-check | `make check` (и `make check-fe` где применимо), миграции применяются на чистой БД |
 | Целостность | Имплементер **не пишет и не правит тест-файлы своего скоупа** (A6 — см. § Целостность тестов в оркестраторе). Тесты пишет независимый автор |
@@ -225,7 +227,7 @@ END
 | Когда | После TEST_REVIEW, если в реестре есть открытые находки |
 | Сабагенты | `[test]`-правки → `prompts/test-author.md`; `[prod]`-баги → `prompts/fixer.md` (**fixer ≠ автор теста**); `[infra]` (`packages/testing`) → отдельный фикс-агент |
 | Модель | Opus |
-| Вход | `{test_cases_path}` (секция «Находки ревью»), `{fix_list}`, `{scope_id}`; fixer дополнительно `tracks/<id>/summary.md` |
+| Вход | `{test_cases_path}` (секция «Находки ревью»), `{fix_list}`, `{scope_id}`; fixer дополнительно `{track_id}`, `{plan_path}`, `tracks/<id>/summary.md` |
 | Loop bound | ≤2 цикла на находку. Прод-рефактор / новый или меняющийся публичный контракт / спорный контракт → эскалация (whitelist) |
 | Ре-верификация | После фиксов — `make check` / `make check-fe` + перепрогон затронутых тестов (`make test-scope`) |
 | Переход | Все blocker/major закрыты или эскалированы → TEST(track) (ручной хвост) |
@@ -489,13 +491,14 @@ Pull в remote оркестратор не делает. Push после фин�
 | `{tasklist_path}` | Путь к `doc/tasks/tasklist-<scope>.md` |
 | `{design_brief_path}` | Путь к design-brief итерации |
 | `{track_id}` | Идентификатор трека (T1, T2, ...) из `## Партиция треков` design-brief, или `final` для прогона cross-cutting кейсов в INTEGRATION_TEST |
+| `{phase_id}` | Идентификатор фазы плана трека (`T1.1`, `T1.2`, …) — фазы внутри `tracks/<track_id>/plan.md`. Передаётся implementer'у при вызове: один вызов = одна фаза |
 | `{plan_path}` | `tracks/<track_id>/plan.md` — план трека |
 | `{summary_path}` | `tracks/<track_id>/summary.md` — summary трека (секции `## Решения и обоснования`, `## Follow-ups`, `## SOFA-посты`) |
 | `{test_cases_path}` | `tracks/<track_id>/test-cases.md` — единый дом тестового трека (дизайн автотестов, ручные кейсы + run-log флипов, находки ревью). При `{track_id} = final` не резолвится — tester читает все `tracks/*/test-cases.md` |
 | `{scope_id}` | Тестовый скоуп = непересекающаяся директория `tests/<scope>/` (целостная подсистема трека) для test-author / test-reviewer / fixer |
 | `{fix_list}` | Структурированный список фиксов от tester'а, test-reviewer'а (находки из test-cases.md) или ревьюеров (A/B) |
 
-Если шаблон требует переменную, для которой нет значения, — оркестратор останавливается и эскалирует. Не подставлять заглушки.
+Если шаблон требует переменную, для которой нет значения, — оркестратор останавливается и эскалирует. Не подставлять заглушки. Исключение — документированный случай `{test_cases_path}` при `{track_id} = final`: он не резолвится намеренно, tester в INTEGRATION_TEST читает все `tracks/*/test-cases.md` напрямую (см. строку `{test_cases_path}` в таблице выше).
 
 ### Изоляция контекста сабагентов
 
@@ -505,7 +508,7 @@ Pull в remote оркестратор не делает. Push после фин�
 
 Оркестратор НЕ делает следующее:
 
-- Не пишет `design-brief.md` (архитектор)
+- Не пишет `design-brief.md` (архитектор) — кроме секции `## Партиция треков`, которую оркестратор заполняет сам на фазе PARTITION
 - Не пишет `test-cases.md` сам — его автономно авторит `test-author` из design-brief по каждому треку (`tracks/<id>/test-cases.md`); архитектор его на вход не подаёт
 - Не редактирует `tasklist` кроме: статусов фазы, references на артефакты итерации и перевода статуса итерации 🚧→✅ в финальном коммите после апрува на pre-commit gate (по `conventions.md` § Git → «Lifecycle итерации»)
 - Не пушит в remote

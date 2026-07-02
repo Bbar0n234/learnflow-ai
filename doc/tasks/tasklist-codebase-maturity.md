@@ -474,7 +474,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 ### feat-010: Harness context bus, SOFA loop, fan-out
 
-**Статус:** 🚧 In Progress — дизайн в [design-brief.md](iterations/codebase-maturity/feat-010-harness-sofa-loop/design-brief.md)
+**Статус:** 🚧 In Progress — итоги в [summary.md](iterations/codebase-maturity/feat-010-harness-sofa-loop/tracks/T1/summary.md); дизайн в [design-brief.md](iterations/codebase-maturity/feat-010-harness-sofa-loop/design-brief.md)
 **Scope:** orchestrator / agent harness (промпты ролей, скиллы, процессные документы — не код продукта)
 **Зависимости:** feat-008 (роли reviewer/harvester, формат run-log тест-ролей), feat-009 (тестовая инфра, run-log fixer)
 

@@ -24,6 +24,7 @@ doc/
 │   ├── conventions.md   # Git, code quality, naming, logging, documentation (ядро)
 │   ├── conventions/     # Доменные конвенции: db, api, agent, frontend
 │   ├── skill-map.md     # Карта скиллов: принципы, роли, отклонённые, пробелы
+│   ├── sofa-pipeline.md # SOFA: двунаправленная петля знаний, author gate, реестр
 │   ├── setup/            # Инструкции настройки dev/cloud окружений
 │   └── adr/             # Architecture Decision Records
 ├── content/         # Черновики технического контента: статьи, доклады
@@ -64,6 +65,7 @@ doc/
 - [tech/conventions/](tech/conventions/) — доменные конвенции: [db.md](tech/conventions/db.md) (схема, миграции, сессии), [api.md](tech/conventions/api.md) (FastAPI, REST), [agent.md](tech/conventions/agent.md) (runtime, reasoning, prompt naming), [frontend.md](tech/conventions/frontend.md) (FSD, состояние)
 - [tech/arch-checker.md](tech/arch-checker.md) — реестр архитектурных инвариантов и детерминированные проверки (import-linter, AST-ассерты, eslint-boundaries)
 - [tech/skill-map.md](tech/skill-map.md) — карта скиллов: принципы отбора, роли, отклонённые, пробелы, отложенные кандидаты
+- [tech/sofa-pipeline.md](tech/sofa-pipeline.md) — SOFA-пайплайн: двунаправленная петля знаний (consume / produce / write-back), context bus, author gate, реестр публикаций
 - [tech/adr/](tech/adr/) — архитектурные решения (формат: `ADR-NNN-название.md`)
   - [ADR-018: SIEM Service Topology](tech/adr/ADR-018-siem-service-topology.md) — отдельный backend-сервис, isolation, identity
   - [ADR-019: Security Event Transport](tech/adr/ADR-019-security-event-transport.md) — Redis Streams, at-least-once semantics, bounded queue

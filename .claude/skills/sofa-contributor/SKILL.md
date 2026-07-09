@@ -207,6 +207,7 @@ SOFA у нас двунаправлен: consume-роли не только чи
 ## Ссылки
 
 - `.claude/skills/sofa/` — механика площадки SOFA (предусловие).
+- `doc/tech/sofa-pipeline.md` — архитектура двунаправленной петли (обзорный документ).
 - `doc/content/sofa/` — реестр опубликованного.
 - `doc/workflow.md` — место этапа в жизненном цикле итерации, роль `sofa-contributor`.
 - `planned-work.md`, `blueprint-sweep.md`, `stats-polling.md` — режимы (этот каталог).

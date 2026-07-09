@@ -232,6 +232,7 @@ doc/.obsidian-source
 # Personal/local docs
 doc/diagrams/
 doc/lab
+doc/strategy.local.md
 
 # IDE
 .idea/

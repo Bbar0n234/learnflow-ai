@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мокап /settings: секция «Контекст скиллов» (feat-012)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@600;700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* ===== Токены 1:1 из frontend/src/index.css («Чернила / Электрик») ===== */
+  :root {
+    --background: #faf7f1;
+    --foreground: #2e2a24;
+    --card: #fffefa;
+    --primary: #7434f4;
+    --primary-foreground: #f6f1ff;
+    --secondary: #efe7fe;
+    --secondary-foreground: #5b21ce;
+    --muted: #f1ede3;
+    --muted-foreground: #8b8370;
+    --accent: #efe7fe;
+    --accent-foreground: #5b21ce;
+    --border: #e2dcd0;
+    --input: #d8d1c2;
+    --ring: #7434f4;
+    --destructive-warm: #b0573f;
+    --mcp-connected: #4c9a6e;
+    --shadow-input: 0 2px 10px rgba(80, 70, 50, 0.06);
+  }
+  .dark {
+    --background: #181420;
+    --foreground: #ede8e2;
+    --card: #221c30;
+    --primary: #8a5cf6;
+    --primary-foreground: #f7f4ff;
+    --secondary: rgba(177, 148, 255, 0.15);
+    --secondary-foreground: #cdb6ff;
+    --muted: #1e1929;
+    --muted-foreground: #9a90a8;
+    --accent: rgba(177, 148, 255, 0.15);
+    --accent-foreground: #cdb6ff;
+    --border: #322a44;
+    --input: #3a3150;
+    --ring: #b194ff;
+    --destructive-warm: #d06050;
+    --mcp-connected: #6ab88a;
+    --shadow-input: 0 2px 10px rgba(0, 0, 0, 0.25);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: "Instrument Sans", system-ui, sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: inherit; }
+
+  /* ===== Обвязка мокапа (не продукт) ===== */
+  .mock-toolbar {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; gap: 1rem;
+    padding: 0.6rem 1.5rem;
+    background: var(--card); border-bottom: 1px solid var(--border);
+    font-size: 0.8rem; color: var(--muted-foreground);
+  }
+  .mock-toolbar b { color: var(--foreground); font-weight: 600; }
+  .theme-btn {
+    margin-left: auto; cursor: pointer;
+    color: var(--foreground);
+    background: var(--muted); border: 1px solid var(--border);
+    border-radius: 0.5rem; padding: 0.3rem 0.8rem; font-size: 0.8rem;
+  }
+  .theme-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+  /* ===== Воспроизведение вёрстки SettingsPage ===== */
+  .page { max-width: 640px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+  .page h1 {
+    font-family: "Source Serif 4", Georgia, serif;
+    font-size: 1.25rem; font-weight: 600;
+    margin: 0 0 1.5rem;
+  }
+  .stack { display: flex; flex-direction: column; gap: 1rem; }
+
+  section.card {
+    border: 1px solid var(--border); background: var(--card);
+    border-radius: 0.75rem; padding: 1.25rem;
+  }
+  section.card.ghost { opacity: 0.55; padding: 0.9rem 1.25rem; }
+  .ghost-row { display: flex; justify-content: space-between; align-items: center; }
+  .ghost-row .glabel { font-size: 0.875rem; font-weight: 500; }
+  .ghost-row .gval { font-size: 0.8rem; color: var(--muted-foreground); }
+
+  .label { font-size: 0.875rem; font-weight: 500; }
+  .hint { font-size: 0.75rem; color: var(--muted-foreground); margin: 0.375rem 0 0.75rem; }
+  .sec-head { display: flex; align-items: center; justify-content: space-between; }
+  .count { font-size: 0.75rem; color: var(--muted-foreground); }
+
+  /* ===== Секция «Контекст скиллов» ===== */
+  .skill-group { border: 1px solid var(--border); border-radius: 0.5rem; background: var(--background); }
+  .skill-group + .skill-group { margin-top: 0.5rem; }
+  .skill-head {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.625rem 0.75rem; border-bottom: 1px solid var(--border);
+  }
+  .skill-name { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.8rem; font-weight: 500; }
+  .badge {
+    font-size: 0.65rem; padding: 0.1rem 0.5rem; border-radius: 999px;
+    background: var(--secondary); color: var(--secondary-foreground); white-space: nowrap;
+  }
+  .badge.warn { background: transparent; border: 1px dashed var(--muted-foreground); color: var(--muted-foreground); }
+
+  .doc + .doc { border-top: 1px solid var(--border); }
+  .doc-row {
+    display: flex; align-items: flex-start; gap: 0.5rem;
+    width: 100%; padding: 0.625rem 0.75rem;
+    background: transparent; border: 0; text-align: left; cursor: pointer;
+    color: inherit; font: inherit;
+  }
+  .doc-row:hover { background: var(--muted); }
+  .doc-row:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+  .doc-main { flex: 1; min-width: 0; }
+  .doc-key { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.8rem; font-weight: 500; }
+  .doc-desc { margin: 0.125rem 0 0; font-size: 0.72rem; color: var(--muted-foreground); }
+  .chev { color: var(--muted-foreground); flex-shrink: 0; margin-top: 0.15rem; transition: transform 0.15s ease; }
+  .doc.open .chev { transform: rotate(180deg); }
+  @media (prefers-reduced-motion: reduce) { .chev { transition: none; } }
+
+  .doc-body { display: none; padding: 0 0.75rem 0.75rem; }
+  .doc.open .doc-body { display: block; }
+
+  /* Превью: отрендеренный Markdown, скролл при длинном контенте */
+  .preview {
+    border: 1px solid var(--border); border-radius: 0.5rem;
+    background: var(--card); padding: 0.75rem 0.9rem;
+    max-height: 20rem; overflow-y: auto;
+    font-size: 0.85rem;
+  }
+  .preview h1, .preview h2, .preview h3 {
+    font-family: "Source Serif 4", Georgia, serif;
+    margin: 0.9em 0 0.35em; line-height: 1.25;
+  }
+  .preview h1 { font-size: 1.05rem; }
+  .preview h2 { font-size: 0.95rem; }
+  .preview h3 { font-size: 0.88rem; }
+  .preview h1:first-child, .preview h2:first-child { margin-top: 0.1em; }
+  .preview p { margin: 0.4em 0; }
+  .preview ul { margin: 0.35em 0; padding-left: 1.25em; }
+  .preview li { margin: 0.15em 0; }
+  .preview code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.85em; background: var(--muted);
+    padding: 0.05em 0.35em; border-radius: 0.3em;
+  }
+  .preview strong { font-weight: 600; }
+
+  /* Редактор: сырой Markdown */
+  textarea.editor {
+    display: block; width: 100%; resize: vertical;
+    min-height: 14rem; max-height: 26rem;
+    border: 1px solid var(--input); border-radius: 0.5rem;
+    background: var(--card); color: var(--foreground);
+    box-shadow: var(--shadow-input);
+    padding: 0.7rem 0.9rem;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.78rem; line-height: 1.55;
+  }
+  textarea.editor:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+
+  .doc-actions { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; }
+  .doc-actions .spacer { margin-left: auto; font-size: 0.7rem; color: var(--muted-foreground); }
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    font-size: 0.8rem; font-weight: 500;
+    height: 2rem; padding: 0 0.75rem; border-radius: 0.5rem;
+    border: 0; cursor: pointer;
+  }
+  .btn.primary { background: var(--primary); color: var(--primary-foreground); }
+  .btn.ghost { background: transparent; color: var(--foreground); }
+  .btn.ghost:hover { background: var(--accent); color: var(--accent-foreground); }
+  .btn.danger { background: transparent; color: var(--destructive-warm); }
+  .btn.danger:hover { background: var(--accent); }
+  .btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+  .empty { font-size: 0.875rem; color: var(--muted-foreground); }
+  .saved-flash { font-size: 0.7rem; color: var(--mcp-connected); }
+
+  /* ===== Аннотации ===== */
+  .notes { max-width: 640px; margin: 0 auto; padding: 0 1.5rem 4rem; }
+  .notes h2 { font-family: "Source Serif 4", Georgia, serif; font-size: 1rem; font-weight: 600; margin: 0 0 0.6rem; }
+  .note {
+    display: flex; gap: 0.6rem; padding: 0.55rem 0.75rem; margin-bottom: 0.4rem;
+    background: var(--muted); border-radius: 0.5rem; font-size: 0.8rem;
+  }
+  .marker {
+    flex-shrink: 0; width: 1.15rem; height: 1.15rem; margin-top: 0.05rem;
+    border-radius: 999px; background: var(--primary); color: var(--primary-foreground);
+    font-size: 0.68rem; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+  }
+  code.inline { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.9em; }
+</style>
+</head>
+<body>
+
+<div class="mock-toolbar">
+  <span><b>Интерактивный мокап feat-012</b> · /settings · вёрстка и токены — из frontend/src · соседние секции свёрнуты</span>
+  <button class="theme-btn" id="themeToggle" type="button">Тема: светлая ⇄ тёмная</button>
+</div>
+
+<div class="page">
+  <h1>Настройки</h1>
+  <div class="stack">
+
+    <section class="card ghost"><div class="ghost-row"><span class="glabel">Модель</span><span class="gval">Default · активная: GLM-5</span></div></section>
+    <section class="card ghost"><div class="ghost-row"><span class="glabel">Свои инструкции</span><span class="gval">143/5000</span></div></section>
+    <section class="card ghost"><div class="ghost-row"><span class="glabel">Память агента</span><span class="gval">2 записи</span></div></section>
+
+    <!-- ═══ НОВАЯ СЕКЦИЯ ═══ -->
+    <section class="card">
+      <div class="sec-head">
+        <span class="label">Контекст скиллов</span>
+        <span class="count" id="totalCount"></span>
+      </div>
+      <p class="hint">
+        Личные материалы, которые скиллы используют в работе: профили стиля, образцы,
+        предпочтения. Создаёт их агент по ходу работы — здесь их можно просмотреть,
+        поправить или удалить.
+      </p>
+      <div id="skillGroups"></div>
+    </section>
+    <!-- ═══ /НОВАЯ СЕКЦИЯ ═══ -->
+
+    <section class="card ghost"><div class="ghost-row"><span class="glabel">MCP-серверы</span><span class="gval">1 подключён</span></div></section>
+
+  </div>
+</div>
+
+<div class="notes">
+  <h2>Аннотации к дизайну</h2>
+  <div class="note"><span class="marker">1</span><span>
+    <b>Группировка по скиллу, документы внутри</b> — отражает модель хранения:
+    namespace <code class="inline">("user", uid, "skill_context", &lt;skill&gt;)</code>, ключи — документы.
+    Клик по строке документа раскрывает <b>отрендеренный Markdown-предпросмотр</b>;
+    длинный контент скроллится внутри превью.
+  </span></div>
+  <div class="note"><span class="marker">2</span><span>
+    <b>Карандаш переключает превью в сырой Markdown</b> (textarea) — «Сохранить» рендерит обратно,
+    «Отмена» откатывает. Создание документов из UI не предусмотрено (создаёт агент);
+    пользователю — просмотр, правка, удаление. Сохранение проходит security-checkpoint
+    (инъекция → 422, сообщение как у «Своих инструкций»).
+  </span></div>
+  <div class="note"><span class="marker">3</span><span>
+    <b>Данные переживают скилл.</b> Скилл убрали из библиотеки — группа остаётся с бейджем
+    «скилла нет в библиотеке»: данные не умирают молча, но агент их больше не получает
+    (доставка привязана к load_skill). Удаление документа — мгновенное, с возможностью
+    вернуть через агента (в мокапе просто удаляет строку).
+  </span></div>
+</div>
+
+<script>
+  // ---------- данные мокапа ----------
+  var DATA = [
+    {
+      skill: "tech-article-writing",
+      inLibrary: true,
+      docs: [
+        {
+          key: "profile",
+          desc: "Профиль авторского голоса: лексика, ритм, Hard-NO список",
+          content: "# Профиль голоса\n\n## Лексика и интонация\n- Разговорные связки сохранять: «короче», «по сути», «на самом деле»\n- Оценки не смягчать: «переоценённая фигня» остаётся как есть\n- Хеджи и сомнения («не уверен, что…») — не вычищать, это часть голоса\n\n## Ритм\n- Рубленые короткие фразы чередуются с длинными периодами\n- Списки — только когда данные реально перечислимы\n- Абзацы неровные: от одной строки до восьми\n\n## Структура\n- Сначала контекст, потом личный опыт — но вход в опыт не позже трети текста\n- Подзаголовки разговорные, не канцелярские\n\n## Hard NO / Anti-AI\n- «Давайте разберёмся», «стоит отметить», «в современном мире»\n- Симметричные структуры из трёх пунктов\n- Пафосные обобщения в финале («будущее покажет»)\n- Эмодзи в тексте статьи\n\n## Примеры авторских формулировок\n- «реально прикольно получилось» — оставлять, не заменять на «открыло новые возможности»\n- «это боль» вместо «это создаёт определённые трудности»"
+        },
+        {
+          key: "sample-habr-sofa",
+          desc: "Образец голоса: статья про SOFA (Хабр, июль 2026)",
+          content: "# Образец: фрагмент статьи про SOFA\n\nМесяц назад я наткнулся на платформу, которая выглядит как Stack Overflow, но людей там нет. Вообще. Вопросы задают агенты, отвечают агенты, голосуют тоже агенты.\n\nЗвучит как антиутопия? Мне тоже так казалось, пока мой собственный агент не набрал там 83 очка репутации и не вышел в топ-7.\n\n**Что здесь эталонного:** вход через личную историю, конкретные цифры вместо обобщений, риторический вопрос с честным ответом."
+        }
+      ]
+    },
+    {
+      skill: "slide-deck-builder",
+      inLibrary: false,
+      docs: [
+        {
+          key: "layout-preferences",
+          desc: "Предпочтения по вёрстке слайдов",
+          content: "# Предпочтения по слайдам\n\n- Один тезис на слайд, без исключений\n- Тёмная тема, минимум текста\n- Диаграммы вместо буллетов, где возможно"
+        }
+      ]
+    }
+  ];
+
+  // ---------- мини-рендер Markdown (только для мокапа) ----------
+  function esc(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function inline(s) {
+    return s
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  }
+  function renderMd(md) {
+    var lines = md.split("\n");
+    var html = "";
+    var inList = false;
+    for (var i = 0; i < lines.length; i++) {
+      var line = esc(lines[i]);
+      var h = line.match(/^(#{1,3})\s+(.*)$/);
+      var li = line.match(/^-\s+(.*)$/);
+      if (li) {
+        if (!inList) { html += "<ul>"; inList = true; }
+        html += "<li>" + inline(li[1]) + "</li>";
+        continue;
+      }
+      if (inList) { html += "</ul>"; inList = false; }
+      if (h) {
+        var lvl = h[1].length;
+        html += "<h" + lvl + ">" + inline(h[2]) + "</h" + lvl + ">";
+      } else if (line.trim() !== "") {
+        html += "<p>" + inline(line) + "</p>";
+      }
+    }
+    if (inList) html += "</ul>";
+    return html;
+  }
+
+  // ---------- иконки (lucide) ----------
+  var ICON = {
+    chevron: '<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>',
+    pencil: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></svg>',
+    trash: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>'
+  };
+
+  // ---------- рендер секции ----------
+  var root = document.getElementById("skillGroups");
+
+  function updateTotal() {
+    var skills = DATA.filter(function (g) { return g.docs.length; });
+    var docs = skills.reduce(function (n, g) { return n + g.docs.length; }, 0);
+    document.getElementById("totalCount").textContent =
+      skills.length + " " + (skills.length === 1 ? "скилл" : "скилла") + " · " +
+      docs + " " + (docs === 1 ? "документ" : docs < 5 ? "документа" : "документов");
+    if (!docs) {
+      root.innerHTML = '<p class="empty">Пока пусто. Скиллы будут сохранять сюда ваши профили и предпочтения по ходу работы.</p>';
+    }
+  }
+
+  function buildDoc(group, doc) {
+    var el = document.createElement("div");
+    el.className = "doc";
+
+    var row = document.createElement("button");
+    row.type = "button";
+    row.className = "doc-row";
+    row.setAttribute("aria-expanded", "false");
+    row.innerHTML =
+      '<div class="doc-main"><span class="doc-key">' + esc(doc.key) + '</span>' +
+      '<p class="doc-desc">' + esc(doc.desc) + '</p></div>' + ICON.chevron;
+
+    var body = document.createElement("div");
+    body.className = "doc-body";
+
+    function showPreview(flash) {
+      body.innerHTML = "";
+      var pv = document.createElement("div");
+      pv.className = "preview";
+      pv.innerHTML = renderMd(doc.content);
+      var actions = document.createElement("div");
+      actions.className = "doc-actions";
+      var editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "btn ghost";
+      editBtn.innerHTML = ICON.pencil + " Править";
+      editBtn.addEventListener("click", showEditor);
+      var delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "btn danger";
+      delBtn.innerHTML = ICON.trash + " Удалить";
+      delBtn.addEventListener("click", function () {
+        group.docs.splice(group.docs.indexOf(doc), 1);
+        el.remove();
+        updateTotal();
+      });
+      actions.appendChild(editBtn);
+      actions.appendChild(delBtn);
+      if (flash) {
+        var ok = document.createElement("span");
+        ok.className = "spacer saved-flash";
+        ok.textContent = "Сохранено";
+        actions.appendChild(ok);
+        setTimeout(function () { ok.remove(); }, 2000);
+      }
+      body.appendChild(pv);
+      body.appendChild(actions);
+    }
+
+    function showEditor() {
+      body.innerHTML = "";
+      var ta = document.createElement("textarea");
+      ta.className = "editor";
+      ta.value = doc.content;
+      ta.setAttribute("aria-label", "Документ " + doc.key + " (Markdown)");
+      var actions = document.createElement("div");
+      actions.className = "doc-actions";
+      var save = document.createElement("button");
+      save.type = "button";
+      save.className = "btn primary";
+      save.textContent = "Сохранить";
+      save.addEventListener("click", function () {
+        doc.content = ta.value;
+        showPreview(true);
+      });
+      var cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.className = "btn ghost";
+      cancel.textContent = "Отмена";
+      cancel.addEventListener("click", function () { showPreview(false); });
+      var hint = document.createElement("span");
+      hint.className = "spacer";
+      hint.textContent = "Markdown · проверяется security-guard при сохранении";
+      actions.appendChild(save);
+      actions.appendChild(cancel);
+      actions.appendChild(hint);
+      body.appendChild(ta);
+      body.appendChild(actions);
+      ta.focus();
+    }
+
+    row.addEventListener("click", function () {
+      var open = el.classList.toggle("open");
+      row.setAttribute("aria-expanded", String(open));
+      if (open) showPreview(false);
+      else body.innerHTML = "";
+    });
+
+    el.appendChild(row);
+    el.appendChild(body);
+    return el;
+  }
+
+  DATA.forEach(function (group) {
+    var g = document.createElement("div");
+    g.className = "skill-group";
+    var head = document.createElement("div");
+    head.className = "skill-head";
+    head.innerHTML =
+      '<span class="skill-name">' + esc(group.skill) + '</span>' +
+      (group.inLibrary ? "" : '<span class="badge warn">скилла нет в библиотеке</span>');
+    g.appendChild(head);
+    group.docs.forEach(function (doc) { g.appendChild(buildDoc(group, doc)); });
+    root.appendChild(g);
+  });
+  updateTotal();
+
+  // ---------- тема ----------
+  (function () {
+    var html = document.documentElement;
+    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      html.classList.add("dark");
+    }
+    document.getElementById("themeToggle").addEventListener("click", function () {
+      html.classList.toggle("dark");
+    });
+  })();
+</script>
+
+</body>
+</html>

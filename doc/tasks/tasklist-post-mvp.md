@@ -28,6 +28,10 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 | feat-006 | ✅ Done | agent | Security 2.0: Universal I/O Guard + Boundary Enforcement |
 | feat-007 | 📋 Planned | cross-cutting | SIEM Extensions: dashboard, basic response actions, search, notifications, export |
 | feat-008 | ✅ Done | security tooling | Promptfoo Red Team Scan: app-level LLM vulnerability scan через локальный Python provider |
+| feat-009 | 📋 Planned | agent | Многофайловые скиллы (load_skill file param) + перенос скилла tech-article-writing |
+| feat-010 | 📋 Planned | cross-cutting | Генерация изображений: OpenRouter Image API, artifact_blobs, media endpoint, живой ImageViewer |
+| feat-011 | 📋 Planned | agent | Продуктовые субагенты v1: subagent-as-tool, YAML-реестр, judge (+ADR) |
+| feat-012 | 📋 Planned | cross-cutting | Skill-scoped user context: Store namespace, tools, REST, секция в /settings |
 
 ## Параллелизация
 
@@ -43,6 +47,7 @@ feat-001 (Chat UX) ── когда будет время ───────
 - **feat-006** — после feat-004, параллельно с feat-005, не блокирует и не блокируется (разные scope: SIEM = aggregation/correlation events, Security 2.0 = расширение защиты на новые I/O границы графа)
 - **feat-007** — после feat-005; продуктовые улучшения поверх SIEM Core (dashboard, basic ban, search, notifications, export)
 - **feat-008** — после feat-006; scanner/tooling итерация поверх уже реализованного security perimeter. Не меняет production API, проверяет существующий backend contour через Promptfoo + local Python provider
+- **feat-009…feat-012** — трек «извлечение активов discovery-спайка» (Фаза 5a → продукт), итерации независимы друг от друга и идут в любом порядке; рекомендованный порядок по ценности для догфудинга: 009 (скилл доступен) → 010 (без картинок статья через продукт не начнётся) → 011 (judge-проходы скилла) → 012 (профиль голоса появится только после первой статьи)
 - **feat-001** — отложена, не блокирует реальное использование
 
 ## Итерации
@@ -436,3 +441,94 @@ Response actions расширяют ответственность SIEM с чи�
 - [plan.md](iterations/post-mvp/feat-008-promptfoo-redteam/plan.md) — Implementation plan: phasing, file map, hard-rules checklist, Makefile targets, verification
 - [summary.md](iterations/post-mvp/feat-008-promptfoo-redteam/summary.md) — Post-implementation summary: deviations (D1-D6), tech debt, baseline run results, verification commands
 - [reports/2026-05-10-baseline/summary.md](../../tools/security-scan/reports/2026-05-10-baseline/summary.md) — Baseline scan run report: 22 cases, 0 successful attacks, two-layer defense verification
+
+### feat-009: Многофайловые скиллы + перенос tech-article-writing
+
+**Цель:** продуктовый агент умеет пошагово подгружать модули многофайловых скиллов (progressive disclosure), первый такой скилл — `tech-article-writing` — перенесён из discovery-инициативы в `skills/`.
+
+**Статус:** 📋 Planned
+**Scope:** agent
+
+#### Triggered by
+
+Discovery-спайк SOFA_Habr_Article (Фаза 5a): скилл обкатан на реальной опубликованной статье, Transfer Brief инициативы подтверждён автором. Текущий `load_skill` читает только `SKILL.md` — многофайловый скилл в продукте неработоспособен.
+
+#### Критерии приёмки
+
+- [ ] `load_skill(skill_name, file=None)`: без `file` — SKILL.md + автосписок файлов, с `file` — модуль; path traversal невозможен (тесты)
+- [ ] `skills/tech-article-writing/` перенесён (без author-voice-данных), внутренние ссылки живые, нет ссылок на `~/.claude/`
+- [ ] Скилл виден в Skills Index и полностью проходим агентом в режиме B
+
+#### Документация
+
+- [design-brief.md](iterations/post-mvp/feat-009-multifile-skills/design-brief.md) — контракт параметра `file`, правила переноса, отклонённые альтернативы
+
+### feat-010: Генерация изображений агентом
+
+**Цель:** агент генерирует изображения по запросу пользователя: tool `generate_image` → OpenRouter Image API → артефакт `image` c бинарём в `artifact_blobs` → media endpoint → живой `ImageViewer`.
+
+**Статус:** 📋 Planned
+**Scope:** cross-cutting (agent, backend, frontend)
+
+#### Triggered by
+
+Backlog P2 «Генерация изображений агентом»; подтверждено discovery-спайком — без генерации изображений подготовка статей через продукт не начнётся (блокер догфудинга 5b).
+
+#### Критерии приёмки
+
+- [ ] `generate_image(prompt, title, aspect_ratio?)`: артефакт + блоб пишутся одной транзакцией, SSE `artifact_created` приходит, `usage.cost` уходит в Langfuse
+- [ ] `GET /projects/{pid}/artifacts/{id}/media` отдаёт бинарь с корректным mime под JWT-auth
+- [ ] `ImageViewer` показывает реальную картинку (fetch с JWT → objectURL), ветка `image` выведена из-под `SHOW_GROUP_B_STUBS`
+- [ ] Миграция `artifact_blobs` через autogenerate; доступ за `BlobStorage`-протоколом
+- [ ] Секция `image` в `agent.yaml`, дефолт — flash-класс модель
+
+#### Документация
+
+- [design-brief.md](iterations/post-mvp/feat-010-image-generation/design-brief.md) — архитектура end-to-end, отклонённые альтернативы хранения/отдачи, границы scope
+
+### feat-011: Продуктовые субагенты v1
+
+**Цель:** механика субагентов по паттерну subagent-as-tool: YAML-реестр спек, SubagentRunner, tool `run_subagent(agent_type, task)`, тип `judge` с чистым контекстом. Архитектурное решение фиксируется ADR внутри итерации.
+
+**Статус:** 📋 Planned
+**Scope:** agent
+
+#### Triggered by
+
+Backlog P2 «Продуктовые субагенты» + discovery-спайк: judge-проходы скилла `tech-article-writing` (анти-слоп, cold-reader) требуют независимого агента со «свежими глазами» и не требуют инструментов — прежняя блокировка «после web search / sandbox» снята.
+
+#### Критерии приёмки
+
+- [ ] ADR: паттерн, отклонённые альтернативы (supervisor/swarm/deepagents, generic-tool, tool-per-role), sync v1 vs async v2, формат реестра, security-политика
+- [ ] `run_subagent("judge", task)` возвращает вердикт; история сессии в субагента не утекает (тест)
+- [ ] Реестр YAML; description инструмента собирается из реестра на старте; невалидный тип → ошибка со списком
+- [ ] `persistence: none|inherit` в спеке (judge — none); запуски видны в Langfuse вложенными span'ами
+- [ ] Токены субагента не рисуются в чат как ответ основного агента
+
+#### Документация
+
+- [design-brief.md](iterations/post-mvp/feat-011-subagents-v1/design-brief.md) — паттерн, слоистость Runner/Spec/tool, обоснование sync v1, persistence-режимы
+
+### feat-012: Skill-scoped user context
+
+**Цель:** per-user контекст, привязанный к скиллу: namespace `("user", uid, "skill_context", <skill>)`, доменные tools, индекс при `load_skill`, REST CRUD с security-checkpoint, секция «Контекст скиллов» на `/settings`. Первый потребитель — профиль авторского голоса `tech-article-writing`.
+
+**Статус:** 📋 Planned
+**Scope:** cross-cutting (agent, backend, frontend)
+
+#### Triggered by
+
+Transfer Brief инициативы (задание T2): README скилла требует per-user хранилище профиля вне кода скилла. Обобщено архитектором до механизма для любого скилла.
+
+#### Критерии приёмки
+
+- [ ] Tools `get/save/delete_skill_context`; изоляция по user_id и skill_name (тесты)
+- [ ] `load_skill` дописывает индекс контекста пользователя для загружаемого скилла (только key + description)
+- [ ] REST CRUD `/users/me/skill-contexts/...`; PUT — через новый checkpoint SecurityGuard (инъекция → 422)
+- [ ] Секция на `/settings` по мокапу: группировка по скиллу, Markdown-превью, правка raw, удаление, бейдж «скилла нет в библиотеке», пустое состояние
+- [ ] Данные переживают удаление скилла из библиотеки; доставка в модель при этом прекращается
+
+#### Документация
+
+- [design-brief.md](iterations/post-mvp/feat-012-skill-context/design-brief.md) — модель хранения, доставка через load_skill, REST, безопасность, отклонённые альтернативы
+- [mockups/settings-skill-context.html](iterations/post-mvp/feat-012-skill-context/mockups/settings-skill-context.html) — интерактивный UI-референс (открывать локально)

@@ -128,7 +128,7 @@ graph TD
 
     subgraph "JIT (on-demand by agent)"
         KSF["Full KS section"]
-        SKL["Full SKILL.md"]
+        SKL["SKILL.md / модуль скилла"]
     end
 
     KSI -.->|"Agent sees index"| KSF
@@ -140,7 +140,7 @@ graph TD
 | Pre-loaded | Custom Instructions, User Memory | Каждый вызов agent node | Variable (user-dependent) |
 | Pre-loaded | Knowledge Sphere Index, Skills Index | Каждый вызов agent node | ~500–1500 tokens |
 | JIT | Полная секция Knowledge Sphere | `get_section(section_id)` | Variable |
-| JIT | Полный SKILL.md | `load_skill(skill_name)` | Variable |
+| JIT | SKILL.md (+ автосписок файлов) или модуль скилла | `load_skill(skill_name, file=None)` | Variable |
 | Managed | Message history | Trimming + compaction | До `max_tokens` budget |
 
 Агент видит индексы в системном промпте и решает, какой контекст подтянуть для текущей задачи. Полные данные загружаются только когда нужны — минимизирует расход контекстного окна.
@@ -213,7 +213,7 @@ flowchart TD
 
 | Tool | Назначение |
 |------|------------|
-| `load_skill` | Загрузить полный SKILL.md по имени |
+| `load_skill` | Загрузить SKILL.md по имени (+ автосписок файлов скилла), либо конкретный файл скилла по относительному пути |
 
 ### External Tools (MCP)
 
@@ -231,12 +231,17 @@ Skill — модуль специализированных знаний, заг
 
 **Формат:** директория с `SKILL.md` (YAML frontmatter `name` + `description`, затем контент). Совместим с Claude Code skill format.
 
+Скилл может быть многофайловым: `SKILL.md` — точка входа, рядом с ним — произвольные вспомогательные модули (любое расширение, вложенные поддиректории), которые скилл подгружает по мере необходимости (progressive disclosure).
+
 **Lifecycle:**
 1. **Discovery** (при старте): `scan_skills_index()` сканирует `skills/`, парсит frontmatter → формирует Skills Index
 2. **Index** (в system message): агент видит список `name: description`
-3. **Loading** (JIT): агент вызывает `load_skill(skill_name)` → полный контент SKILL.md в контексте
+3. **Loading** (JIT): `load_skill(skill_name)` без `file` → содержимое `SKILL.md`, а следом — автосписок остальных файлов скилла (футер вида `Skill files (load with load_skill(skill_name, file)): - <path>`). Список строится рекурсивным обходом директории скилла, исключает сам `SKILL.md` и dotfiles, пути — отсортированные и относительные к директории скилла. Для однофайлового скилла список пуст и футер не добавляется — ответ не отличается от загрузки одного `SKILL.md`. Автосписок — робастность progressive disclosure: вспомогательные модули видны агенту, даже если ссылка на них потерялась в тексте `SKILL.md`.
+4. **Module loading** (JIT): `load_skill(skill_name, file)` → содержимое конкретного файла из автосписка. Файл не найден → ошибка со списком доступных файлов скилла (тот же автосписок). Содержимое, не декодируемое как UTF-8 (бинарный файл), → ошибка вместо контента — канал tool-результата текстовый.
 
-**Безопасность:** валидация имени `^[a-z0-9_-]+$`, проверка `is_relative_to(skills_dir)` — защита от path traversal.
+**Безопасность:** двухслойная валидация на обоих уровнях пути.
+- `skill_name`: имя проверяется паттерном `^[a-z0-9_-]+$`, итоговый путь до `SKILL.md` — проверкой `is_relative_to(skills_dir)`.
+- `file` (путь модуля внутри директории скилла): первый слой — allowlist-паттерн по `/`-сегментам пути (`^[A-Za-z0-9_.-]+$`, сегмент не может быть пустым, `.` или `..`), отклоняющий абсолютные пути и `..`-traversal до какого-либо обращения к файловой системе; второй слой — `resolve()` + `is_relative_to(skill_dir)`, симметрично проверке `skill_name`.
 
 ## MCP Integration
 

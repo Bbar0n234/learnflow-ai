@@ -35,12 +35,78 @@ def _write_skill(root: Path, name: str, body: str) -> None:
     (skill_dir / "SKILL.md").write_text(body, encoding="utf-8")
 
 
+def _write_skill_file(
+    root: Path,
+    skill: str,
+    relpath: str,
+    content: str | None = None,
+    *,
+    binary: bytes | None = None,
+) -> None:
+    path = root / skill / relpath
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if binary is not None:
+        path.write_bytes(binary)
+    else:
+        assert content is not None
+        path.write_text(content, encoding="utf-8")
+
+
 @pytest.fixture
 def skills_dir(tmp_path: Path) -> Path:
     root = tmp_path / "skills"
     root.mkdir()
     _write_skill(root, "alpha-skill", _SKILL_BODY)
     return root
+
+
+_MULTI_BODY = """---
+name: multi-skill
+description: Multi-file skill.
+---
+
+# Multi
+
+multi body content.
+"""
+
+
+@pytest.fixture
+def multifile_skills_dir(skills_dir: Path) -> Path:
+    """A skills tree with one multi-file skill plus a neighbor to escape into.
+
+    ``multi-skill`` carries markdown modules (top-level and nested), a
+    non-markdown module, a binary blob, and a dotfile. ``neighbor`` sits
+    beside it under the same skills root and holds a marker string; a path
+    that escapes ``multi-skill``'s directory would reach it, so tests assert
+    the marker never leaks.
+    """
+    _write_skill(skills_dir, "multi-skill", _MULTI_BODY)
+    _write_skill_file(skills_dir, "multi-skill", "b-module.md", "B module content.")
+    _write_skill_file(skills_dir, "multi-skill", "a-module.md", "A module content.")
+    _write_skill_file(skills_dir, "multi-skill", "helper.py", "print('helper')\n")
+    _write_skill_file(
+        skills_dir, "multi-skill", "sub/c-module.md", "C nested module content."
+    )
+    _write_skill_file(skills_dir, "multi-skill", ".hidden", "secret dotfile body")
+    _write_skill_file(
+        skills_dir, "multi-skill", "data.bin", binary=b"\xff\xfe\x00\x01BINARY"
+    )
+    _write_skill(
+        skills_dir,
+        "neighbor",
+        _MULTI_BODY.replace("multi body content.", "NEIGHBOR-SECRET"),
+    )
+    return skills_dir
+
+
+_FOOTER_HINT = "Skill files (load with load_skill(skill_name, file)):"
+
+
+def _footer_entries(content: str) -> list[str]:
+    """Extract the bullet-listed file paths from a load_skill footer."""
+    _, _, footer = content.partition(_FOOTER_HINT)
+    return [line[2:] for line in footer.splitlines() if line.startswith("- ")]
 
 
 @pytest.mark.unit
@@ -102,3 +168,140 @@ async def test_scan_skills_index_skips_dirs_without_frontmatter(
 @pytest.mark.unit
 async def test_scan_skills_index_empty_for_missing_dir(tmp_path: Path) -> None:
     assert scan_skills_index(tmp_path / "does-not-exist") == ""
+
+
+# --- Autolist footer (load_skill without `file`) -----------------------------
+
+
+@pytest.mark.unit
+async def test_load_skill_footer_lists_files_recursive_sorted(
+    multifile_skills_dir: Path,
+) -> None:
+    tool = make_load_skill_tool(multifile_skills_dir)
+
+    content = await tool.ainvoke({"skill_name": "multi-skill"})
+
+    # SKILL.md content still returned in full, footer appended after it.
+    assert "multi body content." in content
+    # Recursive (sub/c-module.md), sorted, any extension (helper.py, data.bin),
+    # excludes SKILL.md and the dotfile.
+    assert _footer_entries(content) == [
+        "a-module.md",
+        "b-module.md",
+        "data.bin",
+        "helper.py",
+        "sub/c-module.md",
+    ]
+
+
+@pytest.mark.unit
+async def test_load_skill_footer_excludes_skill_md_and_dotfiles(
+    multifile_skills_dir: Path,
+) -> None:
+    tool = make_load_skill_tool(multifile_skills_dir)
+
+    content = await tool.ainvoke({"skill_name": "multi-skill"})
+
+    entries = _footer_entries(content)
+    # Positive anchor: the footer is present and non-empty, so the exclusion
+    # asserts below run against a real list rather than passing vacuously.
+    assert _FOOTER_HINT in content
+    assert "a-module.md" in entries
+    assert "SKILL.md" not in entries
+    assert ".hidden" not in entries
+    # dotfile body is never disclosed anywhere in the response.
+    assert "secret dotfile body" not in content
+
+
+@pytest.mark.unit
+async def test_load_skill_binary_module_still_visible_in_footer(
+    multifile_skills_dir: Path,
+) -> None:
+    tool = make_load_skill_tool(multifile_skills_dir)
+
+    content = await tool.ainvoke({"skill_name": "multi-skill"})
+
+    # Agent must know the binary module exists even though it can't be read.
+    assert "data.bin" in _footer_entries(content)
+
+
+@pytest.mark.unit
+async def test_load_skill_single_file_skill_omits_footer(skills_dir: Path) -> None:
+    tool = make_load_skill_tool(skills_dir)
+
+    content = await tool.ainvoke({"skill_name": "alpha-skill"})
+
+    # Regression: response for a module-less skill is unchanged (no footer).
+    assert "Do alpha work." in content
+    assert _FOOTER_HINT not in content
+
+
+# --- Module loading (load_skill with `file`) ---------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("file", "expected"),
+    [
+        ("a-module.md", "A module content."),
+        ("sub/c-module.md", "C nested module content."),  # subdirectory
+        ("helper.py", "print('helper')"),  # non-markdown extension
+    ],
+)
+async def test_load_skill_file_returns_module_content(
+    multifile_skills_dir: Path, file: str, expected: str
+) -> None:
+    tool = make_load_skill_tool(multifile_skills_dir)
+
+    content = await tool.ainvoke({"skill_name": "multi-skill", "file": file})
+
+    assert expected in content
+    assert not content.startswith("Error:")
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "bad_file",
+    [
+        "../neighbor/SKILL.md",  # parent-dir traversal
+        "/etc/passwd",  # absolute path
+        "sub/../../neighbor/SKILL.md",  # traversal through a subdirectory
+        "",  # empty string is not a valid relative module path
+    ],
+)
+async def test_load_skill_file_rejects_path_traversal(
+    multifile_skills_dir: Path, bad_file: str
+) -> None:
+    tool = make_load_skill_tool(multifile_skills_dir)
+
+    content = await tool.ainvoke({"skill_name": "multi-skill", "file": bad_file})
+
+    # Rejected as an error, and the escape target's content never leaks.
+    assert content.startswith("Error:")
+    assert "NEIGHBOR-SECRET" not in content
+
+
+@pytest.mark.unit
+async def test_load_skill_file_missing_reports_available_files(
+    multifile_skills_dir: Path,
+) -> None:
+    tool = make_load_skill_tool(multifile_skills_dir)
+
+    content = await tool.ainvoke({"skill_name": "multi-skill", "file": "nope.md"})
+
+    assert "not found" in content
+    # Error lists the skill's real files (same pattern as skill-not-found).
+    assert "a-module.md" in content
+    assert "sub/c-module.md" in content
+
+
+@pytest.mark.unit
+async def test_load_skill_file_binary_reports_clear_error(
+    multifile_skills_dir: Path,
+) -> None:
+    tool = make_load_skill_tool(multifile_skills_dir)
+
+    content = await tool.ainvoke({"skill_name": "multi-skill", "file": "data.bin"})
+
+    assert content.startswith("Error:")
+    assert "binary file" in content

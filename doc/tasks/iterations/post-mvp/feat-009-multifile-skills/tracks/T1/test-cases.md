@@ -24,7 +24,7 @@
 
 Все поведения трека — чистые функции файловой системы над директорией скиллов через публичный интерфейс инструмента (`make_load_skill_tool(...).ainvoke(...)`), поэтому **уровень — solitary-unit** (по модели «слой → тип теста»: чистые функции → solitary-unit, без дублей — внешних зависимостей нет). Тесты строят одноразовое дерево скиллов под `tmp_path`, ассертят возвращённую строку; ни моков, ни сети, ни БД. Автотесты живут в `backend/tests/personalization/test_skills.py` — расширяют существующий solitary-unit файл skills-loader'а, не дублируются в новом месте. Общих утилит из `packages/testing` этот скоуп не требует (тривиальные файловые хелперы локальны файлу и уже там были).
 
-**Покрываем автотестом** (12 новых тестов поверх 10 существующих; все `@pytest.mark.unit`):
+**Покрываем автотестом** (13 новых тестов поверх 10 существующих; все `@pytest.mark.unit`):
 
 Автосписок (форма `load_skill(skill_name)` без `file`):
 - `test_load_skill_footer_lists_files_recursive_sorted` — футер содержит рекурсивный (вложенный `sub/c-module.md`), отсортированный список файлов любых расширений (`helper.py`, `data.bin`), при этом содержимое `SKILL.md` возвращается полностью. Строгий ассерт на точный порядок списка закрывает «рекурсивный + отсортированный» одним оракулом.
@@ -34,12 +34,14 @@
 
 Загрузка модуля (форма `load_skill(skill_name, file)`):
 - `test_load_skill_file_returns_module_content` (parametrize) — happy path: top-level `.md`, вложенный `sub/c-module.md` (поддиректория), `helper.py` (не-markdown расширение читается).
-- `test_load_skill_file_rejects_path_traversal` (parametrize) — `../neighbor/SKILL.md`, абсолютный `/etc/passwd`, `sub/../../neighbor/SKILL.md`: все три → ошибка, и содержимое соседнего скилла (`NEIGHBOR-SECRET`) не утекает. Оракул проверяет не только «вернулась ошибка», но и **факт неутечки** реальной цели побега.
+- `test_load_skill_file_rejects_path_traversal` (parametrize) — `../neighbor/SKILL.md`, абсолютный `/etc/passwd`, `sub/../../neighbor/SKILL.md`, `""`: все → ошибка, и содержимое соседнего скилла (`NEIGHBOR-SECRET`) не утекает. Оракул проверяет не только «вернулась ошибка», но и **факт неутечки** реальной цели побега. Все эти входы отсекает первый слой.
+- `test_load_skill_file_rejects_symlink_escape` — симлинк `multi-skill/link.md` → `neighbor/SKILL.md`: имя проходит первый слой, `resolve()` уводит наружу → второй слой (`is_relative_to`) отдаёт `Error:`, `NEIGHBOR-SECRET` не утекает. Единственный вход, доходящий до второго слоя (добавлен по review-a A1). Скип по pytest, если симлинки в среде недоступны.
 - `test_load_skill_file_missing_reports_available_files` — несуществующий файл → ошибка «not found» со списком реальных файлов скилла (паттерн существующей ошибки «skill not found → available»).
 - `test_load_skill_file_binary_reports_clear_error` — бинарный файл → внятная ошибка «binary file».
 
+**Второй слой защиты (`resolve()` + `is_relative_to`) — покрыт симлинк-кейсом** (добавлено по review-a A1). Единственный вход, достигающий второго слоя через публичный интерфейс, — симлинк с валидным по первому слою именем, чей `resolve()` уводит за пределы директории скилла (первый слой режет `..`/абсолют на уровне сегментов, а `skill_name` не содержит `/`). Тест `test_load_skill_file_rejects_symlink_escape` создаёт `multi-skill/link.md` → `neighbor/SKILL.md`, проверяет `Error:` и неутечку `NEIGHBOR-SECRET`. Это по-прежнему поведение публичного интерфейса на граничном входе (симлинк — не приватная реализация), с pytest-скипом там, где симлинки недоступны.
+
 **Осознанно не покрываем (+ почему):**
-- **Второй слой защиты (`resolve()` + `is_relative_to`) в изоляции.** Через публичный интерфейс его не спровоцировать без симлинка: первый слой (`_is_safe_relative_path`) уже отклоняет `..` и абсолютные пути на уровне сегментов, а `skill_name` не содержит `/`. Это defense-in-depth; тестировать его отдельно значило бы лезть в приватную реализацию (нарушение «поведение, не реализация»). Симлинк-traversal контрактом не рассматривается — не покрываем.
 - **Ветки `OSError`/`PermissionError` при чтении.** Обработчик точечно ловит только `UnicodeDecodeError` (по контракту канал текстовый); прочие файловые сбои — не поведение, определённое design-brief, воспроизводимы только манипуляцией правами ФС. Вне скоупа юнита.
 - **Пустая строка `file=""`.** Контрактом design-brief явно не оговорена (форма без файла — это `file=None`, дефолт). Не заводим кейс, чтобы не фиксировать поведение, которого нет в спеке.
 - **Загрузка реального скилла `tech-article-writing`.** Это актив трека T2 и появляется после его переноса — проверяется cross-cutting кейсом на INTEGRATION_TEST (ниже), не solitary-юнитом T1 (юнит не должен зависеть от контентного скоупа другого трека).
@@ -49,7 +51,7 @@
 ### Layer 0: Automated gate
 
 - [x] `make check` — ruff + mypy на изменённом `test_skills.py`: ruff `All checks passed`, ruff format применён, mypy `Success: no issues found`. *(прогонялся точечно на файле скоупа; полный `make check` — на CI-гейте трека)*
-- [x] `make test-scope P=backend/tests/personalization/test_skills.py` — **23 passed** (10 существующих без регрессии + 13 новых, включая `""`-строку parametrize из R2). `[auto]`
+- [x] `make test-scope P=backend/tests/personalization/test_skills.py` — **24 passed** (10 существующих без регрессии + 14 новых, включая `""`-строку parametrize из R2 и симлинк-кейс из review-a A1). `[auto]`
 
 ---
 
@@ -74,7 +76,10 @@
 
 ## Находки ревью [severity+owner]
 
-Blocker: 0 · Major: 0 · Minor: 2. Контракт закрыт честно; ниже — только уточнения по силе ассертов и осознанно непокрытому.
+Blocker: 0 · Major: 0 · Minor: 2 · review-a nit: 1. Контракт закрыт честно; ниже — только уточнения по силе ассертов и осознанно непокрытому.
+
+- **A1 nit [test] (review-a)** ✅ closed — добавлен `test_load_skill_file_rejects_symlink_escape`: в `multi-skill` создаётся симлинк `link.md` → `neighbor/SKILL.md`, имя проходит первый слой (`_is_safe_relative_path("link.md") → True`), а `resolve()` уводит наружу — второй слой (`is_relative_to`, `skills.py:69`) отдаёт `Error: invalid file path 'link.md'`, `NEIGHBOR-SECRET` не утекает. Ассерт устойчив к A3 (`Available files:` листит имена, не тела). Скип по pytest, если симлинки недоступны (в текущей среде работают — 24 passed без скипа). [prod]-находок нет: сверено вручную, что путь достигает именно второго слоя, реальная дыра не вскрыта.
+  - _Исходная находка:_ второй слой защиты (`resolve()` + `is_relative_to`, `skills.py:64-66`) не задействован ни одним тестом — все четыре traversal-`bad_file` отсекались первым слоем; единственный вход до второго слоя — симлинк внутри скилла, ведущий наружу.
 
 - **R1 minor [test]** ✅ closed — добавлен позитивный якорь перед негативами: `assert _FOOTER_HINT in content` + `assert "a-module.md" in entries`. Теперь исключающие ассерты `"SKILL.md"/".hidden" not in entries` проверяются против заведомо непустого футера, вакуумный проход исключён.
   - _Исходная находка:_ `test_skills.py:186-197` (`test_load_skill_footer_excludes_skill_md_and_dotfiles`) — два ассерта-исключения (`"SKILL.md" not in entries`, `".hidden" not in entries`) проходят **вакуумно**, если футер вообще отсутствует или переименован хинт: `_footer_entries` тогда вернёт `[]`, и `X not in []` истинно без всякого поведения. Экспозиции контракта это не рушит — точный состав автосписка (в т.ч. исключение `SKILL.md`/dotfile) строго закрыт `test_load_skill_footer_lists_files_recursive_sorted` через `==`, а уникальная ценность этого теста — `"secret dotfile body" not in content` (неутечка тела dotfile) — не вакуумна. → Добавить позитивный якорь перед негативами (напр. `assert "a-module.md" in entries`), чтобы исключения проверялись против непустого списка. Приоритет низкий: дублирующее покрытие уже есть.

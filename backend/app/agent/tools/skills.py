@@ -59,11 +59,19 @@ def make_load_skill_tool(skills_dir: Path) -> BaseTool:
             return content + footer
 
         if not _is_safe_relative_path(file):
-            return f"Error: invalid file path '{file}'."
+            skill_files = _list_skill_files(skill_dir)
+            available_files = ", ".join(skill_files) if skill_files else "(none)"
+            return (
+                f"Error: invalid file path '{file}'. Available files: {available_files}"
+            )
 
         file_path = (skill_dir / file).resolve()
         if not file_path.is_relative_to(skill_dir):
-            return f"Error: invalid file path '{file}'."
+            skill_files = _list_skill_files(skill_dir)
+            available_files = ", ".join(skill_files) if skill_files else "(none)"
+            return (
+                f"Error: invalid file path '{file}'. Available files: {available_files}"
+            )
 
         if not file_path.is_file():
             skill_files = _list_skill_files(skill_dir)

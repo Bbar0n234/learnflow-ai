@@ -282,6 +282,38 @@ async def test_load_skill_file_rejects_path_traversal(
 
 
 @pytest.mark.unit
+async def test_load_skill_file_rejects_symlink_escape(
+    multifile_skills_dir: Path,
+) -> None:
+    """Second-layer defense: a symlink whose name passes the segment allowlist
+    but resolves outside the skill directory is rejected.
+
+    A symlink is the only input that reaches layer two (``resolve()`` +
+    ``is_relative_to``): every string-level traversal (``..``, absolute paths)
+    is already cut by layer one, so ``link.md`` clears the allowlist yet
+    ``resolve()`` follows it out of the skill dir into the neighbor's secret.
+    """
+    skill_dir = multifile_skills_dir / "multi-skill"
+    escape_target = multifile_skills_dir / "neighbor" / "SKILL.md"
+    link = skill_dir / "link.md"
+    try:
+        link.symlink_to(escape_target)
+    except OSError as exc:  # pragma: no cover - platform/filesystem dependent
+        pytest.skip(f"symlinks unavailable in this environment: {exc}")
+
+    tool = make_load_skill_tool(multifile_skills_dir)
+
+    content = await tool.ainvoke({"skill_name": "multi-skill", "file": "link.md"})
+
+    # Name clears layer one; resolve() escapes the skill dir → layer two rejects.
+    assert content.startswith("Error:")
+    # The escape target's secret never leaks. (Post-A3 the error carries an
+    # "Available files:" list — that lists file *names*, not bodies, so the
+    # secret content still cannot appear here.)
+    assert "NEIGHBOR-SECRET" not in content
+
+
+@pytest.mark.unit
 async def test_load_skill_file_missing_reports_available_files(
     multifile_skills_dir: Path,
 ) -> None:

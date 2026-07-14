@@ -63,7 +63,8 @@
 
 ### Layer 2: Integration (cross-cutting, в INTEGRATION_TEST)
 
-- [ ] На реальном перенесённом скилле (актив T2): `load_skill("tech-article-writing")` возвращает содержимое `SKILL.md` + автосписок 5 модулей (без `SKILL.md` и dotfiles), а `load_skill("tech-article-writing", "input-diagnostics.md")` возвращает содержимое модуля. Подтверждает механику T1 на боевом многофайловом ките после барьера. *(Видимость скилла в Skills Index — отдельный cross-cutting кейс трека T2.)*
+- [x] На реальном перенесённом скилле (актив T2): `load_skill("tech-article-writing")` возвращает содержимое `SKILL.md` + автосписок 5 модулей (без `SKILL.md` и dotfiles), а `load_skill("tech-article-writing", "input-diagnostics.md")` возвращает содержимое модуля. Подтверждает механику T1 на боевом многофайловом ките после барьера. *(Видимость скилла в Skills Index — отдельный cross-cutting кейс трека T2.)*
+      **Результат (INTEGRATION_TEST, `track_id=final`):** solitary-прогон tool из `make_load_skill_tool(<repo>/skills)` через `uv run` из `backend/`. Форма без `file`: ответ строго `== SKILL.md + футер`, футер посимвольно `\n\n---\nSkill files (load with load_skill(skill_name, file)):\n- anti-slop-checklist.md\n- habr-platform.md\n- input-diagnostics.md\n- voice-preservation.md\n- voice-profile-builder.md` (5 модулей, алфавит, без `SKILL.md`/dotfiles). Форма с `file="input-diagnostics.md"`: вернулось полное содержимое модуля (4451 симв., байт-в-байт с диском), не ошибка/не футер. Pass.
 
 ### Layer 3: E2E (cross-cutting, в INTEGRATION_TEST)
 

@@ -1,6 +1,6 @@
 # Конвенции: Agent
 
-Проектные решения по agent runtime, reasoning-моделям и именованию промптов. Ядро — [conventions.md](../conventions.md).
+Проектные решения по agent runtime, скиллам, reasoning-моделям и именованию промптов. Ядро — [conventions.md](../conventions.md).
 
 ## Agent Runtime
 
@@ -18,6 +18,10 @@
 | `StreamEventMapper` | `stream_mode="updates"` → доменные `StreamEvent` (tool_start / tool_end / artifact_created). |
 
 Принцип: новая сквозная забота в runtime → отдельный коллаборатор за портом, а не ещё один метод в runner.
+
+## Skills
+
+**Frontmatter `description` — стиль Claude Code.** Описание скилла в `SKILL.md` пишется как «назначение + триггеры»: одно-два предложения о том, что скилл делает, затем «Используй когда: <триггеры через запятую>». Формат намеренно совпадает с конвенцией skills Claude Code — скилл читаем любым агентом экосистемы без адаптации, а семантика срабатывания одинакова (system prompt продукта: «Load a skill when the user's task matches its description»). Description попадает в Skills Index — в system message каждого запроса — поэтому держится компактным; переносы строк нормализуются при сборке индекса (`scan_skills_index`).
 
 ## Reasoning LLMs
 

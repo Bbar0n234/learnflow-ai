@@ -462,6 +462,11 @@ Discovery-спайк SOFA_Habr_Article (Фаза 5a): скилл обкатан 
 #### Документация
 
 - [design-brief.md](iterations/post-mvp/feat-009-multifile-skills/design-brief.md) — контракт параметра `file`, правила переноса, отклонённые альтернативы
+- [tracks/T1/plan.md](iterations/post-mvp/feat-009-multifile-skills/tracks/T1/plan.md) / [summary.md](iterations/post-mvp/feat-009-multifile-skills/tracks/T1/summary.md) / [test-cases.md](iterations/post-mvp/feat-009-multifile-skills/tracks/T1/test-cases.md) — расширение `load_skill` (параметр `file`, автосписок), решения и обоснования, тестовые кейсы
+- [tracks/T2/plan.md](iterations/post-mvp/feat-009-multifile-skills/tracks/T2/plan.md) / [summary.md](iterations/post-mvp/feat-009-multifile-skills/tracks/T2/summary.md) / [test-cases.md](iterations/post-mvp/feat-009-multifile-skills/tracks/T2/test-cases.md) — перенос скилла `tech-article-writing`, сверка конвенции description, тестовые кейсы
+- [review-a.md](iterations/post-mvp/feat-009-multifile-skills/review-a.md) — ревью качества кода (режим A)
+- [review-b.md](iterations/post-mvp/feat-009-multifile-skills/review-b.md) — ревью соответствия конвенциям и doc-first (режим B)
+- [harvest-proposals.md](iterations/post-mvp/feat-009-multifile-skills/harvest-proposals.md) — кандидаты в backlog/конвенции из итерации
 
 ### feat-010: Генерация изображений агентом
 

@@ -21,6 +21,7 @@ from app.repositories import (
     TraceStore,
     UserRepository,
 )
+from app.repositories.blob_storage import BlobStorage, PgBlobStorage
 from app.repositories.mcp_server import MCPServerRepository
 from app.services import (
     ArtifactService,
@@ -121,10 +122,15 @@ def get_sphere_service(request: Request) -> SphereService:
     )
 
 
+def get_blob_storage(session: DBSession) -> BlobStorage:
+    return PgBlobStorage(session)
+
+
 ProjectServiceDep = Annotated[ProjectService, Depends(get_project_service)]
 ArtifactServiceDep = Annotated[ArtifactService, Depends(get_artifact_service)]
 ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]
 SphereServiceDep = Annotated[SphereService, Depends(get_sphere_service)]
+BlobStorageDep = Annotated[BlobStorage, Depends(get_blob_storage)]
 
 
 async def get_user_project(

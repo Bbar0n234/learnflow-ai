@@ -8,7 +8,7 @@ from urllib.parse import quote
 import anyio.to_thread
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 
-from app.api.deps import ArtifactServiceDep, Pagination, UserProject
+from app.api.deps import ArtifactServiceDep, BlobStorageDep, Pagination, UserProject
 from app.api.export import convert_md_to_pdf
 from app.api.schemas.artifacts import (
     ArtifactDetailResponse,
@@ -52,6 +52,29 @@ async def get_artifact(
     if artifact.project_id != project.id:
         raise HTTPException(status_code=404, detail="Artifact not found")
     return ArtifactDetailResponse.model_validate(artifact)
+
+
+@router.get("/projects/{project_id}/artifacts/{artifact_id}/media")
+async def get_artifact_media(
+    artifact_id: uuid.UUID,
+    project: UserProject,
+    service: ArtifactServiceDep,
+    blob_storage: BlobStorageDep,
+) -> Response:
+    artifact = await service.get_artifact(artifact_id)
+    if artifact.project_id != project.id:
+        raise HTTPException(status_code=404, detail="Artifact not found")
+
+    blob = await blob_storage.get(artifact_id)
+    if blob is None:
+        raise HTTPException(status_code=404, detail="Artifact media not found")
+    data, mime_type = blob
+
+    return Response(
+        content=data,
+        media_type=mime_type,
+        headers={"Cache-Control": "private, max-age=31536000, immutable"},
+    )
 
 
 @router.get("/projects/{project_id}/artifacts/{artifact_id}/download")

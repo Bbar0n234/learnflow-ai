@@ -25,6 +25,11 @@ class SummarizationConfig(BaseModel):
     extra_body: dict[str, Any] = {}
 
 
+class ImageConfig(BaseModel):
+    model: str
+    params: dict[str, Any] = {}
+
+
 class MCPServerConfig(BaseModel):
     enabled: bool = True
     transport: str  # "http", "sse", "stdio"
@@ -50,6 +55,7 @@ class AvailableModel(BaseModel):
 class AgentConfig(BaseModel):
     llm: LLMConfig
     context: ContextConfig
+    image: ImageConfig
     summarization: SummarizationConfig | None = None
     mcp_servers: dict[str, MCPServerConfig] = {}
     available_models: list[AvailableModel] = []

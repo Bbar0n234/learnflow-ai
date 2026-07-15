@@ -11,6 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base
 
 if TYPE_CHECKING:
+    from app.models.artifact_blob import ArtifactBlob
     from app.models.project import Project
     from app.models.thread_view import ThreadView
 
@@ -47,3 +48,4 @@ class Artifact(Base):
     # Relationships
     project: Mapped[Project] = relationship(back_populates="artifacts")
     thread_view: Mapped[ThreadView | None] = relationship(back_populates="artifacts")
+    blob: Mapped[ArtifactBlob | None] = relationship(back_populates="artifact")

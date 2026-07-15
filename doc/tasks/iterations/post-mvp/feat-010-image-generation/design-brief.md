@@ -8,34 +8,75 @@ UI-референс — интерактивный мокап [mockups/image-art
 
 ## Архитектура
 
+Структура — какие компоненты появляются и где живут:
+
 ```mermaid
 flowchart TB
-    U([Пользователь]) --> AG[Agent ReAct]
+    U([Пользователь]) --> AG
 
     subgraph AGENT["Agent Runtime"]
-        AG -->|"tool call"| GI[generate_image]
-        GI -->|"POST /images"| OR[(OpenRouter Image API)]
-        OR -->|"b64_json + media_type + usage.cost"| GI
-        GI -->|"generation-observation<br/>cost_details"| LF[(Langfuse)]
+        AG[Agent ReAct] -->|"tool call"| GI[generate_image]
+    end
+
+    subgraph EXT["External"]
+        OR[OpenRouter Image API]
+        LF[Langfuse]
     end
 
     subgraph DATA["Data"]
-        ART[(artifacts<br/>type=image, content=prompt)]
-        BLOB[(artifact_blobs<br/>mime_type, bytea)]
-        GI -->|"одна транзакция"| ART
-        GI --> BLOB
+        PG[("PostgreSQL<br/>artifacts · artifact_blobs")]
     end
 
     subgraph API["API / Frontend"]
-        GI -.->|"SSE: tool_start → плейсхолдер,<br/>artifact_created → карточка с превью"| FE[Лента → ArtifactCard → ImageViewer]
-        FE -->|"fetch + JWT"| ME["GET …/artifacts/{id}/media<br/>Cache-Control: immutable"]
-        ME --> BLOB
-        FE -->|"blob → objectURL → img"| U
+        ME["GET …/artifacts/{id}/media<br/>Cache-Control: immutable"]
+        FE[Лента → ArtifactCard → ImageViewer]
     end
+
+    GI -->|"POST /images"| OR
+    GI -->|"generation-observation,<br/>cost_details"| LF
+    GI -->|"одна транзакция: артефакт + блоб<br/>(ArtifactRepository + BlobStorage)"| PG
+    GI -.->|"SSE: tool_start / tool_end,<br/>artifact_created"| FE
+    FE -->|"fetch + JWT"| ME
+    ME -->|"BlobStorage.get"| PG
+    FE -->|"objectURL → img"| U
 
     style AGENT fill:#bc8cff1a,stroke:#bc8cff,color:#bc8cff
     style DATA fill:#d299221a,stroke:#d29922,color:#d29922
     style API fill:#58a6ff1a,stroke:#58a6ff,color:#58a6ff
+    style EXT fill:#8b949e1a,stroke:#8b949e,color:#8b949e
+```
+
+Поток генерации и отображения — временной порядок:
+
+```mermaid
+sequenceDiagram
+    actor U as Пользователь
+    participant FE as Frontend
+    participant AG as Agent ReAct
+    participant GI as generate_image
+    participant OR as OpenRouter
+    participant BE as Backend API
+    participant PG as PostgreSQL
+    participant LF as Langfuse
+
+    U->>AG: «сделай обложку статьи…»
+    AG->>GI: tool call (prompt, title, aspect_ratio?, resolution?)
+    AG--)FE: SSE tool_start (generate_image, call_id)
+    Note over FE: в ленте — карточка-плейсхолдер<br/>(шиммер, псевдопрогресс)
+    GI->>OR: POST /images
+    OR-->>GI: b64_json + media_type + usage.cost
+    GI->>PG: одна транзакция: artifacts + artifact_blobs
+    GI->>LF: generation-observation (cost_details)
+    GI-->>AG: ToolMessage (title, id, разрешение, стоимость)
+    AG--)FE: SSE tool_end + artifact_created
+    Note over FE: плейсхолдер снят, карточка<br/>с превью (fetch media)
+    AG-->>U: текст ответа
+    U->>FE: открывает артефакт
+    FE->>BE: GET …/artifacts/{id}/media (JWT)
+    BE->>PG: BlobStorage.get
+    PG-->>BE: bytes + mime_type
+    BE-->>FE: 200, Cache-Control: immutable
+    Note over FE: blob → objectURL → img<br/>зум, caption = prompt, скачивание .png
 ```
 
 ## Решения
@@ -50,7 +91,7 @@ OpenRouter Image API — `POST {llm_base_url}/images` (выделенный endp
 
 ### Tool
 
-`generate_image(prompt, title, aspect_ratio?, resolution?)` — фабрика `make_generate_image_tool(...)` по паттерну `make_create_artifact_tool` (замыкание над зависимостями), `response_format="content_and_artifact"`. Текст ToolMessage — подтверждение: title, id, разрешение, стоимость.
+`generate_image(prompt, title, aspect_ratio?, resolution?)` — фабрика `make_generate_image_tool(...)` по паттерну `make_create_artifact_tool` (замыкание над зависимостями), `response_format="content_and_artifact"`. Текст ToolMessage — подтверждение: title, id, разрешение, стоимость. Ошибка провайдера (включая 400 на невалидный параметр) транслируется во внятную ошибку tool **без частичной записи** — транзакция артефакт+блоб либо коммитится целиком, либо не начинается.
 
 Разделение параметров — «творческое агенту, операционное оператору»:
 
@@ -116,21 +157,13 @@ ToolMessage текстовый; байты уходят в БД мимо кон�
 - Текст на картинке: точную надпись в двойных кавычках, шрифт описать словами
   («bold sans-serif»). Русский поддержан; надписи держать короткими (1–4 слова).
 
-resolution: "1K" — дефолт, иллюстрация в тексте ($0.067); "512" — черновики
-и варианты ($0.045); "2K" — обложки/hero ($0.101); "4K" — только по явной
-просьбе пользователя ($0.151).
+resolution: "1K" — дефолт, иллюстрация в тексте; "512" — черновики и варианты;
+"2K" — обложки/hero; "4K" — только по явной просьбе пользователя.
+Каждая ступень заметно дороже — не повышай без причины.
 aspect_ratio: "16:9" — обложка статьи (Хабр кропит превью ~2:1 — ключевые
 элементы держать по центру); "4:3"/"16:9" — иллюстрация; "1:1" — иконки;
 "21:9", "4:1" — баннеры.
 ```
-
-## Тесты
-
-- Tool: успешная генерация (мок httpx) → артефакт + блоб в одной транзакции; ошибка провайдера → внятная ошибка tool без частичной записи; generation-observation с cost записывается.
-- SSE-маппер: `generate_image` эмитит `artifact_created` (+ существующие `tool_start`/`tool_end` не регрессируют).
-- Media endpoint: happy path, mime, 404 без блоба, auth, заголовок `Cache-Control`.
-- Frontend: stream-store — плейсхолдер добавляется по `tool_start`/снимается по `tool_end` (расширение существующих тестов стора).
-- Живой вызов Image API при реализации: формат ответа + фактический токен-расход по разрешениям (сверка с прайсом).
 
 ## Scope boundaries
 

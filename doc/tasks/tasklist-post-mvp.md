@@ -29,7 +29,7 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 | feat-007 | 📋 Planned | cross-cutting | SIEM Extensions: dashboard, basic response actions, search, notifications, export |
 | feat-008 | ✅ Done | security tooling | Promptfoo Red Team Scan: app-level LLM vulnerability scan через локальный Python provider |
 | feat-009 | ✅ Done | agent | Многофайловые скиллы (load_skill file param) + перенос скилла tech-article-writing |
-| feat-010 | 📋 Planned | cross-cutting | Генерация изображений: OpenRouter Image API, artifact_blobs, media endpoint, живой ImageViewer |
+| feat-010 | 🚧 In Progress | cross-cutting | Генерация изображений: OpenRouter Image API, artifact_blobs, media endpoint, живой ImageViewer |
 | feat-011 | 📋 Planned | agent | Продуктовые субагенты v1: subagent-as-tool, YAML-реестр, judge (+ADR) |
 | feat-012 | 📋 Planned | cross-cutting | Skill-scoped user context: Store namespace, tools, REST, секция в /settings |
 
@@ -472,7 +472,7 @@ Discovery-спайк SOFA_Habr_Article (Фаза 5a): скилл обкатан 
 
 **Цель:** агент генерирует изображения по запросу пользователя: tool `generate_image` → OpenRouter Image API → артефакт `image` c бинарём в `artifact_blobs` → media endpoint → живой `ImageViewer`.
 
-**Статус:** 📋 Planned
+**Статус:** 🚧 In Progress
 **Scope:** cross-cutting (agent, backend, frontend)
 
 #### Triggered by

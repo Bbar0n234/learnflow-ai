@@ -24,13 +24,14 @@
 
 Все поведения трека — чистые функции файловой системы над директорией скиллов через публичный интерфейс инструмента (`make_load_skill_tool(...).ainvoke(...)`), поэтому **уровень — solitary-unit** (по модели «слой → тип теста»: чистые функции → solitary-unit, без дублей — внешних зависимостей нет). Тесты строят одноразовое дерево скиллов под `tmp_path`, ассертят возвращённую строку; ни моков, ни сети, ни БД. Автотесты живут в `backend/tests/personalization/test_skills.py` — расширяют существующий solitary-unit файл skills-loader'а, не дублируются в новом месте. Общих утилит из `packages/testing` этот скоуп не требует (тривиальные файловые хелперы локальны файлу и уже там были).
 
-**Покрываем автотестом** (13 новых тестов поверх 10 существующих; все `@pytest.mark.unit`):
+**Покрываем автотестом** (16 новых тестов поверх 10 существующих; все `@pytest.mark.unit`):
 
 Автосписок (форма `load_skill(skill_name)` без `file`):
 - `test_load_skill_footer_lists_files_recursive_sorted` — футер содержит рекурсивный (вложенный `sub/c-module.md`), отсортированный список файлов любых расширений (`helper.py`, `data.bin`), при этом содержимое `SKILL.md` возвращается полностью. Строгий ассерт на точный порядок списка закрывает «рекурсивный + отсортированный» одним оракулом.
 - `test_load_skill_footer_excludes_skill_md_and_dotfiles` — в автосписке нет `SKILL.md` и dotfile'а; тело dotfile'а не утекает в ответ.
 - `test_load_skill_binary_module_still_visible_in_footer` — бинарный модуль виден в автосписке (агент знает о его существовании), хотя прочитать его нельзя.
 - `test_load_skill_single_file_skill_omits_footer` *(регресс)* — у скилла без модулей футер не печатается, ответ прежний.
+- `test_load_skill_footer_excludes_symlink_escaping_dir` — симлинк `multi-skill/link.md` → `neighbor/SKILL.md` **не** попадает в автосписок (`_list_skill_files` отсеивает записи, чей `resolve()` уводит за пределы директории скилла), а обычные модули перечисляются; `NEIGHBOR-SECRET` не утекает. Листинг-контрапункт к `test_load_skill_file_rejects_symlink_escape` (тот — про отказ загрузки). Скип по pytest, если симлинки недоступны.
 
 Загрузка модуля (форма `load_skill(skill_name, file)`):
 - `test_load_skill_file_returns_module_content` (parametrize) — happy path: top-level `.md`, вложенный `sub/c-module.md` (поддиректория), `helper.py` (не-markdown расширение читается).
@@ -38,6 +39,9 @@
 - `test_load_skill_file_rejects_symlink_escape` — симлинк `multi-skill/link.md` → `neighbor/SKILL.md`: имя проходит первый слой, `resolve()` уводит наружу → второй слой (`is_relative_to`) отдаёт `Error:`, `NEIGHBOR-SECRET` не утекает. Единственный вход, доходящий до второго слоя (добавлен по review-a A1). Скип по pytest, если симлинки в среде недоступны.
 - `test_load_skill_file_missing_reports_available_files` — несуществующий файл → ошибка «not found» со списком реальных файлов скилла (паттерн существующей ошибки «skill not found → available»).
 - `test_load_skill_file_binary_reports_clear_error` — бинарный файл → внятная ошибка «binary file».
+- `test_load_skill_non_ascii_module_listed_and_loadable` — модуль с кириллическим именем во вложенной кириллической поддиректории (`раздел/методология.md`, оба сегмента не-ASCII) виден в футере **и** грузится по `file` с корректным телом. Страхует расширение `_SAFE_PATH_SEGMENT_RE` с ASCII до юникода (`^[\w.-]+$`); старый ASCII-регекс отклонил бы сегмент → загрузка вернула бы `Error:`.
+
+**Покрытие пакета доработок (апрув архитектора).** Три доработки `skills.py`: (1) юникод-имена в валидации сегментов `file`, (2) фильтр футера от симлинков-наружу, (3) вынос тела tool'а в `asyncio.to_thread` — публичный контракт неизменен, поведение уже покрыто существующими тестами через `tool.ainvoke(...)`. Доработки 1 и 2 закрыты новыми тестами `test_load_skill_non_ascii_module_listed_and_loadable` (юникод-имена) и `test_load_skill_footer_excludes_symlink_escaping_dir` (симлинк-фильтр футера). Существующий `test_load_skill_file_rejects_symlink_escape` с новым контрактом листинга не конфликтует: он ассертит только `startswith("Error:")` + неутечку `NEIGHBOR-SECRET`, наличие `link.md` в тексте «Available files» не проверяет — правка его ассертов не потребовалась.
 
 **Второй слой защиты (`resolve()` + `is_relative_to`) — покрыт симлинк-кейсом** (добавлено по review-a A1). Единственный вход, достигающий второго слоя через публичный интерфейс, — симлинк с валидным по первому слою именем, чей `resolve()` уводит за пределы директории скилла (первый слой режет `..`/абсолют на уровне сегментов, а `skill_name` не содержит `/`). Тест `test_load_skill_file_rejects_symlink_escape` создаёт `multi-skill/link.md` → `neighbor/SKILL.md`, проверяет `Error:` и неутечку `NEIGHBOR-SECRET`. Это по-прежнему поведение публичного интерфейса на граничном входе (симлинк — не приватная реализация), с pytest-скипом там, где симлинки недоступны.
 
@@ -51,7 +55,7 @@
 ### Layer 0: Automated gate
 
 - [x] `make check` — ruff + mypy на изменённом `test_skills.py`: ruff `All checks passed`, ruff format применён, mypy `Success: no issues found`. *(прогонялся точечно на файле скоупа; полный `make check` — на CI-гейте трека)*
-- [x] `make test-scope P=backend/tests/personalization/test_skills.py` — **24 passed** (10 существующих без регрессии + 14 новых, включая `""`-строку parametrize из R2 и симлинк-кейс из review-a A1). `[auto]`
+- [x] `make test-scope P=backend/tests/personalization/test_skills.py` — **26 passed** (10 существующих без регрессии + 16 новых: 14 базовых, включая `""`-строку parametrize из R2 и симлинк-кейс из review-a A1, плюс 2 под пакет доработок — юникод-имена и симлинк-фильтр футера). `make check` зелёный (ruff/mypy/arch). `[auto]`
 
 ---
 

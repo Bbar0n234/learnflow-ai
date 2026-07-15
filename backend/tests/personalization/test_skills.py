@@ -226,6 +226,39 @@ async def test_load_skill_binary_module_still_visible_in_footer(
 
 
 @pytest.mark.unit
+async def test_load_skill_footer_excludes_symlink_escaping_dir(
+    multifile_skills_dir: Path,
+) -> None:
+    """Autolist counterpart to ``test_load_skill_file_rejects_symlink_escape``.
+
+    That test asserts the *load* path refuses a symlink resolving outside the
+    skill dir; this one asserts the *listing* path never advertises it. A
+    symlink whose ``resolve()`` leaves the skill directory is dropped from the
+    footer — the autolist only offers what ``load_skill(skill_name, file)``
+    could actually load — while genuine in-dir modules stay listed.
+    """
+    skill_dir = multifile_skills_dir / "multi-skill"
+    escape_target = multifile_skills_dir / "neighbor" / "SKILL.md"
+    link = skill_dir / "link.md"
+    try:
+        link.symlink_to(escape_target)
+    except OSError as exc:  # pragma: no cover - platform/filesystem dependent
+        pytest.skip(f"symlinks unavailable in this environment: {exc}")
+
+    tool = make_load_skill_tool(multifile_skills_dir)
+
+    content = await tool.ainvoke({"skill_name": "multi-skill"})
+
+    entries = _footer_entries(content)
+    # Positive anchor: real modules are still advertised, so the exclusion
+    # below runs against a populated footer rather than passing vacuously.
+    assert "a-module.md" in entries
+    # The escaping symlink is filtered out, and its target's secret never leaks.
+    assert "link.md" not in entries
+    assert "NEIGHBOR-SECRET" not in content
+
+
+@pytest.mark.unit
 async def test_load_skill_single_file_skill_omits_footer(skills_dir: Path) -> None:
     tool = make_load_skill_tool(skills_dir)
 
@@ -337,3 +370,35 @@ async def test_load_skill_file_binary_reports_clear_error(
 
     assert content.startswith("Error:")
     assert "binary file" in content
+
+
+@pytest.mark.unit
+async def test_load_skill_non_ascii_module_listed_and_loadable(
+    skills_dir: Path,
+) -> None:
+    """Unicode-named modules pass the segment allowlist (``^[\\w.-]+$``).
+
+    A Cyrillic-named module nested in a Cyrillic-named subdirectory (so *both*
+    path segments are non-ASCII) both surfaces in the autolist footer and
+    loads by its ``file`` path with the exact body. Guards the widening of
+    ``_SAFE_PATH_SEGMENT_RE`` from ASCII to Unicode word characters.
+    """
+    _write_skill(skills_dir, "cyrillic-skill", _MULTI_BODY)
+    _write_skill_file(
+        skills_dir,
+        "cyrillic-skill",
+        "раздел/методология.md",
+        "Кириллический модуль.",
+    )
+    tool = make_load_skill_tool(skills_dir)
+
+    # Listed in the progressive-disclosure footer (form without `file`).
+    listing = await tool.ainvoke({"skill_name": "cyrillic-skill"})
+    assert "раздел/методология.md" in _footer_entries(listing)
+
+    # Loadable by its relative path with correct content (form with `file`).
+    module = await tool.ainvoke(
+        {"skill_name": "cyrillic-skill", "file": "раздел/методология.md"}
+    )
+    assert "Кириллический модуль." in module
+    assert not module.startswith("Error:")

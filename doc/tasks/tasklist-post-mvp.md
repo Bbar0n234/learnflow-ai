@@ -481,15 +481,17 @@ Backlog P2 «Генерация изображений агентом»; под�
 
 #### Критерии приёмки
 
-- [ ] `generate_image(prompt, title, aspect_ratio?)`: артефакт + блоб пишутся одной транзакцией, SSE `artifact_created` приходит, `usage.cost` уходит в Langfuse
-- [ ] `GET /projects/{pid}/artifacts/{id}/media` отдаёт бинарь с корректным mime под JWT-auth
-- [ ] `ImageViewer` показывает реальную картинку (fetch с JWT → objectURL), ветка `image` выведена из-под `SHOW_GROUP_B_STUBS`
-- [ ] Миграция `artifact_blobs` через autogenerate; доступ за `BlobStorage`-протоколом
-- [ ] Секция `image` в `agent.yaml`, дефолт — flash-класс модель
+- [ ] `generate_image(prompt, title, aspect_ratio?, resolution?)`: артефакт + блоб пишутся одной транзакцией, SSE `artifact_created` приходит (маппер расширен на `generate_image`), generation-observation с `cost_details` из `usage.cost` уходит в Langfuse
+- [ ] `GET /projects/{pid}/artifacts/{id}/media` отдаёт бинарь с корректным mime под JWT-auth и `Cache-Control: private, immutable`
+- [ ] `ImageViewer` показывает реальную картинку (fetch с JWT → objectURL), состояния загрузки/404, caption = prompt, скачивание .png; ветка `image` выведена из-под `SHOW_GROUP_B_STUBS`
+- [ ] Карточка image-артефакта в ленте с превью (то же изображение с media-endpoint); плейсхолдер на время генерации по `tool_start`/`tool_end` (только фронт, протокол не меняется)
+- [ ] Миграция `artifact_blobs` через autogenerate; доступ за `BlobStorage`-протоколом (PG-реализация конструируется вокруг session)
+- [ ] Секция `image` в `agent.yaml` (`model` + `params`), дефолт — `google/gemini-3.1-flash-image`
 
 #### Документация
 
-- [design-brief.md](iterations/post-mvp/feat-010-image-generation/design-brief.md) — архитектура end-to-end, отклонённые альтернативы хранения/отдачи, границы scope
+- [design-brief.md](iterations/post-mvp/feat-010-image-generation/design-brief.md) — архитектура end-to-end, модель и параметры генерации, учёт стоимости, отклонённые альтернативы хранения/отдачи, границы scope
+- [mockups/image-artifacts.html](iterations/post-mvp/feat-010-image-generation/mockups/image-artifacts.html) — интерактивный UI-референс: карточка с превью, плейсхолдер генерации, состояния вьюера (открывать локально)
 
 ### feat-011: Продуктовые субагенты v1
 

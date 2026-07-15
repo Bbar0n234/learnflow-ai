@@ -28,7 +28,7 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 | feat-006 | ✅ Done | agent | Security 2.0: Universal I/O Guard + Boundary Enforcement |
 | feat-007 | 📋 Planned | cross-cutting | SIEM Extensions: dashboard, basic response actions, search, notifications, export |
 | feat-008 | ✅ Done | security tooling | Promptfoo Red Team Scan: app-level LLM vulnerability scan через локальный Python provider |
-| feat-009 | 🚧 In Progress | agent | Многофайловые скиллы (load_skill file param) + перенос скилла tech-article-writing |
+| feat-009 | ✅ Done | agent | Многофайловые скиллы (load_skill file param) + перенос скилла tech-article-writing |
 | feat-010 | 📋 Planned | cross-cutting | Генерация изображений: OpenRouter Image API, artifact_blobs, media endpoint, живой ImageViewer |
 | feat-011 | 📋 Planned | agent | Продуктовые субагенты v1: subagent-as-tool, YAML-реестр, judge (+ADR) |
 | feat-012 | 📋 Planned | cross-cutting | Skill-scoped user context: Store namespace, tools, REST, секция в /settings |
@@ -446,7 +446,7 @@ Response actions расширяют ответственность SIEM с чи�
 
 **Цель:** продуктовый агент умеет пошагово подгружать модули многофайловых скиллов (progressive disclosure), первый такой скилл — `tech-article-writing` — перенесён из discovery-инициативы в `skills/`.
 
-**Статус:** 🚧 In Progress
+**Статус:** ✅ Done
 **Scope:** agent
 
 #### Triggered by

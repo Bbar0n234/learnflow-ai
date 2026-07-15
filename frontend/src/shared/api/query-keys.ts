@@ -16,6 +16,9 @@ export const queryKeys = {
       ["projects", id, "artifacts"] as const,
     artifact: (id: string | undefined, artifactId: string | undefined) =>
       ["projects", id, "artifacts", artifactId] as const,
+    // Потомок artifact(...): префиксная инвалидация артефакта задевает и media
+    artifactMedia: (id: string | undefined, artifactId: string | undefined) =>
+      [...queryKeys.projects.artifact(id, artifactId), "media"] as const,
   },
   chats: {
     recent: ["chats", "recent"] as const,

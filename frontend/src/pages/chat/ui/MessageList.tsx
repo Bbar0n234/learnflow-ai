@@ -6,6 +6,7 @@ import { MarkdownRenderer } from "@/shared/ui/MarkdownRenderer";
 import { ToolIndicator } from "./ToolIndicator";
 import { ReviewIndicator } from "./ReviewIndicator";
 import { ArtifactCard } from "./ArtifactCard";
+import { GeneratingArtifactCard } from "./GeneratingArtifactCard";
 import { SphereWriteCard } from "./SphereWriteCard";
 import { MOCK_SPHERE_WRITES } from "../model/mock-sphere-writes";
 import { SHOW_GROUP_B_STUBS } from "@/shared/config/feature-flags";
@@ -35,6 +36,7 @@ export function MessageList({
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const isReviewing = useStreamStore((s) => s.isReviewing);
+  const pendingImages = useStreamStore((s) => s.pendingImages);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -79,8 +81,13 @@ export function MessageList({
               {streamingText && (
                 <MarkdownRenderer isStreaming>{streamingText}</MarkdownRenderer>
               )}
-              {activeTool && <ToolIndicator toolName={activeTool} />}
+              {activeTool && activeTool !== "generate_image" && (
+                <ToolIndicator toolName={activeTool} />
+              )}
               {isReviewing && !activeTool && <ReviewIndicator />}
+              {pendingImages.map((callId) => (
+                <GeneratingArtifactCard key={callId} />
+              ))}
               {streamingArtifacts.map((artifact) => (
                 <ArtifactCard
                   key={artifact.id}

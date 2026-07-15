@@ -56,6 +56,8 @@ export function useAgentStream(
         appendText,
         setTool,
         addArtifact,
+        addPendingImage,
+        removePendingImage,
         replaceWithRedacted,
         setReviewing,
         endStream,
@@ -173,9 +175,15 @@ export function useAgentStream(
                   break;
                 case "tool_start":
                   setTool(event.tool);
+                  if (event.tool === "generate_image") {
+                    addPendingImage(event.call_id);
+                  }
                   break;
                 case "tool_end":
                   setTool(null);
+                  if (event.tool === "generate_image") {
+                    removePendingImage(event.call_id);
+                  }
                   break;
                 case "artifact_created":
                   addArtifact({

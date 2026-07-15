@@ -169,6 +169,19 @@ aspect_ratio: "16:9" — обложка статьи (Хабр кропит пр
 
 Не входит: выбор image-модели пользователем (backlog P3), изображение в контексте агента (backlog), полноразмерное встраивание картинки в ленту/лайтбокс (в ленте — только превью в карточке), thumbnail-вариант блоба (backlog), человекочитаемая подпись-caption от агента (backlog; в MVP caption = prompt), входные изображения/`input_references` и «апскейл выбранного варианта» (backlog), несколько картинок за вызов (`n` = 1), `seed`/`stream`, S3/MinIO (backlog, Фаза 6), редактирование сгенерированных изображений.
 
+## Партиция треков
+
+| Трек | Скоуп | Файловый скоуп | Тестовый скоуп |
+|------|-------|----------------|----------------|
+| T1 | Backend + Agent | `backend/app/**` (модель + миграция `artifact_blobs`, `BlobStorage`/`PgBlobStorage`, media endpoint в `api/routes/artifacts.py`, tool `generate_image` в `agent/tools/`, расширение маппера `agent/stream_events.py`, Langfuse generation-observation), `configs/agent.yaml` (секция `image`) | `backend/tests/**` |
+| T2 | Frontend | `frontend/src/**` (`pages/artifact/` — ImageViewer + ArtifactView, `pages/chat/` — ArtifactCard + плейсхолдер генерации, вкл. `model/useAgentStream.ts` и рендер ленты, `shared/api/artifacts.ts` — media fetch, хук `useArtifactMedia`) | Vitest-тесты в `frontend/src/**` (colocated) |
+
+**Вердикт непересечения:** файловые скоупы дизъюнктны — T1 живёт в `backend/` + `configs/`, T2 в `frontend/src/`. Общих файлов нет; артефакты итерации каждый трек пишет только в свой `tracks/<id>/`.
+
+**Контракт между треками** зафиксирован настоящим design-brief и не требует координации в ходе работы: тип артефакта `image` (`content` = prompt), `GET /projects/{project_id}/artifacts/{artifact_id}/media` (bytes, `Content-Type` из `mime_type`, 404 без блоба, `Cache-Control: private, max-age=31536000, immutable`), SSE-события `tool_start`/`tool_end`/`artifact_created` без изменения формы (маппер расширяется на имя tool'а `generate_image`). T2 реализуется против этого контракта, не против кода T1.
+
+**Параллельность фаз:** все per-track фазы (PLAN → IMPLEMENT → TEST_AUTHORING → TEST_REVIEW → GREEN → TEST) идут T1 ∥ T2 без ограничений глубины. Cross-cutting E2E (агент генерирует → карточка/вьюер показывают реальную картинку) — в INTEGRATION_TEST после барьера.
+
 ## SOFA consulted
 
 Ресёрч проведён, релевантных постов нет. Запросы: image generation (tool), binary artifact storage, bytea/object storage, file storage postgres, blob, attachment, authenticated endpoint, presigned; теги `object-storage`, `image-generation`, `file-storage`, `s3`. Единственный тангенциальный кандидат — TIL `80cdf267` (S3 pre-signed PUT 403 при несовпадении ContentLength) — отвергнут: про подпись upload'а, не про выбор хранилища/отдачу.

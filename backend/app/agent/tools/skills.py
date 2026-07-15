@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import re
 from pathlib import Path
 from typing import Any
@@ -8,38 +9,129 @@ import yaml
 from langchain_core.tools import BaseTool, tool
 
 _SKILL_NAME_RE = re.compile(r"^[a-z0-9_-]+$")
+_SAFE_PATH_SEGMENT_RE = re.compile(r"^[\w.-]+$")
 
 
 def make_load_skill_tool(skills_dir: Path) -> BaseTool:
     """Create a load_skill tool bound to the given skills directory."""
 
     @tool
-    async def load_skill(skill_name: str) -> str:
-        """Load a skill module into context by name.
+    async def load_skill(skill_name: str, file: str | None = None) -> str:
+        """Load a skill into context, or load one of its files.
 
-        Returns the full skill content (instructions, patterns, approaches)
-        so you can use it to help the user.
+        Two forms:
+        - load_skill(skill_name): loads SKILL.md (instructions, patterns,
+          approaches), followed by a list of the skill's other files, if any.
+        - load_skill(skill_name, file): loads the content of `file`, a path
+          relative to the skill's directory (subdirectories allowed, any
+          extension). Use this after load_skill(skill_name) to pull in one
+          of the files listed in its footer.
         """
-        if not _SKILL_NAME_RE.match(skill_name):
-            available = _list_available(skills_dir)
-            return (
-                f"Error: invalid skill name '{skill_name}'. "
-                f"Available skills: {available}"
-            )
-
-        skill_path = (skills_dir / skill_name / "SKILL.md").resolve()
-        if not skill_path.is_relative_to(skills_dir.resolve()):
-            return f"Error: invalid skill path for '{skill_name}'."
-
-        if not skill_path.is_file():
-            available = _list_available(skills_dir)
-            return (
-                f"Error: skill '{skill_name}' not found. Available skills: {available}"
-            )
-
-        return skill_path.read_text(encoding="utf-8")
+        return await asyncio.to_thread(_load_skill_sync, skills_dir, skill_name, file)
 
     return load_skill
+
+
+def _load_skill_sync(skills_dir: Path, skill_name: str, file: str | None) -> str:
+    """Synchronous body of `load_skill`, run off the event loop via `asyncio.to_thread`."""
+    if not _SKILL_NAME_RE.match(skill_name):
+        available = _list_available(skills_dir)
+        return (
+            f"Error: invalid skill name '{skill_name}'. Available skills: {available}"
+        )
+
+    skill_path = (skills_dir / skill_name / "SKILL.md").resolve()
+    if not skill_path.is_relative_to(skills_dir.resolve()):
+        return f"Error: invalid skill path for '{skill_name}'."
+
+    if not skill_path.is_file():
+        available = _list_available(skills_dir)
+        return f"Error: skill '{skill_name}' not found. Available skills: {available}"
+
+    skill_dir = skill_path.parent
+
+    if file is None:
+        content = skill_path.read_text(encoding="utf-8")
+        skill_files = _list_skill_files(skill_dir)
+        if not skill_files:
+            return content
+
+        footer_lines = "\n".join(f"- {name}" for name in skill_files)
+        footer = (
+            "\n\n---\nSkill files (load with load_skill(skill_name, file)):\n"
+            f"{footer_lines}"
+        )
+        return content + footer
+
+    if not _is_safe_relative_path(file):
+        skill_files = _list_skill_files(skill_dir)
+        available_files = ", ".join(skill_files) if skill_files else "(none)"
+        return f"Error: invalid file path '{file}'. Available files: {available_files}"
+
+    file_path = (skill_dir / file).resolve()
+    if not file_path.is_relative_to(skill_dir):
+        skill_files = _list_skill_files(skill_dir)
+        available_files = ", ".join(skill_files) if skill_files else "(none)"
+        return f"Error: invalid file path '{file}'. Available files: {available_files}"
+
+    if not file_path.is_file():
+        skill_files = _list_skill_files(skill_dir)
+        available_files = ", ".join(skill_files) if skill_files else "(none)"
+        return (
+            f"Error: file '{file}' not found in skill '{skill_name}'. "
+            f"Available files: {available_files}"
+        )
+
+    try:
+        return file_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return f"Error: file '{file}' is a binary file, cannot load as text."
+
+
+def _is_safe_relative_path(file: str) -> bool:
+    """First-layer validation for `load_skill`'s `file` parameter.
+
+    Rejects absolute paths and `..` traversal by checking each `/`-separated
+    segment against a safe pattern (word characters plus `.`/`-`, Unicode-aware
+    so non-ASCII module names pass), mirroring `_SKILL_NAME_RE` for skill
+    names. This is layer one of the two-layer defense; layer two is
+    `resolve()` + `is_relative_to()` against the skill's directory.
+    """
+    if not file or file.startswith("/"):
+        return False
+    segments = file.split("/")
+    return all(
+        segment not in ("", ".", "..") and _SAFE_PATH_SEGMENT_RE.match(segment)
+        for segment in segments
+    )
+
+
+def _list_skill_files(skill_dir: Path) -> list[str]:
+    """Recursively list a skill's files, relative to its directory.
+
+    Excludes SKILL.md itself, dotfiles, and entries that resolve outside
+    `skill_dir` (e.g. symlinks pointing elsewhere) — the footer only lists
+    what `load_skill(skill_name, file)` can actually load, since layer two
+    of that path's validation rejects the same entries. Used to build the
+    progressive-disclosure footer appended to `load_skill` responses without
+    `file`.
+    """
+    if not skill_dir.is_dir():
+        return []
+    resolved_skill_dir = skill_dir.resolve()
+    files: list[str] = []
+    for path in skill_dir.rglob("*"):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(skill_dir)
+        if relative == Path("SKILL.md"):
+            continue
+        if any(part.startswith(".") for part in relative.parts):
+            continue
+        if not path.resolve().is_relative_to(resolved_skill_dir):
+            continue
+        files.append(relative.as_posix())
+    return sorted(files)
 
 
 def _list_available(skills_dir: Path) -> str:

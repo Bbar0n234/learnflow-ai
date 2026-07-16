@@ -30,7 +30,7 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 | feat-008 | ✅ Done | security tooling | Promptfoo Red Team Scan: app-level LLM vulnerability scan через локальный Python provider |
 | feat-009 | ✅ Done | agent | Многофайловые скиллы (load_skill file param) + перенос скилла tech-article-writing |
 | feat-010 | ✅ Done | cross-cutting | Генерация изображений: OpenRouter Image API, artifact_blobs, media endpoint, живой ImageViewer |
-| feat-011 | 📋 Planned | agent | Продуктовые субагенты v1: subagent-as-tool, YAML-реестр, judge (+ADR) |
+| feat-011 | 📋 Planned | agent | Продуктовые субагенты v1: subagent-as-tool, реестр в agent.yaml, judge + web-research (+ADR) |
 | feat-012 | 🚧 In Progress | cross-cutting | Skill-scoped user context: Store namespace, tools, REST, секция в /settings |
 
 ## Параллелизация
@@ -501,26 +501,29 @@ Backlog P2 «Генерация изображений агентом»; под�
 
 ### feat-011: Продуктовые субагенты v1
 
-**Цель:** механика субагентов по паттерну subagent-as-tool: YAML-реестр спек, SubagentRunner, tool `run_subagent(agent_type, task)`, тип `judge` с чистым контекстом. Архитектурное решение фиксируется ADR внутри итерации.
+**Цель:** механика субагентов по паттерну subagent-as-tool: реестр спек в `agent.yaml`, SubagentRunner, tool `run_subagent(agent_type, task, input_artifact_ids?)`, типы `judge` (чистый контекст), `web-research` (firecrawl-toolset), `general-purpose`. Архитектурное решение фиксируется ADR внутри итерации.
 
 **Статус:** 📋 Planned
 **Scope:** agent
 
 #### Triggered by
 
-Backlog P2 «Продуктовые субагенты» + discovery-спайк: judge-проходы скилла `tech-article-writing` (анти-слоп, cold-reader) требуют независимого агента со «свежими глазами» и не требуют инструментов — прежняя блокировка «после web search / sandbox» снята.
+Backlog P2 «Продуктовые субагенты» + discovery-спайк: judge-проходы скилла `tech-article-writing` (анти-слоп, cold-reader) требуют независимого агента со «свежими глазами» и не требуют инструментов; для web-research инструменты уже есть (built-in firecrawl MCP) — прежняя блокировка «после web search / sandbox» снята полностью.
 
 #### Критерии приёмки
 
-- [ ] ADR: паттерн, отклонённые альтернативы (supervisor/swarm/deepagents, generic-tool, tool-per-role), sync v1 vs async v2, формат реестра, security-политика
-- [ ] `run_subagent("judge", task)` возвращает вердикт; история сессии в субагента не утекает (тест)
-- [ ] Реестр YAML; description инструмента собирается из реестра на старте; невалидный тип → ошибка со списком
-- [ ] `persistence: none|inherit` в спеке (judge — none); запуски видны в Langfuse вложенными span'ами
-- [ ] Токены субагента не рисуются в чат как ответ основного агента
+- [ ] ADR: паттерн, отклонённые альтернативы (supervisor/swarm/deepagents, generic-tool, tool-per-role), sync v1 vs async v2, формат реестра, вход по референсу, security-политика (переиспользование checkpoint'ов внутри цикла)
+- [ ] `run_subagent("judge", task, input_artifact_ids)` возвращает вердикт; вход собирается только из task + артефактов (каждый в обёртке с id/title), история сессии не утекает (тест); любой чужой/несуществующий id → ошибка tool целиком (без частичного входа), граф не падает
+- [ ] Реестр в `agent.yaml`; description инструмента собирается из реестра на старте; невалидный тип → ошибка со списком; неизвестное имя tool в спеке → ошибка старта
+- [ ] `web-research`: firecrawl-toolset, внутри цикла работают проверки TOOL_RESULT/TOOL_CALL_ARG (redact-семантика), `recursion_limit`; user-installed MCP в субагентов не попадают
+- [ ] Промпты субагентов — в Langfuse-контуре (`prompts.yaml` + seed + file fallback); модель — дефолт `subagents.llm` + per-spec override
+- [ ] `persistence: none|inherit` в спеке (v1 — none); запуски видны в Langfuse вложенными span'ами
+- [ ] Токены субагента не рисуются в чат и не попадают в `full_response` (фильтр по тегу)
+- [ ] Judge-проходы `SKILL.md` обновлены: черновик → `create_artifact` → id судье
 
 #### Документация
 
-- [design-brief.md](iterations/post-mvp/feat-011-subagents-v1/design-brief.md) — паттерн, слоистость Runner/Spec/tool, реестр в `agent.yaml`, промпт-контур через PromptProvider, изоляция токенов в стриме, обоснование sync v1, persistence-режимы
+- [design-brief.md](iterations/post-mvp/feat-011-subagents-v1/design-brief.md) — паттерн, слоистость Runner/Spec/tool, вход по артефакт-референсу, tools-механика с переиспользованием guard, промпт-контур через PromptProvider, изоляция токенов в стриме, обоснование sync v1, persistence-режимы
 
 ### feat-012: Skill-scoped user context
 

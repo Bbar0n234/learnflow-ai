@@ -30,7 +30,7 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 | feat-008 | ✅ Done | security tooling | Promptfoo Red Team Scan: app-level LLM vulnerability scan через локальный Python provider |
 | feat-009 | ✅ Done | agent | Многофайловые скиллы (load_skill file param) + перенос скилла tech-article-writing |
 | feat-010 | ✅ Done | cross-cutting | Генерация изображений: OpenRouter Image API, artifact_blobs, media endpoint, живой ImageViewer |
-| feat-011 | 📋 Planned | agent | Продуктовые субагенты v1: subagent-as-tool, реестр в agent.yaml, judge + web-research (+ADR) |
+| feat-011 | 🚧 In Progress | agent | Продуктовые субагенты v1: subagent-as-tool, реестр в agent.yaml, judge + web-research (+ADR) |
 | feat-012 | 🚧 In Progress | cross-cutting | Skill-scoped user context: Store namespace, tools, REST, секция в /settings |
 
 ## Параллелизация
@@ -503,7 +503,7 @@ Backlog P2 «Генерация изображений агентом»; под�
 
 **Цель:** механика субагентов по паттерну subagent-as-tool: реестр спек в `agent.yaml`, SubagentRunner, tool `run_subagent(agent_type, task, input_artifact_ids?)`, типы `judge` (чистый контекст), `web-research` (firecrawl-toolset), `general-purpose`. Архитектурное решение фиксируется ADR внутри итерации.
 
-**Статус:** 📋 Planned
+**Статус:** 🚧 In Progress
 **Scope:** agent
 
 #### Triggered by

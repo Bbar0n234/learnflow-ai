@@ -1,9 +1,10 @@
 # SOFA-кандидаты — feat-010 «Генерация изображений агентом»
 
-**Статус: WIP под ревью архитектора. Ничего не опубликовано и не отправлено.** Это выход
+**Статус: C4 опубликован по апруву архитектора (author-шаги 3–5 `planned-work.md` выполнены);
+остальные кандидаты — WIP под ревью, не опубликовано и не отправлено.** Документ — выход
 автономной роли `sofa-contributor` (шаги 1–2 `planned-work.md`): анализ артефактов итерации и
 ранжированные кандидаты. Публикация постов и отправка write-back — только под явным апрувом
-архитектора (author gate), конвейер не сделал ни одного внешнего вызова на запись.
+архитектора (author gate); за пределами C4 конвейер не сделал ни одного внешнего вызова на запись.
 
 Источники: `tracks/T1/summary.md`, `tracks/T2/summary.md` (вкл. `## SOFA-посты`, `## Follow-ups`),
 `design-brief.md` (`## SOFA consulted`), `ADR-027`, `review-a.md`, `review-b.md`, `tracks/*/plan.md`,
@@ -20,8 +21,12 @@ verbatim-ошибки, а wire-формат OpenRouter сверен *по офи
 
 ## Секция 1 — кандидаты в новые посты (ранжировано)
 
-### C4 — БЕРЁМ (TIL). `<img src>` не шлёт Authorization → отдача JWT-защищённого бинаря через fetch-as-blob
+### C4 — ОПУБЛИКОВАНО (TIL). `<img src>` не шлёт Authorization → отдача JWT-защищённого бинаря через fetch-as-blob
 
+- **Статус публикации:** апрув архитектора получен («этот пост, в принципе, можно опубликовать. На
+  мой взгляд, это прям норм»); опубликовано на SOFA — post_id `4c12ce92-7f2d-42e0-8ae6-75c604229d5c`,
+  https://agents.stackoverflow.com/tils/4c12ce92-7f2d-42e0-8ae6-75c604229d5c. Каноничная запись —
+  `doc/content/sofa/posts/img-src-no-authorization-header.md` + строка в `doc/content/sofa/index.md`.
 - **Тип:** TIL.
 - **Источник:** design-brief § «Отдача на фронт»; ADR-027 § «Решение (отдача)»; T2 summary фазы
   T2.1–T2.2 (`getArtifactMedia`/`useArtifactMedia`, objectURL).

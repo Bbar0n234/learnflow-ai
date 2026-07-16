@@ -54,76 +54,107 @@
 фундамент — `backend/tests/conftest.py` + `packages/testing`, не дублируется). Раскладка
 по модели «слой → тип теста» из `testing.md`.
 
-**Покрываем автотестом:**
+**Покрываем автотестом** — по записи на суиту:
 
-- **Хелпер OpenRouter** (`app/infra/image_generation.py`) — `test_openrouter_image.py`,
-  unit, шов через `httpx.MockTransport` (без сети/ключа). Happy-парсинг
-  (`b64_json`→bytes, `media_type`, `usage.cost`); `cost=None`, когда провайдер его не
-  вернул; форма запроса (URL `/images`, `Authorization: Bearer`, тело = `model` + `prompt`
-  + опциональные `aspect_ratio`/`resolution` + merge `params`); опущение незаданных
-  опциональных аргументов. Критпуть — маппинг ошибок: non-2xx (400/429/500/502) → `502
-  image-generation-failed` (`parametrize`); timeout → `503 image-generation-unavailable`;
-  сетевая ошибка → `503`; малформед 2xx (пустой `data`, нет `data`, нет `b64_json`, нет
-  `media_type`, а также ключи есть, но `b64_json`/`media_type` = `null`/пустая строка/не-str)
-  → `502 image-generation-malformed-response` (`parametrize`, 9 кейсов); невалидный
-  base64 → `502 malformed`.
-- **PgBlobStorage** (`app/repositories/blob_storage.py`) — `test_blob_storage.py`,
-  integration против реального Postgres (транзакционный откат). `put`→`get` round-trip
-  точных байтов (включая не-ASCII весь диапазон `0..255`) + mime; `get` отсутствующего
-  → `None` (сигнал 404 для endpoint); `delete` удаляет строку; `delete` отсутствующего —
-  no-op.
-- **Media endpoint** (`GET .../artifacts/{id}/media`) — `test_media_endpoint.py`,
-  integration через аутентифицированный ASGI-клиент. 200 + `Content-Type` из `mime_type`
-  + точные байты + `Cache-Control: private, max-age=31536000, immutable`; 404 без блоба;
-  404 нет артефакта; 404 артефакт в чужом проекте того же юзера; 404 проект чужого юзера.
-  (JWT-auth сам по себе — суита `tests/auth/`; здесь клиент уже залогинен.)
-- **Tool `generate_image`** (`app/agent/tools/image_generation.py`) —
-  `test_generate_image_tool.py`, sociable-unit с реальным Postgres под транзакцией (шов:
-  внешний вызов `call_generate_image` подменён фейком; сессия — фабрика на общей
-  outer-транзакции, см. conftest). Атомарность happy: артефакт (`type="image"`,
-  `content=prompt`, project/thread) **и** блоб (`data`+`media_type`) читаются на той же
-  транзакции — то есть коммитнулись вместе; проброс creative-аргументов
-  (`prompt`/`aspect_ratio`/`resolution`) в хелпер без искажения; текст ToolMessage несёт
-  title/id/resolution/cost; `cost=None` → метка «unknown» (не выдуманный `$0.0000`),
-  опущенный `resolution` → «provider default». Атомарность negative: ошибка провайдера
-  (`UpstreamUnavailableError` из хелпера) пробрасывается и **не пишет ни артефакт, ни
-  блоб** (транзакция не открывается). `runtime.context is None` → `RuntimeError`. 📊
-  Langfuse: при `langfuse_enabled` открывается generation-observation с
-  `as_type="generation"`, `model`, и `cost_details={"total": cost}`; при `cost=None`
-  `cost_details` **не** передаётся (мок на `langfuse.get_client` — внешний эффект, вызов
-  и есть контракт).
-- **SSE-маппер** (`app/agent/stream_events.py`) —
-  `test_stream_events_generate_image.py`, unit. Расширение на `generate_image`:
-  ToolMessage с `artifact` → `tool_end` + `artifact_created` (ремап `type`→`artifact_type`,
-  форма события не изменилась); без `artifact` (ошибка tool) → только `tool_end`
-  (плейсхолдер на фронте снимается, карточка не появляется). Путь `create_artifact`
-  уже покрыт в `tests/agent/test_stream_events.py` — не дублирую.
-- **Fail-fast конфига** (`ImageConfig` / `AgentConfig`) — `test_image_config.py`, unit.
-  `AgentConfig` без секции `image` → `ValidationError` с `loc == ("image",)`;
-  `ImageConfig.params` дефолт `{}`; произвольные `params` сохраняются (passthrough
-  `extra_body`); реальный `configs/agent.yaml` резолвит `image.model ==
-  google/gemini-3.1-flash-image`.
+### `test_openrouter_image.py` — хелпер OpenRouter
 
-**Осознанно не покрываем автотестом (+ почему):**
+1. **Файл**: `backend/tests/image_generation/test_openrouter_image.py` — unit, шов `httpx.MockTransport` (без сети и ключа)
+2. **Тестирует**: `app/infra/image_generation.py :: generate_image`
+3. **Суть**: хелпер правильно разбирает успешный ответ OpenRouter и превращает каждый
+   вид сбоя в нашу типизированную ошибку: отказ провайдера — в 502, недоступность — в 503,
+   битый или неполный ответ — в 502 malformed. Наружу не выходит ни один сырой сбой.
+4. **Кейсы**:
+   - успех: `b64_json` декодируется в байты, приходят `media_type` и `usage.cost`; `cost=None`, когда провайдер его не вернул
+   - форма запроса: URL `/images`, `Authorization: Bearer`, тело `model` + `prompt` + опциональные `aspect_ratio`/`resolution` + merge `params`; незаданные опциональные аргументы не отправляются
+   - non-2xx (400/429/500/502, `parametrize`) → `502 image-generation-failed`
+   - таймаут и сетевая ошибка → `503 image-generation-unavailable`
+   - малформед 2xx (`parametrize`, 9 кейсов: пустой/отсутствующий `data`, нет `b64_json`/`media_type`, ключи есть, но `null`/пустая строка/не-str) → `502 image-generation-malformed-response`
+   - невалидный base64 → `502 malformed`
+
+### `test_blob_storage.py` — PgBlobStorage
+
+1. **Файл**: `backend/tests/image_generation/test_blob_storage.py` — integration, реальный Postgres с транзакционным откатом
+2. **Тестирует**: `app/repositories/blob_storage.py :: PgBlobStorage`
+3. **Суть**: хранилище блобов сохраняет и возвращает байты без искажений и предсказуемо
+   ведёт себя на отсутствующих записях: `get` сигналит `None` (основа 404 в endpoint),
+   `delete` не падает.
+4. **Кейсы**:
+   - `put` → `get` round-trip: точные байты (весь диапазон `0..255`) + mime
+   - `get` отсутствующего → `None`
+   - `delete` удаляет строку; `delete` отсутствующего — no-op
+
+### `test_media_endpoint.py` — media endpoint
+
+1. **Файл**: `backend/tests/image_generation/test_media_endpoint.py` — integration, аутентифицированный ASGI-клиент
+2. **Тестирует**: `app/api/routes/artifacts.py :: GET /projects/{project_id}/artifacts/{artifact_id}/media`
+3. **Суть**: endpoint отдаёт бинарь с корректным mime и иммутабельным кэшем, а все
+   сценарии «нет данных или не твоё» схлопывает в одинаковый 404 — не раскрывая, существует
+   ли артефакт.
+4. **Кейсы**:
+   - 200: `Content-Type` из `mime_type`, точные байты, `Cache-Control: private, max-age=31536000, immutable`
+   - 404: нет блоба; нет артефакта; артефакт в чужом проекте того же юзера; проект чужого юзера
+   - JWT-auth сам по себе не дублируется — закрыт суитой `tests/auth/`, клиент здесь уже залогинен
+
+### `test_generate_image_tool.py` — tool `generate_image`
+
+1. **Файл**: `backend/tests/image_generation/test_generate_image_tool.py` — sociable-unit, реальный Postgres под общей outer-транзакцией; шов — фейк внешнего вызова `call_generate_image` (см. conftest)
+2. **Тестирует**: `app/agent/tools/image_generation.py :: make_generate_image_tool`
+3. **Суть**: tool пишет артефакт и блоб атомарно — либо оба, либо ничего; передаёт
+   creative-аргументы провайдеру без искажений и честно отчитывается в ToolMessage;
+   при ошибке провайдера не оставляет в БД никаких следов. 📊 Отдельно гарантирует
+   контракт с Langfuse: generation-observation уходит с `cost_details`, только когда
+   стоимость известна.
+4. **Кейсы**:
+   - атомарность happy: артефакт (`type="image"`, `content=prompt`, project/thread) и блоб (`data`+`media_type`) читаются на той же транзакции — коммитнулись вместе
+   - `prompt`/`aspect_ratio`/`resolution` доходят до хелпера без искажений
+   - ToolMessage несёт title/id/resolution/cost; `cost=None` → метка «unknown» (не выдуманный `$0.0000`); опущенный `resolution` → «provider default»
+   - атомарность negative: `UpstreamUnavailableError` из хелпера пробрасывается, ни артефакт, ни блоб не пишутся (транзакция не открывается)
+   - `runtime.context is None` → `RuntimeError`
+   - 📊 Langfuse: при `langfuse_enabled` открывается generation-observation (`as_type="generation"`, `model`, `cost_details={"total": cost}`); при `cost=None` `cost_details` не передаётся (мок на `langfuse.get_client` — внешний эффект, вызов и есть контракт)
+
+### `test_stream_events_generate_image.py` — SSE-маппер
+
+1. **Файл**: `backend/tests/image_generation/test_stream_events_generate_image.py` — unit
+2. **Тестирует**: `app/agent/stream_events.py` (расширение маппера на `generate_image`)
+3. **Суть**: успешная генерация рождает в SSE-потоке `artifact_created` (фронт рисует
+   карточку), а ошибка tool'а — только `tool_end` (плейсхолдер снимается, карточка не
+   появляется). Форма события при этом не изменилась.
+4. **Кейсы**:
+   - ToolMessage с `artifact` → `tool_end` + `artifact_created` (ремап `type` → `artifact_type`)
+   - ToolMessage без `artifact` (ошибка tool) → только `tool_end`
+   - путь `create_artifact` не дублируется — уже покрыт `tests/agent/test_stream_events.py`
+
+### `test_image_config.py` — fail-fast конфига
+
+1. **Файл**: `backend/tests/image_generation/test_image_config.py` — unit
+2. **Тестирует**: `app/agent/config.py :: ImageConfig, AgentConfig`
+3. **Суть**: без секции `image` приложение не стартует (fail-fast на загрузке конфига),
+   а произвольные `params` из конфига проходят к провайдеру как есть.
+4. **Кейсы**:
+   - `AgentConfig` без секции `image` → `ValidationError` с `loc == ("image",)`
+   - `ImageConfig.params` — дефолт `{}`; произвольные `params` сохраняются (passthrough `extra_body`)
+   - реальный `configs/agent.yaml` резолвит `image.model == google/gemini-3.1-flash-image`
+
+**Осознанно не покрываем автотестом** (что — почему — куда уехало):
 
 - **Живой вызов OpenRouter** (реальный `b64_json`/`media_type`/`usage.cost` для
-  `google/gemini-3.1-flash-image`) — нет ключа в окружении; недетерминированный
-  внешний вызов не CI-гейт (`testing.md` § Граница unit/eval). Wire-формат сверен по
-  офиц. доке OpenRouter и воспроизведён в `MockTransport`. → ручной кейс `{T1.1}`.
+  `google/gemini-3.1-flash-image`) — нет ключа в окружении, а недетерминированный
+  внешний вызов не CI-гейт (`testing.md` § Граница unit/eval); wire-формат сверен по
+  офиц. доке OpenRouter и воспроизведён в `MockTransport` → ручной кейс `{T1.1}`.
 - **Фактическая цифра cost в Langfuse UI** — учёт затрат живёт только в Langfuse
-  (в БД не пишется), проверяется глазами в UI после живого вызова. Автотест проверяет,
-  что наш код **формирует** `cost_details` из `usage.cost`, а не саму цифру провайдера.
+  (в БД не пишется) и проверяется глазами; автотест гарантирует, что наш код
+  **формирует** `cost_details` из `usage.cost`, а не саму цифру провайдера
   → ручной кейс `{T1.2}`.
 - **wiring в `main.py`** (`make_generate_image_tool` в `internal_tools`/`global_tools`) —
-  чистая DI-склейка без бизнес-ветвлений (мягкий гейт glue по `testing.md` § DoD);
-  косвенно покрыт `tests/smoke/test_app_boot.py` (приложение поднимается) и E2E.
-- **ReAct-петля целиком** (агент реально зовёт `generate_image` через граф на фейк-модели)
-  — cross-cutting, ближе к E2E; здесь достаточно прямого вызова tool-coroutine. Сквозной
-  путь — Layer 3.
+  чистая DI-склейка без бизнес-ветвлений (мягкий гейт glue по `testing.md` § DoD)
+  → косвенно закрыт `tests/smoke/test_app_boot.py` (приложение поднимается) и E2E.
+- **ReAct-петля целиком** (агент реально зовёт `generate_image` через граф на
+  фейк-модели) — cross-cutting, ближе к E2E; для трека достаточно прямого вызова
+  tool-coroutine → сквозной путь — Layer 3.
 - **downgrade миграции `artifact_blobs`** — общий страж дрейфа
-  (`tests/migrations/test_migration_drift.py`) уже гоняет цепочку; отдельного
-  upgrade→downgrade→upgrade для этой ревизии не добавляю (miграция простая, autogenerate,
-  проверена в summary T1.1). Если критпуть-требование потребует — вынести в migrations-скоуп.
+  (`tests/migrations/test_migration_drift.py`) уже гоняет цепочку, а миграция простая
+  (autogenerate, проверена в summary T1.1) → при появлении критпуть-требования —
+  вынести в migrations-скоуп.
 
 **Замеченные прод-баги / дрейф (для fixer'а / оркестратора — сам не чиню):**
 

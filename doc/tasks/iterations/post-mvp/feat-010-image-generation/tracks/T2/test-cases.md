@@ -58,23 +58,99 @@ dev-заглушки. Тесты страхуют **новую фичу** (не 
 
 ## Дизайн автотестов
 
-**Покрываем автотестом** (colocated Vitest, `frontend/src/**`, 30 новых кейсов; стек — Vitest + jsdom + RTL + MSW, свежий `QueryClient` с `retry:false`, Zustand-сброс между тестами):
+Все автотесты трека — colocated Vitest в `frontend/src/**`, 30 новых кейсов; стек — Vitest + jsdom + RTL + MSW, свежий `QueryClient` с `retry:false`, Zustand-сброс между тестами.
 
-- **API-слой media** (`shared/api/artifacts.test.ts`, integration + unit): `getArtifactMedia`/`useArtifactMedia` качают `Blob` с media-endpoint (MSW, mime из `Content-Type`); `enabled` не стреляет при отсутствии id (idle, без запроса); 404 всплывает ошибкой, которую распознаёт предикат. `isArtifactMediaNotFound` (solitary-unit, чистый предикат): 404 → true, 500/не-Axios/null → false.
-- **`ImageViewer`** (`pages/artifact/ui/ImageViewer.test.tsx`, integration): три состояния — загрузка (шиммер `aria-label="Изображение загружается"`) → готово (`<img>` с `alt` = prompt, src = objectURL, caption = prompt) → 404 (пустое состояние «изображение не найдено», зум-pill скрыт, `.png` задизейблена) и generic-ошибка 500 (текст «не удалось загрузить изображение»). Скачивание: `.png` активна только в «готово», download = `<title>.png`, `href` = тот же objectURL (без второго запроса). objectURL ревокается на unmount.
-- **`ArtifactCard`** (`pages/chat/ui/ArtifactCard.test.tsx`, integration): image-тип — превью с media-endpoint (objectURL → `<img>`), карточка = Link на детальный роут; non-image — иконка `FileText`, **media-запроса нет** (MSW `onUnhandledRequest:"error"` подтверждает); 404 → грациозный фолбэк на иконку (svg, не битый `<img>`), карточка кликабельна; ревок objectURL на unmount.
-- **`GeneratingArtifactCard`** (unit): `role="status"` с именем «Идёт генерация изображения», текст «Генерирую изображение…».
-- **`MessageList`** (`pages/chat/ui/MessageList.test.tsx`, integration): одна pending-карточка на каждый `call_id` из `pendingImages`; пилюля `ToolIndicator` подавлена для `activeTool === "generate_image"`, но рендерится для прочих (`web_search`); без активных генераций — плейсхолдеров нет.
-- **`stream-store`** (unit, дополнение к существующему файлу): `addPendingImage` (идемпотентен — без дублей), `removePendingImage` (no-op на неизвестный id), сброс `pendingImages` в `startStream`/`endStream`.
-- **`useAgentStream`** (integration, дополнение к существующему файлу, live SSE через MSW): `tool_start(generate_image)` → добавляет `call_id` в `pendingImages`, `tool_end` с тем же `call_id` → снимает (в т.ч. при завершении tool'а с ошибкой — эмуляция того же `tool_end`); non-image tool (`web_search`) `pendingImages` не трогает, `activeTool` работает как раньше *(регресс)*.
+**Покрываем автотестом** — по записи на суиту:
 
-**Осознанно не покрываем автотестом (+ почему):**
+### `artifacts.test.ts` — API-слой media
 
-- **Пошаговый зум** (`ZOOM_STEPS`, кнопки +/−/«По ширине») — предсуществующая UI-логика заглушки, не изменена в feat-010; автотест покрывает только релевантную новинку — видимость pill в «готово» vs скрытие в 404. Проверку самих ступеней зума оставляем ручному хвосту (визуальная сверка с мокапом).
-- **Реальное скачивание файла на диск** — jsdom не сохраняет файл; тест проверяет корректность собранного anchor (`download`, `href`), но факт «файл лёг в загрузки с картинкой внутри» проверяется вручную/в E2E (👤).
-- **Дедупликация сети между карточкой ленты и вьюером одним media-ключом** — это внутреннее поведение react-query (общий `queryKey` + `staleTime: Infinity`); в изоляции компонента один потребитель. «Один сетевой вызов на пару потребителей» подтверждается на живом стенде по DevTools Network (кейс `{T2.7}` / Layer 2), а не unit-тестом на библиотечную механику.
-- **Визуальная параметрия с мокапом и тёмная/светлая тема** — вне возможностей jsdom (нет layout/CSS), классический ручной хвост приёмки UX (👤). Реальный browser-e2e и visual-regression — backlog проекта (headless к HTTPS в облаке не работает — `testing.md` § Frontend).
-- **`ArtifactView` type-dispatch и раз-гейт `SHOW_GROUP_B_STUBS`** — `SHOW_GROUP_B_STUBS = import.meta.env.DEV` (в vitest всегда true), поэтому unit-тест не отличил бы прод от dev по флагу; факт «`image` в проде, slides/audio под флагом» проверяется чтением кода (`ArtifactView.tsx:45-58`) и ручным кейсом на прод-сборке. Сам `ImageViewer` покрыт напрямую.
+1. **Файл**: `frontend/src/shared/api/artifacts.test.ts` — integration (MSW) + solitary-unit для предиката
+2. **Тестирует**: `shared/api/artifacts.ts :: getArtifactMedia, useArtifactMedia, isArtifactMediaNotFound`
+3. **Суть**: хук скачивает картинку с media-endpoint как `Blob` и не стреляет запросом,
+   пока нет id; 404 всплывает ошибкой, которую предикат надёжно отличает от любых других сбоев.
+4. **Кейсы**:
+   - `getArtifactMedia`/`useArtifactMedia` качают `Blob` (mime из `Content-Type`)
+   - `enabled` не стреляет при отсутствии id (idle, без запроса)
+   - 404 всплывает ошибкой, которую распознаёт предикат
+   - `isArtifactMediaNotFound`: 404 → true; 500 / не-Axios / null → false
+
+### `ImageViewer.test.tsx` — вьюер изображения
+
+1. **Файл**: `frontend/src/pages/artifact/ui/ImageViewer.test.tsx` — integration
+2. **Тестирует**: `pages/artifact/ui/ImageViewer.tsx`
+3. **Суть**: вьюер проводит пользователя через все состояния — шиммер во время загрузки,
+   картинка с подписью, внятные пустые состояния на 404 и на сбой — и не течёт памятью
+   (objectURL освобождается). Скачивание отдаёт уже загруженный blob без второго запроса.
+4. **Кейсы**:
+   - загрузка: шиммер `aria-label="Изображение загружается"`
+   - готово: `<img>` с `alt` = prompt, `src` = objectURL, caption = prompt
+   - 404: «изображение не найдено», зум-pill скрыт, `.png` задизейблена; 500: «не удалось загрузить изображение»
+   - скачивание: `.png` активна только в «готово», `download` = `<title>.png`, `href` — тот же objectURL (без второго запроса)
+   - objectURL ревокается на unmount
+
+### `ArtifactCard.test.tsx` — карточка артефакта
+
+1. **Файл**: `frontend/src/pages/chat/ui/ArtifactCard.test.tsx` — integration
+2. **Тестирует**: `pages/chat/ui/ArtifactCard.tsx`
+3. **Суть**: карточка image-артефакта показывает живое превью и ведёт на детальный роут;
+   остальные типы получают иконку и ни одного лишнего сетевого запроса; битое превью
+   грациозно падает на иконку, не ломая кликабельность.
+4. **Кейсы**:
+   - image: превью с media-endpoint (objectURL → `<img>`), карточка = Link на детальный роут
+   - non-image: иконка `FileText`, media-запроса нет (MSW `onUnhandledRequest:"error"` подтверждает)
+   - 404: фолбэк на иконку (svg, не битый `<img>`), карточка кликабельна
+   - objectURL ревокается на unmount
+
+### `GeneratingArtifactCard.test.tsx` — плейсхолдер генерации
+
+1. **Файл**: `frontend/src/pages/chat/ui/GeneratingArtifactCard.test.tsx` — unit
+2. **Тестирует**: `pages/chat/ui/GeneratingArtifactCard.tsx`
+3. **Суть**: плейсхолдер доступен скринридеру как статус и сообщает, что идёт генерация.
+4. **Кейсы**:
+   - `role="status"` с именем «Идёт генерация изображения», текст «Генерирую изображение…»
+
+### `MessageList.test.tsx` — лента сообщений
+
+1. **Файл**: `frontend/src/pages/chat/ui/MessageList.test.tsx` — integration
+2. **Тестирует**: `pages/chat/ui/MessageList.tsx`
+3. **Суть**: на каждую активную генерацию лента показывает ровно одну pending-карточку
+   и прячет для неё tool-пилюлю; для остальных tool'ов пилюля живёт как раньше.
+4. **Кейсы**:
+   - одна pending-карточка на каждый `call_id` из `pendingImages`
+   - `ToolIndicator` подавлен для `activeTool === "generate_image"`, рендерится для прочих (`web_search`)
+   - без активных генераций плейсхолдеров нет
+
+### `stream-store.test.ts` — стор стрима (дополнение)
+
+1. **Файл**: `frontend/src/stores/stream-store.test.ts` — unit, дополнение к существующему файлу
+2. **Тестирует**: `stores/stream-store.ts :: addPendingImage, removePendingImage`
+3. **Суть**: реестр активных генераций не накапливает дублей и мусора — добавление
+   идемпотентно, удаление неизвестного id безопасно, старт и конец стрима сбрасывают
+   состояние.
+4. **Кейсы**:
+   - `addPendingImage` идемпотентен (без дублей)
+   - `removePendingImage` — no-op на неизвестный id
+   - `startStream`/`endStream` сбрасывают `pendingImages`
+
+### `useAgentStream.test.ts` — обработка SSE (дополнение)
+
+1. **Файл**: `frontend/src/pages/chat/model/useAgentStream.test.ts` — integration, live SSE через MSW, дополнение к существующему файлу
+2. **Тестирует**: `pages/chat/model/useAgentStream.ts`
+3. **Суть**: события генерации двигают реестр pending-картинок — `tool_start` ставит
+   плейсхолдер, `tool_end` снимает, в том числе когда tool завершился ошибкой; чужие
+   tool'ы реестр не трогают.
+4. **Кейсы**:
+   - `tool_start(generate_image)` → добавляет `call_id` в `pendingImages`
+   - `tool_end` с тем же `call_id` → снимает (в т.ч. при завершении tool'а с ошибкой — эмуляция того же `tool_end`)
+   - non-image tool (`web_search`) `pendingImages` не трогает; `activeTool` работает как раньше *(регресс)*
+
+**Осознанно не покрываем автотестом** (что — почему — куда уехало):
+
+- **Пошаговый зум** (`ZOOM_STEPS`, кнопки +/−/«По ширине») — предсуществующая UI-логика заглушки, не изменена в feat-010; автотест покрывает только релевантную новинку (видимость pill в «готово» vs скрытие в 404) → ручной хвост, визуальная сверка с мокапом.
+- **Реальное скачивание файла на диск** — jsdom не сохраняет файлы; тест проверяет корректность собранного anchor (`download`, `href`), но не факт «файл лёг в загрузки с картинкой внутри» → вручную / E2E (👤).
+- **Дедупликация сети между карточкой ленты и вьюером одним media-ключом** — внутреннее поведение react-query (общий `queryKey` + `staleTime: Infinity`), в изоляции компонента потребитель один; unit-тест проверял бы библиотечную механику → живой стенд, DevTools Network — кейс `{T2.7}` / Layer 2.
+- **Визуальная параметрия с мокапом и тёмная/светлая тема** — вне возможностей jsdom (нет layout/CSS), классический ручной хвост приёмки UX → 👤 ручные кейсы; browser-e2e и visual-regression — backlog проекта (headless к HTTPS в облаке не работает — `testing.md` § Frontend).
+- **`ArtifactView` type-dispatch и раз-гейт `SHOW_GROUP_B_STUBS`** — `SHOW_GROUP_B_STUBS = import.meta.env.DEV`, в vitest всегда true, unit-тест не отличит прод от dev по флагу; сам `ImageViewer` покрыт напрямую → чтение кода (`ArtifactView.tsx:45-58`) + ручной кейс на прод-сборке.
 
 **Замеченные прод-баги (для fixer'а):** нет. Реализация трека соответствует контракту design-brief; наблюдаемое поведение багов не показало.
 

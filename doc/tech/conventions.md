@@ -11,6 +11,7 @@
 | Agent | [conventions/agent.md](conventions/agent.md) | Agent runtime, reasoning-модели, именование промптов — при работе с агентом |
 | Frontend | [conventions/frontend.md](conventions/frontend.md) | FSD-раскладка, состояние, мутации — при работе с фронтендом |
 | Testing | [conventions/testing.md](conventions/testing.md) | Модель тестов, раскладка, фейки LLM/guard, тестовая БД, coverage — при написании и ревью тестов |
+| Review | [conventions/review.md](conventions/review.md) | Ревью архитектора: гейт PR, ретро-контур обвязки, классификация артефактов — при подготовке PR и ревью итерации |
 
 ## Git
 
@@ -211,6 +212,8 @@ Dockerfile живёт рядом с `pyproject.toml` пакета (`backend/Dock
 1. **Детерминированный arch-checker.** Слоевые зависимости (import-linter), FSD-границы (eslint-boundaries), порядок middleware и зеркала `problem.py` (AST-ассерты), стиль и импорты (ruff). В gate: `make check` / `make check-fe`, pre-commit, CI. Реестр инвариантов — какая норма каким механизмом ловится, что остаётся ревьюеру — в [arch-checker.md](arch-checker.md). Норма, ушедшая в детерминированную проверку, **пока остаётся и в тексте** (страховка на период обкатки checker'а) — дублирование снимется, когда механизм докажет надёжность.
 2. **Два LLM-ревьюера** в фазе CODE_REVIEW: режим A (качество кода — баги, сложность, читаемость) и режим B (соответствие контракту — конвенции, doc-first, архитектура). Параллельно, read-only; severity `blocker/nit/pre-existing`. Промпты и разрешение конфликтов A↔B — в `.claude/skills/aidd-orchestrator/prompts/reviewer-{a,b}.md`.
 3. **Harvest** в конце итерации: незакрытые долги и кандидаты в конвенции собираются по рубрике и проходят через апрув архитектора, чтобы ценное не умирало в summary. Роль `harvester`, процесс — в [workflow.md](../workflow.md) § Завершение.
+
+Поверх трёх уровней — ревью архитектора: гейт PR (смысл, а не форма) и периодический ретро-контур обвязки. Протокол — в [conventions/review.md](conventions/review.md).
 
 ## Секреты и fail-fast
 

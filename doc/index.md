@@ -22,7 +22,7 @@ doc/
 │   ├── prompt-management.md # Prompt Management: Langfuse, dev/prod, seed/sync
 │   ├── observability.md # Observability: Langfuse, трейсинг, feedback
 │   ├── conventions.md   # Git, code quality, naming, logging, documentation (ядро)
-│   ├── conventions/     # Доменные конвенции: db, api, agent, frontend
+│   ├── conventions/     # Доменные конвенции: db, api, agent, frontend, testing, review
 │   ├── skill-map.md     # Карта скиллов: принципы, роли, отклонённые, пробелы
 │   ├── sofa-pipeline.md # SOFA: двунаправленная петля знаний, author gate, реестр
 │   ├── setup/            # Инструкции настройки dev/cloud окружений
@@ -62,7 +62,7 @@ doc/
 
 **Соглашения и решения:**
 - [tech/conventions.md](tech/conventions.md) — ядро: git flow, code quality, naming, logging, error handling, Docker, documentation, типизация
-- [tech/conventions/](tech/conventions/) — доменные конвенции: [db.md](tech/conventions/db.md) (схема, миграции, сессии), [api.md](tech/conventions/api.md) (FastAPI, REST), [agent.md](tech/conventions/agent.md) (runtime, reasoning, prompt naming), [frontend.md](tech/conventions/frontend.md) (FSD, состояние)
+- [tech/conventions/](tech/conventions/) — доменные конвенции: [db.md](tech/conventions/db.md) (схема, миграции, сессии), [api.md](tech/conventions/api.md) (FastAPI, REST), [agent.md](tech/conventions/agent.md) (runtime, reasoning, prompt naming), [frontend.md](tech/conventions/frontend.md) (FSD, состояние), [testing.md](tech/conventions/testing.md) (модель тестов, фейки, тестовая БД), [review.md](tech/conventions/review.md) (гейт PR, ретро-контур, классификация артефактов)
 - [tech/arch-checker.md](tech/arch-checker.md) — реестр архитектурных инвариантов и детерминированные проверки (import-linter, AST-ассерты, eslint-boundaries)
 - [tech/skill-map.md](tech/skill-map.md) — карта скиллов: принципы отбора, роли, отклонённые, пробелы, отложенные кандидаты
 - [tech/sofa-pipeline.md](tech/sofa-pipeline.md) — SOFA-пайплайн: двунаправленная петля знаний (consume / produce / write-back), context bus, author gate, реестр публикаций

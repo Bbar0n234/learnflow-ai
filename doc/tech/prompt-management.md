@@ -119,6 +119,9 @@ sync: make sync-prompts → commit updated seed files
 | `system` | `configs/prompts/system.txt` | `agent.yaml` → `llm` (model, extra_body) | Base system prompt агента |
 | `summarization` | `configs/prompts/summarization.txt` | `agent.yaml` → `summarization` (model, max_tokens) | Суммаризация при message compaction |
 | `security-classifier` | `configs/prompts/security-classifier.txt` | `security.yaml` → `llm_classifier` | Composite classifier для всех security checkpoints (→ [architecture.md](../security/architecture.md)) |
+| `subagent-judge` | `configs/prompts/subagent-judge.txt` | `agent.yaml` → `subagents.llm` (model, extra_body) | System prompt субагента-судьи — вердикт с evidence, без переписывания текста (→ [agent-runtime.md § Субагенты](agent-runtime.md#субагенты)) |
+| `subagent-web-research` | `configs/prompts/subagent-web-research.txt` | `agent.yaml` → `subagents.llm` (model, extra_body) | System prompt субагента-ресёрчера — выжимка с источниками |
+| `subagent-general-purpose` | `configs/prompts/subagent-general-purpose.txt` | `agent.yaml` → `subagents.llm` (model, extra_body) | System prompt generic-субагента без tools |
 
 Реестр — `configs/prompts.yaml`: `name → source файл + config-источник`. Добавление промпта = новый файл в `configs/prompts/` + запись в `prompts.yaml`, без правок кода.
 
@@ -140,7 +143,7 @@ Prompt config хранится в Langfuse metadata вместе с тексто
 
 **Файлы:**
 - `configs/prompts/*.txt` — seed-файлы (source для initial load + fallback)
-- `configs/agent.yaml` → секции `llm`, `summarization` — config для prompt metadata
+- `configs/agent.yaml` → секции `llm`, `summarization`, `subagents.llm` — config для prompt metadata
 
 **Makefile:**
 - `make sync-prompts` — обратная синхронизация Langfuse → файлы

@@ -524,6 +524,11 @@ Backlog P2 «Продуктовые субагенты» + discovery-спайк:
 #### Документация
 
 - [design-brief.md](iterations/post-mvp/feat-011-subagents-v1/design-brief.md) — паттерн, слоистость Runner/Spec/tool, вход по артефакт-референсу, tools-механика с переиспользованием guard, промпт-контур через PromptProvider, изоляция токенов в стриме, обоснование sync v1, persistence-режимы
+- [tracks/T1/plan.md](iterations/post-mvp/feat-011-subagents-v1/tracks/T1/plan.md) / [summary.md](iterations/post-mvp/feat-011-subagents-v1/tracks/T1/summary.md) / [test-cases.md](iterations/post-mvp/feat-011-subagents-v1/tracks/T1/test-cases.md) — декларативный слой, `SubagentRunner` + toolless/ReAct-граф, tool `run_subagent` + wiring, изоляция токенов в стриме, ADR-028, обновление `SKILL.md`; решения и обоснования, тестовые кейсы
+- [review-a.md](iterations/post-mvp/feat-011-subagents-v1/review-a.md) — ревью качества кода (режим A)
+- [review-b.md](iterations/post-mvp/feat-011-subagents-v1/review-b.md) — ревью соответствия конвенциям и doc-first (режим B)
+- [harvest-proposals.md](iterations/post-mvp/feat-011-subagents-v1/harvest-proposals.md) — кандидаты в backlog/конвенции из итерации
+- [ADR-028: Продуктовые субагенты — subagent-as-tool](../tech/adr/ADR-028-product-subagents.md) — паттерн, слоистость, отклонённые альтернативы, sync v1 vs async v2, формат реестра, вход по референсу, persistence-режимы, security-политика, extension points
 
 ### feat-012: Skill-scoped user context
 

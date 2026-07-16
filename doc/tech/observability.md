@@ -27,6 +27,8 @@ graph TD
 
 **Automatic capture:** `CallbackHandler` инжектируется в `config["callbacks"]` графа — автоматически ловит все LLM calls (модель, токены, latency), tool executions, node transitions. Никакой ручной инструментации внутри графа не требуется.
 
+Вложенные вызовы субагентов (`run_subagent`, → [agent-runtime.md § Субагенты](agent-runtime.md#субагенты)) видны в trace tree как вложенные spans — callbacks пробрасываются во вложенный `StateGraph` автоматически через contextvars, независимо от режима `persistence` субагента.
+
 **Attribute propagation:** `propagate_attributes()` пушит metadata на все вложенные observations:
 
 | Атрибут | Значение | Назначение в Langfuse |

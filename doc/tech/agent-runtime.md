@@ -179,7 +179,7 @@ flowchart TD
 
 ## Tools
 
-Четыре категории, объединяются при компиляции графа. Internal non-MCP tools — PROTECTED implementation surface: их имена, параметры и схемы не должны попадать в final output (→ [security/architecture.md](../security/architecture.md)).
+Пять категорий, объединяются при компиляции графа. Internal non-MCP tools — PROTECTED implementation surface: их имена, параметры и схемы не должны попадать в final output (→ [security/architecture.md](../security/architecture.md)).
 
 ### Internal Tools
 
@@ -217,6 +217,12 @@ flowchart TD
 | Tool | Назначение |
 |------|------------|
 | `load_skill` | Загрузить SKILL.md по имени (+ автосписок файлов скилла), либо конкретный файл скилла по относительному пути |
+
+**Subagents:**
+
+| Tool | Назначение |
+|------|------------|
+| `run_subagent` | Делегировать изолированную подзадачу субагенту (`agent_type`, `task`, `input_artifact_ids?`) — подробнее в [Субагенты](#субагенты) |
 
 ### External Tools (MCP)
 
@@ -292,6 +298,36 @@ CRUD и каскадная видимость — [backend.md](backend.md).
 
 **Graceful degradation:** недоступный MCP-сервер → skip + warning в логах, остальные tools работают.
 
+## Субагенты
+
+Паттерн **subagent-as-tool**: основной агент делегирует изолированную подзадачу отдельному скомпилированному `StateGraph`, вызываемому `ainvoke` изнутри обычного tool `run_subagent(agent_type, task, input_artifact_ids?)` — наружу возвращается только результат. Чистота контекста не требует отдельного механизма фильтрации: канал в субагента — аргументы tool-вызова, а не общий state, поэтому история сессии физически туда не попадает. Полное обоснование паттерна, отклонённые альтернативы (`langgraph-supervisor`/`langgraph-swarm`/`deepagents`, generic-tool без реестра, tool-per-role) и sync v1 vs async v2 — [ADR-028](adr/ADR-028-product-subagents.md).
+
+```mermaid
+flowchart LR
+    NODE["agent node"] -->|tool_calls| TOOL["tool: run_subagent"]
+    TOOL -->|"agent_type, task,<br/>input_artifact_ids?"| RUNNER["SubagentRunner"]
+    RUNNER -->|"ainvoke,<br/>tags: [subagent]"| SGRAPH["Subagent StateGraph<br/>(toolless | ReAct)"]
+    SGRAPH -->|result text| RUNNER
+    RUNNER -->|ToolMessage| NODE
+```
+
+**Слоистость** (`backend/app/agent/subagents/`, `backend/app/agent/tools/subagents.py`):
+
+- **`SubagentSpec`** — декларация типа: `name`, `description` (видна модели при выборе tool'а), `prompt` (имя в Langfuse-контуре, → [prompt-management.md](prompt-management.md)), `model` (опциональный override дефолтной модели), `tools` (имена из built-in пула), `persistence` (`none | inherit`). Реестр — секция `subagents` в `configs/agent.yaml` (`llm`-дефолт + `registry`). Текущий реестр — три типа: `judge` (без tools, независимый ревьюер с вердиктом-с-evidence), `web-research` (`firecrawl_search`/`firecrawl_scrape`/`firecrawl_extract`), `general-purpose` (без tools, generic изолированная подзадача).
+- **`SubagentRunner`** — резолвит спеку по `agent_type`, строит модель (`spec.model` или `subagents.llm`), берёт промпт через `PromptProvider`, собирает вход, компилирует граф per-invoke и вызывает `ainvoke`. Неизвестный `agent_type` → ошибка со списком доступных типов. Инвариант: `run_subagent` исключается из собственного toolset субагента безусловно, независимо от содержимого спеки — рекурсия исключена на уровне Runner'а.
+- **tool `run_subagent`** — единственная точка, которую видит основной граф; description собирается на старте из реестра (паттерн Skills Index — `тип: описание` на строку). Опциональный `input_artifact_ids` резолвится кодом, не моделью: артефакты подтягиваются через `ArtifactRepository` (скоуп по `project_id` из контекста вызова), каждый — в `HumanMessage` в XML-обёртке `document` (`configs/prompt_fragments.yaml`) с атрибуцией `id`/`title`. Разрешение — всё или ничего: любой чужой/несуществующий id обрывает вызов целиком (error-строка с перечнем именно проблемных id), частичный вход не собирается никогда.
+
+**Граф субагента** (`build_subagent_graph`) — форма выбирается по наличию `tools` в спеке:
+
+- **Toolless** (`judge`, `general-purpose`) — один узел `START → llm → END`; system message — только промпт спеки (без KS/memory/skills/compaction, без trust-boundary обёрток — untrusted-контента внутри нет).
+- **ReAct** (`web-research`) — те же строительные блоки, что основной граф: `ToolNode(tools, handle_tool_errors=...)` + `tools_condition`. Guard-проверки `TOOL_RESULT`/`TOOL_CALL_ARG` переиспользуются из общего модуля-коллаборатора `backend/app/agent/tool_guards.py` — та же fail-safe redact-семантика, что в `agent_node` основного графа (заражённый результат → заглушка, цикл продолжает; инъекция в аргументах → `tool_calls` срезаются, граф уходит в END). `recursion_limit` ограничивает цикл (invoke-time ключ `RunnableConfig`, не compile-time параметр графа).
+
+**Пул tools субагента** — `internal_tools + built-in MCP` (собирается в `main.py` при старте), **без** user-installed MCP — trust-граница между продуктовыми и пользовательскими интеграциями (→ [security/architecture.md](../security/architecture.md)). Имена в `spec.tools` резолвятся против этого пула fail-fast при старте приложения: неизвестное имя валит boot, как и любая другая опечатка в `configs/*.yaml`.
+
+**Persistence** — `none` (v1, все три типа): `compile(checkpointer=False)`, субагент полностью stateless между вызовами. `inherit` — субграф наследует PG checkpointer родителя под отдельным `checkpoint_ns`; свойство архитектуры, доступное сменой одного поля спеки, не задействовано ни одним v1-типом.
+
+**Наблюдаемость** — запуски видны в Langfuse вложенными span'ами независимо от режима `persistence` (callbacks пробрасываются во вложенный граф автоматически через contextvars, → [observability.md](observability.md)). Токены субагента в чат не рисуются: чанки `stream_mode="messages"`, помеченные тегом `subagent` в metadata, отфильтровываются в стрим-цикле до аккумуляции `full_response` и до canary/mid-stream проверок — → [streaming.md](streaming.md). Промпты трёх типов — в том же Langfuse-контуре, что остальные системные промпты (`prompts.yaml` + seed + file fallback) — → [prompt-management.md](prompt-management.md).
+
 ## Security
 
 `SecurityGuard` проверяет данные на семи checkpoint'ах: четыре в runtime (user input до графа, tool result до LLM, tool call args после ответа, final output на стриме) и три на add-time write paths в service-слое (MCP-регистрация, custom instructions, KS write через REST). При INJECTION — `security_block` SSE event и блокировка thread'а в runtime, или HTTP 422 на add-time. Подробнее — [security/architecture.md](../security/architecture.md), обоснование — [ADR-017](adr/ADR-017-prompt-injection-defense.md), [ADR-022](adr/ADR-022-protected-disclosable-boundary.md), [ADR-023](adr/ADR-023-two-level-detection.md), [ADR-024](adr/ADR-024-streaming-security-guard.md).
@@ -350,6 +386,7 @@ Langfuse выполняет две роли: tracing (observability) + prompt ma
 | `context` | max_tokens, compaction_threshold_ratio, recent_messages_to_keep |
 | `prompt` | Путь к файлу system prompt (seed) |
 | `summarization` | Модель суммаризации, max_summary_tokens |
+| `subagents` | Реестр субагентов: LLM-дефолт (`llm`) + `registry` спек (`name`, `description`, `prompt`, `model?`, `tools`, `persistence`) — → [Субагенты](#субагенты) |
 | `mcp_servers` | Built-in MCP-серверы: transport, URL, API keys, whitelist инструментов |
 | `image` | Модель генерации изображений (`model`) + произвольные дефолт-параметры вызова (`params`, прокидываются в запрос as-is) — обязательная секция, без дефолта |
 

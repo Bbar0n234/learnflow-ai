@@ -23,7 +23,7 @@ graph TD
 
     subgraph SVCL["Service Layer — app/services/"]
         CHATSVC["ChatService — thread mapping,<br>делегирование в AgentRunner"]
-        CRUD["CRUD-сервисы — Project, Artifact,<br>Sphere, UserMemory, MCPServer"]
+        CRUD["CRUD-сервисы — Project, Artifact,<br>Sphere, UserMemory, SkillContext, MCPServer"]
         RESOLVER["ModelConfigResolver ·<br>MCPToolResolver"]
         ENC["EncryptionService — Fernet"]
     end
@@ -32,7 +32,7 @@ graph TD
         RUNNER["AgentRunner — runner.py"]
         FACTORY["GraphFactory — graph_factory.py"]
         GRAPH["StateGraph — graph.py"]
-        TOOLS["tools/ — KS, artifacts,<br>user memory, skills"]
+        TOOLS["tools/ — KS, artifacts,<br>user memory, skill context, skills"]
         GUARD["security/ — SecurityGuard:<br>detectors + LLM classifier"]
         PB["prompt_builder.py"]
     end
@@ -121,7 +121,7 @@ graph TD
 Composition root — `app/main.py`: lifespan инициализирует синглтоны (engine, AgentRunner, guard и т.д.) в `app.state`; `app/api/deps.py` — per-request фабрики поверх `app.state`.
 
 - **API Layer** — HTTP/SSE-интерфейс, Pydantic-валидация, маршрутизация. Не содержит бизнес-логики.
-- **Service Layer** — CRUD-сервисы (ProjectService, ArtifactService, UserMemoryService, MCPServerService, SphereService) + thin ChatService для chat-операций. ChatService оркестрирует взаимодействие с AgentRunner (маппинг chat_id → thread_id, model resolution, обновление thread_views, формирование config). Write-методы для persistent storage (MCP-серверы, custom instructions, KS write через REST) первыми вызывают security guard — INJECTION → HTTP 422, до endpoint-специфичных валидаций ([security/architecture.md](../security/architecture.md)). ModelConfigResolver — каскадное разрешение модели per-request.
+- **Service Layer** — CRUD-сервисы (ProjectService, ArtifactService, UserMemoryService, SkillContextService, MCPServerService, SphereService) + thin ChatService для chat-операций. ChatService оркестрирует взаимодействие с AgentRunner (маппинг chat_id → thread_id, model resolution, обновление thread_views, формирование config). Write-методы для persistent storage (MCP-серверы, custom instructions, KS write через REST, skill context write через REST) первыми вызывают security guard — INJECTION → HTTP 422, до endpoint-специфичных валидаций ([security/architecture.md](../security/architecture.md)). ModelConfigResolver — каскадное разрешение модели per-request.
 - **Agent Layer** — LangGraph-граф, GraphFactory (per-request build+compile), tools, skills, context engineering, memory, security (inline-проверки в графе и стриминге — [architecture.md](../security/architecture.md)). LangGraph-связанность сдержана внутри этого слоя: наружу выходят только доменные типы, не LangGraph-специфичные.
 - **Repository Layer** — SQLAlchemy, CRUD-доступ к app-managed таблицам, по репозиторию на ORM-сущность.
 - **Storage Layer** — абстракции хранилища с заменяемым бэкендом или не-ORM семантикой (blob, key-value); независимый сосед Repository Layer, не наследует и не оборачивает его. `BlobStorage` (`typing.Protocol`, реализация `PgBlobStorage`) и `TraceStore` (Redis) — нейминг и граница с Repository Layer см. [conventions.md § Именование](conventions.md#именование).
@@ -257,6 +257,17 @@ Media endpoint отдаёт содержимое `artifact_blobs` (404, если
 | DELETE | `/users/me/memories/{key}` | Удалить запись памяти |
 
 Инструкции включаются в system message каждого чата. Записи памяти создаются агентом через `save_user_memory` / `delete_user_memory` tools, удаляются пользователем через UI.
+
+#### Skill Context
+
+| Метод | Путь | Назначение |
+|-------|------|-----------|
+| GET | `/users/me/skill-contexts` | Список документов, сгруппированных по скиллу (`in_library` на группе) |
+| GET | `/users/me/skill-contexts/{skill_name}/{key}` | Получить документ |
+| PUT | `/users/me/skill-contexts/{skill_name}/{key}` | Заменить существующий документ (404, если ещё не создан) |
+| DELETE | `/users/me/skill-contexts/{skill_name}/{key}` | Удалить документ |
+
+Создание документа — только агент (`save_skill_context` tool, upsert); REST правит и удаляет существующие. Подробнее о модели и доставке в контекст агента — [user-memory.md § Skill Context](user-memory.md#skill-context).
 
 #### MCP Servers
 
@@ -401,9 +412,9 @@ app/
 
 **api/** — HTTP/SSE-интерфейс. Роутеры сгруппированы по ресурсам, каждый вызывает соответствующий сервис. Schemas — Pydantic-контракт с фронтендом. deps.py — FastAPI dependencies для инъекции зависимостей в роутеры.
 
-**services/** — Оркестрация и бизнес-правила. CRUD-сервисы (Project, Artifact, UserMemory, MCPServer) + thin ChatService для chat-операций (маппинг chat_id → thread_id, model resolution, делегирование в AgentRunner, управление ThreadView). ModelConfigResolver — каскадное разрешение модели; MCPToolResolver — резолв MCP-инструментов per-request (оба инжектятся в AgentRunner). EncryptionService (Fernet) — шифрование API-ключей user MCP-серверов. Зависимости (repositories, AgentRunner) — через конструктор, wiring в deps.py.
+**services/** — Оркестрация и бизнес-правила. CRUD-сервисы (Project, Artifact, UserMemory, SkillContext, MCPServer) + thin ChatService для chat-операций (маппинг chat_id → thread_id, model resolution, делегирование в AgentRunner, управление ThreadView). ModelConfigResolver — каскадное разрешение модели; MCPToolResolver — резолв MCP-инструментов per-request (оба инжектятся в AgentRunner). EncryptionService (Fernet) — шифрование API-ключей user MCP-серверов. Зависимости (repositories, AgentRunner) — через конструктор, wiring в deps.py.
 
-**agent/** — LangGraph-граф, GraphFactory (per-request build+compile), tools, context engineering, промпт. Публичный интерфейс — AgentRunner (stream, get_history, cancel). LangGraph-типы не выходят за пределы этого пакета. tools/ — суб-пакет с внутренней группировкой (KS, artifacts, user memory, skills).
+**agent/** — LangGraph-граф, GraphFactory (per-request build+compile), tools, context engineering, промпт. Публичный интерфейс — AgentRunner (stream, get_history, cancel). LangGraph-типы не выходят за пределы этого пакета. tools/ — суб-пакет с внутренней группировкой (KS, artifacts, user memory, skill context, skills).
 
 **skills/** — директория в корне репозитория (`skills/`, рядом с `backend/`, `configs/`). Каждый skill — поддиректория с `SKILL.md` (Claude Code compatible формат). Вынесены из backend, чтобы пользователь мог добавлять skills без необходимости лезть в код приложения.
 
@@ -419,7 +430,7 @@ app/
 
 LangGraph-граф с ReAct-паттерном, context engineering, tools, skills, MCP-интеграция, security. Детальное описание — [agent-runtime.md](agent-runtime.md). Связанные концепты: [knowledge-sphere.md](knowledge-sphere.md), [user-memory.md](user-memory.md), [prompt-management.md](prompt-management.md), [observability.md](observability.md), [architecture.md](../security/architecture.md).
 
-Ключевые ADR: [ADR-001](adr/ADR-001-general-agent.md) (General Agent), [ADR-002](adr/ADR-002-skills-system.md) (Skills), [ADR-003](adr/ADR-003-knowledge-sphere.md) (KS), [ADR-004](adr/ADR-004-progressive-disclosure.md) (Progressive Disclosure), [ADR-005](adr/ADR-005-ks-update-mechanism.md) (KS Updates), [ADR-006](adr/ADR-006-custom-stategraph.md) (Custom StateGraph), [ADR-007](adr/ADR-007-mcp-external-tools.md) (MCP), [ADR-013](adr/ADR-013-per-scope-settings-storage.md) (Settings Storage), [ADR-014](adr/ADR-014-dynamic-model-resolution.md) (Graph Factory), [ADR-015](adr/ADR-015-langgraph-store-unified-memory.md) (Store Memory), [ADR-016](adr/ADR-016-per-scope-mcp-servers.md) (MCP Servers), [ADR-017](adr/ADR-017-prompt-injection-defense.md) (Sec 1.0), [ADR-018](adr/ADR-018-siem-service-topology.md) (SIEM Topology), [ADR-020](adr/ADR-020-security-event-contract.md) (Event Contract), [ADR-022](adr/ADR-022-protected-disclosable-boundary.md) (Confidentiality Boundary), [ADR-023](adr/ADR-023-two-level-detection.md) (Detection Layers), [ADR-024](adr/ADR-024-streaming-security-guard.md) (Streaming Guard).
+Ключевые ADR: [ADR-001](adr/ADR-001-general-agent.md) (General Agent), [ADR-002](adr/ADR-002-skills-system.md) (Skills), [ADR-003](adr/ADR-003-knowledge-sphere.md) (KS), [ADR-004](adr/ADR-004-progressive-disclosure.md) (Progressive Disclosure), [ADR-005](adr/ADR-005-ks-update-mechanism.md) (KS Updates), [ADR-006](adr/ADR-006-custom-stategraph.md) (Custom StateGraph), [ADR-007](adr/ADR-007-mcp-external-tools.md) (MCP), [ADR-013](adr/ADR-013-model-settings-storage.md) (Settings Storage), [ADR-014](adr/ADR-014-dynamic-model-resolution.md) (Graph Factory), [ADR-015](adr/ADR-015-unified-memory-backend.md) (Store Memory), [ADR-016](adr/ADR-016-per-scope-mcp-servers.md) (MCP Servers), [ADR-017](adr/ADR-017-prompt-injection-defense.md) (Sec 1.0), [ADR-018](adr/ADR-018-siem-service-topology.md) (SIEM Topology), [ADR-020](adr/ADR-020-security-event-contract.md) (Event Contract), [ADR-022](adr/ADR-022-protected-disclosable-boundary.md) (Confidentiality Boundary), [ADR-023](adr/ADR-023-two-level-detection.md) (Detection Layers), [ADR-024](adr/ADR-024-streaming-security-guard.md) (Streaming Guard).
 
 ## Persistence
 
@@ -463,7 +474,7 @@ graph LR
 
 **Checkpointer** — полный state агента, включая историю сообщений. Сообщения не дублируются в отдельную app-таблицу: checkpointer хранит полную историю, доступную через `get_state()`. Таблицы: `checkpoints`, `checkpoint_blobs`, `checkpoint_writes`, `checkpoint_migrations`.
 
-**Store** — Knowledge Sphere (per-project) и User Memory (per-user: custom instructions, agent memory). Таблицы: `store`, `store_vectors` (будущее: embeddings). Namespace-based изоляция — [user-memory.md](user-memory.md#storage).
+**Store** — Knowledge Sphere (per-project) и User Memory (per-user: custom instructions, agent memory, skill context). Таблицы: `store`, `store_vectors` (будущее: embeddings). Namespace-based изоляция — [user-memory.md](user-memory.md#storage).
 
 ### App-managed
 

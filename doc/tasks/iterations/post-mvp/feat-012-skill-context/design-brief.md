@@ -62,6 +62,17 @@ sequenceDiagram
 - `PUT /users/me/skill-contexts/{skill_name}/{key}` — правка **только существующего** документа: полная замена значения, `description` и `content` обязательны; несуществующая пара `(skill_name, key)` → 404. Создание через REST не предусмотрено: PUT-create отдал бы клиенту выбор URI и плодил осиротевшие записи; путь создания — агент.
 - `DELETE /users/me/skill-contexts/{skill_name}/{key}` — 204 / 404
 
+Форма тел (по прецеденту `user_memory`: полные документы в листинге, snake_case, даты ISO; пагинация-конверт не нужен — данные ограничены лимитами ниже):
+
+```jsonc
+// GET /users/me/skill-contexts
+{ "skills": [ { "skill_name": "tech-article-writing", "in_library": true,
+                "documents": [ { "key": "profile", "description": "…", "content": "…",
+                                 "created_at": "…", "updated_at": "…" } ] } ] }
+// GET item → объект документа (key, description, content, created_at, updated_at)
+// PUT body → { "description": "…", "content": "…" }; ответ — объект документа
+```
+
 Порядок проверок на PUT: существование документа (404) → checkpoint SecurityGuard (новый, по образцу `CUSTOM_INSTRUCTIONS_WRITE`; INJECTION → 422) — classifier не гоняется по заведомо отклоняемому запросу. Checkpoint обязателен: контент инжектится агенту в каждой будущей сессии — точка персистентной инъекции.
 
 Итоговая симметрия путей записи: создание — только агент (upsert в `save_skill_context`), правка — агент и REST, удаление — агент и REST.
@@ -90,6 +101,21 @@ sequenceDiagram
 ## Scope boundaries
 
 Не входит: бинарные документы контекста (референсные изображения — backlog, зависимость от `artifact_blobs` feat-010), создание документов пользователем из UI, просмотр содержимого самих скиллов (кандидат «страница библиотеки скиллов» — backlog, вместе с per-user включением скиллов, Фаза 5b), автоматическое накопление голоса из обратной связи (backlog, поверх этого механизма).
+
+## Партиция треков
+
+| Трек | Скоуп | Файловый скоуп |
+|------|-------|----------------|
+| T1 | Backend: Store namespace `skill_context`, tools `get/save/delete_skill_context`, индекс в `load_skill`, REST CRUD `/users/me/skill-contexts`, checkpoint SecurityGuard, автотесты backend | `backend/app/**` (agent/tools, agent/skills, agent/security, api/routes, api/schemas, services, repositories по необходимости), `configs/security.yaml` (блок нового checkpoint; файл бэкендовый, T2 не трогает), `backend/tests/skill_context/` |
+| T2 | Frontend: секция «Контекст скиллов» на `/settings` по мокапу (группировка, Markdown-превью, правка raw, удаление, бейдж, пустое состояние), API-слой, тесты компонентов | `frontend/src/**` (pages/user-settings, shared/entities api-слой по FSD), тесты рядом с компонентами |
+
+**Вердикт непересечения:** файловые скоупы дизъюнктны (`backend/**` vs `frontend/**`); общих файлов нет. REST-контракт, от которого зависит T2, зафиксирован в design-brief (§ REST API и безопасность) — T2 работает от контракта, не от кода T1.
+
+Внутритрековые общие файлы (не кросс-трек, закреплены явно): за T1 — `backend/app/main.py`, `backend/app/api/routes/__init__.py`, `backend/app/agent/tools/__init__.py`, `backend/app/agent/security/types.py`, `backend/tests/conftest.py`; за T2 — `frontend/src/pages/user-settings/ui/SettingsPage.tsx`, `frontend/src/shared/api/query-keys.ts`.
+
+**doc/`**` треки не трогают** (кроме своих `tracks/<id>/`): замеченный дрейф — строкой в `## Follow-ups` summary трека; вся doc-актуализация — фазой DOC_UPDATE после барьера.
+
+**Параллельность фаз:** все per-track фазы T1 и T2 идут параллельно без ограничений (PLAN…TEST). Ручная проверка UI-кейсов T2 против живого backend — не в TEST(track), а в INTEGRATION_TEST после барьера (там доступен код T1).
 
 ## SOFA consulted
 

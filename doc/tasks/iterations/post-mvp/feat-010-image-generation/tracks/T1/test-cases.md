@@ -64,7 +64,8 @@
   опциональных аргументов. Критпуть — маппинг ошибок: non-2xx (400/429/500/502) → `502
   image-generation-failed` (`parametrize`); timeout → `503 image-generation-unavailable`;
   сетевая ошибка → `503`; малформед 2xx (пустой `data`, нет `data`, нет `b64_json`, нет
-  `media_type`) → `502 image-generation-malformed-response` (`parametrize`); невалидный
+  `media_type`, а также ключи есть, но `b64_json`/`media_type` = `null`/пустая строка/не-str)
+  → `502 image-generation-malformed-response` (`parametrize`, 9 кейсов); невалидный
   base64 → `502 malformed`.
 - **PgBlobStorage** (`app/repositories/blob_storage.py`) — `test_blob_storage.py`,
   integration против реального Postgres (транзакционный откат). `put`→`get` round-trip

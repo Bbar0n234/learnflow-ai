@@ -194,6 +194,14 @@ async def test_generate_image_network_error_maps_to_503_unavailable(
         {"usage": {"cost": 1}},  # no data key at all
         {"data": [{"media_type": "image/png"}]},  # missing b64_json
         {"data": [{"b64_json": _B64}]},  # missing media_type
+        # Keys present but values are null/wrong-type/empty: the provider
+        # returned the fields, just not a usable string. Type-validated the
+        # same as absent keys (would otherwise be an unclassified TypeError).
+        {"data": [{"b64_json": None, "media_type": "image/png"}]},  # b64_json null
+        {"data": [{"b64_json": _B64, "media_type": None}]},  # media_type null
+        {"data": [{"b64_json": "", "media_type": "image/png"}]},  # b64_json empty
+        {"data": [{"b64_json": _B64, "media_type": ""}]},  # media_type empty
+        {"data": [{"b64_json": 123, "media_type": "image/png"}]},  # b64_json non-str
     ],
 )
 async def test_generate_image_malformed_2xx_maps_to_502_malformed(

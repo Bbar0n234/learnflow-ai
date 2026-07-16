@@ -317,6 +317,53 @@
   cost-отчётах — хуже, чем отсутствие `cost_details` у конкретной observation (заметно
   как пробел в данных, не как неверная цифра).
 
+### Ревью-фиксы (review-a.md, review-b.md)
+
+- **A1 — вырожденный ответ провайдера обходил классификацию `image-generation-malformed-response`.**
+  `backend/app/infra/image_generation.py`. Ревьюер A: при 2xx-ответе с `b64_json: null`
+  `base64.b64decode(None, validate=True)` бросает `TypeError`, не пойманный
+  `except binascii.Error` (`binascii.Error` — подкласс `ValueError`, не `TypeError`) —
+  исключение уходило мимо задуманной классификации; симметрично `media_type: null`
+  доходил бы до `PgBlobStorage.put(mime_type=None)` и падал на NOT NULL уже внутри
+  транзакции tool'а. Пофикшено валидацией типов в блоке извлечения полей, до
+  какого-либо декодирования/записи: после `image_entry["b64_json"]`/`["media_type"]`
+  добавлены проверки `isinstance(..., str)` и непустоты, при нарушении — `raise
+  TypeError(...)`, попадающий в тот же `except (KeyError, IndexError, TypeError,
+  ValueError)`, что уже классифицирует ответ как `image-generation-malformed-response`
+  (502) до открытия транзакции. Блок декодирования base64 (`except binascii.Error`)
+  не тронут — тип `b64_json` на момент декодирования уже гарантированно `str`.
+- **A2 — `X-Content-Type-Options: nosniff` на media endpoint.**
+  `backend/app/api/routes/artifacts.py`, `get_artifact_media`. Ревьюер A: `mime_type`
+  провайдера отдаётся в `Content-Type` без `nosniff` — не эксплойт при текущей модели
+  auth (bearer JWT, потребление через blob-objectURL, не навигацию), но defense-in-depth,
+  раз `mime_type` — данные внешнего источника, echo-нутые в заголовок. Добавлен
+  `"X-Content-Type-Options": "nosniff"` в `headers=` того же `Response`, рядом с
+  `Cache-Control`.
+- **A3 — `passive_deletes=True` на `Artifact.blob`.** `backend/app/models/artifact.py`.
+  Ревьюер A: relationship без `passive_deletes=True` — если удаление артефактов
+  когда-нибудь подключат к image-типу, ORM попытается занулить NOT NULL FK
+  `artifact_id` у подгруженного блоба до срабатывания DB-level `ON DELETE CASCADE`
+  (латентно, текущими путями не задевается — `ArtifactRepository.delete` сейчас
+  ниоткуда не вызывается). Добавлен `passive_deletes=True` к `relationship(
+  back_populates="artifact", passive_deletes=True)`, чтобы делегировать каскад БД
+  (FK уже `ondelete="CASCADE"`).
+- **B1 — `llm_image_timeout_seconds` приведён к `float`.** `backend/app/config.py`.
+  Ревьюер B: соседние LLM-таймауты (`llm_guard_timeout_seconds`,
+  `llm_summarizer_timeout_seconds`) объявлены `float`, `llm_image_timeout_seconds:
+  int = 120` выбивался из семейства `LLM_*` (httpx принимает оба, нормы не
+  нарушало — чистая консистентность формы). Изменено на `llm_image_timeout_seconds:
+  float = 120`.
+- **B2 — упрощён except-кортеж сетевых ошибок.** `backend/app/infra/image_generation.py`.
+  Ревьюер A (trivial) и ревьюер B (nit) синхронно отметили избыточность:
+  `(httpx.HTTPError, httpx.TimeoutException, OSError, ConnectionError)` содержит
+  поглощённые члены — `httpx.TimeoutException ⊂ httpx.HTTPError`, builtin
+  `ConnectionError ⊂ OSError`. Сокращено до `(httpx.HTTPError, OSError)` без
+  изменения поведения классификации (503 `image-generation-unavailable`).
+
+Замечание B3 (env-паттерн `docker-compose.yml`/конвенция § Env) кода не требует —
+текст конвенции остаётся вопросом к архитектору на HARVEST/гейте, не тронут в рамках
+этих фиксов.
+
 ## Follow-ups
 
 (пусто)

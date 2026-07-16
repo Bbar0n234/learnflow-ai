@@ -73,7 +73,10 @@ async def get_artifact_media(
     return Response(
         content=data,
         media_type=mime_type,
-        headers={"Cache-Control": "private, max-age=31536000, immutable"},
+        headers={
+            "Cache-Control": "private, max-age=31536000, immutable",
+            "X-Content-Type-Options": "nosniff",
+        },
     )
 
 

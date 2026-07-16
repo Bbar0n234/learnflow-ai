@@ -48,4 +48,6 @@ class Artifact(Base):
     # Relationships
     project: Mapped[Project] = relationship(back_populates="artifacts")
     thread_view: Mapped[ThreadView | None] = relationship(back_populates="artifacts")
-    blob: Mapped[ArtifactBlob | None] = relationship(back_populates="artifact")
+    blob: Mapped[ArtifactBlob | None] = relationship(
+        back_populates="artifact", passive_deletes=True
+    )

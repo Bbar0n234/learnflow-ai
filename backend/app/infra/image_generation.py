@@ -88,7 +88,7 @@ async def generate_image(
             status=502,
             detail="Image generation failed",
         ) from e
-    except (httpx.HTTPError, httpx.TimeoutException, OSError, ConnectionError) as e:
+    except (httpx.HTTPError, OSError) as e:
         logger.warning(
             "image generation request error", model=image_config.model, exc_info=True
         )
@@ -103,6 +103,10 @@ async def generate_image(
         image_entry = payload["data"][0]
         b64_json = image_entry["b64_json"]
         media_type = image_entry["media_type"]
+        if not isinstance(b64_json, str) or not b64_json:
+            raise TypeError("data[0].b64_json must be a non-empty string")
+        if not isinstance(media_type, str) or not media_type:
+            raise TypeError("data[0].media_type must be a non-empty string")
     except (KeyError, IndexError, TypeError, ValueError) as e:
         logger.warning(
             "image generation malformed response",

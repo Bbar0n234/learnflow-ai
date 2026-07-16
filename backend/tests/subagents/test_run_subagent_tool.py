@@ -10,7 +10,7 @@ The artifact fetch runs against **real Postgres** through
 ``tool_session_factory`` (the tool opens its own session), so ownership
 scoping and the not-found/invalid-UUID branches are exercised on the real
 repository. The Runner itself is replaced by a recording ``SpyRunner`` — its
-job (build model, run graph) reaches the LLM, the болезненная граница, and is
+job (build model, run graph) reaches the LLM, the painful boundary, and is
 covered on its own in ``test_runner.py``; here we assert what the tool hands
 it and how it maps its errors.
 """

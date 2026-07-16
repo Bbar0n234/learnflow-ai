@@ -492,6 +492,12 @@ Backlog P2 «Генерация изображений агентом»; под�
 
 - [design-brief.md](iterations/post-mvp/feat-010-image-generation/design-brief.md) — архитектура end-to-end, модель и параметры генерации, учёт стоимости, отклонённые альтернативы хранения/отдачи, границы scope
 - [mockups/image-artifacts.html](iterations/post-mvp/feat-010-image-generation/mockups/image-artifacts.html) — интерактивный UI-референс: карточка с превью, плейсхолдер генерации, состояния вьюера (открывать локально)
+- [tracks/T1/plan.md](iterations/post-mvp/feat-010-image-generation/tracks/T1/plan.md) / [summary.md](iterations/post-mvp/feat-010-image-generation/tracks/T1/summary.md) / [test-cases.md](iterations/post-mvp/feat-010-image-generation/tracks/T1/test-cases.md) — backend + agent: `artifact_blobs`, `BlobStorage`/`PgBlobStorage`, media endpoint, tool `generate_image`, расширение SSE-маппера, Langfuse cost-учёт; решения и обоснования, тестовые кейсы
+- [tracks/T2/plan.md](iterations/post-mvp/feat-010-image-generation/tracks/T2/plan.md) / [summary.md](iterations/post-mvp/feat-010-image-generation/tracks/T2/summary.md) / [test-cases.md](iterations/post-mvp/feat-010-image-generation/tracks/T2/test-cases.md) — frontend: media-fetch, живой `ImageViewer`, превью в `ArtifactCard`, плейсхолдер генерации; решения и обоснования, тестовые кейсы
+- [review-a.md](iterations/post-mvp/feat-010-image-generation/review-a.md) — ревью качества кода (режим A)
+- [review-b.md](iterations/post-mvp/feat-010-image-generation/review-b.md) — ревью соответствия конвенциям и doc-first (режим B)
+- [harvest-proposals.md](iterations/post-mvp/feat-010-image-generation/harvest-proposals.md) — кандидаты в backlog/конвенции из итерации
+- [ADR-027: Хранение и отдача бинарных данных артефактов](../tech/adr/ADR-027-artifact-blob-storage.md) — `artifact_blobs` в PostgreSQL за `BlobStorage`-протоколом vs S3/файловая система/base64; authenticated media endpoint с immutable-кэшем
 
 ### feat-011: Продуктовые субагенты v1
 

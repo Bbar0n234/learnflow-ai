@@ -364,6 +364,42 @@
 текст конвенции остаётся вопросом к архитектору на HARVEST/гейте, не тронут в рамках
 этих фиксов.
 
+### Docs Updater — актуализация документации (отработка review-b «Незамеченный дрейф»)
+
+- **Создан ADR-027** (`doc/tech/adr/ADR-027-artifact-blob-storage.md`) — решение тянет на
+  ADR: выбор паттерна хранения бинарей (таблица `artifact_blobs` в PostgreSQL за
+  `BlobStorage`-протоколом, а не S3/файловая система/base64-в-content) с явным
+  trade-off и планом перехода на S3 при росте объёмов — ровно тот класс решений, для
+  которого в проекте уже заведены ADR (ADR-013 settings storage, ADR-016 per-scope MCP
+  servers: typed table vs альтернативы). В одном ADR — обе связанные части design-brief:
+  хранение (`artifact_blobs`/`BlobStorage`) и отдача (authenticated media endpoint +
+  client-side blob fetch, immutable cache-control) — они рассматривались архитектором
+  одним решением и trade-off отдачи прямо зависит от выбора хранилища (presigned URL
+  требовал бы S3). ADR не дублирует design-brief построчно — краткое изложение
+  рассмотренных вариантов + решение + следствия, отсылка на design-brief за деталями
+  реализации.
+- **Обновлены `backend.md`, `agent-runtime.md`, `streaming.md`, `observability.md`,
+  `frontend.md`** по всем пяти пунктам дрейфа из review-b: media endpoint + таблица
+  `artifact_blobs` в Persistence (backend.md); tool `generate_image` в таблице internal
+  tools + секция `image` в Configuration (agent-runtime.md); `artifact_created` расширен
+  на оба artifact-producing tool'а (streaming.md); ручной cost-учёт вне `CallbackHandler`
+  как отдельная подсекция Model Definitions & Cost Tracking (observability.md);
+  media-fetch/`ImageViewer`/превью-миниатюра/плейсхолдер генерации (frontend.md — Features,
+  query-keys, Zustand store, API-модули).
+- **`doc/index.md` не тронут.** Секция «Ключевые ADR» там — куратированный список,
+  ограниченный SIEM-серией итераций (ADR-018…ADR-021, ADR-025); предыдущий ADR-026
+  (tool-introduction-pattern) в неё тоже не попал. Добавление ADR-027 нарушило бы этот
+  же паттерн неполноты избирательно — не стал синхронизировать список без ясного
+  намерения архитектора о его области; общая ссылка на `tech/adr/` в индексе уже
+  покрывает обнаружение нового ADR.
+- **`conventions.md § Env` (line 338, «все четыре места») не тронут.** review-b пункт 6
+  явно требует решения архитектора (изменение нормы), не doc-правки по факту дрейфа
+  кода. Наблюдение уже зафиксировано в `harvest-proposals.md` (Anytime-кандидаты) —
+  вторично не дублирую.
+- **Секция «Документация» записи feat-010 в `doc/tasks/tasklist-post-mvp.md`** дополнена
+  ссылками на `tracks/T1`, `tracks/T2`, `review-a.md`, `review-b.md`,
+  `harvest-proposals.md`, ADR-027. Статус итерации (🚧) не менялся.
+
 ## Follow-ups
 
 (пусто)

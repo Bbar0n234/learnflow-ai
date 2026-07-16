@@ -6,7 +6,12 @@ from app.agent.tools.knowledge_sphere import (
     get_section,
     update_section,
 )
-from app.agent.tools.skills import make_load_skill_tool, scan_skills_index
+from app.agent.tools.skill_context import make_skill_context_tools
+from app.agent.tools.skills import (
+    make_load_skill_tool,
+    scan_skill_names,
+    scan_skills_index,
+)
 from app.agent.tools.user_memory import delete_user_memory, save_user_memory
 
 ks_tools = [get_section, create_section, update_section, delete_section]
@@ -18,5 +23,7 @@ __all__ = [
     "make_create_artifact_tool",
     "make_generate_image_tool",
     "make_load_skill_tool",
+    "make_skill_context_tools",
+    "scan_skill_names",
     "scan_skills_index",
 ]

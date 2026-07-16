@@ -51,6 +51,8 @@ from app.agent.tools import (
     make_create_artifact_tool,
     make_generate_image_tool,
     make_load_skill_tool,
+    make_skill_context_tools,
+    scan_skill_names,
     scan_skills_index,
     user_memory_tools,
 )
@@ -65,6 +67,7 @@ from app.api.routes import (
     messages,
     models,
     projects,
+    skill_context,
     sphere,
     user_memory,
 )
@@ -332,6 +335,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         skills_dir = Path(__file__).resolve().parents[2] / "skills"
         load_skill = make_load_skill_tool(skills_dir)
         skills_idx = scan_skills_index(skills_dir)
+        skill_names = scan_skill_names(skills_dir)
+        app.state.skill_names = skill_names
+        skill_context_tools = make_skill_context_tools(skill_names)
         create_artifact = make_create_artifact_tool(app.state.session_factory)
         generate_image = make_generate_image_tool(
             app.state.session_factory,
@@ -341,7 +347,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
 
         internal_tools: list = (
-            ks_tools + user_memory_tools + [load_skill, create_artifact, generate_image]
+            ks_tools
+            + user_memory_tools
+            + skill_context_tools
+            + [load_skill, create_artifact, generate_image]
         )
 
         # Security guard (Sec 2.0 — always on). Must exist before MCP built-in
@@ -430,6 +439,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         global_tools = (
             ks_tools
             + user_memory_tools
+            + skill_context_tools
             + [load_skill, create_artifact, generate_image]
             + mcp_tools
         )
@@ -604,6 +614,7 @@ def create_app() -> FastAPI:
     app.include_router(models.router, prefix=api_prefix)
     app.include_router(settings_routes.router, prefix=api_prefix)
     app.include_router(user_memory.router, prefix=api_prefix)
+    app.include_router(skill_context.router, prefix=api_prefix)
     app.include_router(mcp_servers.router, prefix=api_prefix)
 
     # Serve frontend static files (only when dist exists — Docker mode)

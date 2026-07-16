@@ -31,7 +31,7 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 | feat-009 | ✅ Done | agent | Многофайловые скиллы (load_skill file param) + перенос скилла tech-article-writing |
 | feat-010 | ✅ Done | cross-cutting | Генерация изображений: OpenRouter Image API, artifact_blobs, media endpoint, живой ImageViewer |
 | feat-011 | 📋 Planned | agent | Продуктовые субагенты v1: subagent-as-tool, YAML-реестр, judge (+ADR) |
-| feat-012 | 📋 Planned | cross-cutting | Skill-scoped user context: Store namespace, tools, REST, секция в /settings |
+| feat-012 | 🚧 In Progress | cross-cutting | Skill-scoped user context: Store namespace, tools, REST, секция в /settings |
 
 ## Параллелизация
 
@@ -520,13 +520,13 @@ Backlog P2 «Продуктовые субагенты» + discovery-спайк:
 
 #### Документация
 
-- [design-brief.md](iterations/post-mvp/feat-011-subagents-v1/design-brief.md) — паттерн, слоистость Runner/Spec/tool, обоснование sync v1, persistence-режимы
+- [design-brief.md](iterations/post-mvp/feat-011-subagents-v1/design-brief.md) — паттерн, слоистость Runner/Spec/tool, реестр в `agent.yaml`, промпт-контур через PromptProvider, изоляция токенов в стриме, обоснование sync v1, persistence-режимы
 
 ### feat-012: Skill-scoped user context
 
 **Цель:** per-user контекст, привязанный к скиллу: namespace `("user", uid, "skill_context", <skill>)`, доменные tools, индекс при `load_skill`, REST CRUD с security-checkpoint, секция «Контекст скиллов» на `/settings`. Первый потребитель — профиль авторского голоса `tech-article-writing`.
 
-**Статус:** 📋 Planned
+**Статус:** 🚧 In Progress
 **Scope:** cross-cutting (agent, backend, frontend)
 
 #### Triggered by

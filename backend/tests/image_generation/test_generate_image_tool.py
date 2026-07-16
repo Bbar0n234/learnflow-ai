@@ -19,7 +19,6 @@ from collections.abc import Awaitable, Callable
 from types import SimpleNamespace
 from typing import Any, cast
 
-import langfuse
 import pytest
 from app.agent.config import ImageConfig
 from app.agent.graph import AgentContext
@@ -28,8 +27,8 @@ from app.infra.image_generation import ImageGenerationResult
 from app.models.project import Project
 from app.models.thread_view import ThreadView
 from app.repositories.artifact import ArtifactRepository
-from app.repositories.blob_storage import PgBlobStorage
 from app.services.exceptions import UpstreamUnavailableError
+from app.storage.blob_storage import PgBlobStorage
 from langchain_core.tools import StructuredTool
 from langgraph.prebuilt import ToolRuntime
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -329,7 +328,9 @@ async def test_generate_image_emits_langfuse_observation_with_cost(
             recorded.append(kwargs)
             return _Obs()
 
-    monkeypatch.setattr(langfuse, "get_client", lambda: _Client(), raising=False)
+    monkeypatch.setattr(
+        "app.agent.tools.image_generation.get_client", lambda: _Client()
+    )
 
     tool = make_generate_image_tool(
         cast(Any, tool_session_factory),
@@ -379,7 +380,9 @@ async def test_generate_image_langfuse_observation_omits_cost_when_unknown(
             recorded.append(kwargs)
             return _Obs()
 
-    monkeypatch.setattr(langfuse, "get_client", lambda: _Client(), raising=False)
+    monkeypatch.setattr(
+        "app.agent.tools.image_generation.get_client", lambda: _Client()
+    )
 
     tool = make_generate_image_tool(
         cast(Any, tool_session_factory),

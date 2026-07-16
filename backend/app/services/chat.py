@@ -10,9 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.thread_view import ThreadView
 from app.repositories.artifact import ArtifactRepository
 from app.repositories.thread_view import ThreadViewRepository
-from app.repositories.trace_store import TraceStore
 from app.services.agent_runner import AgentRunner, Message, StreamEvent
 from app.services.exceptions import EntityNotFoundError
+from app.storage.trace_store import TraceStore
 
 logger = structlog.get_logger()
 

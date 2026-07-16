@@ -81,13 +81,16 @@ include_external_packages = true
 
 # Backend layered architecture (doc/tech/backend.md § Правила вызовов).
 # Higher layers may import lower ones; the reverse is forbidden. This catches
-# repositories/models → services/api and services → api. The single known
-# localized exception (services/mcp_server.py → api/schemas) is allow-listed.
+# repositories/storage/models → services/api and services → api. `repositories`
+# and `storage` are independent siblings (`|`) at the same level: repositories
+# are ORM-CRUD, storage is swappable-backend abstractions (BlobStorage,
+# TraceStore) — neither imports the other. The single known localized exception
+# (services/mcp_server.py → api/schemas) is allow-listed.
 [[tool.importlinter.contracts]]
-name = "Backend layers: api > services > repositories > models"
+name = "Backend layers: api > services > repositories|storage > models"
 type = "layers"
 containers = ["app"]
-layers = ["api", "services", "repositories", "models"]
+layers = ["api", "services", "repositories | storage", "models"]
 ignore_imports = [
     # Known localized exception (backend.md § Правила вызовов): the MCP service
     # imports its request schema against the layer direction, without a cycle.
@@ -95,23 +98,23 @@ ignore_imports = [
 ]
 
 # API must reach data/agent only through the service layer. A plain layers
-# contract permits api → repositories (downward skip), so the prohibition is
-# expressed separately and scoped to api/routes — api/deps.py legally wires
-# repositories for DI.
+# contract permits api → repositories/storage (downward skip), so the
+# prohibition is expressed separately and scoped to api/routes — api/deps.py
+# legally wires repositories/storage for DI.
 [[tool.importlinter.contracts]]
-name = "Backend: api/routes must not import repositories or agent directly"
+name = "Backend: api/routes must not import repositories, storage or agent directly"
 type = "forbidden"
 source_modules = ["app.api.routes"]
-forbidden_modules = ["app.repositories", "app.agent"]
-# Only direct imports are violations: api → repositories/agent *through the
-# service layer* is the sanctioned path, so indirect chains must be allowed.
+forbidden_modules = ["app.repositories", "app.storage", "app.agent"]
+# Only direct imports are violations: api → repositories/storage/agent *through
+# the service layer* is the sanctioned path, so indirect chains must be allowed.
 allow_indirect_imports = "true"
 ignore_imports = [
     # R1 — pre-existing API→Repository violations, backlog (feat-008 report).
     # Removing an entry resurfaces the violation once the route is refactored.
     "app.api.routes.settings -> app.repositories.settings",
     "app.api.routes.mcp_servers -> app.repositories.mcp_server",
-    "app.api.routes.feedback -> app.repositories.trace_store",
+    "app.api.routes.feedback -> app.storage.trace_store",
 ]
 
 # ORM models stay pure: no transport, no infra clients (conventions.md § Схема БД).
@@ -122,14 +125,16 @@ source_modules = ["app.models"]
 forbidden_modules = ["app.infra"]
 
 # Transport must not leak into the domain (conventions.md § Обработка ошибок →
-# «доменные исключения, не транспорт»). Services/repositories/agent raise AppError,
-# never fastapi.HTTPException — so they must not import fastapi at all.
+# «доменные исключения, не транспорт»). Services/repositories/storage/agent
+# raise AppError, never fastapi.HTTPException — so they must not import
+# fastapi at all.
 [[tool.importlinter.contracts]]
 name = "Backend: domain layers must not import fastapi (no transport leak)"
 type = "forbidden"
 source_modules = [
     "app.services",
     "app.repositories",
+    "app.storage",
     "app.agent",
     "app.models",
 ]

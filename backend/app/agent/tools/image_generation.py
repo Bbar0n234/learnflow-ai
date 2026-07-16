@@ -5,6 +5,7 @@ import uuid
 from typing import Any
 
 from langchain_core.tools import BaseTool, tool
+from langfuse import get_client
 from langgraph.prebuilt import ToolRuntime
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -12,7 +13,7 @@ from app.agent.config import ImageConfig
 from app.config import Settings
 from app.infra.image_generation import generate_image as call_generate_image
 from app.repositories.artifact import ArtifactRepository
-from app.repositories.blob_storage import PgBlobStorage
+from app.storage.blob_storage import PgBlobStorage
 
 
 def make_generate_image_tool(
@@ -105,9 +106,6 @@ def make_generate_image_tool(
 
         if langfuse_enabled:
             with contextlib.suppress(Exception):
-                # lazy: langfuse is optional; observation degrades gracefully
-                from langfuse import get_client  # noqa: PLC0415
-
                 gen_kwargs: dict[str, Any] = {
                     "as_type": "generation",
                     "name": "generate-image",

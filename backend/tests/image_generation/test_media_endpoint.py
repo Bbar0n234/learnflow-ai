@@ -15,7 +15,7 @@ import uuid
 import pytest
 from app.models.user import User
 from app.repositories.artifact import ArtifactRepository
-from app.repositories.blob_storage import PgBlobStorage
+from app.storage.blob_storage import PgBlobStorage
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 

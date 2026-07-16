@@ -13,7 +13,7 @@ import uuid
 
 import pytest
 from app.repositories.artifact import ArtifactRepository
-from app.repositories.blob_storage import PgBlobStorage
+from app.storage.blob_storage import PgBlobStorage
 from learnflow_testing.factories import ProjectFactory
 from sqlalchemy.ext.asyncio import AsyncSession
 

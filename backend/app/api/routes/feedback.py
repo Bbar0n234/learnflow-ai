@@ -6,11 +6,12 @@ import anyio.to_thread
 import httpx
 import structlog
 from fastapi import APIRouter, HTTPException, Request, status
+from langfuse import get_client
 
 from app.api.deps import SettingsDep, UserThread
 from app.api.schemas.feedback import FeedbackResponse, FeedbackSet
-from app.repositories.trace_store import TraceStore
 from app.services.exceptions import UpstreamUnavailableError
+from app.storage.trace_store import TraceStore
 
 logger = structlog.get_logger()
 
@@ -38,9 +39,6 @@ async def _get_owned_trace_store(
 
 
 def _get_langfuse_client() -> Any:
-    # lazy: avoid import error when langfuse is not configured
-    from langfuse import get_client  # noqa: PLC0415
-
     try:
         return get_client()
     except Exception as exc:

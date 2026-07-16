@@ -18,6 +18,8 @@ from contextlib import ExitStack, contextmanager
 from typing import Any
 
 import structlog
+from langfuse import get_client, propagate_attributes
+from langfuse.langchain import CallbackHandler
 
 from app.agent.security.types import Checkpoint, GuardResult, SecurityMessages, Verdict
 
@@ -126,9 +128,6 @@ class AgentRunSpan:
         if not self._enabled:
             return
         try:
-            # lazy: langfuse is optional; only resolve when emitting observation
-            from langfuse import get_client  # noqa: PLC0415
-
             detection_layer = (
                 result.detection_layer.value if result.detection_layer else None
             )
@@ -191,10 +190,6 @@ class AgentRunTracer:
                 security_messages=self._messages,
             )
             return
-
-        # lazy: langfuse is optional; resolve client only when observation needed
-        from langfuse import get_client, propagate_attributes  # noqa: PLC0415
-        from langfuse.langchain import CallbackHandler  # noqa: PLC0415
 
         span: Any = _NoOpSpan()
         handler = None

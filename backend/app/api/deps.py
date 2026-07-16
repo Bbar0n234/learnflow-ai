@@ -18,10 +18,8 @@ from app.repositories import (
     ArtifactRepository,
     ProjectRepository,
     ThreadViewRepository,
-    TraceStore,
     UserRepository,
 )
-from app.repositories.blob_storage import BlobStorage, PgBlobStorage
 from app.repositories.mcp_server import MCPServerRepository
 from app.services import (
     ArtifactService,
@@ -30,6 +28,8 @@ from app.services import (
 )
 from app.services.security import decode_access_token
 from app.services.sphere import LangGraphSphereService, SphereService
+from app.storage.blob_storage import BlobStorage, PgBlobStorage
+from app.storage.trace_store import TraceStore
 
 
 def get_settings(request: Request) -> Settings:

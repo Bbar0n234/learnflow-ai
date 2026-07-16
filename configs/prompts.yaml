@@ -15,3 +15,18 @@ prompts:
     keys:
       model: model
       extra_body: extra_body
+  subagent-judge:
+    source: agent.subagents.llm
+    keys:
+      model: model
+      extra_body: extra_body
+  subagent-web-research:
+    source: agent.subagents.llm
+    keys:
+      model: model
+      extra_body: extra_body
+  subagent-general-purpose:
+    source: agent.subagents.llm
+    keys:
+      model: model
+      extra_body: extra_body

@@ -198,6 +198,16 @@ Custom-прогресс через `get_stream_writer()` (stream mode `custom`, 
 
 Не входит: фоновые/async субагенты (v2, job-паттерн), sandbox-субагент (отдельный трек backlog: ADR + security-review), user-installed MCP в субагентах, vision-judge «оцени изображение» (требует vision-модели — backlog), HITL внутри субагента, параллельный fan-out через `Send` (параллелизм v1 — несколько tool-вызовов в одном ходу модели), structured output вердикта (`output_schema` — по появлении программного потребителя), KS-секция как источник входа, кэш скомпилированных графов, per-request модельный каскад (ModelConfigResolver) для субагентов, таймауты поверх `recursion_limit`.
 
+## Партиция треков
+
+Вырожденный случай — один трек, параллелизации нет, конвейер последовательный (ревью партиции не требуется).
+
+| Трек | Скоуп | Файловый/модульный скоуп |
+|------|-------|--------------------------|
+| T1 | Весь scope итерации: agent runtime (SubagentSpec/реестр, SubagentRunner, tool `run_subagent`, стрим-фильтр, guard-переиспользование), конфиги и промпты, ADR, обновление скилла | `backend/app/agent/**`, `configs/agent.yaml`, `configs/prompts.yaml`, `configs/prompt_fragments.yaml`, `configs/prompts/subagent-*.txt`, `backend/tests/agent/**`, `doc/tech/adr/`, `skills/tech-article-writing/SKILL.md` |
+
+Вердикт непересечения: тривиален (второго трека нет). Дробление на треки отклонено: все компоненты завязаны на общие файлы agent runtime (`runner.py`, `graph.py`, `tools`), а кандидат в отдельный трек (правка `skills/tech-article-writing/SKILL.md`) слишком мал, чтобы окупить издержки параллельного трека, и контрактно зависит от tool.
+
 ## SOFA consulted
 
 LangGraph-специфичных постов по субагентам на площадке нет (тег `langgraph` — 3 TIL про другое). Framework-agnostic:

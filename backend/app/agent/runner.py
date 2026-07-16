@@ -19,6 +19,7 @@ from app.agent.graph_factory import GraphFactory
 from app.agent.runtime_security import RuntimeSecurityEnforcer
 from app.agent.security.canary import generate_canary_token
 from app.agent.stream_events import StreamEventMapper
+from app.agent.subagents import SUBAGENT_TAG
 from app.agent.tracing import AgentRunTracer
 from app.repositories.settings import SettingsRepository
 from app.services.agent_runner import Message, StreamEvent
@@ -173,7 +174,18 @@ class LangGraphAgentRunner:
                         return
 
                     if mode == "messages":
-                        msg_chunk, _metadata = data
+                        msg_chunk, chunk_metadata = data
+                        if chunk_metadata and SUBAGENT_TAG in (
+                            chunk_metadata.get("tags") or ()
+                        ):
+                            # Subagent LLM tokens: dropped before full_response
+                            # accumulation and canary/mid-stream checks (design-brief
+                            # § "Стриминг: изоляция токенов субагента"). cancel_event
+                            # is still checked every iteration at the top of this
+                            # loop, so cancellation stays responsive during a
+                            # subagent run; Langfuse callbacks are untouched — only
+                            # this stream-loop projection is filtered.
+                            continue
                         if not (
                             isinstance(msg_chunk, AIMessageChunk)
                             and isinstance(msg_chunk.content, str)

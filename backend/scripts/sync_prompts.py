@@ -18,7 +18,14 @@ PROMPTS_DIR = CONFIGS_DIR / "prompts"
 AGENT_YAML = CONFIGS_DIR / "agent.yaml"
 SECURITY_YAML = CONFIGS_DIR / "security.yaml"
 
-PROMPT_NAMES = ["system", "summarization", "security-classifier"]
+PROMPT_NAMES = [
+    "system",
+    "summarization",
+    "security-classifier",
+    "subagent-judge",
+    "subagent-web-research",
+    "subagent-general-purpose",
+]
 
 
 def sync_to_files(label: str) -> None:

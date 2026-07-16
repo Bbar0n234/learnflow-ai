@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from langchain_core.tools import BaseTool
 from langfuse import get_client as get_langfuse_client
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
@@ -20,6 +21,7 @@ from sqlalchemy.exc import OperationalError
 from app.agent.checkpoint_history import CheckpointHistory
 from app.agent.config import (
     PromptsRegistry,
+    SubagentsConfig,
     load_agent_config,
     load_error_messages,
     load_pricing_config,
@@ -46,11 +48,13 @@ from app.agent.security.guard import SecurityGuard
 from app.agent.security.observer import GuardObserver
 from app.agent.security.types import Checkpoint, Verdict
 from app.agent.stream_events import StreamEventMapper
+from app.agent.subagents import SubagentRunner
 from app.agent.tools import (
     ks_tools,
     make_create_artifact_tool,
     make_generate_image_tool,
     make_load_skill_tool,
+    make_run_subagent_tool,
     scan_skills_index,
     user_memory_tools,
 )
@@ -155,6 +159,30 @@ async def _validate_builtin_mcp(
             )
             disabled.add(name)
     return disabled
+
+
+def _validate_subagent_tool_pool(
+    subagents_config: SubagentsConfig, pool: dict[str, BaseTool]
+) -> None:
+    """Fail-fast: every ``tools`` name in every subagent spec must resolve in
+    the built-in tool pool (internal tools + built-in MCP tools).
+
+    An unknown name is a configuration error — same severity as any other
+    typo in ``configs/*.yaml`` — so it aborts application startup instead of
+    surfacing lazily on first ``run_subagent`` call.
+    """
+    missing: dict[str, list[str]] = {}
+    for spec in subagents_config.registry:
+        unknown = [name for name in spec.tools if name not in pool]
+        if unknown:
+            missing[spec.name] = unknown
+    if missing:
+        details = "; ".join(
+            f"{spec_name}: {', '.join(names)}" for spec_name, names in missing.items()
+        )
+        raise RuntimeError(
+            f"subagents config error — unknown tool name(s) in registry: {details}"
+        )
 
 
 def _seed_prompts(
@@ -340,53 +368,69 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             langfuse_enabled=langfuse_enabled,
         )
 
-        internal_tools: list = (
+        internal_tools: list[BaseTool] = (
             ks_tools + user_memory_tools + [load_skill, create_artifact, generate_image]
         )
 
         # Security guard (Sec 2.0 — always on). Must exist before MCP built-in
-        # validation so the startup guard can call it.
+        # validation so the startup guard can call it. Built here from
+        # internal_tools known so far, and rebuilt further below once
+        # `run_subagent` (another internal tool) is known — so
+        # PairedToolIdentifierDetector/FragmentDetector cover its
+        # identifier/description too, like every other internal tool. Safe to
+        # split this way: neither detector applies to Checkpoint.MCP_METADATA
+        # (see their `applies_to`), so the interim guard built here is
+        # complete for the one check it's used for below.
         guard_llm = create_guard_llm(settings, security_config)
-        fragment_corpus = collect_fragment_corpus(
-            system_prompt=prompt_provider.load_file("system"),
-            guard_classifier_prompt=prompt_provider.load_file("security-classifier"),
-            internal_tools=internal_tools,
-        )
-        tool_registry = collect_tool_registry(internal_tools)
-
-        detectors: list[DeterministicDetector] = [
-            CanaryDetector(),
-            UnicodeDetector(),
-            PairedToolIdentifierDetector(
-                tool_registry,
-                min_compromised_tools=security_config.detectors.paired.min_compromised_tools,
-                min_params_per_tool=security_config.detectors.paired.min_params_per_tool,
-            ),
-            FragmentDetector(
-                fragment_corpus,
-                window_size=security_config.detectors.fragment.window_size,
-                stride=security_config.detectors.fragment.stride,
-                min_unique_matches=security_config.detectors.fragment.min_unique_matches,
-            ),
-        ]
         classifier = LLMClassifier(
             llm=guard_llm,
             prompt_provider=prompt_provider,
             security_config=security_config,
             checkpoint_configs=checkpoint_configs(security_config),
         )
-        security_guard = SecurityGuard(
-            detectors=detectors,
-            classifier=classifier,
-            observer=GuardObserver(enabled=langfuse_enabled),
-            config=security_config,
-        )
-        logger.info(
-            "security guard initialized",
-            guard_model=security_config.llm_classifier.model,
-            corpus_items=len(fragment_corpus),
-            tool_registry_size=len(tool_registry),
-        )
+        guard_observer = GuardObserver(enabled=langfuse_enabled)
+
+        def _build_security_guard(
+            tools_for_corpus: list[BaseTool],
+        ) -> tuple[SecurityGuard, dict[str, list[str]]]:
+            fragment_corpus = collect_fragment_corpus(
+                system_prompt=prompt_provider.load_file("system"),
+                guard_classifier_prompt=prompt_provider.load_file(
+                    "security-classifier"
+                ),
+                internal_tools=tools_for_corpus,
+            )
+            registry = collect_tool_registry(tools_for_corpus)
+            detectors: list[DeterministicDetector] = [
+                CanaryDetector(),
+                UnicodeDetector(),
+                PairedToolIdentifierDetector(
+                    registry,
+                    min_compromised_tools=security_config.detectors.paired.min_compromised_tools,
+                    min_params_per_tool=security_config.detectors.paired.min_params_per_tool,
+                ),
+                FragmentDetector(
+                    fragment_corpus,
+                    window_size=security_config.detectors.fragment.window_size,
+                    stride=security_config.detectors.fragment.stride,
+                    min_unique_matches=security_config.detectors.fragment.min_unique_matches,
+                ),
+            ]
+            guard = SecurityGuard(
+                detectors=detectors,
+                classifier=classifier,
+                observer=guard_observer,
+                config=security_config,
+            )
+            logger.info(
+                "security guard initialized",
+                guard_model=security_config.llm_classifier.model,
+                corpus_items=len(fragment_corpus),
+                tool_registry_size=len(registry),
+            )
+            return guard, registry
+
+        security_guard, tool_registry = _build_security_guard(internal_tools)
 
         # Built-in MCP validation: fetch remote tools/list + run guard. A
         # server that fails the fetch or the guard check is excluded from the
@@ -427,12 +471,59 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 exc_info=True,
             )
 
-        global_tools = (
-            ks_tools
-            + user_memory_tools
-            + [load_skill, create_artifact, generate_image]
-            + mcp_tools
-        )
+        # Subagents (feat-011, T1.3): tool `run_subagent` + SubagentRunner.
+        # Skipped gracefully if `subagents` is absent from agent.yaml — same
+        # treatment as other optional config sections.
+        if agent_config.subagents is not None:
+            # Built-in pool only: internal_tools + built-in MCP tools. No
+            # user-installed MCP — trust boundary (design-brief § "Tools
+            # субагента").
+            subagent_tool_pool: dict[str, BaseTool] = {
+                t.name: t for t in [*internal_tools, *mcp_tools]
+            }
+            # Fail-fast: an unresolved tool name in the registry aborts
+            # startup, same severity as any other configs/*.yaml typo.
+            _validate_subagent_tool_pool(agent_config.subagents, subagent_tool_pool)
+
+            subagent_runner = SubagentRunner(
+                agent_config=agent_config,
+                prompt_fragments=prompt_fragments,
+                prompt_provider=prompt_provider,
+                settings=settings,
+                tool_pool=subagent_tool_pool,
+                # The interim guard (built from internal_tools *before*
+                # run_subagent is appended below) — not the rebuilt one at
+                # the bottom of this block. Using the interim guard here (as
+                # opposed to reordering to build the final guard first) is
+                # deliberate: the final guard's only difference is that
+                # PairedToolIdentifierDetector/FragmentDetector also cover
+                # `run_subagent`'s own identifier/description, which is
+                # irrelevant to the checks a subagent's *own* tool loop runs
+                # (web-research's tools are firecrawl_*, never run_subagent
+                # — excluded from the pool by SubagentRunner's constructor
+                # invariant). Avoids a circular dependency: the final guard
+                # needs `run_subagent` in internal_tools, which needs this
+                # Runner to exist first.
+                security_guard=security_guard,
+                security_messages=security_config.messages,
+            )
+            run_subagent = make_run_subagent_tool(
+                app.state.session_factory,
+                subagent_runner,
+                agent_config.subagents.registry,
+            )
+            internal_tools = [*internal_tools, run_subagent]
+            # Rebuild the guard so PairedToolIdentifierDetector/
+            # FragmentDetector cover `run_subagent`'s identifier/description
+            # too — see the comment on the first `_build_security_guard`
+            # call above for why this reorder is safe.
+            security_guard, tool_registry = _build_security_guard(internal_tools)
+            logger.info(
+                "run_subagent tool registered",
+                tool_pool_size=len(subagent_tool_pool),
+            )
+
+        global_tools = internal_tools + mcp_tools
 
         # GraphFactory + ModelConfigResolver
         graph_factory = GraphFactory(

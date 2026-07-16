@@ -23,6 +23,41 @@ available_models:
   display_name: GLM-4.7 Flash
 - name: google/gemini-3.1-pro-preview
   display_name: Gemini 3.1 Pro
+subagents:
+  llm:
+    model: z-ai/glm-4.7-flash
+    extra_body:
+      include_reasoning: true
+  registry:
+  - name: judge
+    description: >-
+      Independent reviewer with a clean context (no session history).
+      Give it a task describing the review pass and the artifact id(s)
+      to review; it returns a verdict with evidence (quotes/references
+      to specific spots), not a bare summary.
+    prompt: subagent-judge
+    tools: []
+    persistence: none
+  - name: web-research
+    description: >-
+      Researcher with web search/scrape/extract tools and a clean
+      context. Give it a research task (and optional reference
+      artifact ids); it returns a distilled summary with sources —
+      the pages it reads never enter your context.
+    prompt: subagent-web-research
+    tools:
+    - firecrawl_search
+    - firecrawl_scrape
+    - firecrawl_extract
+    persistence: none
+  - name: general-purpose
+    description: >-
+      Generic isolated subtask with a clean context (no session
+      history, no tools). Use for self-contained work that should not
+      inherit conversation context.
+    prompt: subagent-general-purpose
+    tools: []
+    persistence: none
 mcp_servers:
   firecrawl:
     enabled: true
@@ -31,8 +66,8 @@ mcp_servers:
     api_key_env: FIRECRAWL_API_KEY
     allowed_tools:
     - firecrawl_search
-    - firecrawl_scrape_url
-    - firecrawl_extract_data
+    - firecrawl_scrape
+    - firecrawl_extract
   tavily:
     enabled: false
     transport: http

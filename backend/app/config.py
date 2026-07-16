@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     llm_guard_timeout_seconds: float = 45
     llm_summarizer_timeout_seconds: float = 300
     llm_max_retries: int = 2
+    llm_image_timeout_seconds: float = 120
     mcp_timeout_seconds: int = 30
     pdf_conversion_timeout_seconds: int = 30
 

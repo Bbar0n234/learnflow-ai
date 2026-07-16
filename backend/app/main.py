@@ -49,6 +49,7 @@ from app.agent.stream_events import StreamEventMapper
 from app.agent.tools import (
     ks_tools,
     make_create_artifact_tool,
+    make_generate_image_tool,
     make_load_skill_tool,
     scan_skills_index,
     user_memory_tools,
@@ -332,9 +333,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         load_skill = make_load_skill_tool(skills_dir)
         skills_idx = scan_skills_index(skills_dir)
         create_artifact = make_create_artifact_tool(app.state.session_factory)
+        generate_image = make_generate_image_tool(
+            app.state.session_factory,
+            settings,
+            agent_config.image,
+            langfuse_enabled=langfuse_enabled,
+        )
 
         internal_tools: list = (
-            ks_tools + user_memory_tools + [load_skill, create_artifact]
+            ks_tools + user_memory_tools + [load_skill, create_artifact, generate_image]
         )
 
         # Security guard (Sec 2.0 — always on). Must exist before MCP built-in
@@ -421,7 +428,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             )
 
         global_tools = (
-            ks_tools + user_memory_tools + [load_skill, create_artifact] + mcp_tools
+            ks_tools
+            + user_memory_tools
+            + [load_skill, create_artifact, generate_image]
+            + mcp_tools
         )
 
         # GraphFactory + ModelConfigResolver

@@ -18,7 +18,6 @@ from app.repositories import (
     ArtifactRepository,
     ProjectRepository,
     ThreadViewRepository,
-    TraceStore,
     UserRepository,
 )
 from app.repositories.mcp_server import MCPServerRepository
@@ -29,6 +28,8 @@ from app.services import (
 )
 from app.services.security import decode_access_token
 from app.services.sphere import LangGraphSphereService, SphereService
+from app.storage.blob_storage import BlobStorage, PgBlobStorage
+from app.storage.trace_store import TraceStore
 
 
 def get_settings(request: Request) -> Settings:
@@ -121,10 +122,15 @@ def get_sphere_service(request: Request) -> SphereService:
     )
 
 
+def get_blob_storage(session: DBSession) -> BlobStorage:
+    return PgBlobStorage(session)
+
+
 ProjectServiceDep = Annotated[ProjectService, Depends(get_project_service)]
 ArtifactServiceDep = Annotated[ArtifactService, Depends(get_artifact_service)]
 ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]
 SphereServiceDep = Annotated[SphereService, Depends(get_sphere_service)]
+BlobStorageDep = Annotated[BlobStorage, Depends(get_blob_storage)]
 
 
 async def get_user_project(

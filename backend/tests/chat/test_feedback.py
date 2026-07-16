@@ -14,7 +14,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import httpx
-import langfuse
 import pytest
 import redis.asyncio as aioredis
 from app.config import Settings
@@ -22,7 +21,7 @@ from app.models.project import Project
 from app.models.thread_view import ThreadView
 from app.models.user import User
 from app.repositories.thread_view import ThreadViewRepository
-from app.repositories.trace_store import TraceStore
+from app.storage.trace_store import TraceStore
 from fastapi import FastAPI
 from httpx import AsyncClient
 from learnflow_testing.factories import ProjectFactory
@@ -40,9 +39,9 @@ def feedback_redis(app: FastAPI, redis_client: aioredis.Redis) -> aioredis.Redis
 
 @pytest.fixture
 def langfuse_client(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
-    """Patch ``langfuse.get_client`` (imported lazily inside the route)."""
+    """Patch ``get_client`` where the route module bound it (top-level import)."""
     client = MagicMock()
-    monkeypatch.setattr(langfuse, "get_client", lambda: client)
+    monkeypatch.setattr("app.api.routes.feedback.get_client", lambda: client)
     return client
 
 

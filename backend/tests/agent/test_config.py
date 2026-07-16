@@ -58,7 +58,11 @@ def test_open_close_returns_pair_or_none(fragments: PromptFragmentsConfig) -> No
 
 def _minimal_agent_cfg() -> AgentConfig:
     return AgentConfig.model_validate(
-        {"llm": {"model": "m"}, "context": {"max_tokens": 100}}
+        {
+            "llm": {"model": "m"},
+            "context": {"max_tokens": 100},
+            "image": {"model": "google/gemini-3.1-flash-image"},
+        }
     )
 
 

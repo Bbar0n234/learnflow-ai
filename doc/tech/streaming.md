@@ -33,6 +33,8 @@ data: {"type": "done", "message_id": "msg-uuid", "trace_id": "trace-uuid"}\n\n
 
 `security_block` — отдельный от `error` event: security incidents отображаются специфичным UI (generic сообщение пользователю), не generic error. `checkpoint` принимает значения `user_input`, `tool_result`, `tool_call_arg`, `final_output`; `detection_layer` — `canary`, `unicode`, `fragment`, `paired`, `llm_classifier`. Подробнее — [architecture.md](../security/architecture.md).
 
+`artifact_created` эмитится маппером по имени tool'а — срабатывает на любой artifact-producing tool (`create_artifact`, `generate_image`), форма события от tool'а не зависит; какие tools её порождают — [agent-runtime.md](agent-runtime.md#internal-tools).
+
 `final_output_review_*` — non-terminal события вокруг end-of-stream проверки final output. Frontend показывает индикатор «проверка ответа» в паузе между последним `text_chunk` и `done`. При INJECTION на этой проверке вместо `final_output_review_complete` отправляется `security_block`.
 
 `trace_id` — internal event: ChatService перехватывает его (не пробрасывает клиенту), сохраняет в Redis, а затем включает trace_id в payload `done` event. Frontend получает trace_id только через `done`.

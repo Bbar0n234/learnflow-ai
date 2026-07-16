@@ -41,7 +41,10 @@ class StreamEventMapper:
                             },
                         )
                     )
-                    if msg.name == "create_artifact" and msg.artifact is not None:
+                    if (
+                        msg.name in {"create_artifact", "generate_image"}
+                        and msg.artifact is not None
+                    ):
                         artifact = dict(msg.artifact)
                         artifact["artifact_type"] = artifact.pop("type", "")
                         events.append(

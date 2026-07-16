@@ -13,6 +13,9 @@ summarization:
   max_summary_tokens: 500
   extra_body:
     include_reasoning: true
+image:
+  model: google/gemini-3.1-flash-image
+  params: {}
 available_models:
 - name: z-ai/glm-5
   display_name: GLM-5

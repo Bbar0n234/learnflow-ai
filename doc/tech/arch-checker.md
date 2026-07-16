@@ -52,8 +52,8 @@ import-linter требует `PYTHONPATH=backend:services/siem-service`: Grimp �
 
 | Инвариант | Директории | Механизм | Покрыто | Нарушения |
 |-----------|-----------|----------|---------|-----------|
-| `api > services > repositories > models`, без импортов вверх | `backend/app/{api,services,repositories,models}` | import-linter (layers) | ✅ | нет (кроме allow-listed `services/mcp_server → api/schemas`) |
-| `api/routes ↛ repositories`, `api/routes ↛ agent` (только через service) | `backend/app/api/routes` | import-linter (forbidden, `allow_indirect_imports`) | ✅ | 3 роута в allowlist (R1, см. ниже) |
+| `api > services > repositories\|storage > models`, без импортов вверх (`repositories`/`storage` — независимые соседи одного уровня) | `backend/app/{api,services,repositories,storage,models}` | import-linter (layers) | ✅ | нет (кроме allow-listed `services/mcp_server → api/schemas`) |
+| `api/routes ↛ repositories`, `api/routes ↛ storage`, `api/routes ↛ agent` (только через service) | `backend/app/api/routes` | import-linter (forbidden, `allow_indirect_imports`) | ✅ | 3 роута в allowlist (R1, см. ниже) |
 | `models ↛ infra` | `backend/app/models` | import-linter (forbidden) | ✅ | нет |
 | Транспорт не течёт в домен (`fastapi`/`HTTPException` в service/repo/agent/model) | `backend/app/{services,repositories,agent,models}` | import-linter (forbidden external) | ✅ | нет |
 | siem: `api > services\|pipeline\|correlation > domain`, `infra/domain` не вверх | `services/siem-service/siem_service/*` | import-linter (forbidden ×3) | ✅ | нет |
@@ -124,7 +124,7 @@ call-site соответственно.
   покрывает только write-flow (guard+persist/update); 18 read/list/toggle/delete
   хендлеров ходят в репозиторий напрямую. Перенос — добавление методов в сервис,
   то есть рефакторинг.
-- `api/routes/feedback.py → repositories/trace_store.py` — `FeedbackService` не
+- `api/routes/feedback.py → storage/trace_store.py` — `FeedbackService` не
   существует; в роуте инлайн-логика Langfuse + Redis-`TraceStore` + проверка
   владения. Перенос — выделение сервиса.
 

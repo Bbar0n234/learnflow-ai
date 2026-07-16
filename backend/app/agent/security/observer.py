@@ -6,6 +6,7 @@ from contextlib import ExitStack, asynccontextmanager
 from typing import Any
 
 import structlog
+from langfuse import get_client, propagate_attributes
 
 from app.agent.security.types import VERDICT_TO_LEVEL, Checkpoint, GuardResult
 from app.infra.llm import normalize_usage_for_langfuse
@@ -33,9 +34,6 @@ class ObservationHandle:
         params: dict[str, Any],
     ) -> None:
         try:
-            # lazy: langfuse is optional; tolerate missing import at runtime
-            from langfuse import get_client  # noqa: PLC0415
-
             self._gen_cm = get_client().start_as_current_observation(
                 as_type="generation",
                 name="llm-classifier",
@@ -159,24 +157,7 @@ class GuardObserver:
         root_obs: Any = None
         guard_obs: Any = None
 
-        get_client: Any = None
-        propagate_attributes: Any = None
         if self._enabled:
-            try:
-                # lazy: langfuse is optional; observe block degrades gracefully
-                from langfuse import (  # noqa: PLC0415
-                    get_client as _get_client,
-                )
-                from langfuse import (  # noqa: PLC0415
-                    propagate_attributes as _propagate_attributes,
-                )
-
-                get_client = _get_client
-                propagate_attributes = _propagate_attributes
-            except Exception:
-                get_client = None
-
-        if get_client is not None:
             try:
                 client = get_client()
                 if top_level:

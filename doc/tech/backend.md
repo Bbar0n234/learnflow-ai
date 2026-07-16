@@ -38,7 +38,8 @@ graph TD
     end
 
     subgraph DATAL["Data Layer"]
-        REPOS["repositories/ — по репозиторию<br>на сущность · TraceStore"]
+        REPOS["repositories/ — по репозиторию<br>на сущность (ORM CRUD)"]
+        STORAGE["storage/ — BlobStorage (Pg) ·<br>TraceStore (Redis)"]
         MODELS["models/ — SQLAlchemy ORM"]
     end
 
@@ -46,6 +47,7 @@ graph TD
         DBE["db.py — engine/sessions"]
         LG["langgraph.py —<br>Checkpointer + Store"]
         LLM["llm.py — LLM-клиенты"]
+        IMG["image_generation.py —<br>OpenRouter Image API"]
         MCPC["mcp.py — MultiServerMCPClient"]
         PP["PromptProvider"]
         RL["rate_limit.py"]
@@ -67,10 +69,12 @@ graph TD
     ROUTES --> SCHEMAS
     ROUTES --> DEPS
     ROUTES --> RL
+    ROUTES -.->|"exception: thin<br>read-only DI"| STORAGE
     DEPS --> CHATSVC
     DEPS --> CRUD
     CHATSVC --> RUNNER
     CHATSVC --> REPOS
+    CHATSVC --> STORAGE
     CRUD --> REPOS
     CRUD --> GUARD
     CRUD --> ENC
@@ -86,12 +90,17 @@ graph TD
     GUARD --> LLM
     PB --> PP
     TOOLS --> REPOS
+    TOOLS --> STORAGE
+    TOOLS --> IMG
     REPOS --> MODELS
     REPOS --> DBE
-    REPOS -->|TraceStore| REDIS
+    STORAGE --> MODELS
+    STORAGE --> DBE
+    STORAGE -->|TraceStore| REDIS
     DBE --> PG
     LG --> PG
     LLM --> LLMAPI
+    IMG --> LLMAPI
     PP --> LF
     MCPC --> MCPEXT
     RUNNER -. "tracing — CallbackHandler" .-> LF
@@ -114,7 +123,8 @@ Composition root — `app/main.py`: lifespan инициализирует син
 - **API Layer** — HTTP/SSE-интерфейс, Pydantic-валидация, маршрутизация. Не содержит бизнес-логики.
 - **Service Layer** — CRUD-сервисы (ProjectService, ArtifactService, UserMemoryService, MCPServerService, SphereService) + thin ChatService для chat-операций. ChatService оркестрирует взаимодействие с AgentRunner (маппинг chat_id → thread_id, model resolution, обновление thread_views, формирование config). Write-методы для persistent storage (MCP-серверы, custom instructions, KS write через REST) первыми вызывают security guard — INJECTION → HTTP 422, до endpoint-специфичных валидаций ([security/architecture.md](../security/architecture.md)). ModelConfigResolver — каскадное разрешение модели per-request.
 - **Agent Layer** — LangGraph-граф, GraphFactory (per-request build+compile), tools, skills, context engineering, memory, security (inline-проверки в графе и стриминге — [architecture.md](../security/architecture.md)). LangGraph-связанность сдержана внутри этого слоя: наружу выходят только доменные типы, не LangGraph-специфичные.
-- **Repository Layer** — SQLAlchemy, доступ к app-managed таблицам.
+- **Repository Layer** — SQLAlchemy, CRUD-доступ к app-managed таблицам, по репозиторию на ORM-сущность.
+- **Storage Layer** — абстракции хранилища с заменяемым бэкендом или не-ORM семантикой (blob, key-value); независимый сосед Repository Layer, не наследует и не оборачивает его. `BlobStorage` (`typing.Protocol`, реализация `PgBlobStorage`) и `TraceStore` (Redis) — нейминг и граница с Repository Layer см. [conventions.md § Именование](conventions.md#именование).
 - **Infra** — не слой с правилами вызовов, а утилитарный пакет с сконфигурированными клиентами внешних сервисов.
 
 ### Правила вызовов
@@ -123,15 +133,26 @@ Composition root — `app/main.py`: lifespan инициализирует син
 |-------|----------|
 | API → Service | ✅ всегда (включая chat через ChatService) |
 | Service → Repository | ✅ |
+| Service → Storage | ✅ (`ChatService` → `TraceStore`) |
 | Service → Agent Layer | ✅ (ChatService → AgentRunner) |
 | Agent tools → Repository | ✅ прямой доступ |
+| Agent tools → Storage | ✅ прямой доступ (`image_generation`-tool → `PgBlobStorage`) |
 | Agent → LangGraph Store / Checkpointer | ✅ нативно |
-| Repository / Agent → Infra | ✅ клиенты |
+| Repository / Storage / Agent → Infra | ✅ клиенты |
 | Repository → Service | ❌ |
-| API → Repository | ❌ |
+| API → Repository | ❌, кроме тонкого read-only исключения (см. ниже) |
+| API → Storage | ❌, кроме тонкого read-only исключения (см. ниже) |
 | API → Agent Layer | ❌ (только через Service) |
 
 Известное локализованное исключение: `services/mcp_server.py` импортирует схему из `api/schemas/mcp_servers.py` — против направления, без цикла.
+
+**Исключение — тонкий read-only инжект в route-handler.** API → Repository/Storage в обход Service-слоя допустим, когда выполнены все три условия: (1) только чтение; (2) ноль бизнес-логики в handler'е — он только достаёт данные и отдаёт их; (3) авторизация уже выполнена существующими dependencies (ownership-проверки и т.п.) до обращения к хранилищу. Появление бизнес-логики или записи требует Service-слоя.
+
+Прецеденты:
+- `get_artifact_media` (`GET /projects/{id}/artifacts/{aid}/media`, `api/routes/artifacts.py`) — после ownership-проверки через `ArtifactServiceDep` читает блоб напрямую через `BlobStorageDep`.
+- `list_user_servers` и симметричные list-хендлеры (`GET /users/me/mcp-servers` и project/thread-эквиваленты, `api/routes/mcp_servers.py`) — листинг напрямую через `MCPServerRepository`, без бизнес-логики.
+
+Write-хендлеры `mcp_servers.py` (create/update/delete) под это исключение не попадают — там есть бизнес-логика (guard, лимиты на scope, инвалидация резолвера); они остаются известным долгом R1 ([arch-checker.md](arch-checker.md#известные-исключения-allowlist)).
 
 ### Сквозной поток: сообщение в чат
 
@@ -206,8 +227,11 @@ JWT + Refresh Token. Access token (short-lived, localStorage) для API-зап�
 | GET | `/projects/{id}/artifacts` | Список артефактов проекта |
 | GET | `/projects/{id}/artifacts/{aid}` | Получить артефакт (метаданные + content) |
 | GET | `/projects/{id}/artifacts/{aid}/download?format=md\|pdf` | Скачать в формате |
+| GET | `/projects/{id}/artifacts/{aid}/media` | Бинарные данные image-артефакта (bytes + `Content-Type` из `mime_type`) |
 
 PDF — конвертация из Markdown на бэкенде (pdfkit + wkhtmltopdf); блокирующий вызов уводится из event loop через `anyio.to_thread`.
+
+Media endpoint отдаёт содержимое `artifact_blobs` (404, если блоба нет — артефакт не типа `image` либо запись не залита). Ответ несёт `Cache-Control: private, max-age=31536000, immutable`: блоб иммутабелен по построению (редактирования нет, перегенерация создаёт новый артефакт = новый id = новый URL), поэтому браузер кэширует агрессивно без риска устаревания. `X-Content-Type-Options: nosniff` — `mime_type` приходит от внешнего провайдера и echo-нится в заголовок без валидации.
 
 #### Models & Settings
 
@@ -333,9 +357,12 @@ GET /projects/{id}/artifacts/{aid}
 
 GET /projects/{id}/artifacts/{aid}/download?format=md|pdf
   Response: файл (Content-Disposition: attachment)
+
+GET /projects/{id}/artifacts/{aid}/media
+  Response: bytes, Content-Type = mime_type блоба (404 без блоба)
 ```
 
-В списке — только метаданные, без content.
+В списке — только метаданные, без content. `type` включает `image` — у image-артефактов `content` несёт prompt генерации (alt-текст/caption), а бинарь доступен отдельно через `/media`.
 
 ### SSE Streaming Protocol
 
@@ -363,6 +390,8 @@ app/
 │
 ├── repositories/        # Repository Layer
 │
+├── storage/             # Storage Layer
+│
 ├── models/              # SQLAlchemy ORM-модели (app-managed таблицы)
 │
 ├── infra/               # Клиенты внешних сервисов, DB engine/sessions
@@ -380,9 +409,11 @@ app/
 
 **repositories/** — CRUD-доступ к app-managed таблицам через SQLAlchemy async session. По репозиторию на сущность.
 
+**storage/** — абстракции хранилища с заменяемым бэкендом или не-ORM семантикой: `BlobStorage` (`typing.Protocol`, реализация `PgBlobStorage`) для бинарей артефактов, `TraceStore` (Redis) для маппинга trace_id/feedback. Независимый сосед `repositories/` — ни один из двух пакетов не импортирует другой; нейминг и граница между ними — [conventions.md § Именование](conventions.md#именование).
+
 **models/** — SQLAlchemy ORM-модели для app-managed таблиц (User, Project, ThreadView, Artifact).
 
-**infra/** — Сконфигурированные клиенты внешних сервисов: DB engine/session factory, Checkpointer + Store (`langgraph.py`), LLM-клиенты, MCP client (`MultiServerMCPClient`), PromptProvider (Langfuse SDK wrapper), rate limiting, Redis client. Импортируется из Repository Layer, Service Layer и Agent Layer. MCPToolResolver и EncryptionService живут в `services/`, не здесь.
+**infra/** — Сконфигурированные клиенты внешних сервисов: DB engine/session factory, Checkpointer + Store (`langgraph.py`), LLM-клиенты, клиент OpenRouter Image API (`image_generation.py` — голый `httpx`, без LangChain-обёртки), MCP client (`MultiServerMCPClient`), PromptProvider (Langfuse SDK wrapper), rate limiting, Redis client. Импортируется из Repository Layer, Service Layer и Agent Layer. MCPToolResolver и EncryptionService живут в `services/`, не здесь.
 
 ## Agent Runtime
 
@@ -398,6 +429,7 @@ LangGraph-граф с ReAct-паттерном, context engineering, tools, skil
 graph LR
     AGENT["Agent Layer —<br>Checkpointer + Store, нативно LangGraph"]
     REPOS["repositories/ —<br>SQLAlchemy async"]
+    STORAGE["storage/ —<br>PgBlobStorage (session-scoped)"]
 
     subgraph PG["PostgreSQL learnflow"]
         subgraph LGM["LangGraph-managed — схема создаётся фреймворком"]
@@ -406,6 +438,7 @@ graph LR
         end
         subgraph APPM["App-managed — миграции Alembic"]
             CORE["User · Project · ThreadView · Artifact · RefreshToken"]
+            BLOB["ArtifactBlob — bytea"]
             SETT["UserSettings · ProjectSettings · ThreadSettings"]
             MCPS["User/Project/ThreadMCPServer · MCPServerDisable"]
         end
@@ -416,6 +449,7 @@ graph LR
     REPOS --> CORE
     REPOS --> SETT
     REPOS --> MCPS
+    STORAGE --> BLOB
     CORE -. "ThreadView.thread_id = str(UUID) →<br>LangGraph thread_id" .- CPT
 
     style PG fill:#8b949e12,stroke:#8b949e,color:#8b949e
@@ -449,7 +483,10 @@ ThreadView
 ├── thread_id (PK, UUID — при вызовах LangGraph конвертируется в str), project_id, title, security_blocked (bool), created_at, updated_at
 
 Artifact
-├── id, project_id, thread_id, message_id, title, type (markdown | ...), content, created_at
+├── id, project_id, thread_id, message_id, title, type (markdown | image | ...), content, created_at
+
+ArtifactBlob
+├── id (UUID PK), artifact_id (FK CASCADE, unique — 1:1 к Artifact), mime_type, data (bytea)
 
 UserSettings / ProjectSettings / ThreadSettings
 ├── user_id|project_id|thread_id (PK, FK CASCADE), model_name, extra_body (JSONB), created_at, updated_at
@@ -464,12 +501,15 @@ MCPServerDisable
 
 **ThreadView** — легковесная индексная таблица для UI (листинг чатов, заголовки, даты). OSS LangGraph не предоставляет API для листинга threads, поэтому метаданные чатов хранятся отдельно. `security_blocked` маркируется при INJECTION на любом runtime checkpoint'е; FastAPI-зависимость на POST `/messages` отдаёт 403 пока флаг стоит ([security/architecture.md](../security/architecture.md)).
 
+**ArtifactBlob** — бинарные данные артефактов (сейчас — сгенерированные изображения), отдельная таблица от `Artifact`, чтобы обычный select/listing артефактов не тянул мегабайты. Доступ — за протоколом `BlobStorage` (`app/storage/blob_storage.py`, `put`/`get`/`delete`), единственная реализация — `PgBlobStorage`, конструируется вокруг сессии как репозитории (не принимает `session` параметром метода) — атомарность «артефакт + блоб одной транзакцией» получается естественным образом при записи. Таблица рассчитана на переиспользование будущими потребителями бинарей (file attachments, референсные изображения). Обоснование выбора PostgreSQL вместо S3/файловой системы — [ADR-027](adr/ADR-027-artifact-blob-storage.md).
+
 ### Связи
 
 ```
 User 1 → N Project
 Project 1 → N ThreadView
 Project 1 → N Artifact
+Artifact 1 → 0..1 ArtifactBlob (только type="image")
 ThreadView.thread_id = str(UUID) → LangGraph thread_id (связь с checkpointer)
 Artifact.thread_id → ThreadView.thread_id (артефакт создаётся в контексте чата)
 ```

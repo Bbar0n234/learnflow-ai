@@ -30,9 +30,10 @@ export function ArtifactView() {
     );
   }
 
-  // Type-based dispatch — T6c viewers (group B, mock data, no backend contract).
-  // За фиче-флагом: в прод-сборке эти типы падают в дефолтный markdown-viewer,
-  // т.к. тело (слайды/аудио/изображение) пока берётся из моков.
+  // Type-based dispatch. slides/audio — T6c viewers (group B, mock data, no
+  // backend contract), за фиче-флагом: в прод-сборке эти типы падают в
+  // дефолтный markdown-viewer, т.к. тело (слайды/аудио) пока берётся из моков.
+  // image (feat-010, трек T1) — реальный бэкенд-контракт, вне флага.
   const type = data?.type ?? "";
   const formattedDate = data?.created_at
     ? new Date(data.created_at).toLocaleDateString("ru-RU")
@@ -41,8 +42,16 @@ export function ArtifactView() {
   if (SHOW_GROUP_B_STUBS && type === "slides") {
     return <SlidesViewer title={data?.title} createdAt={formattedDate} />;
   }
-  if (SHOW_GROUP_B_STUBS && type === "image") {
-    return <ImageViewer title={data?.title} createdAt={formattedDate} />;
+  if (type === "image") {
+    return (
+      <ImageViewer
+        projectId={id}
+        artifactId={aid}
+        title={data?.title}
+        createdAt={formattedDate}
+        content={data?.content}
+      />
+    );
   }
   if (SHOW_GROUP_B_STUBS && type === "audio") {
     return <AudioViewer title={data?.title} createdAt={formattedDate} />;

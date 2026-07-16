@@ -14,7 +14,7 @@ from uuid import uuid4
 
 import pytest
 import redis.asyncio as aioredis
-from app.repositories import TraceStore
+from app.storage import TraceStore
 
 pytestmark = pytest.mark.integration
 

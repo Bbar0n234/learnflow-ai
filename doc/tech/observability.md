@@ -192,6 +192,12 @@ SIEM не заменяет Langfuse; они ортогональны. Langfuse �
 
 Регистрация в Langfuse при старте (`ensure_model_definitions()`): сравнивает зарегистрированную definition с ожидаемой; при diff — пересоздаёт. Langfuse считает cost per trace на основе token usage из `CallbackHandler` + зарегистрированных prices. Reasoning-токены учитываются через `usage.completion_tokens_details.reasoning_tokens` и поле `output_reasoning` в pricing — подробнее о reasoning-моделях см. [conventions.md](conventions.md).
 
+### Ручной cost-учёт вне CallbackHandler
+
+Схема выше покрывает вызовы через LLM-клиент графа. Вызовы, идущие мимо него (сейчас — генерация изображений: голый `httpx` на OpenRouter Image API, без LangChain-обёртки, чтобы не тянуть SDK ради одного endpoint'а), не проходят через `CallbackHandler` и выпали бы из cost-учёта без явной записи.
+
+Такой tool сам открывает generation-observation внутри текущего spanʼа (`start_as_current_observation(as_type="generation", name=..., model=..., input=..., output=..., cost_details={"total": ...})`) с ценой, которую вернул провайдер (`usage.cost` в ответе), а не производным расчётом по `pricing.yaml` — фактическая цена от провайдера точнее. Блок — fail-safe (`contextlib.suppress(Exception)`, паттерн `security/observer.py`): сбой записи в Langfuse не должен ронять tool. Если провайдер не вернул `usage.cost` — `cost_details` не передаётся вовсе, а не подставляется нулём (нуль читался бы как «генерация бесплатна», что неверно).
+
 ## Graceful Degradation
 
 | Компонент | При отказе | Поведение |

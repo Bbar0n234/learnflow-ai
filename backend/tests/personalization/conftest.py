@@ -21,7 +21,13 @@ from typing import Any, cast
 
 import pytest
 import pytest_asyncio
-from app.agent.config import AgentConfig, AvailableModel, ContextConfig, LLMConfig
+from app.agent.config import (
+    AgentConfig,
+    AvailableModel,
+    ContextConfig,
+    ImageConfig,
+    LLMConfig,
+)
 from app.infra.prompt_provider import PromptProvider
 from app.services.encryption import EncryptionService
 from app.services.model_config_resolver import ModelConfigResolver
@@ -62,6 +68,7 @@ def make_agent_config(
     return AgentConfig(
         llm=LLMConfig(model=model),
         context=ContextConfig(max_tokens=1000),
+        image=ImageConfig(model="google/gemini-3.1-flash-image"),
         available_models=[AvailableModel(name=n, display_name=d) for n, d in available],
     )
 

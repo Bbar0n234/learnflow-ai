@@ -46,8 +46,40 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:${APP_PORT:-8000}:8000"
-    env_file:
-      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://learnflow:learnflow@db:5432/learnflow}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://openrouter.ai/api/v1}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FILE: ${LOG_FILE:-}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required — set it in .env}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-30}
+      SECURE_COOKIES: ${SECURE_COOKIES:-true}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-https://cloud.langfuse.com}
+      LANGFUSE_TRACING_ENVIRONMENT: ${LANGFUSE_TRACING_ENVIRONMENT:-}
+      LANGFUSE_RELEASE: ${LANGFUSE_RELEASE:-}
+      LANGFUSE_PROMPT_LABEL: ${LANGFUSE_PROMPT_LABEL:-development}
+      LANGFUSE_PROMPT_CACHE_TTL: ${LANGFUSE_PROMPT_CACHE_TTL:-60}
+      CANARY_SECRET: ${CANARY_SECRET:-}
+      MCP_ENCRYPTION_KEY: ${MCP_ENCRYPTION_KEY:-}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      REDIS_SOCKET_TIMEOUT: ${REDIS_SOCKET_TIMEOUT:-5}
+      REDIS_SOCKET_CONNECT_TIMEOUT: ${REDIS_SOCKET_CONNECT_TIMEOUT:-5}
+      DB_STATEMENT_TIMEOUT_SECONDS: ${DB_STATEMENT_TIMEOUT_SECONDS:-120}
+      LLM_GUARD_TIMEOUT_SECONDS: ${LLM_GUARD_TIMEOUT_SECONDS:-45}
+      LLM_SUMMARIZER_TIMEOUT_SECONDS: ${LLM_SUMMARIZER_TIMEOUT_SECONDS:-300}
+      LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-2}
+      LLM_IMAGE_TIMEOUT_SECONDS: ${LLM_IMAGE_TIMEOUT_SECONDS:-120}
+      MCP_TIMEOUT_SECONDS: ${MCP_TIMEOUT_SECONDS:-30}
+      PDF_CONVERSION_TIMEOUT_SECONDS: ${PDF_CONVERSION_TIMEOUT_SECONDS:-30}
+      # MCP external tools — api_key_env from configs/agent.yaml, read directly
+      # via os.environ (not through Settings).
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
     volumes:
       - ./configs:/app/configs:ro
       - ./skills:/app/skills:ro

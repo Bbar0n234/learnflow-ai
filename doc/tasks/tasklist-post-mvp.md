@@ -29,7 +29,7 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 | feat-007 | 📋 Planned | cross-cutting | SIEM Extensions: dashboard, basic response actions, search, notifications, export |
 | feat-008 | ✅ Done | security tooling | Promptfoo Red Team Scan: app-level LLM vulnerability scan через локальный Python provider |
 | feat-009 | ✅ Done | agent | Многофайловые скиллы (load_skill file param) + перенос скилла tech-article-writing |
-| feat-010 | 🚧 In Progress | cross-cutting | Генерация изображений: OpenRouter Image API, artifact_blobs, media endpoint, живой ImageViewer |
+| feat-010 | ✅ Done | cross-cutting | Генерация изображений: OpenRouter Image API, artifact_blobs, media endpoint, живой ImageViewer |
 | feat-011 | 📋 Planned | agent | Продуктовые субагенты v1: subagent-as-tool, YAML-реестр, judge (+ADR) |
 | feat-012 | 📋 Planned | cross-cutting | Skill-scoped user context: Store namespace, tools, REST, секция в /settings |
 
@@ -472,7 +472,7 @@ Discovery-спайк SOFA_Habr_Article (Фаза 5a): скилл обкатан 
 
 **Цель:** агент генерирует изображения по запросу пользователя: tool `generate_image` → OpenRouter Image API → артефакт `image` c бинарём в `artifact_blobs` → media endpoint → живой `ImageViewer`.
 
-**Статус:** 🚧 In Progress
+**Статус:** ✅ Done
 **Scope:** cross-cutting (agent, backend, frontend)
 
 #### Triggered by
@@ -481,17 +481,23 @@ Backlog P2 «Генерация изображений агентом»; под�
 
 #### Критерии приёмки
 
-- [ ] `generate_image(prompt, title, aspect_ratio?, resolution?)`: артефакт + блоб пишутся одной транзакцией, SSE `artifact_created` приходит (маппер расширен на `generate_image`), generation-observation с `cost_details` из `usage.cost` уходит в Langfuse
-- [ ] `GET /projects/{pid}/artifacts/{id}/media` отдаёт бинарь с корректным mime под JWT-auth и `Cache-Control: private, immutable`
-- [ ] `ImageViewer` показывает реальную картинку (fetch с JWT → objectURL), состояния загрузки/404, caption = prompt, скачивание .png; ветка `image` выведена из-под `SHOW_GROUP_B_STUBS`
-- [ ] Карточка image-артефакта в ленте с превью (то же изображение с media-endpoint); плейсхолдер на время генерации по `tool_start`/`tool_end` (только фронт, протокол не меняется)
-- [ ] Миграция `artifact_blobs` через autogenerate; доступ за `BlobStorage`-протоколом (PG-реализация конструируется вокруг session)
-- [ ] Секция `image` в `agent.yaml` (`model` + `params`), дефолт — `google/gemini-3.1-flash-image`
+- [x] `generate_image(prompt, title, aspect_ratio?, resolution?)`: артефакт + блоб пишутся одной транзакцией, SSE `artifact_created` приходит (маппер расширен на `generate_image`), generation-observation с `cost_details` из `usage.cost` уходит в Langfuse
+- [x] `GET /projects/{pid}/artifacts/{id}/media` отдаёт бинарь с корректным mime под JWT-auth и `Cache-Control: private, immutable`
+- [x] `ImageViewer` показывает реальную картинку (fetch с JWT → objectURL), состояния загрузки/404, caption = prompt, скачивание .png; ветка `image` выведена из-под `SHOW_GROUP_B_STUBS`
+- [x] Карточка image-артефакта в ленте с превью (то же изображение с media-endpoint); плейсхолдер на время генерации по `tool_start`/`tool_end` (только фронт, протокол не меняется)
+- [x] Миграция `artifact_blobs` через autogenerate; доступ за `BlobStorage`-протоколом (PG-реализация конструируется вокруг session)
+- [x] Секция `image` в `agent.yaml` (`model` + `params`), дефолт — `google/gemini-3.1-flash-image`
 
 #### Документация
 
 - [design-brief.md](iterations/post-mvp/feat-010-image-generation/design-brief.md) — архитектура end-to-end, модель и параметры генерации, учёт стоимости, отклонённые альтернативы хранения/отдачи, границы scope
 - [mockups/image-artifacts.html](iterations/post-mvp/feat-010-image-generation/mockups/image-artifacts.html) — интерактивный UI-референс: карточка с превью, плейсхолдер генерации, состояния вьюера (открывать локально)
+- [tracks/T1/plan.md](iterations/post-mvp/feat-010-image-generation/tracks/T1/plan.md) / [summary.md](iterations/post-mvp/feat-010-image-generation/tracks/T1/summary.md) / [test-cases.md](iterations/post-mvp/feat-010-image-generation/tracks/T1/test-cases.md) — backend + agent: `artifact_blobs`, `BlobStorage`/`PgBlobStorage`, media endpoint, tool `generate_image`, расширение SSE-маппера, Langfuse cost-учёт; решения и обоснования, тестовые кейсы
+- [tracks/T2/plan.md](iterations/post-mvp/feat-010-image-generation/tracks/T2/plan.md) / [summary.md](iterations/post-mvp/feat-010-image-generation/tracks/T2/summary.md) / [test-cases.md](iterations/post-mvp/feat-010-image-generation/tracks/T2/test-cases.md) — frontend: media-fetch, живой `ImageViewer`, превью в `ArtifactCard`, плейсхолдер генерации; решения и обоснования, тестовые кейсы
+- [review-a.md](iterations/post-mvp/feat-010-image-generation/review-a.md) — ревью качества кода (режим A)
+- [review-b.md](iterations/post-mvp/feat-010-image-generation/review-b.md) — ревью соответствия конвенциям и doc-first (режим B)
+- [harvest-proposals.md](iterations/post-mvp/feat-010-image-generation/harvest-proposals.md) — кандидаты в backlog/конвенции из итерации
+- [ADR-027: Хранение и отдача бинарных данных артефактов](../tech/adr/ADR-027-artifact-blob-storage.md) — `artifact_blobs` в PostgreSQL за `BlobStorage`-протоколом vs S3/файловая система/base64; authenticated media endpoint с immutable-кэшем
 
 ### feat-011: Продуктовые субагенты v1
 

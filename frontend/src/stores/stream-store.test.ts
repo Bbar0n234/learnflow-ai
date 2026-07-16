@@ -128,4 +128,65 @@ describe("stream-store", () => {
     expect(s.streamingArtifacts).toEqual([]);
     expect(s.redacted).toBe(false);
   });
+
+  // feat-010: pending image generations tracked by call_id.
+  it("tracks a pending image generation by call_id", () => {
+    const store = useStreamStore.getState();
+
+    store.addPendingImage("call-1");
+    store.addPendingImage("call-2");
+
+    expect(useStreamStore.getState().pendingImages).toEqual([
+      "call-1",
+      "call-2",
+    ]);
+  });
+
+  it("does not duplicate a call_id added twice", () => {
+    const store = useStreamStore.getState();
+
+    store.addPendingImage("call-1");
+    store.addPendingImage("call-1");
+
+    expect(useStreamStore.getState().pendingImages).toEqual(["call-1"]);
+  });
+
+  it("removes a pending image by call_id", () => {
+    const store = useStreamStore.getState();
+    store.addPendingImage("call-1");
+    store.addPendingImage("call-2");
+
+    store.removePendingImage("call-1");
+
+    expect(useStreamStore.getState().pendingImages).toEqual(["call-2"]);
+  });
+
+  it("removePendingImage is a no-op for an unknown call_id", () => {
+    const store = useStreamStore.getState();
+    store.addPendingImage("call-1");
+
+    store.removePendingImage("nope");
+
+    expect(useStreamStore.getState().pendingImages).toEqual(["call-1"]);
+  });
+
+  it("clears pending images on startStream", () => {
+    const store = useStreamStore.getState();
+    store.startStream("chat-1");
+    store.addPendingImage("call-1");
+
+    store.startStream("chat-2");
+
+    expect(useStreamStore.getState().pendingImages).toEqual([]);
+  });
+
+  it("clears pending images on endStream", () => {
+    const store = useStreamStore.getState();
+    store.startStream("chat-1");
+    store.addPendingImage("call-1");
+
+    store.endStream();
+
+    expect(useStreamStore.getState().pendingImages).toEqual([]);
+  });
 });

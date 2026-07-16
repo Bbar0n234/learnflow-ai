@@ -82,7 +82,8 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 - Сообщение — user и assistant рендерятся по-разному (assistant → Markdown через Streamdown)
 - Input с отправкой (Enter / кнопка)
 - Индикаторы: стриминг текста, tool use (`tool_start`/`tool_end`)
-- Карточка артефакта (инлайн в чате, по событию `artifact_created`)
+- Карточка артефакта (инлайн в чате, по событию `artifact_created`); `type === "image"` показывает превью-миниатюру с media-endpoint вместо иконки
+- Плейсхолдер генерации изображения — на `tool_start` с `tool === "generate_image"` встаёт pending-карточка по `call_id` (шиммер, indeterminate-прогресс), снимается на `tool_end`
 - Кнопка cancel
 - Tools dialog — просмотр и управление MCP серверами per-thread (inherited + собственные, toggle)
 
@@ -96,7 +97,7 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 
 **artifacts** — артефакты проекта.
 - Список артефактов (название, тип, дата)
-- Просмотр артефакта (Markdown render + кнопки скачивания md/pdf)
+- Просмотр артефакта: Markdown render + кнопки скачивания md/pdf для текстовых типов; `type === "image"` — `ImageViewer` (fetch bytes с JWT → objectURL, зум, caption = `content`/prompt, скачивание .png), состояния загрузки и «блоба нет» (404)
 
 **security** — admin-only мониторинг SIEM-подсистемы. Подробнее о backend-стороне — [backend.md](backend.md#siem-service), [observability.md](observability.md#siem-observability-security-event-pipeline).
 - SecurityPage (`/security`) — три таба: Events, Alerts, Rules
@@ -165,6 +166,7 @@ flowchart LR
 | `queryKeys.projects.sphere(id)` | `["projects", id, "sphere"]` | `GET /projects/:id/sphere` |
 | `queryKeys.projects.artifacts(id)` | `["projects", id, "artifacts"]` | `GET /projects/:id/artifacts` |
 | `queryKeys.projects.artifact(id, aid)` | `["projects", id, "artifacts", aid]` | `GET /projects/:id/artifacts/:aid` |
+| `queryKeys.projects.artifactMedia(id, aid)` | `["projects", id, "artifacts", aid, "media"]` | `GET /projects/:id/artifacts/:aid/media` |
 | `queryKeys.chats.recent` | `["chats", "recent"]` | `GET /chats/recent` |
 | `queryKeys.models` | `["models"]` | `GET /models` |
 | `queryKeys.instructions` | `["instructions"]` | `GET /users/me/instructions` |
@@ -175,6 +177,8 @@ flowchart LR
 | `queryKeys.security.*` | `["security", …]` | SIEM events/alerts/rules (siem-service) |
 
 Settings и MCP-серверы используют единый ключ с осью `scope` (`user` / `project` / `thread`) + `projectId`/`threadId`, отфильтрованными через `.filter(Boolean)` — не отдельные ключи на каждый уровень.
+
+`artifactMedia` — потомок `artifact(id, aid)` в иерархии ключей, так что префиксная инвалидация артефакта задевает и media-запись. `staleTime: Infinity` — контент иммутабелен (перегенерация создаёт новый артефакт с новым id/URL), рефетч не нужен; карточка ленты и `ImageViewer` читают один и тот же ключ — react-query дедуплицирует сетевой запрос между потребителями.
 
 **Mutations → инвалидация:**
 
@@ -212,10 +216,13 @@ streamStore
 ├── activeTool: string | null
 ├── streamingChatId: string | null
 ├── streamingArtifacts: StreamingArtifact[]
+├── pendingImages: string[]        — call_id активных generate_image
 ├── startStream(chatId)
 ├── appendText(chunk)
 ├── setTool(name | null)
 ├── addArtifact(artifact)
+├── addPendingImage(callId)        — идемпотентно, по tool_start
+├── removePendingImage(callId)     — no-op на отсутствующем id, по tool_end
 └── endStream()
 ```
 
@@ -246,7 +253,8 @@ shared/api/
 ├── projects.ts      — Project + getProjects… + useProjects, useProject, useCreate/Update/DeleteProject
 ├── chats.ts         — Chat/ChatDetail/Message… + getChats… + useChats, useChat, useCreateChat, useRecentChats
 ├── sphere.ts        — Sphere + getSphere/updateSphere + useSphere, useUpdateSphere
-├── artifacts.ts     — Artifact… + getArtifacts/getArtifact/downloadArtifact + useArtifacts, useArtifact
+├── artifacts.ts     — Artifact… + getArtifacts/getArtifact/downloadArtifact/getArtifactMedia + useArtifacts,
+│                       useArtifact, useArtifactMedia, isArtifactMediaNotFound
 ├── models.ts        — AvailableModel + getModels + useModels
 ├── settings.ts      — Settings… + get/updateSettings + useSettings, useUpdateSettings (per scope)
 ├── user-memory.ts   — Instructions/MemoryItem + … + useInstructions, useUpdateInstructions, useMemories
@@ -259,6 +267,8 @@ shared/api/
 Без `messages.ts` — отправка сообщений через SSE (см. ниже). Компоненты вызывают хуки, не API-функции напрямую. Страница-специфичная оркестрация (SSE-стрим) живёт в слайсе: `pages/chat/model/useAgentStream.ts`.
 
 **downloadArtifact** — axios blob download с Bearer token (через interceptor). Не через TanStack Query (императивный вызов из onClick).
+
+**getArtifactMedia / useArtifactMedia** — тот же `responseType: "blob"`-паттерн, но через TanStack Query (не императивный вызов): `<img src>` не шлёт Authorization header, поэтому картинка качается как обычные API-данные (Blob) и превращается в `URL.createObjectURL` на стороне потребителя (`ImageViewer`, превью в `ArtifactCard`), а не отдаётся напрямую браузеру по URL. `isArtifactMediaNotFound` — типизированный предикат по `AxiosError.status === 404`, отличает «блоба нет» от сетевой/5xx-ошибки для выбора пустого состояния во вьюере.
 
 ## SSE-стриминг
 
@@ -397,7 +407,8 @@ frontend/
 │   │   ├── project-chats/         — /projects/:id (ChatList)
 │   │   ├── chat/                  — /projects/:id/chats/:cid
 │   │   │   ├── ui/                — ChatView, ChatHeader, ChatInput, MessageList, MessageItem,
-│   │   │   │                        ToolIndicator, ReviewIndicator, ArtifactCard, FeedbackButtons
+│   │   │   │                        ToolIndicator, ReviewIndicator, ArtifactCard,
+│   │   │   │                        GeneratingArtifactCard, FeedbackButtons
 │   │   │   └── model/             — useAgentStream (SSE-оркестрация)
 │   │   ├── sphere/                — /projects/:id/sphere (SphereView/Viewer/Editor)
 │   │   ├── artifacts/             — /projects/:id/artifacts (ArtifactList)

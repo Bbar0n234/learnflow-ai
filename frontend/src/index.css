@@ -309,3 +309,28 @@
 .sphere-prose em {
   font-style: italic;
 }
+
+/* ─── Generating image-artifact placeholder (T2.4): indeterminate progress bar ──
+   Плейсхолдер на время генерации изображения (`GeneratingArtifactCard`, tool_start →
+   tool_end/artifact_created). Псевдозагрузка — реального прогресса генерация не отдаёт.
+   Shimmer миниатюры покрыт встроенным `animate-pulse` (tw-animate-css); для бегущей
+   полосы аналога в tw-animate-css нет, поэтому кастомный keyframe.
+   ─────────────────────────────────────────────────────────────────────────── */
+@keyframes gen-progress-indeterminate {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(280%);
+  }
+}
+.gen-progress-run {
+  animation: gen-progress-indeterminate 1.3s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gen-progress-run {
+    animation: none;
+    opacity: 0.35;
+    width: 100%;
+  }
+}

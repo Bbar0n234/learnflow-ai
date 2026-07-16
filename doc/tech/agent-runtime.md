@@ -197,8 +197,11 @@ flowchart TD
 | Tool | Назначение |
 |------|------------|
 | `create_artifact` | Сохранить результат работы агента как артефакт проекта |
+| `generate_image` | Сгенерировать изображение через OpenRouter Image API и сохранить как артефакт `type="image"` (bytes — в `artifact_blobs`, [backend.md](backend.md#persistence)) |
 
-`response_format="content_and_artifact"` — tool возвращает текстовый ответ и metadata артефакта (`id`, `title`, `type`). Metadata передаётся через SSE как `artifact_created` event.
+`response_format="content_and_artifact"` — оба tool'а возвращают текстовый ответ и metadata артефакта (`id`, `title`, `type`). Metadata передаётся через SSE как `artifact_created` event ([streaming.md](streaming.md)).
+
+`generate_image(prompt, title, aspect_ratio?, resolution?)` разделяет параметры «творческое агенту, операционное оператору»: агент задаёт содержание (`prompt`) и композицию (`aspect_ratio`, `resolution`); модель провайдера и дефолт-параметры вызова — в конфиге (секция `image` в `agent.yaml`, см. [Configuration](#configuration)). Изображение в контекст агента не возвращается — ToolMessage текстовый (title, id, resolution, cost); байты уходят в БД мимо истории диалога. Стоимость вызова учитывается в Langfuse вручную, не через `CallbackHandler` — [observability.md](observability.md#model-definitions--cost-tracking).
 
 **User Memory** — автономное управление фактами о пользователе (подробнее — [user-memory.md](user-memory.md)):
 
@@ -348,6 +351,7 @@ Langfuse выполняет две роли: tracing (observability) + prompt ma
 | `prompt` | Путь к файлу system prompt (seed) |
 | `summarization` | Модель суммаризации, max_summary_tokens |
 | `mcp_servers` | Built-in MCP-серверы: transport, URL, API keys, whitelist инструментов |
+| `image` | Модель генерации изображений (`model`) + произвольные дефолт-параметры вызова (`params`, прокидываются в запрос as-is) — обязательная секция, без дефолта |
 
 Security-конфиги, model pricing и реестр промптов вынесены отдельными файлами — детали в соответствующих документах ([security/architecture.md](../security/architecture.md), [observability.md](observability.md), [prompt-management.md](prompt-management.md)).
 

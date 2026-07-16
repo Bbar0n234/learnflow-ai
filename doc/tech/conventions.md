@@ -339,6 +339,7 @@ docker-compose для локальной разработки. Два режим
 - Все env-параметры сервиса декларируются в `Settings(BaseSettings)` с дефолтами для dev. Код читает значения через `Settings`, не через `os.getenv` напрямую (исключение — bootstrap до загрузки Settings).
 - Префикс env: `SIEM_` для siem-service, без префикса для main app (legacy, не меняется).
 - При добавлении env-переменной — одновременное обновление `.env.example`, `.env.local.example`, `docker-compose.yml` и `Settings`. Все четыре места — один atomic change.
+- В `docker-compose.yml` каждая env-переменная сервиса декларируется явно в `environment:`, по одной (`${VAR:-default}` / `${VAR:?сообщение}` для обязательных — см. § Секреты и fail-fast). Blanket `env_file:` не используется: в контейнер должно попадать только то, что сервис реально потребляет, а не весь `.env` целиком.
 
 ## Makefile
 
@@ -363,6 +364,17 @@ Backend-команды (dev, migrate, test) используют `LOAD_ENV` — 
 **Директории:** snake_case (`knowledge_sphere/`, `api/`).
 
 **Документация:** kebab-case для составных имён (`doc-transfer-plan.md`), lowercase для простых (`backend.md`).
+
+### Repository vs Storage/Store
+
+Backend-сервис различает два вида классов доступа к данным — по суффиксу имени и по директории:
+
+- **`*Repository`** — CRUD-класс над конкретной ORM-сущностью в нашей БД (SQLAlchemy `AsyncSession`). Живёт в `app/repositories/`, по репозиторию на сущность. Примеры: `ArtifactRepository`, `MCPServerRepository`.
+- **`*Storage` / `*Store`** — абстракция хранилища с заменяемым бэкендом или не-ORM семантикой (blob, key-value). Живёт в `app/storage/`. Точка вариативности (несколько возможных бэкендов) выражается `typing.Protocol` по общему правилу § Интерфейсы; конкретная реализация именуется по бэкенду. При единственном известном бэкенде отдельный Protocol не заводится — по тому же правилу («используем Protocol, когда нужна точка вариативности»).
+
+Примеры: `BlobStorage` (`typing.Protocol`, `put`/`get`/`delete`) с реализацией `PgBlobStorage` (PostgreSQL; будущая альтернатива — `S3BlobStorage`); `TraceStore` (Redis, единственный бэкенд — конкретный класс без отдельного протокола).
+
+Дискриминатор: класс — чистый CRUD над одной ORM-моделью в нашей БД → Repository; класс подразумевает несколько возможных бэкендов, не-ORM хранилище (Redis, blob, будущий S3) или неструктурированные данные → Storage/Store. `repositories/` и `storage/` — независимые соседи одного слоя (см. [backend.md § Layered Architecture](backend.md#layered-architecture)), ни один не импортирует другой.
 
 ## Documentation
 

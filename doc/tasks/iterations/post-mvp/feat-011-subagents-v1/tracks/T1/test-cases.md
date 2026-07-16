@@ -290,19 +290,50 @@ fetch артефактов tool'ом. Живого LLM/сети нет нигд�
 
 ### Layer 2: Integration (cross-cutting, в INTEGRATION_TEST)
 
-- [ ] Старт приложения с реальными `configs/agent.yaml`: секция `subagents` разбирается,
+- [x] Старт приложения с реальными `configs/agent.yaml`: секция `subagents` разбирается,
   `run_subagent` зарегистрирован в `tool_registry`/`fragment_corpus` guard'а как прочие
   internal-tools; при подмене имени tool в спеке на несуществующее — приложение падает на
   старте (fail-fast). *(валидатор покрыт юнитом; здесь — реальный boot)*
-- [ ] Ошибка субагента (модельный сбой / `recursion_limit`) транслируется через
+  — **PASS.** Boot с поставленным (fixer-фиксом закрытым) `configs/agent.yaml` проходит:
+  `mcp tools loaded tool_count=3` (реальные имена firecrawl_search/scrape/extract резолвятся),
+  затем второй `security guard initialized` показывает `corpus_items` 11→12 и
+  `tool_registry_size` 9→10 — `run_subagent` попал и в `fragment_corpus`, и в `tool_registry`
+  наравне с прочими internal-tools; `run_subagent tool registered tool_pool_size=12`,
+  `Application startup complete.` Fail-fast: временная подмена `firecrawl_scrape`→
+  `firecrawl_scrape_BOGUS` в `tools` спеки web-research (на копии, откачена) → boot прерывается
+  `RuntimeError: subagents config error — unknown tool name(s) in registry: web-research:
+  firecrawl_scrape_BOGUS` → `Application startup failed. Exiting.` Валидатор назвал спеку и
+  проблемный tool. Правка откачена, `git diff configs/` пуст.
+- [x] Ошибка субагента (модельный сбой / `recursion_limit`) транслируется через
   `handle_tool_errors` основного `ToolNode` в generic error-ToolMessage — основной граф
   **продолжает** работу, тред не падает.
+  — **PASS (модельный сбой; least-invasive, детерминированно).** Спровоцировано временным
+  per-spec override `judge.model: z-ai/nonexistent-model-xyz-BOGUS` (на копии, откачено; boot с
+  ним проходит — модель валидируется на вызове, не на старте). Drove demo/demo: агент вызвал
+  `run_subagent("judge", input_artifact_ids=[94443899…])`; богус-модель субагента подняла
+  `BadRequestError` в `subagents/graph.py :: llm_node` → исключение прошло сквозь tool
+  `run_subagent` (там ловится только `UnknownSubagentTypeError`) → `handle_tool_error` основного
+  `ToolNode` (`app.agent.tool_guards`) залогировал `tool execution failed error_type=BadRequestError`
+  с exc_info и вернул generic `_TOOL_ERROR_MESSAGE` как `ToolMessage(status="error")`. Основной
+  граф **продолжил**: SSE отдал `tool_start`→`tool_end` для `run_subagent`, затем `text_chunk`
+  («Let me try the review again:») — тред не упал, ни `error`, ни `security_block` в стриме нет.
+  Правка откачена, `git diff` пуст. *(Ветку `recursion_limit`→`GraphRecursionError` отдельно не
+  гонял — модельный сбой честнее и детерминированнее; трансляция `recursion_limit` покрыта
+  автотестом `test_graph`, а трансляция ошибки наружу — этим кейсом.)*
 
 ### Layer 3: E2E (cross-cutting, в INTEGRATION_TEST)
 
 - [ ] 👤 Сквозной сценарий скилла `tech-article-writing`: автор доводит черновик до
   judge-проходов через артефакт, получает вердикты, правит текст, пересохраняет артефакт
   (версий нет — нужен новый `create_artifact`), повторяет проход. Проверка UX-цельности.
+  — 👤 **DEFERRED архитектору (UX-приёмка человеком).** Сам не проходил — кейс про цельность
+  UX-петли скилла в живом UI, машинно не верифицируется. **Prerequisites (проверено машинно):**
+  judge возвращает вердикт с evidence на артефакт-входе — `{T1.1}` PASS; дисциплина одного
+  документа + чистота «свежих глаз» (в вход судьи не течёт история/ресёрчи) — `{T1.2}` PASS;
+  сохранение черновика через `create_artifact` (SSE `artifact_created`) — `{T1.1}` PASS; изоляция
+  токенов субагента в стриме — `{T1.4}` PASS. **Остаётся человеку:** сквозная UX-цельность петли
+  (автор → judge-проход → правка текста → пересохранение новым `create_artifact`, версий нет →
+  повторный проход) в браузере — визуальная связность, удобство, отсутствие мёртвых состояний.
 
 ---
 

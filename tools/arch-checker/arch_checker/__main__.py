@@ -13,7 +13,12 @@ from pathlib import Path
 
 import structlog
 
-from arch_checker import middleware_order, module_singletons, problem_mirrors
+from arch_checker import (
+    middleware_order,
+    module_singletons,
+    problem_mirrors,
+    size_limits,
+)
 from arch_checker._common import Violation, find_repo_root
 
 logger = structlog.get_logger()
@@ -26,9 +31,21 @@ CHECKS: tuple[Check, ...] = (
     module_singletons.check,
 )
 
+# Warning-only checks: printed with a WARN prefix, never affect the exit code.
+WARNING_CHECKS: tuple[Check, ...] = (size_limits.check,)
+
 
 def run() -> int:
     repo_root = find_repo_root()
+
+    warnings: list[Violation] = []
+    for check in WARNING_CHECKS:
+        warnings.extend(check(repo_root))
+    for warning in warnings:
+        print(f"WARN {warning.render()}", file=sys.stderr)
+    if warnings:
+        logger.warning("arch-checker warnings", warnings=len(warnings))
+
     violations: list[Violation] = []
     for check in CHECKS:
         violations.extend(check(repo_root))

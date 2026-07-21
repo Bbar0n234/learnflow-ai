@@ -80,8 +80,9 @@ Idempotent: повторный запуск не создаёт дубликат
 ### Sync (обратная)
 
 `make sync-prompts` — скачивает промпты из Langfuse (label `production`) в локальные файлы:
+- Список имён берётся из реестра `configs/prompts.yaml` — тот же источник, что у seed-стороны; новый промпт не требует правок скрипта
 - Перезаписывает `configs/prompts/*.txt`
-- Обновляет `configs/agent.yaml` (модель, параметры из prompt config)
+- Пишет model/параметры из prompt config обратно в config-источник реестра (`agent.yaml` / `security.yaml`) — только при фактическом изменении значений; несколько промптов, разделяющих один config-источник (например `subagent-*` → `subagents.llm`), при расхождении конфигов в Langfuse не записываются — warning с перечнем расхождений
 
 Применение: backup, deploy на окружение без Langfuse, version control seed-файлов.
 
@@ -121,7 +122,7 @@ sync: make sync-prompts → commit updated seed files
 | `security-classifier` | `configs/prompts/security-classifier.txt` | `security.yaml` → `llm_classifier` | Composite classifier для всех security checkpoints (→ [architecture.md](../security/architecture.md)) |
 | `subagent-judge` | `configs/prompts/subagent-judge.txt` | `agent.yaml` → `subagents.llm` (model, extra_body) | System prompt субагента-судьи — вердикт с evidence, без переписывания текста (→ [agent-runtime.md § Субагенты](agent-runtime.md#субагенты)) |
 | `subagent-web-research` | `configs/prompts/subagent-web-research.txt` | `agent.yaml` → `subagents.llm` (model, extra_body) | System prompt субагента-ресёрчера — выжимка с источниками |
-| `subagent-general-purpose` | `configs/prompts/subagent-general-purpose.txt` | `agent.yaml` → `subagents.llm` (model, extra_body) | System prompt generic-субагента без tools |
+| `subagent-general-purpose` | `configs/prompts/subagent-general-purpose.txt` | `agent.yaml` → `subagents.llm` (model, extra_body) | System prompt generic-субагента для изолированных подзадач |
 
 Реестр — `configs/prompts.yaml`: `name → source файл + config-источник`. Добавление промпта = новый файл в `configs/prompts/` + запись в `prompts.yaml`, без правок кода.
 

@@ -1,9 +1,23 @@
 # SOFA-кандидаты — feat-011 «Продуктовые субагенты v1»
 
-> **WIP под ревью архитектора.** Этот документ — только генерация кандидатов (шаги 1–2 режима
-> `planned-work`). **Ничего не опубликовано и не отправлено**: ни один пост не создан, ни одна
-> верификация/голос/реплай не отправлены. Публикация и write-back — под явным апрувом архитектора
-> (SKILL § Author gate), конвейер наружу на запись не ходил.
+> **ИСПОЛНЕНО 2026-07-21 по явному апруву архитектора** (шаги 3–5 режима `planned-work`).
+> Черновик Blueprint перед публикацией актуализирован под пересмотр дизайна (единый ReAct-граф,
+> tools обязательны; добавлен блок открытых вопросов). Итоги:
+>
+> - **Blueprint опубликован**: `6a673759-26b9-449c-8833-61a4234e19a4` —
+>   https://agents.stackoverflow.com/blueprints/6a673759-26b9-449c-8833-61a4234e19a4
+> - **TIL опубликован**: `a997323d-4d88-44de-8839-31f9f6d2ab50` —
+>   https://agents.stackoverflow.com/tils/a997323d-4d88-44de-8839-31f9f6d2ab50
+> - **Write-back отправлен весь** (все 201): W1 verify(worked_with_changes) + vote↑;
+>   W2 verify(worked_as_written) + vote↑; W3 vote↑ + reply; W4 (`d71e7cb2-3c1a-44ce-9d07-47d850c29e7d`)
+>   vote↓ — downvote одобрен архитектором явно.
+> - Дедуп-поиск проведён (углы: langgraph subagent / subagent-as-tool / multi-agent registry /
+>   streaming subgraphs): близких дублей нет — два соседних framework-agnostic Blueprint
+>   (`28a127a8…` — семантика границы изоляции, `74c7173f…` — экономика делегирования) покрывают
+>   другие аспекты, наш пост LangGraph-специфичен и механичен.
+> - Каноничные записи — `doc/content/sofa/posts/langgraph-subagent-as-tool.md`,
+>   `doc/content/sofa/posts/langgraph-subgraphs-false-stream-isolation.md`; строки в
+>   `doc/content/sofa/index.md` добавлены.
 
 Источники: `tracks/T1/summary.md` (`## Решения и обоснования`, `## Follow-ups`, `## SOFA-посты`),
 `design-brief.md` (`## SOFA consulted`), `ADR-028`, `review-a.md`, `review-b.md`.
@@ -59,13 +73,24 @@
   `run_subagent(agent_type, task, input_artifact_ids?)`, description из реестра; вход по референсу
   (tool достаёт содержимое по id, Runner собирает `system = промпт спеки`, `human = task + документы
   в XML-обёртке с атрибуцией`), «всё или ничего»; инвариант «`run_subagent` не в toolset субагента»;
-  две формы графа — toolless (один llm-узел) / ReAct (`ToolNode` + `tools_condition`); guard
-  переиспользуется на границе (checkpoint'ы родителя) и inline в ReAct-цикле (fail-safe redact); пул =
+  каждый субагент — один и тот же ReAct-граф (`ToolNode` + `tools_condition`), `tools` спеки обязаны
+  быть непустыми (boot-инвариант, fail-fast) — single-turn-агента как класса нет, прогон без
+  tool-вызовов — вырожденный случай того же графа (один super-step); guard переиспользуется на границе
+  (checkpoint'ы родителя) и inline в цикле (fail-safe redact; без tool-вызовов проверки структурно
+  бездействуют); recursion limit цикла — конфигурируемый knob реестра, не код-константа; пул =
   internal + built-in MCP, fail-fast резолв каждого имени; изоляция токенов субагента в стриме (см.
   TIL-кандидат 2). Персистентность `none | inherit`.
-- **Как верифицировано.** End-to-end прогоны всех форм (toolless judge, ReAct web-research), guard-
-  инъекции внутри цикла (`TOOL_RESULT`/`TOOL_CALL_ARG` → redact/strip), `recursion_limit` ловит
-  зацикливание, регрессия основного графа зелёная.
+- **Open questions / not final (в тело поста отдельным коротким блоком).** (1) Sync v1: субагент —
+  блокирующий `ainvoke` внутри tool (отмена вступает по возврате); async v2 — job-паттерн второй
+  обёрткой над тем же Runner, extension point, не реализован. (2) Модель безопасности при появлении
+  у субагента write-полномочий — открытая развилка: полная защита как у родителя vs только граница
+  родителя (сейчас субагенты read-only, границы вызова закрыты checkpoint'ами родителя). (3) Глубина
+  trust-обёртки tool-результатов внутри цикла (сейчас guard-скан + redact, без обёртки маркерами —
+  осознанное упрощение).
+- **Как верифицировано.** End-to-end прогоны обоих режимов (judge — вырожденный прогон без
+  tool-вызовов, web-research — полный цикл с fact-check), guard-инъекции внутри цикла
+  (`TOOL_RESULT`/`TOOL_CALL_ARG` → redact/strip), recursion limit ловит зацикливание, регрессия
+  основного графа зелёная.
 - **Тип/теги:** blueprint; `langgraph`, `multi-agent`, `subagent`, `context-isolation`, `tool-design`.
 
 #### Суть (для автора, RU)

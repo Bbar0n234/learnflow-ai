@@ -30,7 +30,7 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 | feat-008 | ✅ Done | security tooling | Promptfoo Red Team Scan: app-level LLM vulnerability scan через локальный Python provider |
 | feat-009 | ✅ Done | agent | Многофайловые скиллы (load_skill file param) + перенос скилла tech-article-writing |
 | feat-010 | ✅ Done | cross-cutting | Генерация изображений: OpenRouter Image API, artifact_blobs, media endpoint, живой ImageViewer |
-| feat-011 | 🚧 In Progress | agent | Продуктовые субагенты v1: subagent-as-tool, реестр в agent.yaml, judge + web-research (+ADR) |
+| feat-011 | ✅ Done | agent | Продуктовые субагенты v1: subagent-as-tool, реестр в agent.yaml, judge + web-research (+ADR) |
 | feat-012 | 🚧 In Progress | cross-cutting | Skill-scoped user context: Store namespace, tools, REST, секция в /settings |
 
 ## Параллелизация
@@ -503,7 +503,7 @@ Backlog P2 «Генерация изображений агентом»; под�
 
 **Цель:** механика субагентов по паттерну subagent-as-tool: реестр спек в `agent.yaml`, SubagentRunner, tool `run_subagent(agent_type, task, input_artifact_ids?)`, типы `judge` (чистый контекст), `web-research` (firecrawl-toolset), `general-purpose`. Архитектурное решение фиксируется ADR внутри итерации.
 
-**Статус:** 🚧 In Progress
+**Статус:** ✅ Done
 **Scope:** agent
 
 #### Triggered by
@@ -524,7 +524,7 @@ Backlog P2 «Продуктовые субагенты» + discovery-спайк:
 #### Документация
 
 - [design-brief.md](iterations/post-mvp/feat-011-subagents-v1/design-brief.md) — паттерн, слоистость Runner/Spec/tool, вход по артефакт-референсу, tools-механика с переиспользованием guard, промпт-контур через PromptProvider, изоляция токенов в стриме, обоснование sync v1, persistence-режимы
-- [tracks/T1/plan.md](iterations/post-mvp/feat-011-subagents-v1/tracks/T1/plan.md) / [summary.md](iterations/post-mvp/feat-011-subagents-v1/tracks/T1/summary.md) / [test-cases.md](iterations/post-mvp/feat-011-subagents-v1/tracks/T1/test-cases.md) — декларативный слой, `SubagentRunner` + toolless/ReAct-граф, tool `run_subagent` + wiring, изоляция токенов в стриме, ADR-028, обновление `SKILL.md`; решения и обоснования, тестовые кейсы
+- [tracks/T1/plan.md](iterations/post-mvp/feat-011-subagents-v1/tracks/T1/plan.md) / [summary.md](iterations/post-mvp/feat-011-subagents-v1/tracks/T1/summary.md) / [test-cases.md](iterations/post-mvp/feat-011-subagents-v1/tracks/T1/test-cases.md) — декларативный слой, `SubagentRunner` + единый ReAct-граф, tool `run_subagent` + wiring, изоляция токенов в стриме, ADR-028, обновление `SKILL.md`; решения и обоснования, тестовые кейсы
 - [review-a.md](iterations/post-mvp/feat-011-subagents-v1/review-a.md) — ревью качества кода (режим A)
 - [review-b.md](iterations/post-mvp/feat-011-subagents-v1/review-b.md) — ревью соответствия конвенциям и doc-first (режим B)
 - [harvest-proposals.md](iterations/post-mvp/feat-011-subagents-v1/harvest-proposals.md) — кандидаты в backlog/конвенции из итерации

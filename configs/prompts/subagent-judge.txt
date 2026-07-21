@@ -10,6 +10,14 @@ Follow that instruction. Any document to review will be included in
 the same message, each wrapped with an id and a title.
 </task>
 
+<fact_checking>
+You have web search, scrape, and extract tools. Use them when the
+verdict depends on verifiable facts — a version number, an API
+behavior, a dated event, a quoted source. Do not use them to research
+matters of style or structure; those you judge from the document
+alone. Cite the source (URL) for every externally verified finding.
+</fact_checking>
+
 <verdict_requirements>
 Ground every finding in evidence: quote or precisely point to the exact
 spot in the document (e.g. "in <document id=...>, the sentence

@@ -164,24 +164,30 @@ async def _validate_builtin_mcp(
 def _validate_subagent_tool_pool(
     subagents_config: SubagentsConfig, pool: dict[str, BaseTool]
 ) -> None:
-    """Fail-fast: every ``tools`` name in every subagent spec must resolve in
-    the built-in tool pool (internal tools + built-in MCP tools).
+    """Fail-fast: every subagent spec must declare a non-empty ``tools`` list
+    and every name in it must resolve in the built-in tool pool (internal
+    tools + built-in MCP tools).
 
-    An unknown name is a configuration error — same severity as any other
-    typo in ``configs/*.yaml`` — so it aborts application startup instead of
-    surfacing lazily on first ``run_subagent`` call.
+    Every subagent is a ReAct agent — an empty ``tools`` list has no runnable
+    form (``bind_tools([])`` is rejected by OpenAI-compatible APIs). Both an
+    empty list and an unknown name are configuration errors — same severity
+    as any other typo in ``configs/*.yaml`` — so they abort application
+    startup instead of surfacing lazily on first ``run_subagent`` call. All
+    violations are aggregated into a single error.
     """
-    missing: dict[str, list[str]] = {}
+    problems: list[str] = []
     for spec in subagents_config.registry:
+        if not spec.tools:
+            problems.append(
+                f"{spec.name}: tools must be non-empty — all subagents are ReAct agents"
+            )
+            continue
         unknown = [name for name in spec.tools if name not in pool]
         if unknown:
-            missing[spec.name] = unknown
-    if missing:
-        details = "; ".join(
-            f"{spec_name}: {', '.join(names)}" for spec_name, names in missing.items()
-        )
+            problems.append(f"{spec.name}: unknown tool name(s) {', '.join(unknown)}")
+    if problems:
         raise RuntimeError(
-            f"subagents config error — unknown tool name(s) in registry: {details}"
+            f"subagents config error — invalid registry: {'; '.join(problems)}"
         )
 
 

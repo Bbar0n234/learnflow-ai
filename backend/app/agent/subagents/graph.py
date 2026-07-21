@@ -1,22 +1,22 @@
 """Subagent graph builder (subagent-as-tool engine).
 
-Two forms, selected by whether the spec resolves any ``tools``:
+Every subagent is a ReAct agent: ``START -> llm -> (tools_condition) ->
+tools -> llm -> ... -> END``, built from the same ``ToolNode``/
+``tools_condition``/``handle_tool_errors`` building blocks as the main graph
+(``app.agent.graph.build_graph``), reused rather than reimplemented. There is
+no separate "toolless" form — a run in which the model never emits a tool
+call simply ends after one super-step (``tools_condition`` routes to END);
+that is a degenerate case of the same graph, not a distinct graph shape.
+Every spec resolves a non-empty ``tools`` list — enforced at boot by
+``app.main._validate_subagent_tool_pool``, so ``bind_tools`` never sees an
+empty list (which OpenAI-compatible APIs reject).
 
-- **Toolless form** (T1.2 — ``judge``, ``general-purpose``): a single LLM
-  node, ``START -> llm -> END``. No internal guard checks — there is no
-  untrusted-tool-result surface, and the input was already checked at the
-  main graph's boundary (design-brief § "Безопасность": "toolless-субагенты
-  внутренних проверок не требуют").
-- **Tools form / ReAct cycle** (T1.5 — ``web-research``): ``START -> llm ->
-  (tools_condition) -> tools -> llm -> ... -> END``, the same
-  ``ToolNode``/``tools_condition``/``handle_tool_errors`` building blocks as
-  the main graph (``app.agent.graph.build_graph``), reused rather than
-  reimplemented. The loop is bounded by ``recursion_limit`` (set by the
-  caller — see ``SubagentRunner.run``), not here: it is invoke-time
-  ``RunnableConfig``, not a compile-time or graph-construction concern.
+The loop is bounded by ``recursion_limit`` (set by the caller — see
+``SubagentRunner.run``), not here: it is invoke-time ``RunnableConfig``, not
+a compile-time or graph-construction concern.
 
-Both forms share the system message contract: *only* the spec's own prompt —
-no KS/user-memory/skills/compaction sections, no ``compose_for_llm``
+System message contract: *only* the spec's own prompt — no
+KS/user-memory/skills/compaction sections, no ``compose_for_llm``
 trust-boundary wrapping — context cleanliness is the whole point of a
 subagent (see design-brief § "Слоистость"). Subagent tool descriptions are
 never rendered into the prompt (unlike the main graph's
@@ -32,7 +32,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_core.messages.utils import count_tokens_approximately, trim_messages
 from langchain_core.tools import BaseTool
-from langgraph.graph import END, START, MessagesState, StateGraph
+from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
@@ -44,55 +44,26 @@ from app.agent.tool_guards import (
 )
 
 
-def _build_toolless_graph(
-    model: BaseChatModel,
-    system_prompt: str,
-    max_tokens: int,
-) -> StateGraph[Any, Any, Any, Any]:
-    """One-shot LLM node, no tools, no guard (see module docstring)."""
-
-    async def llm_node(state: MessagesState) -> dict[str, list[BaseMessage]]:
-        # Safety net for oversized inputs (e.g. a large injected document) —
-        # not a compaction step: subagents get no summarization pass, by
-        # design (clean-context invariant).
-        trimmed = trim_messages(
-            state["messages"],
-            strategy="last",
-            token_counter=count_tokens_approximately,
-            max_tokens=max_tokens,
-            start_on="human",
-            end_on="human",
-        )
-        system = SystemMessage(content=system_prompt)
-        response = await model.ainvoke([system, *trimmed])
-        return {"messages": [response]}
-
-    builder = StateGraph(MessagesState)
-    builder.add_node("llm", llm_node)
-    builder.add_edge(START, "llm")
-    builder.add_edge("llm", END)
-    return builder
-
-
-def _build_react_graph(
+def build_subagent_graph(
     model: BaseChatModel,
     system_prompt: str,
     tools: list[BaseTool],
     max_tokens: int,
-    security_guard: SecurityGuard | None,
-    canary_token: str,
-    tool_result_stub: str,
+    *,
+    security_guard: SecurityGuard | None = None,
+    canary_token: str = "",
+    tool_result_stub: str = "",
 ) -> StateGraph[Any, Any, Any, Any]:
-    """ReAct cycle with the main graph's guard checks reused verbatim.
+    """Build the subagent ReAct ``StateGraph``.
 
-    Same fail-safe redact semantics as ``app.agent.graph.agent_node``: a
-    poisoned tool result is swapped for ``tool_result_stub`` and the cycle
-    continues (``guard_tool_results``); an injected tool-call arg strips
-    ``tool_calls`` from the response so the next ``tools_condition`` routes
-    to END instead of the tools node (``guard_tool_call_args``). Both are
-    no-ops when ``security_guard`` is ``None`` — consistent with the main
-    graph, which also skips both checks in that case (guard disabled
-    globally).
+    In-cycle guard checks reuse the main graph's fail-safe redact semantics
+    (``app.agent.graph.agent_node``): a poisoned tool result is swapped for
+    ``tool_result_stub`` and the cycle continues (``guard_tool_results``); an
+    injected tool-call arg strips ``tool_calls`` from the response so the
+    next ``tools_condition`` routes to END instead of the tools node
+    (``guard_tool_call_args``). Both checks are skipped when
+    ``security_guard`` is ``None`` — consistent with the main graph, which
+    also skips both in that case (guard disabled globally).
     """
     bound_model = model.bind_tools(tools)
 
@@ -113,8 +84,9 @@ def _build_react_graph(
                     by_id.get(m.id, m) if m.id is not None else m for m in messages
                 ]
 
-        # Safety net for oversized tool results (e.g. a large scraped page) —
-        # not a compaction step, same invariant as the toolless form.
+        # Safety net for oversized inputs (a large injected document, a large
+        # scraped page) — not a compaction step: subagents get no
+        # summarization pass, by design (clean-context invariant).
         trimmed = trim_messages(
             messages,
             strategy="last",
@@ -142,38 +114,6 @@ def _build_react_graph(
     builder.add_conditional_edges("llm", tools_condition)
     builder.add_edge("tools", "llm")
     return builder
-
-
-def build_subagent_graph(
-    model: BaseChatModel,
-    system_prompt: str,
-    tools: list[BaseTool],
-    max_tokens: int,
-    *,
-    security_guard: SecurityGuard | None = None,
-    canary_token: str = "",
-    tool_result_stub: str = "",
-) -> StateGraph[Any, Any, Any, Any]:
-    """Build a subagent ``StateGraph``.
-
-    Empty ``tools`` -> toolless one-node form (``judge``, ``general-purpose``).
-    Non-empty ``tools`` -> ReAct cycle (``web-research``), with
-    ``security_guard`` reused for in-cycle ``TOOL_RESULT``/``TOOL_CALL_ARG``
-    checks. ``security_guard``/``canary_token``/``tool_result_stub`` are
-    unused in the toolless branch (no guard there by design) and may be left
-    at their defaults for those specs.
-    """
-    if not tools:
-        return _build_toolless_graph(model, system_prompt, max_tokens)
-    return _build_react_graph(
-        model,
-        system_prompt,
-        tools,
-        max_tokens,
-        security_guard,
-        canary_token,
-        tool_result_stub,
-    )
 
 
 def compile_subagent_graph(

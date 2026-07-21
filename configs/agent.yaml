@@ -34,9 +34,13 @@ subagents:
       Independent reviewer with a clean context (no session history).
       Give it a task describing the review pass and the artifact id(s)
       to review; it returns a verdict with evidence (quotes/references
-      to specific spots), not a bare summary.
+      to specific spots), not a bare summary. Has web tools to
+      fact-check claims when the verdict depends on verifiable facts.
     prompt: subagent-judge
-    tools: []
+    tools:
+    - firecrawl_search
+    - firecrawl_scrape
+    - firecrawl_extract
     persistence: none
   - name: web-research
     description: >-
@@ -52,11 +56,15 @@ subagents:
     persistence: none
   - name: general-purpose
     description: >-
-      Generic isolated subtask with a clean context (no session
-      history, no tools). Use for self-contained work that should not
-      inherit conversation context.
+      Generic executor for an isolated subtask with a clean context
+      (no session history) and web search/scrape/extract tools. Use
+      for self-contained work that should not inherit conversation
+      context.
     prompt: subagent-general-purpose
-    tools: []
+    tools:
+    - firecrawl_search
+    - firecrawl_scrape
+    - firecrawl_extract
     persistence: none
 mcp_servers:
   firecrawl:

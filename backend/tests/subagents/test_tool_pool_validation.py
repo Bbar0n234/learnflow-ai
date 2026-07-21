@@ -1,9 +1,11 @@
-"""Fail-fast validation of subagent ``tools`` names against the built-in pool.
+"""Fail-fast validation of subagent ``tools`` against the built-in pool.
 
 ``app.main._validate_subagent_tool_pool`` runs at startup: an unknown tool
-name in any spec is a config error (same severity as any typo in
-``configs/*.yaml``) and must abort the boot, not surface lazily on the first
-``run_subagent`` call. Pure function over a name->tool dict — solitary unit.
+name in any spec — or an empty ``tools`` list (every subagent is a ReAct
+agent; there is no toolless form) — is a config error (same severity as any
+typo in ``configs/*.yaml``) and must abort the boot, not surface lazily on
+the first ``run_subagent`` call. Pure function over a name->tool dict —
+solitary unit.
 """
 
 from __future__ import annotations
@@ -34,11 +36,25 @@ def _pool(*names: str) -> Any:
 def test_all_names_resolving_passes() -> None:
     config = _config(
         SubagentSpec(name="r", description="d", prompt="p", tools=["search", "scrape"]),
-        SubagentSpec(name="j", description="d", prompt="p", tools=[]),
+        SubagentSpec(name="j", description="d", prompt="p", tools=["search"]),
     )
 
     # No exception -> startup would proceed.
     _validate_subagent_tool_pool(config, cast(Any, _pool("search", "scrape")))
+
+
+def test_empty_tools_aborts_startup() -> None:
+    """Every subagent is a ReAct agent — a toolless spec is a config error."""
+    config = _config(
+        SubagentSpec(name="bare", description="d", prompt="p", tools=[]),
+    )
+
+    with pytest.raises(RuntimeError) as exc_info:
+        _validate_subagent_tool_pool(config, cast(Any, _pool("search")))
+
+    message = str(exc_info.value)
+    assert "bare" in message
+    assert "non-empty" in message
 
 
 def test_unknown_tool_name_aborts_startup() -> None:

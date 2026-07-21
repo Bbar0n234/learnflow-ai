@@ -44,14 +44,12 @@ RUN_SUBAGENT_TOOL_NAME: Final = "run_subagent"
 # see design-brief § "Стриминг: изоляция токенов субагента".
 SUBAGENT_TAG: Final = "subagent"
 
-# Bounds the ReAct tool-calling cycle for subagents with tools (design-brief
-# § "Tools субагента: ... Ограничение цикла"). A delegated subtask is a
-# single bounded piece of work, not an open-ended agent loop — 10 super-steps
-# (~5 tool round-trips: llm -> tools -> llm -> ...) is generous for the v1
-# tool count (3 firecrawl tools on ``web-research``) while still failing
-# fast on a runaway loop, well under LangGraph's own default of 25. Harmless
-# to set on toolless invocations too (a single-node graph never loops), so
-# it is applied unconditionally rather than branching on ``spec.tools``.
+# Bounds the subagent ReAct tool-calling cycle (design-brief § "Tools
+# субагента: ... Ограничение цикла"). A delegated subtask is a single bounded
+# piece of work, not an open-ended agent loop — 10 super-steps (~5 tool
+# round-trips: llm -> tools -> llm -> ...) is generous for the v1 tool pool
+# (3 firecrawl tools) while still failing fast on a runaway loop, well under
+# LangGraph's own default of 25.
 SUBAGENT_RECURSION_LIMIT: Final = 10
 
 
@@ -99,9 +97,9 @@ class SubagentRunner:
     tool pool subagent specs may draw ``tools`` names from. The pool is
     injected empty by default — ``main.py`` populates it from
     ``internal_tools`` + built-in MCP tools (T1.3). ``security_guard`` is the
-    same instance the main graph uses; passing ``None`` disables in-cycle
-    checks for tools-form specs, mirroring the main graph's fail-open
-    behavior when the guard is disabled globally (T1.5).
+    same instance the main graph uses; passing ``None`` disables the in-cycle
+    checks, mirroring the main graph's fail-open behavior when the guard is
+    disabled globally (T1.5).
     """
 
     def __init__(

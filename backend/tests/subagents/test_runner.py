@@ -6,10 +6,11 @@ it. We drive it against the real ``configs/`` registry with the model seam
 faked (``create_llm_from_config`` monkeypatched to a ``CapturingModel``) — no
 network, key or non-determinism. Two assertion styles:
 
-- through the *real* toolless graph + a capturing model, to observe the
-  assembled ``[system, human]`` the subagent LLM actually sees (context
-  cleanliness: system = spec prompt only, human = task + wrapped docs, no
-  session history);
+- through the *real* graph + a capturing model whose answers carry no tool
+  calls (the run ends after one super-step), to observe the assembled
+  ``[system, human]`` the subagent LLM actually sees (context cleanliness:
+  system = spec prompt only, human = task + wrapped docs, no session
+  history);
 - through a *spy* compiled graph, to observe the ``ainvoke`` config the Runner
   builds (subagent tag, recursion limit) and the ``checkpointer`` it compiles
   with — invariants that live in the Runner, not the graph.
@@ -37,10 +38,34 @@ from app.agent.subagents.runner import (
     UnknownSubagentTypeError,
 )
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.tools import tool
 
 from tests.subagents.conftest import CapturingModel, RecordingPromptProvider
 
 pytestmark = pytest.mark.unit
+
+
+@tool
+def firecrawl_search(query: str) -> str:
+    """Fake firecrawl_search standing in for the built-in MCP tool."""
+    return f"results for {query}"
+
+
+@tool
+def firecrawl_scrape(url: str) -> str:
+    """Fake firecrawl_scrape standing in for the built-in MCP tool."""
+    return f"page at {url}"
+
+
+@tool
+def firecrawl_extract(url: str) -> str:
+    """Fake firecrawl_extract standing in for the built-in MCP tool."""
+    return f"data from {url}"
+
+
+def _fake_firecrawl_pool() -> dict[str, Any]:
+    """A pool resolving the real registry's tool names (all specs use these)."""
+    return {t.name: t for t in (firecrawl_search, firecrawl_scrape, firecrawl_extract)}
 
 
 def _make_runner(
@@ -57,7 +82,9 @@ def _make_runner(
 
     ``create_llm_from_config`` is replaced so ``run`` gets ``model`` instead of
     a live client; ``captured["model_config"]`` records the resolved config the
-    Runner passed, so the default-vs-override cascade is observable.
+    Runner passed, so the default-vs-override cascade is observable. The tool
+    pool defaults to fake firecrawl tools so the real registry's specs (all of
+    which declare the firecrawl trio) resolve.
     """
 
     def _fake_create_llm(_settings: Any, model_config: ResolvedModelConfig) -> Any:
@@ -73,7 +100,7 @@ def _make_runner(
         prompt_fragments=prompt_fragments,
         prompt_provider=prompt_provider,
         settings=cast(Any, object()),  # only forwarded to the (faked) model factory
-        tool_pool=tool_pool,
+        tool_pool=tool_pool if tool_pool is not None else _fake_firecrawl_pool(),
     )
 
 
@@ -236,6 +263,7 @@ async def test_run_uses_per_spec_model_override_when_present(
                     description="d",
                     prompt="subagent-judge",
                     model="override-model",
+                    tools=["firecrawl_search"],
                 ),
             ],
         ),

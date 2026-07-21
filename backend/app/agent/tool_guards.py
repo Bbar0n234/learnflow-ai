@@ -16,6 +16,12 @@ same checkpoints, same log events/severity, same fail-safe redact semantics
 a stub, cycle continues; tool-call-arg injection -> ``tool_calls`` stripped,
 cycle ends). Reused verbatim by ``app.agent.graph.agent_node`` and the
 subagent ReAct-cycle node (``app.agent.subagents.graph``).
+
+Layering: this is an *enforcement adapter* over the security engine
+(``app.agent.security`` — detectors, classifier, ``SecurityGuard``), not part
+of the engine itself. Living at the ``app/agent/`` level next to the graphs
+it protects is deliberate — same placement as ``runtime_security.py``
+(stream-checkpoint enforcement); see conventions/agent.md § Agent Runtime.
 """
 
 from __future__ import annotations

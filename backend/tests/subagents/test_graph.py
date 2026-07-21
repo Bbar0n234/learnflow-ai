@@ -1,12 +1,9 @@
 """Behavior tests for the subagent graph builder (``build_subagent_graph``).
 
-Two forms selected by whether the spec resolves any tools:
-
-- **toolless** (``judge``, ``general-purpose``): one LLM node, no tools node,
-  no in-cycle guard — the input was already checked at the main graph's
-  boundary;
-- **ReAct** (``web-research``): ``llm -> tools -> llm -> ... -> END`` with the
-  main graph's guard checks reused verbatim.
+Every subagent is a ReAct agent: ``llm -> tools -> llm -> ... -> END`` with
+the main graph's guard checks reused verbatim. A run whose model never emits
+a tool call ends after one super-step — a degenerate case of the same graph,
+not a separate form.
 
 The guard cases are the iteration's new attack surface (design-brief §
 "Безопасность": red-team injection *inside* the subagent cycle). They assert
@@ -70,14 +67,7 @@ async def _run(graph: Any, task: str = "do it") -> dict[str, Any]:
 # --- graph shape ------------------------------------------------------------
 
 
-def test_toolless_form_has_llm_node_and_no_tools_node() -> None:
-    graph = _graph(ScriptedToolModel(["hi"]), tools=[])
-
-    assert "llm" in graph.nodes
-    assert "tools" not in graph.nodes
-
-
-def test_react_form_has_llm_and_tools_nodes() -> None:
+def test_graph_always_has_llm_and_tools_nodes() -> None:
     graph = _graph(ScriptedToolModel(["hi"]), tools=[search])
 
     assert {"llm", "tools"} <= set(graph.nodes)
@@ -86,8 +76,11 @@ def test_react_form_has_llm_and_tools_nodes() -> None:
 # --- happy paths ------------------------------------------------------------
 
 
-async def test_toolless_form_returns_single_llm_answer() -> None:
-    graph = _graph(ScriptedToolModel([AIMessage(content="the verdict")]), tools=[])
+async def test_run_without_tool_calls_ends_after_one_turn() -> None:
+    """Degenerate case: no tool call in the answer -> END after one super-step."""
+    graph = _graph(
+        ScriptedToolModel([AIMessage(content="the verdict")]), tools=[search]
+    )
 
     out = await _run(graph)
 
@@ -95,7 +88,7 @@ async def test_toolless_form_returns_single_llm_answer() -> None:
     assert out["messages"][-1].content == "the verdict"
 
 
-async def test_react_form_executes_tool_then_answers() -> None:
+async def test_react_run_executes_tool_then_answers() -> None:
     model = ScriptedToolModel(
         [
             AIMessage(

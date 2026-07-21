@@ -10,14 +10,16 @@ import { getProblemMessageFromBody } from "@/shared/lib/api-error";
 import { useStreamStore } from "@/stores/stream-store";
 
 /**
- * Таймаут первого байта SSE-стрима (мс).
- * Отдельная env (семантически первый байт ≠ полный REST-запрос).
- * Fallback на VITE_API_TIMEOUT_MS, затем 30 000 мс.
+ * Таймаут первого байта SSE-стрима (мс) — страховка от мёртвого соединения,
+ * не лимит на ответ агента: заголовки ответа приходят только после
+ * pre-stream guard-проверки, а прогоны с субагентами легитимно молчат
+ * минуты до первого события. Пользовательский контроль над долгим прогоном —
+ * мгновенный ThinkingIndicator и кнопка отмены, не этот таймаут.
+ * Fallback на VITE_API_TIMEOUT_MS убран: это лимит обычного REST-запроса,
+ * для SSE он давал ложные «Превышено время ожидания» на легитимных прогонах.
  */
 const FIRST_BYTE_TIMEOUT_MS =
-  Number(import.meta.env.VITE_SSE_FIRST_BYTE_TIMEOUT_MS) ||
-  Number(import.meta.env.VITE_API_TIMEOUT_MS) ||
-  30000;
+  Number(import.meta.env.VITE_SSE_FIRST_BYTE_TIMEOUT_MS) || 300000;
 
 interface DoneInfo {
   messageId: string | null;

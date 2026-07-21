@@ -305,7 +305,11 @@ describe("useAgentStream", () => {
     const { result } = renderAgentStream({ onError });
 
     result.current.send("hi");
-    await vi.advanceTimersByTimeAsync(31000);
+    // Дефолт — щедрый safety-net (300 с): guard задерживает заголовки, а
+    // прогоны с субагентами легитимно молчат минуты (см. useAgentStream.ts).
+    await vi.advanceTimersByTimeAsync(299000);
+    expect(onError).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(2000);
 
     expect(onError).toHaveBeenCalledWith("Превышено время ожидания");
   });

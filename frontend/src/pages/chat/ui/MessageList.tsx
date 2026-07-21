@@ -5,6 +5,7 @@ import { MessageItem } from "./MessageItem";
 import { MarkdownRenderer } from "@/shared/ui/MarkdownRenderer";
 import { ToolIndicator } from "./ToolIndicator";
 import { ReviewIndicator } from "./ReviewIndicator";
+import { ThinkingIndicator } from "./ThinkingIndicator";
 import { ArtifactCard } from "./ArtifactCard";
 import { GeneratingArtifactCard } from "./GeneratingArtifactCard";
 import { SphereWriteCard } from "./SphereWriteCard";
@@ -78,6 +79,11 @@ export function MessageList({
         {isStreaming && (
           <div className="flex justify-start">
             <div className="w-full text-foreground">
+              {!streamingText &&
+                !activeTool &&
+                !isReviewing &&
+                pendingImages.length === 0 &&
+                streamingArtifacts.length === 0 && <ThinkingIndicator />}
               {streamingText && (
                 <MarkdownRenderer isStreaming>{streamingText}</MarkdownRenderer>
               )}

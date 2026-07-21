@@ -19,6 +19,7 @@ from app.agent.graph_factory import GraphFactory
 from app.agent.runtime_security import RuntimeSecurityEnforcer
 from app.agent.security.canary import generate_canary_token
 from app.agent.stream_events import StreamEventMapper
+from app.agent.subagents import SUBAGENT_TAG
 from app.agent.tracing import AgentRunTracer
 from app.repositories.settings import SettingsRepository
 from app.services.agent_runner import Message, StreamEvent
@@ -102,8 +103,15 @@ class LangGraphAgentRunner:
             model=model_config.model,
             model_source=model_config.source,
         )
+        logger.debug(
+            "user message",
+            thread_id=str(thread_id),
+            preview=content[:500],
+            length=len(content),
+        )
         stream_start = time.monotonic()
         stream_error = False
+        client_disconnected = False
         full_response = ""
         last_message_id: str | None = None
         injection_emitted = False
@@ -173,7 +181,18 @@ class LangGraphAgentRunner:
                         return
 
                     if mode == "messages":
-                        msg_chunk, _metadata = data
+                        msg_chunk, chunk_metadata = data
+                        if chunk_metadata and SUBAGENT_TAG in (
+                            chunk_metadata.get("tags") or ()
+                        ):
+                            # Subagent LLM tokens: dropped before full_response
+                            # accumulation and canary/mid-stream checks (design-brief
+                            # § "Стриминг: изоляция токенов субагента"). cancel_event
+                            # is still checked every iteration at the top of this
+                            # loop, so cancellation stays responsive during a
+                            # subagent run; Langfuse callbacks are untouched — only
+                            # this stream-loop projection is filtered.
+                            continue
                         if not (
                             isinstance(msg_chunk, AIMessageChunk)
                             and isinstance(msg_chunk.content, str)
@@ -223,6 +242,13 @@ class LangGraphAgentRunner:
                         for event in self._event_mapper.updates(data):
                             yield event
 
+            except (asyncio.CancelledError, GeneratorExit):
+                # Client disconnect: both are BaseException, so the handler
+                # below never sees them and the run used to be reported as
+                # status="ok". Flag for the finally-log and re-raise —
+                # cancellation semantics are unchanged.
+                client_disconnected = True
+                raise
             except Exception as e:
                 stream_error = True
                 logger.error(
@@ -237,11 +263,17 @@ class LangGraphAgentRunner:
                 )
             finally:
                 duration_ms = int((time.monotonic() - stream_start) * 1000)
+                if client_disconnected:
+                    status = "client_disconnected"
+                elif stream_error:
+                    status = "error"
+                else:
+                    status = "ok"
                 logger.info(
                     "agent completed",
                     thread_id=str(thread_id),
                     duration_ms=duration_ms,
-                    status="error" if stream_error else "ok",
+                    status=status,
                 )
                 self._cancel_events.pop(thread_id, None)
                 self._pending_cancels.discard(thread_id)
@@ -283,6 +315,12 @@ class LangGraphAgentRunner:
                     )
 
             if not injection_emitted:
+                logger.debug(
+                    "agent reply",
+                    thread_id=str(thread_id),
+                    preview=full_response[:500],
+                    length=len(full_response),
+                )
                 span.set_output(full_response)
 
         for _ev in self._trace_id_event(span):

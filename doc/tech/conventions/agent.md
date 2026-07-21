@@ -19,6 +19,8 @@
 
 Принцип: новая сквозная забота в runtime → отдельный коллаборатор за портом, а не ещё один метод в runner.
 
+**Слоистость security: движок vs enforcement.** Security-движок — `app/agent/security/` (детекторы, LLM-классификатор, `SecurityGuard`, типы): самодостаточный пакет, знающий, *что такое* инъекция. Точки применения (enforcement-адаптеры) живут уровнем выше, в `app/agent/`, рядом с кодом, который они защищают: `runtime_security.py` (`RuntimeSecurityEnforcer`) — stream-чекпоинты runner'а, `tool_guards.py` — in-graph чекпоинты `TOOL_RESULT`/`TOOL_CALL_ARG`, переиспользуемые основным графом и графами субагентов. Адаптеры знают, *где и как* вызвать guard и что делать с вердиктом (redact / срез `tool_calls`); в `security/` они не входят — движок не зависит от графов и runner'а.
+
 ## Skills
 
 **Frontmatter `description` — стиль Claude Code.** Описание скилла в `SKILL.md` пишется как «назначение + триггеры»: одно-два предложения о том, что скилл делает, затем «Используй когда: <триггеры через запятую>». Формат намеренно совпадает с конвенцией skills Claude Code — скилл читаем любым агентом экосистемы без адаптации, а семантика срабатывания одинакова (system prompt продукта: «Load a skill when the user's task matches its description»). Description попадает в Skills Index — в system message каждого запроса — поэтому держится компактным; переносы строк нормализуются при сборке индекса (`scan_skills_index`).

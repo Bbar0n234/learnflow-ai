@@ -124,6 +124,8 @@ sequenceDiagram
 5. Между итерациями проверяет `cancel_event.is_set()`
 6. При исключении — yields `error` event, логирует
 
+**Изоляция токенов субагента:** `run_subagent` — обычный tool с точки зрения `updates`-стрима (`tool_start`/`tool_end` эмитятся штатно), но внутри вызывает собственный скомпилированный `StateGraph` через `ainvoke` (→ [agent-runtime.md § Субагенты](agent-runtime.md#субагенты)). Чанки `stream_mode="messages"`, помеченные тегом `subagent` в metadata, отбрасываются **до** проверки `AIMessageChunk`, **до** накопления `full_response`/`last_message_id` и **до** canary/mid-stream проверок — токены субагента не рисуются в чат и не попадают в проверяемый final output. `cancel_event` при этом продолжает проверяться на каждой итерации, отмена остаётся отзывчивой и во время рана субагента.
+
 ### ChatService
 
 `ChatService.send_message()` — relay + post-hoc обработка:

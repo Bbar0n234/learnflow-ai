@@ -2,7 +2,7 @@
 
 ## Контекст
 
-Backlog P2 «Продуктовые субагенты». Discovery-спайк (Фаза 5a) поднял приоритет и снял блокировку — прежняя формулировка откладывала субагентов «после инструментов (web search, sandbox)», и это устарело дважды. Первому потребителю — **judge-проходам** скилла `tech-article-writing` (анти-слоп-скан, cold-reader) — инструменты не нужны вообще: нужен независимый агент с чистым контекстом («свежие глаза», не отравленные историей сессии), получающий текст + инструкцию и возвращающий вердикт. А для второго потребителя — **web-research** — инструменты уже существуют: built-in firecrawl MCP (`firecrawl_search` / `firecrawl_scrape_url` / `firecrawl_extract_data`) работает в проде с whitelist в `agent.yaml`.
+Backlog P2 «Продуктовые субагенты». Discovery-спайк (Фаза 5a) поднял приоритет и снял блокировку — прежняя формулировка откладывала субагентов «после инструментов (web search, sandbox)», и это устарело: нужные инструменты уже существуют — built-in firecrawl MCP (`firecrawl_search` / `firecrawl_scrape` / `firecrawl_extract`) работает в проде с whitelist в `agent.yaml`. Первый потребитель — **judge-проходы** скилла `tech-article-writing` (анти-слоп-скан, cold-reader): независимый агент с чистым контекстом («свежие глаза», не отравленные историей сессии), получающий текст + инструкцию и возвращающий вердикт. Второй — **web-research**: ресёрч на том же firecrawl-пуле.
 
 Требуется ADR (архитектурное решение, зафиксировано в backlog) — пишется в этой итерации.
 
@@ -22,7 +22,7 @@ flowchart TB
 
     subgraph SUB["SubagentRunner"]
         REG[["Реестр спек (agent.yaml, секция subagents):<br/>name · description · prompt · model · tools · persistence"]]
-        SG["Субагент-граф:<br/>judge · general-purpose — без tools<br/>web-research — firecrawl"]
+        SG["Субагент-граф (ReAct):<br/>judge · web-research · general-purpose<br/>tools: firecrawl"]
         REG --> SG
         RS -->|"task + документ"| SG
         SG -->|"только результат"| RS
@@ -41,7 +41,7 @@ flowchart TB
 
 ### Слоистость: ядро отдельно от способа вызова
 
-- **SubagentSpec** — декларация субагента: `name`, `description`, `prompt` (имя промпта в реестре промптов, см. «Промпты и модель»), `model` (опционально, дефолт — `subagents.llm`), `tools` (список имён инструментов, может быть пустым), `persistence`. Реестр — секция `subagents` в `configs/agent.yaml`; выделение в директорию по образцу `skills/` отклонено до реального роста числа типов (фиксируется в ADR).
+- **SubagentSpec** — декларация субагента: `name`, `description`, `prompt` (имя промпта в реестре промптов, см. «Промпты и модель»), `model` (опционально, дефолт — `subagents.llm`), `tools` (непустой список имён инструментов — субагент всегда ReAct-агент), `persistence`. Реестр — секция `subagents` в `configs/agent.yaml`; выделение в директорию по образцу `skills/` отклонено до реального роста числа типов (фиксируется в ADR).
 - **SubagentRunner** — принимает spec + task (+ инжектируемый документ): компилирует граф per-invoke (консистентно с GraphFactory, ~1–5 ms; кэш — оптимизация по необходимости), `ainvoke`, возвращает результат. Инвариант: `run_subagent` никогда не резолвится в toolset субагента — рекурсия исключена на уровне Runner независимо от содержимого конфига.
 - **tool `run_subagent(agent_type, task, input_artifact_ids?)`** — тонкая обёртка над Runner. Description инструмента собирается на старте из реестра (список `тип: описание`) — модель видит доступные типы в точке выбора инструмента (паттерн Skills Index); невалидный `agent_type` → ошибка со списком типов. Ошибка субагента → ошибка tool через callable `handle_tool_errors`, основной граф продолжает работу.
 
@@ -73,7 +73,7 @@ sequenceDiagram
     TL->>TL: fetch артефактов<br/>(ArtifactRepository, project-scoped,<br/>всё или ничего)
     TL->>RN: spec + task + содержимое
     RN->>JG: system = промпт спеки,<br/>human = task + документы (байт в байт,<br/>обёртка с id/title на каждый)
-    JG->>JG: один LLM-вызов, без tools,<br/>checkpointer=False
+    JG->>JG: ReAct-цикл, checkpointer=False<br/>(проход может обойтись без tool-вызовов)
     JG-->>RN: вердикт с цитатами (evidence)
     RN-->>TL: результат
     TL-->>AG: ToolMessage
@@ -129,10 +129,10 @@ Checkpointer не участвует в исполнении графа — stat
 
 ### Tools субагента: имена в спеке → резолв из built-in пула
 
-Для конфигуратора субагент с инструментами — это список имён в спеке (`tools: [firecrawl_search, firecrawl_scrape_url]`). Под капотом:
+Для конфигуратора инструменты субагента — это список имён в спеке (`tools: [firecrawl_search, firecrawl_scrape]`). Под капотом:
 
 - **Резолв.** Имена отбираются из пула built-in инструментов (internal + built-in MCP). User-installed MCP в субагентов не попадают (trust-граница). Неизвестное имя в спеке → ошибка старта приложения — fail-fast конфигурации, как для остальных `configs/*.yaml`.
-- **Форма графа.** Непустой toolset → ReAct-цикл: `ToolNode` + `tools_condition` + callable `handle_tool_errors` — те же встроенные блоки, что в основном графе. Пустой toolset — вырожденный случай: один LLM-узел без ToolNode. System message в обоих случаях — только промпт спеки (никаких KS/memory/skills — чистота контекста), без compaction; для больших tool-результатов — `trim_messages` safety net.
+- **Форма графа.** Всегда ReAct-цикл: `ToolNode` + `tools_condition` + callable `handle_tool_errors` — те же встроенные блоки, что в основном графе. Субагент по определению ReAct-агент: single-turn как отдельная форма не существует, прогон без tool-вызовов — вырожденный случай того же графа (один super-step через `tools_condition → END`). Пустой `tools` в спеке → ошибка старта (fail-fast вместе с проверкой имён). System message — только промпт спеки (никаких KS/memory/skills — чистота контекста), без compaction; для больших tool-результатов — `trim_messages` safety net.
 - **Ограничение цикла.** `recursion_limit` LangGraph — субагент с инструментами не крутится бесконечно.
 - Guard-проверки внутри цикла — см. «Безопасность».
 
@@ -181,22 +181,31 @@ Custom-прогресс через `get_stream_writer()` (stream mode `custom`, 
 
 ### Типы v1
 
-- `judge` — независимый рецензент, без tools; потребитель — judge-проходы скилла статей (анти-слоп-скан, cold-reader): вызов по инструкции из скилла, task = инструкция прохода, документ — по `input_artifact_ids`.
+- `judge` — независимый рецензент; firecrawl-toolset — для выборочного фактчека проверяемых утверждений, не для ресёрча. Потребитель — judge-проходы скилла статей (анти-слоп-скан, cold-reader): вызов по инструкции из скилла, task = инструкция прохода, документ — по `input_artifact_ids`.
 - `web-research` — ресёрчер с firecrawl-toolset; ценность — изоляция контекста: страницы жгут контекст субагента, наружу уходит выжимка с источниками. Потребители — ресёрч-фаза скилла статей и любой ресёрч по запросу.
-- `general-purpose` — изолированная подзадача с чистым контекстом, generic-промпт, без tools.
+- `general-purpose` — изолированная подзадача с чистым контекстом, generic-промпт, firecrawl-toolset для работы с вебом по необходимости.
 
 ### Безопасность
 
 Субагент — тот же trust-контур, что основной агент; отдельный периметр не строится — переиспользуется существующий:
 
 - **Границы вызова** закрыты checkpoint'ами основного графа: `task` + `input_artifact_ids` — это args tool-вызова (checkpoint TOOL_CALL_ARG после ответа модели), результат субагента становится ToolMessage (checkpoint TOOL_RESULT до LLM). Содержимое инжектируемого артефакта — производная уже проверенных входов (создано агентом через `create_artifact`).
-- **Внутри субагента с tools** — те же inline-проверки, что в основном agent node, с той же fail-safe-семантикой redact (не блокировкой thread): инъекция в результате инструмента (заражённая страница) → подмена содержимого заглушкой `security_redacted`, цикл продолжает; инъекция в args → срез tool_calls из ответа. Реализация переиспользуется — обе проверки в `graph.py` параметризованы guard'ом; политику не изобретаем.
-- **Toolless-субагенты** (judge, general-purpose) внутренних проверок не требуют: untrusted-источников внутри нет, вход проверен на границе.
+- **Внутри цикла субагента** — те же inline-проверки, что в основном agent node, с той же fail-safe-семантикой redact (не блокировкой thread): инъекция в результате инструмента (заражённая страница) → подмена содержимого заглушкой `security_redacted`, цикл продолжает; инъекция в args → срез tool_calls из ответа. Реализация переиспользуется — обе проверки параметризованы guard'ом; политику не изобретаем. В прогоне без tool-вызовов проверки структурно бездействуют: untrusted-источников внутри нет, вход проверен на границе.
 - Инъекция страницей внутрь субагентского цикла — новая поверхность: red-team-кейсы входят в тестовый scope итерации (сканер feat-008 покрывает только основной граф).
 
 ## Scope boundaries
 
 Не входит: фоновые/async субагенты (v2, job-паттерн), sandbox-субагент (отдельный трек backlog: ADR + security-review), user-installed MCP в субагентах, vision-judge «оцени изображение» (требует vision-модели — backlog), HITL внутри субагента, параллельный fan-out через `Send` (параллелизм v1 — несколько tool-вызовов в одном ходу модели), structured output вердикта (`output_schema` — по появлении программного потребителя), KS-секция как источник входа, кэш скомпилированных графов, per-request модельный каскад (ModelConfigResolver) для субагентов, таймауты поверх `recursion_limit`.
+
+## Партиция треков
+
+Вырожденный случай — один трек, параллелизации нет, конвейер последовательный (ревью партиции не требуется).
+
+| Трек | Скоуп | Файловый/модульный скоуп |
+|------|-------|--------------------------|
+| T1 | Весь scope итерации: agent runtime (SubagentSpec/реестр, SubagentRunner, tool `run_subagent`, стрим-фильтр, guard-переиспользование), конфиги и промпты, ADR, обновление скилла | `backend/app/agent/**`, `configs/agent.yaml`, `configs/prompts.yaml`, `configs/prompt_fragments.yaml`, `configs/prompts/subagent-*.txt`, `backend/tests/agent/**`, `doc/tech/adr/`, `skills/tech-article-writing/SKILL.md` |
+
+Вердикт непересечения: тривиален (второго трека нет). Дробление на треки отклонено: все компоненты завязаны на общие файлы agent runtime (`runner.py`, `graph.py`, `tools`), а кандидат в отдельный трек (правка `skills/tech-article-writing/SKILL.md`) слишком мал, чтобы окупить издержки параллельного трека, и контрактно зависит от tool.
 
 ## SOFA consulted
 

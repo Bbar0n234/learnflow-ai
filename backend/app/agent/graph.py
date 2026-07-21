@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -12,7 +11,6 @@ from langchain_core.messages import (
     AIMessage,
     RemoveMessage,
     SystemMessage,
-    ToolMessage,
 )
 from langchain_core.messages.utils import count_tokens_approximately, trim_messages
 from langgraph.graph import START, MessagesState, StateGraph
@@ -23,33 +21,18 @@ from langgraph.runtime import Runtime
 from app.agent.config import AgentConfig, PromptFragmentsConfig
 from app.agent.prompt_builder import build_system_message, compose_for_llm
 from app.agent.security.guard import SecurityGuard
-from app.agent.security.types import Checkpoint, SecurityMessages, Verdict
+from app.agent.security.types import SecurityMessages
+from app.agent.tool_guards import (
+    guard_tool_call_args,
+    guard_tool_results,
+    handle_tool_error,
+)
 from app.agent.tools.ks_helpers import build_namespace, format_index
 from app.agent.tools.store_helpers import format_index as fmt_index
 from app.infra.llm import extract_usage
 from app.infra.prompt_provider import PromptProvider
 
 logger = structlog.get_logger()
-
-_TOOL_ERROR_MESSAGE = (
-    "Tool execution failed; the requested operation could not be completed. "
-    "Please try a different approach or rephrasing the request."
-)
-
-
-def _handle_tool_error(exc: Exception) -> str:
-    """Callable handler for ToolNode(handle_tool_errors=...).
-
-    Logs the exception with exc_info so operators have full context, then
-    returns a safe, non-leaking message that goes into ToolMessage(status="error").
-    The message is seen only by the agent (LLM), not by the end user.
-    """
-    logger.error(
-        "tool execution failed",
-        error_type=type(exc).__name__,
-        exc_info=exc,
-    )
-    return _TOOL_ERROR_MESSAGE
 
 
 @dataclass
@@ -124,72 +107,6 @@ async def _invoke_llm(
     return response, duration_ms
 
 
-async def _guard_tool_results(
-    messages: list[Any],
-    guard: SecurityGuard,
-    canary_token: str,
-    tool_result_stub: str,
-) -> list[ToolMessage]:
-    """Scan the current batch of ToolMessages; return replace-by-id updates for injections."""
-    if not messages:
-        return []
-    anchor = -1
-    for i, m in enumerate(messages):
-        if isinstance(m, AIMessage) and getattr(m, "tool_calls", None):
-            anchor = i
-    if anchor < 0:
-        return []
-    batch = [
-        m
-        for m in messages[anchor + 1 :]
-        if isinstance(m, ToolMessage)
-        and not m.additional_kwargs.get("security_redacted")
-    ]
-    if not batch:
-        return []
-
-    updates: list[ToolMessage] = []
-    for tm in batch:
-        content = tm.content if isinstance(tm.content, str) else str(tm.content)
-        result = await guard.check(
-            content,
-            Checkpoint.TOOL_RESULT,
-            history=messages[: anchor + 1],
-            canary_token=canary_token,
-        )
-        if result.verdict == Verdict.INJECTION:
-            updates.append(
-                ToolMessage(
-                    id=tm.id,
-                    tool_call_id=tm.tool_call_id,
-                    name=tm.name,
-                    content=tool_result_stub,
-                    additional_kwargs={
-                        **tm.additional_kwargs,
-                        "security_redacted": True,
-                        "original_detection_layer": (
-                            result.detection_layer.value
-                            if result.detection_layer
-                            else Checkpoint.TOOL_RESULT.value
-                        ),
-                    },
-                )
-            )
-            logger.warning(
-                "tool_result injection blocked",
-                security_event=True,
-                checkpoint=Checkpoint.TOOL_RESULT.value,
-                verdict=Verdict.INJECTION.value,
-                metadata={
-                    "detection_layer": (
-                        result.detection_layer.value if result.detection_layer else None
-                    ),
-                    "tool": tm.name,
-                },
-            )
-    return updates
-
-
 def build_graph(
     model: BaseChatModel,
     tools: list[Any],
@@ -219,7 +136,7 @@ def build_graph(
         # 0. Pre-guard: TOOL_RESULT on any ToolMessage from the current batch
         #    (after the last HumanMessage / last AIMessage that issued tool_calls).
         if security_guard is not None:
-            tool_result_updates = await _guard_tool_results(
+            tool_result_updates = await guard_tool_results(
                 messages,
                 security_guard,
                 runtime.context.canary_token,
@@ -311,52 +228,14 @@ def build_graph(
         response.additional_kwargs["created_at"] = datetime.now(UTC).isoformat()
 
         # 5. Post-guard: TOOL_CALL_ARG — check serialized tool_call args.
-        if security_guard is not None and getattr(response, "tool_calls", None):
-            args_payload = json.dumps(
-                [tc.get("args", {}) for tc in response.tool_calls],
-                ensure_ascii=False,
+        if security_guard is not None:
+            response = await guard_tool_call_args(
+                response, security_guard, runtime.context.canary_token, list(messages)
             )
-            arg_result = await security_guard.check(
-                args_payload,
-                Checkpoint.TOOL_CALL_ARG,
-                history=list(messages),
-                canary_token=runtime.context.canary_token,
-            )
-            if arg_result.verdict == Verdict.INJECTION:
-                redacted = AIMessage(
-                    id=response.id,
-                    content=response.content
-                    if isinstance(response.content, str)
-                    else "",
-                    tool_calls=[],
-                    additional_kwargs={
-                        **response.additional_kwargs,
-                        "security_redacted": True,
-                        "original_detection_layer": (
-                            arg_result.detection_layer.value
-                            if arg_result.detection_layer
-                            else Checkpoint.TOOL_CALL_ARG.value
-                        ),
-                    },
-                )
-                logger.warning(
-                    "tool_call_arg injection blocked",
-                    security_event=True,
-                    checkpoint=Checkpoint.TOOL_CALL_ARG.value,
-                    verdict=Verdict.INJECTION.value,
-                    metadata={
-                        "detection_layer": (
-                            arg_result.detection_layer.value
-                            if arg_result.detection_layer
-                            else None
-                        ),
-                    },
-                )
-                return {"messages": [*result_prefix, redacted]}
 
         return {"messages": [*result_prefix, response]}
 
-    tool_node = ToolNode(tools, handle_tool_errors=_handle_tool_error)
+    tool_node = ToolNode(tools, handle_tool_errors=handle_tool_error)
 
     builder = StateGraph(MessagesState, context_schema=AgentContext)
     builder.add_node("agent", agent_node)

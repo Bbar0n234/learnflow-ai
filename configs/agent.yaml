@@ -28,6 +28,7 @@ subagents:
     model: z-ai/glm-4.7-flash
     extra_body:
       include_reasoning: true
+  recursion_limit: 10
   registry:
   - name: judge
     description: >-

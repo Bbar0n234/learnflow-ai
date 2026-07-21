@@ -44,14 +44,6 @@ RUN_SUBAGENT_TOOL_NAME: Final = "run_subagent"
 # see design-brief § "Стриминг: изоляция токенов субагента".
 SUBAGENT_TAG: Final = "subagent"
 
-# Bounds the subagent ReAct tool-calling cycle (design-brief § "Tools
-# субагента: ... Ограничение цикла"). A delegated subtask is a single bounded
-# piece of work, not an open-ended agent loop — 10 super-steps (~5 tool
-# round-trips: llm -> tools -> llm -> ...) is generous for the v1 tool pool
-# (3 firecrawl tools) while still failing fast on a runaway loop, well under
-# LangGraph's own default of 25.
-SUBAGENT_RECURSION_LIMIT: Final = 10
-
 
 @dataclass
 class SubagentDocument:
@@ -206,10 +198,15 @@ class SubagentRunner:
         tags = list((config or {}).get("tags") or [])
         if SUBAGENT_TAG not in tags:
             tags.append(SUBAGENT_TAG)
+        # Bounds the ReAct tool-calling cycle (design-brief § "Tools субагента:
+        # ... Ограничение цикла"): a delegated subtask is a single bounded
+        # piece of work, not an open-ended agent loop. Operational knob —
+        # ``subagents.recursion_limit`` in ``configs/agent.yaml`` (default 10,
+        # ~5 tool round-trips, well under LangGraph's own default of 25).
         run_config: RunnableConfig = {
             **(config or {}),
             "tags": tags,
-            "recursion_limit": SUBAGENT_RECURSION_LIMIT,
+            "recursion_limit": self._subagents_config.recursion_limit,
         }
 
         logger.info(

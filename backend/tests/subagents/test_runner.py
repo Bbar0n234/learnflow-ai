@@ -31,7 +31,6 @@ from app.agent.config import (
     SubagentSpec,
 )
 from app.agent.subagents.runner import (
-    SUBAGENT_RECURSION_LIMIT,
     SUBAGENT_TAG,
     SubagentDocument,
     SubagentRunner,
@@ -339,8 +338,34 @@ async def test_run_stamps_subagent_tag_and_recursion_limit_on_config(
     # stream loop filters on this tag to keep subagent tokens out of the chat.
     assert spy.config["tags"] == ["main-graph", SUBAGENT_TAG]
     assert spy.config["metadata"] == {"k": "v"}
-    # The ReAct loop is bounded so a subagent with tools cannot spin forever.
-    assert spy.config["recursion_limit"] == SUBAGENT_RECURSION_LIMIT
+    # The ReAct loop is bounded so a subagent with tools cannot spin forever;
+    # the bound is the operational knob from agent.yaml § subagents.
+    assert agent_config.subagents is not None
+    assert spy.config["recursion_limit"] == agent_config.subagents.recursion_limit
+
+
+async def test_run_recursion_limit_comes_from_config(
+    monkeypatch: pytest.MonkeyPatch,
+    agent_config: AgentConfig,
+    prompt_fragments: Any,
+    prompt_provider: RecordingPromptProvider,
+) -> None:
+    """A non-default ``subagents.recursion_limit`` reaches the invoke config."""
+    spy, _ = _install_spy_compile(monkeypatch)
+    custom_config = agent_config.model_copy(deep=True)
+    assert custom_config.subagents is not None
+    custom_config.subagents.recursion_limit = 7
+    runner = _make_runner(
+        monkeypatch,
+        custom_config,
+        prompt_fragments,
+        prompt_provider,
+        CapturingModel([AIMessage(content="unused")]),
+    )
+
+    await runner.run("judge", "task")
+
+    assert spy.config["recursion_limit"] == 7
 
 
 async def test_run_compiles_with_checkpointer_false_for_persistence_none(

@@ -63,6 +63,7 @@ class SubagentSpec(BaseModel):
 
 class SubagentsConfig(BaseModel):
     llm: LLMConfig
+    recursion_limit: int = 10
     registry: list[SubagentSpec] = []
 
 

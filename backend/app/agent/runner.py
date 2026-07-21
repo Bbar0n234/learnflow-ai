@@ -103,8 +103,15 @@ class LangGraphAgentRunner:
             model=model_config.model,
             model_source=model_config.source,
         )
+        logger.debug(
+            "user message",
+            thread_id=str(thread_id),
+            preview=content[:500],
+            length=len(content),
+        )
         stream_start = time.monotonic()
         stream_error = False
+        client_disconnected = False
         full_response = ""
         last_message_id: str | None = None
         injection_emitted = False
@@ -235,6 +242,13 @@ class LangGraphAgentRunner:
                         for event in self._event_mapper.updates(data):
                             yield event
 
+            except (asyncio.CancelledError, GeneratorExit):
+                # Client disconnect: both are BaseException, so the handler
+                # below never sees them and the run used to be reported as
+                # status="ok". Flag for the finally-log and re-raise —
+                # cancellation semantics are unchanged.
+                client_disconnected = True
+                raise
             except Exception as e:
                 stream_error = True
                 logger.error(
@@ -249,11 +263,17 @@ class LangGraphAgentRunner:
                 )
             finally:
                 duration_ms = int((time.monotonic() - stream_start) * 1000)
+                if client_disconnected:
+                    status = "client_disconnected"
+                elif stream_error:
+                    status = "error"
+                else:
+                    status = "ok"
                 logger.info(
                     "agent completed",
                     thread_id=str(thread_id),
                     duration_ms=duration_ms,
-                    status="error" if stream_error else "ok",
+                    status=status,
                 )
                 self._cancel_events.pop(thread_id, None)
                 self._pending_cancels.discard(thread_id)
@@ -295,6 +315,12 @@ class LangGraphAgentRunner:
                     )
 
             if not injection_emitted:
+                logger.debug(
+                    "agent reply",
+                    thread_id=str(thread_id),
+                    preview=full_response[:500],
+                    length=len(full_response),
+                )
                 span.set_output(full_response)
 
         for _ev in self._trace_id_event(span):

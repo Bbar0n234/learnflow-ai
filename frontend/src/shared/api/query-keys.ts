@@ -26,6 +26,7 @@ export const queryKeys = {
   models: ["models"] as const,
   instructions: ["instructions"] as const,
   memories: ["memories"] as const,
+  skillContexts: ["skill-contexts"] as const,
   settings: (scope: Scope, projectId?: string, threadId?: string) =>
     ["settings", scope, projectId, threadId].filter(Boolean),
   mcpServers: (scope: Scope, projectId?: string, threadId?: string) =>

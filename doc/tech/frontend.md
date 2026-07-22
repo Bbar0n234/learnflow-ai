@@ -88,10 +88,11 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 - Tools dialog — просмотр и управление MCP серверами per-thread (inherited + собственные, toggle)
 
 **settings** — пользовательские настройки и per-scope конфигурация.
-- SettingsPage (`/settings`) — user-level: ModelSelector, CustomInstructionsSection, AgentMemorySection, MCPServersSection
+- SettingsPage (`/settings`) — user-level: ModelSelector, CustomInstructionsSection, AgentMemorySection, SkillContextSection, MCPServersSection
 - ProjectSettingsTab — project-level: ModelSelector, MCPServersSection
 - Компоненты переиспользуются на разных уровнях с параметром scope (user / project / thread)
-- Подробнее о custom instructions и agent memory — [user-memory.md](user-memory.md)
+- SkillContextSection — секция «Контекст скиллов»: группировка документов по скиллу, раскрытие в Markdown-превью, правка raw-content, удаление, бейдж для скиллов, отсутствующих в библиотеке
+- Подробнее о custom instructions, agent memory и skill context — [user-memory.md](user-memory.md)
 
 **sphere** — Knowledge Sphere. Viewer (Markdown) + Editor (textarea). Подробнее — [knowledge-sphere.md](knowledge-sphere.md).
 
@@ -171,6 +172,7 @@ flowchart LR
 | `queryKeys.models` | `["models"]` | `GET /models` |
 | `queryKeys.instructions` | `["instructions"]` | `GET /users/me/instructions` |
 | `queryKeys.memories` | `["memories"]` | `GET /users/me/memories` |
+| `queryKeys.skillContexts` | `["skill-contexts"]` | `GET /users/me/skill-contexts` |
 | `queryKeys.settings(scope, projectId?, threadId?)` | `["settings", scope, …]` | settings по scope (user/project/thread) |
 | `queryKeys.mcpServers(scope, projectId?, threadId?)` | `["mcp-servers", scope, …]` | mcp-servers по scope |
 | `queryKeys.auth.me` | `["auth", "me"]` | `GET /auth/me` (route guard, user footer) |
@@ -192,6 +194,7 @@ Settings и MCP-серверы используют единый ключ с о�
 | Обновить settings (any scope) | `queryKeys.settings(scope, …)` |
 | Обновить instructions | `queryKeys.instructions` |
 | Удалить memory | `queryKeys.memories` |
+| Обновить/удалить skill context | `queryKeys.skillContexts` |
 | CRUD MCP server (any scope) | `queryKeys.mcpServers(scope, …)` |
 | Ack/resolve alert, CRUD rule | `queryKeys.security.alerts` / `queryKeys.security.rules` |
 
@@ -258,6 +261,8 @@ shared/api/
 ├── models.ts        — AvailableModel + getModels + useModels
 ├── settings.ts      — Settings… + get/updateSettings + useSettings, useUpdateSettings (per scope)
 ├── user-memory.ts   — Instructions/MemoryItem + … + useInstructions, useUpdateInstructions, useMemories
+├── skill-context.ts — SkillContextDocument/SkillGroup + getSkillContexts/update/delete + useSkillContexts,
+│                       useUpdateSkillContext, useDeleteSkillContext
 ├── mcp-servers.ts   — MCPServer… + CRUD per scope + useMCPServers, useMCPServerMutations
 ├── feedback.ts      — setFeedback, deleteFeedback
 ├── auth.ts          — register/login/refresh/getMe/logout
@@ -413,7 +418,7 @@ frontend/
 │   │   ├── sphere/                — /projects/:id/sphere (SphereView/Viewer/Editor)
 │   │   ├── artifacts/             — /projects/:id/artifacts (ArtifactList)
 │   │   ├── artifact/              — /projects/:id/artifacts/:aid (ArtifactView)
-│   │   ├── user-settings/         — /settings (SettingsPage, CustomInstructions, AgentMemory)
+│   │   ├── user-settings/         — /settings (SettingsPage, CustomInstructions, AgentMemory, SkillContext)
 │   │   ├── project-settings/      — /projects/:id/settings (ProjectSettingsPage)
 │   │   └── security/              — /security, admin (SecurityPage, RouteGuard, Events/Alerts/Rules,
 │   │                                RuleForm, Filter, Pagination, Severity/StatusBadge)
@@ -429,7 +434,7 @@ frontend/
 │   │   │   ├── pagination.ts      — ListResponse<T>
 │   │   │   ├── sse.ts             — SSEEvent
 │   │   │   ├── projects.ts  chats.ts  sphere.ts  artifacts.ts  models.ts
-│   │   │   ├── settings.ts  user-memory.ts  mcp-servers.ts  feedback.ts  auth.ts
+│   │   │   ├── settings.ts  user-memory.ts  skill-context.ts  mcp-servers.ts  feedback.ts  auth.ts
 │   │   │   └── security.ts        — SIEM типы + siemClient + хуки (siem-service API)
 │   │   ├── ui/                    — shadcn/ui примитивы + MarkdownRenderer
 │   │   └── lib/                   — утилиты (logger, utils, security-error)

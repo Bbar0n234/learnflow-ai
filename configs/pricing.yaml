@@ -31,3 +31,11 @@ models:
     output: 3.0e-06
     output_reasoning: 3.0e-06
     input_cache_read: 1.25e-07
+- name: google/gemini-3.5-flash-lite
+  match_pattern: (?i)^google/gemini-3\.5-flash-lite
+  unit: TOKENS
+  prices:
+    input: 3.0e-07
+    output: 2.5e-06
+    output_reasoning: 2.5e-06
+    input_cache_read: 3.0e-08

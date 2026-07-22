@@ -128,11 +128,13 @@ graph TD
 
     subgraph "JIT (on-demand by agent)"
         KSF["Full KS section"]
-        SKL["SKILL.md / модуль скилла"]
+        SKL["SKILL.md / модуль скилла<br/>+ Skill Context index"]
+        SCD["Full Skill Context document"]
     end
 
     KSI -.->|"Agent sees index"| KSF
     SI -.->|"Agent sees index"| SKL
+    SKL -.->|"Agent sees context index"| SCD
 ```
 
 | Уровень | Содержимое | Когда | Размер |
@@ -140,7 +142,8 @@ graph TD
 | Pre-loaded | Custom Instructions, User Memory | Каждый вызов agent node | Variable (user-dependent) |
 | Pre-loaded | Knowledge Sphere Index, Skills Index | Каждый вызов agent node | ~500–1500 tokens |
 | JIT | Полная секция Knowledge Sphere | `get_section(section_id)` | Variable |
-| JIT | SKILL.md (+ автосписок файлов) или модуль скилла | `load_skill(skill_name, file=None)` | Variable |
+| JIT | SKILL.md (+ автосписок файлов, + Skill Context index) или модуль скилла | `load_skill(skill_name, file=None)` | Variable |
+| JIT | Полный документ Skill Context | `get_skill_context(skill_name, key)` | Variable |
 | Managed | Message history | Trimming + compaction | До `max_tokens` budget |
 
 Агент видит индексы в системном промпте и решает, какой контекст подтянуть для текущей задачи. Полные данные загружаются только когда нужны — минимизирует расход контекстного окна.
@@ -212,11 +215,19 @@ flowchart TD
 
 Агент решает самостоятельно, когда сохранять информацию. Память кросс-проектна — доступна во всех чатах пользователя.
 
+**Skill Context** — per-user документы, привязанные к конкретному скиллу (подробнее — [user-memory.md § Skill Context](user-memory.md#skill-context)):
+
+| Tool | Назначение |
+|------|------------|
+| `get_skill_context` | Получить полное содержимое документа по скиллу и ключу |
+| `save_skill_context` | Сохранить/обновить документ (upsert по ключу) |
+| `delete_skill_context` | Удалить документ |
+
 **Skills:**
 
 | Tool | Назначение |
 |------|------------|
-| `load_skill` | Загрузить SKILL.md по имени (+ автосписок файлов скилла), либо конкретный файл скилла по относительному пути |
+| `load_skill` | Загрузить SKILL.md по имени (+ автосписок файлов скилла, + индекс Skill Context), либо конкретный файл скилла по относительному пути |
 
 **Subagents:**
 
@@ -245,7 +256,7 @@ Skill — модуль специализированных знаний, заг
 **Lifecycle:**
 1. **Discovery** (при старте): `scan_skills_index()` сканирует `skills/`, парсит frontmatter → формирует Skills Index
 2. **Index** (в system message): агент видит список `name: description`
-3. **Loading** (JIT): `load_skill(skill_name)` без `file` → содержимое `SKILL.md`, а следом — автосписок остальных файлов скилла (футер вида `Skill files (load with load_skill(skill_name, file)): - <path>`). Список строится рекурсивным обходом директории скилла, исключает сам `SKILL.md` и dotfiles (скрытым считается любой сегмент относительного пути, начинающийся с `.`, не только имя файла), пути — отсортированные и относительные к директории скилла. В список попадают только записи, чей путь разрешается внутрь директории скилла (`resolve()` + `is_relative_to(skill_dir)`) — симлинки, ведущие наружу, в автосписке не показываются, так как второй слой валидации `file` их всё равно отклонит при загрузке. Для однофайлового скилла список пуст и футер не добавляется — ответ не отличается от загрузки одного `SKILL.md`. Автосписок — робастность progressive disclosure: вспомогательные модули видны агенту, даже если ссылка на них потерялась в тексте `SKILL.md`.
+3. **Loading** (JIT): `load_skill(skill_name)` без `file` → содержимое `SKILL.md`, а следом — автосписок остальных файлов скилла (футер вида `Skill files (load with load_skill(skill_name, file)): - <path>`). Список строится рекурсивным обходом директории скилла, исключает сам `SKILL.md` и dotfiles (скрытым считается любой сегмент относительного пути, начинающийся с `.`, не только имя файла), пути — отсортированные и относительные к директории скилла. В список попадают только записи, чей путь разрешается внутрь директории скилла (`resolve()` + `is_relative_to(skill_dir)`) — симлинки, ведущие наружу, в автосписке не показываются, так как второй слой валидации `file` их всё равно отклонит при загрузке. Для однофайлового скилла список пуст и футер не добавляется — ответ не отличается от загрузки одного `SKILL.md`. Автосписок — робастность progressive disclosure: вспомогательные модули видны агенту, даже если ссылка на них потерялась в тексте `SKILL.md`. Тем же вызовом (`file=None`) дописывается индекс Skill Context (`key: description`) — только если для этого скилла и пользователя есть хотя бы один документ; пустой namespace или запрос конкретного `file` вывод не меняют. Подробнее о механизме — [user-memory.md § Skill Context](user-memory.md#skill-context).
 4. **Module loading** (JIT): `load_skill(skill_name, file)` → содержимое конкретного файла из автосписка. Файл не найден, либо `file` отклонён валидацией пути (см. «Безопасность» ниже) → ошибка со списком доступных файлов скилла (тот же автосписок) — единообразная наводящая диагностика для всех отказных веток. Содержимое, не декодируемое как UTF-8 (бинарный файл), → ошибка вместо контента — канал tool-результата текстовый.
 
 **Безопасность:** двухслойная валидация на обоих уровнях пути.
@@ -327,7 +338,7 @@ flowchart LR
 
 ## Security
 
-`SecurityGuard` проверяет данные на семи checkpoint'ах: четыре в runtime (user input до графа, tool result до LLM, tool call args после ответа, final output на стриме) и три на add-time write paths в service-слое (MCP-регистрация, custom instructions, KS write через REST). При INJECTION — `security_block` SSE event и блокировка thread'а в runtime, или HTTP 422 на add-time. Подробнее — [security/architecture.md](../security/architecture.md), обоснование — [ADR-017](adr/ADR-017-prompt-injection-defense.md), [ADR-022](adr/ADR-022-protected-disclosable-boundary.md), [ADR-023](adr/ADR-023-two-level-detection.md), [ADR-024](adr/ADR-024-streaming-security-guard.md).
+`SecurityGuard` проверяет данные на восьми checkpoint'ах: четыре в runtime (user input до графа, tool result до LLM, tool call args после ответа, final output на стриме) и четыре на add-time write paths в service-слое (MCP-регистрация, custom instructions, KS write через REST, skill context write через REST). При INJECTION — `security_block` SSE event и блокировка thread'а в runtime, или HTTP 422 на add-time. Подробнее — [security/architecture.md](../security/architecture.md), обоснование — [ADR-017](adr/ADR-017-prompt-injection-defense.md), [ADR-022](adr/ADR-022-protected-disclosable-boundary.md), [ADR-023](adr/ADR-023-two-level-detection.md), [ADR-024](adr/ADR-024-streaming-security-guard.md).
 
 Топология графа из-за защиты не меняется: проверки inline в `agent_node` и в runner, `tools_condition` сохранён.
 

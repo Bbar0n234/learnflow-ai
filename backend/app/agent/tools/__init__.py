@@ -6,7 +6,12 @@ from app.agent.tools.knowledge_sphere import (
     get_section,
     update_section,
 )
-from app.agent.tools.skills import make_load_skill_tool, scan_skills_index
+from app.agent.tools.skill_context import make_skill_context_tools
+from app.agent.tools.skills import (
+    make_load_skill_tool,
+    scan_skill_names,
+    scan_skills_index,
+)
 from app.agent.tools.subagents import (
     build_run_subagent_description,
     make_run_subagent_tool,
@@ -24,5 +29,7 @@ __all__ = [
     "make_generate_image_tool",
     "make_load_skill_tool",
     "make_run_subagent_tool",
+    "make_skill_context_tools",
+    "scan_skill_names",
     "scan_skills_index",
 ]

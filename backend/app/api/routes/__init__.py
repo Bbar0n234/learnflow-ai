@@ -8,6 +8,7 @@ from app.api.routes import (
     models,
     projects,
     settings,
+    skill_context,
     sphere,
     user_memory,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "models",
     "projects",
     "settings",
+    "skill_context",
     "sphere",
     "user_memory",
 ]

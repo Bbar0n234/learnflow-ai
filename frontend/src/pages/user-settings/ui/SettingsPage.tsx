@@ -2,6 +2,7 @@ import { ModelSelector } from "@/features/model-selector";
 import { MCPServersSection } from "@/features/mcp-servers";
 import { CustomInstructionsSection } from "./CustomInstructionsSection";
 import { AgentMemorySection } from "./AgentMemorySection";
+import { SkillContextSection } from "./SkillContextSection";
 
 export function SettingsPage() {
   return (
@@ -18,6 +19,9 @@ export function SettingsPage() {
         </section>
         <section className="rounded-xl border border-border bg-card p-5">
           <AgentMemorySection />
+        </section>
+        <section className="rounded-xl border border-border bg-card p-5">
+          <SkillContextSection />
         </section>
         <section className="rounded-xl border border-border bg-card p-5">
           <MCPServersSection scope="user" />

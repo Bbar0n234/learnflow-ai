@@ -1,6 +1,6 @@
 # Security
 
-Защита AI-агента от prompt injection и от утечки внутренней реализации в выходные данные. Семь точек проверки покрывают входы, выходы и точки записи: пользовательский ввод, результаты инструментов, аргументы tool-вызовов, финальный ответ, регистрация MCP-серверов, запись custom instructions, прямая запись Knowledge Sphere через REST.
+Защита AI-агента от prompt injection и от утечки внутренней реализации в выходные данные. Восемь точек проверки покрывают входы, выходы и точки записи: пользовательский ввод, результаты инструментов, аргументы tool-вызовов, финальный ответ, регистрация MCP-серверов, запись custom instructions, прямая запись Knowledge Sphere через REST, прямая запись Skill Context через REST.
 
 Логика защиты живёт в Agent Layer и в service-методах, выполняющих запись. API Layer пробрасывает события: `security_block` через SSE, HTTP 403 на заблокированном thread'е, HTTP 422 на отклонённой записи. Обоснование — [ADR-017](../tech/adr/ADR-017-prompt-injection-defense.md) (Sec 1.0: sync guard, fail-open), [ADR-022](../tech/adr/ADR-022-protected-disclosable-boundary.md) (confidentiality boundary), [ADR-023](../tech/adr/ADR-023-two-level-detection.md) (detection layers), [ADR-024](../tech/adr/ADR-024-streaming-security-guard.md) (streaming guard); модель угроз — [threat-model.md](threat-model.md).
 
@@ -30,6 +30,7 @@ flowchart LR
     RESTBLOCK -.->|POST/PUT MCP| MM["mcp_metadata"]
     RESTBLOCK -.->|PUT instructions| CIW["custom_instructions_write"]
     RESTBLOCK -.->|PUT sphere| KSW["ks_write_rest"]
+    RESTBLOCK -.->|PUT skill context| SCW["skill_context_write"]
 ```
 
 | Checkpoint | Где срабатывает | Направление | Действие при INJECTION |
@@ -41,20 +42,21 @@ flowchart LR
 | `mcp_metadata` | Service, регистрация user MCP + built-in startup | add-time | HTTP 422 (для built-in — disable конкретного сервера) |
 | `custom_instructions_write` | Service, PUT instructions | add-time | HTTP 422 |
 | `ks_write_rest` | Service, PUT sphere | add-time | HTTP 422 |
+| `skill_context_write` | Service, PUT skill context document | add-time | HTTP 422 |
 
-Knowledge Sphere через agent-tool попадает в `tool_call_arg`; через REST — в `ks_write_rest`. Каждый путь к записи — свой checkpoint.
+Knowledge Sphere через agent-tool попадает в `tool_call_arg`; через REST — в `ks_write_rest`. Skill Context — симметрично: agent-tool (`save_skill_context`) покрыт `tool_call_arg`, REST-путь — отдельным `skill_context_write` (проверка идёт только для уже существующего документа — 404 на отсутствующем коротким замыканием пропускает guard). Каждый путь к записи — свой checkpoint.
 
 ## Detectors
 
 Четыре детерминированных детектора + LLM classifier. Применимость к checkpoint'у фиксируется в коде, пороги — в `configs/security.yaml`.
 
-| Детектор | user_input | tool_result | tool_call_arg | final_output | mcp_metadata | custom_instructions_write | ks_write_rest |
-|----------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| Canary | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Unicode | ✓ | ✓ | — | — | ✓ | ✓ | ✓ |
-| Fragment | ✓ | ✓ | ✓ | ✓ | — | — | — |
-| Paired | — | — | ✓ | ✓ | — | — | — |
-| LLM Classifier | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Детектор | user_input | tool_result | tool_call_arg | final_output | mcp_metadata | custom_instructions_write | ks_write_rest | skill_context_write |
+|----------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| Canary | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Unicode | ✓ | ✓ | — | — | ✓ | ✓ | ✓ | ✓ |
+| Fragment | ✓ | ✓ | ✓ | ✓ | — | — | — | — |
+| Paired | — | — | ✓ | ✓ | — | — | — | — |
+| LLM Classifier | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 Детерминированные срабатывания — short-circuit: classifier не запускается, если deterministic detector уже вернул INJECTION.
 

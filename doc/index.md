@@ -18,7 +18,7 @@ doc/
 │   ├── streaming.md     # SSE-стриминг (кросс-сервисный)
 │   ├── agent-runtime.md # Agent Runtime: граф, tools, skills, context
 │   ├── knowledge-sphere.md # Knowledge Sphere: хранение, tools, UI
-│   ├── user-memory.md   # User Memory: instructions, agent memory, персонализация
+│   ├── user-memory.md   # User Memory: instructions, agent memory, skill context, персонализация
 │   ├── prompt-management.md # Prompt Management: Langfuse, dev/prod, seed/sync
 │   ├── observability.md # Observability: Langfuse, трейсинг, feedback
 │   ├── conventions.md   # Git, code quality, naming, logging, documentation (ядро)
@@ -54,11 +54,11 @@ doc/
 - [tech/streaming.md](tech/streaming.md) — SSE-протокол, event types, cancellation, frontend consumption
 - [tech/agent-runtime.md](tech/agent-runtime.md) — LangGraph граф, context engineering, tools, skills, MCP
 - [tech/knowledge-sphere.md](tech/knowledge-sphere.md) — проектная память, storage model, fuzzy patch, REST API
-- [tech/user-memory.md](tech/user-memory.md) — custom instructions, agent memory, кросс-проектная персонализация
+- [tech/user-memory.md](tech/user-memory.md) — custom instructions, agent memory, skill context, персонализация агента
 - [tech/prompt-management.md](tech/prompt-management.md) — Langfuse prompts, dev/prod separation, seed/sync, fallback
 - [tech/observability.md](tech/observability.md) — Langfuse трейсинг, cost tracking, user feedback loop, SIEM pipeline
 - [tech/security-events.md](tech/security-events.md) — Security Event Pipeline vocabulary: event_type каталог, identifiers, metadata per type
-- [security/architecture.md](security/architecture.md) — Защита агента: семь I/O checkpoints, детекторы, trust boundaries, block mechanics, SIEM observability
+- [security/architecture.md](security/architecture.md) — Защита агента: восемь I/O checkpoints, детекторы, trust boundaries, block mechanics, SIEM observability
 
 **Соглашения и решения:**
 - [tech/conventions.md](tech/conventions.md) — ядро: git flow, code quality, naming, logging, error handling, Docker, documentation, типизация

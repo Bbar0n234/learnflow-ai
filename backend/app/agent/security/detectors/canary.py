@@ -23,6 +23,7 @@ class CanaryDetector:
             Checkpoint.FINAL_OUTPUT,
             Checkpoint.CUSTOM_INSTRUCTIONS_WRITE,
             Checkpoint.KS_WRITE_REST,
+            Checkpoint.SKILL_CONTEXT_WRITE,
         }
     )
 

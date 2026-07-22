@@ -14,6 +14,7 @@ class Checkpoint(StrEnum):
     MCP_METADATA = "mcp_metadata"
     CUSTOM_INSTRUCTIONS_WRITE = "custom_instructions_write"
     KS_WRITE_REST = "ks_write_rest"
+    SKILL_CONTEXT_WRITE = "skill_context_write"
 
 
 class Direction(StrEnum):
@@ -27,6 +28,7 @@ _DIRECTION_MAP: dict[Checkpoint, Direction] = {
     Checkpoint.MCP_METADATA: Direction.INBOUND,
     Checkpoint.CUSTOM_INSTRUCTIONS_WRITE: Direction.INBOUND,
     Checkpoint.KS_WRITE_REST: Direction.INBOUND,
+    Checkpoint.SKILL_CONTEXT_WRITE: Direction.INBOUND,
     Checkpoint.TOOL_CALL_ARG: Direction.OUTBOUND,
     Checkpoint.FINAL_OUTPUT: Direction.OUTBOUND,
 }

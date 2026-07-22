@@ -206,7 +206,7 @@
 /* ─── Sphere / Artifact markdown prose (T4d) ───────────────────────────────
    Wraps MarkdownRenderer output in sphere viewer and artifact viewer.
    H-tags: Source Serif 4. List markers: «—» in primary accent.
-   Scope: .sphere-prose (applied by SphereViewer, ArtifactView).
+   Scope: .sphere-prose (applied by SphereViewer, ArtifactView, SkillContextSection).
    ─────────────────────────────────────────────────────────────────────────── */
 .sphere-prose h1,
 .sphere-prose h2,

@@ -20,13 +20,13 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 | Итерация | Статус | Scope | Закрывает |
 |----------|--------|-------|-----------|
 | fix-001 | ✅ Done | cross-cutting | Frontend bug fixes (4 элемента backlog) |
-| feat-001 | 📋 Planned | cross-cutting | Chat UX: auto title + thinking indicator + delete chats |
+| feat-001 | ❌ Cancelled | cross-cutting | Chat UX — перенесена в [tasklist-dogfooding](tasklist-dogfooding.md) (feat-002) с расширенным скоупом |
 | feat-002 | ✅ Done | agent/backend | Agent observability & tooling |
 | feat-003 | ✅ Done | cross-cutting | Runtime agent configuration (3 tracks: Langfuse+Model, Memory, User MCP) |
 | feat-004 | ✅ Done | agent/backend | Prompt injection protection |
 | feat-005 | ✅ Done | cross-cutting | Security Event Pipeline (SIEM Core): collection, correlation, alerting, monitoring UI |
 | feat-006 | ✅ Done | agent | Security 2.0: Universal I/O Guard + Boundary Enforcement |
-| feat-007 | 📋 Planned | cross-cutting | SIEM Extensions: dashboard, basic response actions, search, notifications, export |
+| feat-007 | ⏸️ Paused | cross-cutting | SIEM Extensions — заморожена: SIEM в проде выключается kill-switch'ем (tasklist-dogfooding chore-001) |
 | feat-008 | ✅ Done | security tooling | Promptfoo Red Team Scan: app-level LLM vulnerability scan через локальный Python provider |
 | feat-009 | ✅ Done | agent | Многофайловые скиллы (load_skill file param) + перенос скилла tech-article-writing |
 | feat-010 | ✅ Done | cross-cutting | Генерация изображений: OpenRouter Image API, artifact_blobs, media endpoint, живой ImageViewer |
@@ -36,19 +36,18 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 ## Параллелизация
 
 ```
-feat-003 (Agent Config: 3 tracks) ── feat-004 (Security) ─┬─ feat-005 (SIEM Core) ── feat-007 (SIEM Extensions)
+feat-003 (Agent Config: 3 tracks) ── feat-004 (Security) ─┬─ feat-005 (SIEM Core) ── feat-007 (SIEM Extensions ⏸️)
                                                           └─ feat-006 (Security 2.0) ── feat-008 (Promptfoo Red Team)
-feat-001 (Chat UX) ── когда будет время ─────────────────────────────────────────────────────────────────────
 ```
 
 - **feat-003** — первый приоритет. Три трека проектируются параллельно (Track A: Langfuse+Model, Track B: Memory, Track C: User MCP), реализуются вместе
 - **feat-004** — после feat-003 (security проектируется по финальной поверхности атаки)
 - **feat-005** — после feat-004 (строится поверх security-событий Security 1.0; forward compatible с Security 2.0)
 - **feat-006** — после feat-004, параллельно с feat-005, не блокирует и не блокируется (разные scope: SIEM = aggregation/correlation events, Security 2.0 = расширение защиты на новые I/O границы графа)
-- **feat-007** — после feat-005; продуктовые улучшения поверх SIEM Core (dashboard, basic ban, search, notifications, export)
+- **feat-007** — ⏸️ заморожена решением по SIEM kill-switch (tasklist-dogfooding chore-001)
 - **feat-008** — после feat-006; scanner/tooling итерация поверх уже реализованного security perimeter. Не меняет production API, проверяет существующий backend contour через Promptfoo + local Python provider
 - **feat-009…feat-012** — трек «извлечение активов discovery-спайка» (Фаза 5a → продукт), итерации независимы друг от друга и идут в любом порядке; рекомендованный порядок по ценности для догфудинга: 009 (скилл доступен) → 010 (без картинок статья через продукт не начнётся) → 011 (judge-проходы скилла) → 012 (профиль голоса появится только после первой статьи)
-- **feat-001** — отложена, не блокирует реальное использование
+- **feat-001** — перенесена в tasklist-dogfooding (feat-002)
 
 ## Итерации
 
@@ -75,18 +74,11 @@ feat-001 (Chat UX) ── когда будет время ───────
 
 ---
 
-### feat-001: Chat UX — Auto Title + Thinking Indicator + Delete Chats
+### feat-001: Chat UX — перенесена
 
-**Цель:** переработка UX чата: поле ввода для первого сообщения (не title), автогенерация title моделью, индикатор рассуждения, удаление чатов.
+**Статус:** ❌ Cancelled (как итерация post-mvp)
 
-**Статус:** 📋 Planned
-**Scope:** cross-cutting (Frontend + Backend)
-
-#### Из backlog
-
-- **P1** Chat input: поле ввода должно быть для первого сообщения, не для title. Title auto-generated моделью *(cross: Backend)*
-- **P2** Индикатор "модель рассуждает" до начала стриминга текста *(cross: Backend)*
-- **P2** Удаление чатов — нет кнопки, только проекты можно удалять *(cross: Frontend, Backend)*
+Скоуп переехал в [tasklist-dogfooding](tasklist-dogfooding.md) feat-002 с расширением (переименование чатов, title-модуль вне основного агента). Индикатор «модель рассуждает» частично закрыт в feat-011 (`ThinkingIndicator`) и комплексно перерабатывается в tasklist-dogfooding feat-001 «Видимость работы агента».
 
 ---
 
@@ -364,7 +356,7 @@ Dashboard & Metrics, basic response actions (ban IP/user), расширенны�
 
 **Цель:** продуктовые расширения поверх SIEM Core (feat-005): dashboard с метриками, базовые manual response actions (ban IP/user из UI), расширенный поиск/фильтры, in-app notifications, export событий и алертов.
 
-**Статус:** 📋 Planned
+**Статус:** ⏸️ Paused — развилка «SIEM: kill-switch или допил до продакшна» решена в пользу kill-switch (реализуется в [tasklist-dogfooding](tasklist-dogfooding.md) chore-001): SIEM закрывает учебную цель и в проде выключается. Расширения вернутся при реальной потребности в живом SIEM (диплом / прод-нагрузка, см. backlog «SIEM → SOC evolution»).
 **Scope:** cross-cutting (Backend + Frontend)
 **After:** feat-005
 

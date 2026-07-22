@@ -76,6 +76,27 @@ async def test_list_skill_contexts_groups_by_skill_with_in_library_flag() -> Non
 
 
 @pytest.mark.unit
+async def test_list_skill_contexts_orders_documents_and_groups() -> None:
+    store = InMemoryStore()
+    # Insertion order deliberately clashes with alphabetical key order: if the
+    # service sorted by key (or not at all), the expectations below would flip.
+    await store.aput(_ns(_SKILL), "c-third", {"description": "d", "content": "c"})
+    await store.aput(_ns(_SKILL), "a-first", {"description": "d", "content": "c"})
+    await store.aput(_ns(_SKILL), "b-second", {"description": "d", "content": "c"})
+    await store.aput(
+        _ns("meeting-summarizer"), "profile", {"description": "d", "content": "c"}
+    )
+    svc = _service(store=store)
+
+    groups = await svc.list_skill_contexts(_USER)
+
+    # Groups sorted by skill_name; documents within a group by created_at
+    # (insertion order), not by key.
+    assert [g.skill_name for g in groups] == ["meeting-summarizer", _SKILL]
+    assert [d.key for d in groups[1].documents] == ["c-third", "a-first", "b-second"]
+
+
+@pytest.mark.unit
 async def test_list_skill_contexts_isolated_per_user() -> None:
     store = InMemoryStore()
     await store.aput(

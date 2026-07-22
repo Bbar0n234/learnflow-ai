@@ -19,6 +19,8 @@
 
 Принцип: новая сквозная забота в runtime → отдельный коллаборатор за портом, а не ещё один метод в runner.
 
+**Инъектируемый `ToolRuntime`-параметр tool'а: точная аннотация + модульный sentinel.** Параметр tool'а, инъектируемый runtime'ом (`runtime: ToolRuntime`), аннотируется **ровно** типом `ToolRuntime` — не `ToolRuntime | None`: framework распознаёт инъекцию (и исключает параметр из LLM-схемы tool'а) по точному типу аннотации, а `Union`/`Optional` ломает и распознавание, и генерацию JSON Schema (`PydanticInvalidForJsonSchema`). Обязательный параметр без default при этом ломает прямой `tool.ainvoke({...})` без runtime (`ValidationError: Field required`) — тесты и ручные прогоны. Решение: default через модульную typed-константу `_NO_RUNTIME = cast("ToolRuntime", None)` (не инлайн в сигнатуре — ruff B008) и явная ветка `if runtime is None` в теле. Прецеденты: `app/agent/tools/user_memory.py`, `app/agent/tools/skill_context.py`.
+
 **Слоистость security: движок vs enforcement.** Security-движок — `app/agent/security/` (детекторы, LLM-классификатор, `SecurityGuard`, типы): самодостаточный пакет, знающий, *что такое* инъекция. Точки применения (enforcement-адаптеры) живут уровнем выше, в `app/agent/`, рядом с кодом, который они защищают: `runtime_security.py` (`RuntimeSecurityEnforcer`) — stream-чекпоинты runner'а, `tool_guards.py` — in-graph чекпоинты `TOOL_RESULT`/`TOOL_CALL_ARG`, переиспользуемые основным графом и графами субагентов. Адаптеры знают, *где и как* вызвать guard и что делать с вердиктом (redact / срез `tool_calls`); в `security/` они не входят — движок не зависит от графов и runner'а.
 
 ## Skills

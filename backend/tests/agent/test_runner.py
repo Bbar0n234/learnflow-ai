@@ -16,6 +16,7 @@ emit ``security_block`` and stop, which is what we assert.
 from __future__ import annotations
 
 import uuid
+from collections.abc import AsyncGenerator
 from typing import Any
 
 import pytest
@@ -46,6 +47,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.tools import tool
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
+from structlog.testing import capture_logs
 from tests.agent.conftest import (
     RaisingFakeChatModel,
     RecordingPromptProvider,
@@ -231,6 +233,27 @@ async def test_precancelled_thread_emits_cancelled_error_and_no_text() -> None:
     error_events = [e for e in events if e.type == "error"]
     assert error_events
     assert error_events[0].data["detail"] == load_error_messages().cancelled
+
+
+# --- negative: client disconnect mid-stream -----------------------------------
+
+
+@pytest.mark.integration
+async def test_client_disconnect_logs_client_disconnected_status() -> None:
+    # Closing the stream generator mid-run is what the ASGI layer does on a
+    # client disconnect (GeneratorExit at the suspended yield). The run must
+    # report status="client_disconnected" — not the misleading "ok" — and log
+    # "agent completed" exactly once.
+    runner = _make_runner(tool_binding_fake([AIMessage(content="Hello world")]))
+    stream = runner.stream(content="hi", **_ids())
+    assert isinstance(stream, AsyncGenerator)  # narrows to expose aclose()
+
+    with capture_logs() as logs:
+        await anext(stream)
+        await stream.aclose()
+
+    completed = [e for e in logs if e["event"] == "agent completed"]
+    assert [e["status"] for e in completed] == ["client_disconnected"]
 
 
 # --- negative: pre-graph security block --------------------------------------

@@ -42,7 +42,7 @@ user-invocable: true
 
 Skill написан с примерами Claude Code (`Agent` tool, `subagent_type`, имена моделей Opus / Sonnet / Haiku). В OpenAI Codex Cloud sub-agent delegation идёт через встроенный механизм Codex; имена моделей в таблице тиров маппятся на capability-уровни:
 
-- **Opus** → highest reasoning (используется для критичных решений: planner, reviewer-a/reviewer-b, tester, test-author, test-reviewer, fixer, sofa-contributor, general-purpose ревьюер партиции)
+- **Opus** → highest reasoning (используется для критичных решений: planner, plan-reviewer, reviewer-a/reviewer-b, tester, test-author, test-reviewer, fixer, sofa-contributor, general-purpose ревьюер партиции)
 - **Sonnet** → balanced default (implementer на первом проходе, docs-updater, harvester)
 - **Haiku** → fast / cheap (если нужны лёгкие проверки)
 
@@ -75,7 +75,7 @@ Skill написан с примерами Claude Code (`Agent` tool, `subagent_
 
 **Ярус трека** (`tracks/<id>/`, комплект из трёх документов на каждый трек). Идентификаторы треков берутся из секции `## Партиция треков` design-brief; в вырожденном случае (один трек) секция `## Партиция треков` может отсутствовать — трек именуется `T1`. Комплект:
 
-- `plan.md` — planner трека → implementer/tester/fixer трека. Секция `## Open Questions` → оркестратор/архитектор.
+- `plan.md` — planner трека → plan-reviewer/implementer/tester/fixer трека. Секция `## Open Questions` → оркестратор/архитектор.
 - `summary.md` — содержательно пишут implementer и fixer → tester/reviewers/docs-updater/sofa-contributor/harvester. Обязательные секции:
   - `## TL;DR` — шапка файла, ≤15 строк: что сделано; отступления от plan/design-brief; решения сверх design-brief. Единственная human-facing секция summary — архитектор читает её на гейте PR как вход в ревью (`doc/tech/conventions/review.md`). Поддерживают актуальной implementer (после каждой фазы) и fixer (после фиксов): секция отражает трек целиком, не последнюю фазу.
   - `## Решения и обоснования` — *почему* так сделано (не код-выводимый статус). **Заменяет устный финальный отчёт сабагента оркестратору**, который иначе умирает в памяти; несёт непрерывность через границы ролей. Оркестратор требует её заполнения от implementer, fixer и docs-updater (последний фиксирует здесь свои содержательные doc-решения).
@@ -101,10 +101,10 @@ PARTITION (оркестратор считает `## Партиция треко
   │
   ▼
 FAN-OUT треков — партиция задаёт, какие треки и какие фазы идут параллельно (∥):
-  ┌── трек T1 ─────────────────────────────────────┐   ┌── трек T2 … ──┐
-  │ PLAN → IMPLEMENT → TEST_AUTHORING → TEST_REVIEW │ ∥ │  (аналогично) │
-  │      → GREEN → TEST(track) → локальный коммит    │   │               │
-  └─────────────────────────────────────────────────┘   └───────────────┘
+  ┌── трек T1 ───────────────────────────────────────────────────┐   ┌── трек T2 … ──┐
+  │ PLAN → PLAN_REVIEW → IMPLEMENT → TEST_AUTHORING → TEST_REVIEW │ ∥ │  (аналогично) │
+  │      → GREEN → TEST(track) → локальный коммит                 │   │               │
+  └───────────────────────────────────────────────────────────────┘   └───────────────┘
   (внутри трека роли строго последовательны; параллельность — только между треками)
   │
   ▼
@@ -176,7 +176,22 @@ END
 | Модель | Opus |
 | Вход | tasklist-запись, design-brief (вкл. `## Партиция треков`), релевантная архитектурная дока, `{track_id}` |
 | Выход | `tracks/<id>/plan.md` трека с планом и секцией Open Questions |
-| Переход | Open Questions пуст → IMPLEMENT трека. Непуст → эскалация архитектору |
+| Переход | Open Questions пуст → PLAN_REVIEW трека. Непуст → эскалация архитектору |
+
+### Фаза PLAN_REVIEW (по треку)
+
+План — единственная инструкция implementer'а: расхождение плана с брифом молча становится расхождением кода с брифом, а тесты по плану его закрепят. Свежий ревьюер судит план против design-brief до старта имплементации.
+
+| Параметр | Значение |
+|----------|----------|
+| Когда | После PLAN трека (план создан, Open Questions пуст) |
+| Сабагент | `prompts/plan-reviewer.md` |
+| Модель | Opus |
+| Запуск | Read-only, свежий агент (≠ planner трека) — ни план, ни код не трогает |
+| Вход | `{design_brief_path}`, `{plan_path}`, `{track_id}` |
+| Выход | Отчёт оркестратору: findings (blocker / nit / question) с цитатами «бриф ↔ план» по осям покрытие / отсебятина / потери |
+| Loop bound | Цикл planner ↔ plan-reviewer ≤2 итераций (blocker'ы → перевызов planner'а с `{fix_list}` → повторное ревью); по исчерпании — эскалация архитектору |
+| Переход | Blocker'ов нет → IMPLEMENT трека. `question`-находки оркестратор разруливает по базовому принципу автономности или эскалирует |
 
 ### Фаза IMPLEMENT (по треку)
 
@@ -381,6 +396,7 @@ Consume-точки, откуда write-back берёт материал, леж�
 | Роль | Модель | Перевызов |
 |------|--------|-----------|
 | planner | Opus | — |
+| plan-reviewer | Opus | — |
 | implementer | Sonnet; Opus при перевызове | После 2 fail подряд (не прошёл `make check` или сабагент сам сообщил, что не справился) → перевызов с Opus |
 | tester | Opus | — |
 | test-author | Opus | — |
@@ -445,6 +461,7 @@ Consume-точки, откуда write-back берёт материал, леж�
 
 | Цикл | Бюджет | Что после исчерпания |
 |------|--------|----------------------|
+| PLAN_REVIEW: planner ↔ plan-reviewer | 2 итерации на трек | Эскалация архитектору |
 | GREEN: находка реестра ↔ fixer/test-author | 2 fix-цикла на находку | Эскалация (прод-рефактор / спорный контракт — whitelist) |
 | Tester ↔ fixer на один ручной test-case (TEST или INTEGRATION_TEST) | 2 fix-цикла | Эскалация архитектору |
 | Implementer fail подряд по фазе | 2 (Sonnet) → перевызов Opus | Эскалация после fail Opus |

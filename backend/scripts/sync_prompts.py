@@ -2,32 +2,48 @@
 
 Prompt names are qualified with label: "system--development", "system--production".
 
-Usage: uv run python backend/scripts/sync_prompts.py --label production
+The set of prompts and their config write-back targets come from
+``configs/prompts.yaml`` (the same registry the seed direction in
+``app.main._seed_prompts`` iterates) — adding a subagent is a config-only
+change, this script needs no edit.
+
+Usage: make sync-prompts (runs from backend/ so the ``app`` package resolves)
 """
 
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import Any
 
 import yaml
+from app.agent.config import PromptEntry, load_prompts_registry
 from langfuse import Langfuse
 
 CONFIGS_DIR = Path(__file__).resolve().parents[2] / "configs"
 PROMPTS_DIR = CONFIGS_DIR / "prompts"
-AGENT_YAML = CONFIGS_DIR / "agent.yaml"
-SECURITY_YAML = CONFIGS_DIR / "security.yaml"
+PROMPTS_YAML = CONFIGS_DIR / "prompts.yaml"
 
-PROMPT_NAMES = ["system", "summarization", "security-classifier"]
+# Root of a registry ``source`` path -> the yaml file that section lives in.
+SOURCE_FILES = {
+    "agent": CONFIGS_DIR / "agent.yaml",
+    "security": CONFIGS_DIR / "security.yaml",
+}
 
 
 def sync_to_files(label: str) -> None:
+    registry = load_prompts_registry(PROMPTS_YAML)
     langfuse = Langfuse()
     if not langfuse.auth_check():
         print("Langfuse auth failed")
         return
 
-    for name in PROMPT_NAMES:
+    # Several prompts may feed the same config section (all subagent-* map
+    # onto agent.subagents.llm), so configs are collected per source and
+    # written back once, after checking they agree.
+    pending: dict[str, tuple[PromptEntry, list[tuple[str, dict[str, Any]]]]] = {}
+
+    for name, entry in registry.prompts.items():
         qualified = f"{name}--{label}"
         try:
             prompt = langfuse.get_prompt(qualified)
@@ -36,58 +52,78 @@ def sync_to_files(label: str) -> None:
             continue
 
         text = prompt.compile()
-        config = prompt.config
 
         file_path = PROMPTS_DIR / f"{name}.txt"
         file_path.write_text(text, encoding="utf-8")
         print(f"Written: {file_path}")
 
-        if config:
-            _update_yaml_config(name, config)
+        if prompt.config:
+            _, named_configs = pending.setdefault(entry.source, (entry, []))
+            named_configs.append((name, prompt.config))
+
+    for source, (entry, named_configs) in pending.items():
+        _write_back_config(source, entry, named_configs)
 
     langfuse.shutdown()
 
 
-def _update_yaml_config(prompt_name: str, config: dict) -> None:
-    if prompt_name == "security-classifier":
-        _update_security_yaml(config)
-    else:
-        _update_agent_yaml(prompt_name, config)
+def _write_back_config(
+    source: str,
+    entry: PromptEntry,
+    named_configs: list[tuple[str, dict[str, Any]]],
+) -> None:
+    """Write Langfuse prompt config back into the yaml section ``source`` names.
 
+    Skips (with a message, never a partial write) when the source path is
+    unknown, when prompts sharing the section disagree, or when nothing
+    would change — ``yaml.dump`` loses comments and formatting, so the file
+    is only rewritten for an actual update.
+    """
+    root, _, section_path = source.partition(".")
+    target_file = SOURCE_FILES.get(root)
+    if target_file is None or not section_path:
+        print(f"Skipping config write-back for {source}: unknown source path")
+        return
 
-def _update_agent_yaml(prompt_name: str, config: dict) -> None:
-    with open(AGENT_YAML) as f:
+    # Compare only the mapped keys: unrelated config entries on a prompt must
+    # not block the write-back, but diverging mapped values would make the
+    # result depend on iteration order — refuse instead of last-wins.
+    projections = [
+        (
+            name,
+            {
+                yaml_key: config[config_key]
+                for config_key, yaml_key in entry.keys.items()
+                if config_key in config
+            },
+        )
+        for name, config in named_configs
+    ]
+    reference_name, updates = projections[0]
+    diverging = [name for name, projection in projections[1:] if projection != updates]
+    if diverging:
+        print(
+            f"Skipping config write-back for {source}: configs diverge between "
+            f"{reference_name} and {', '.join(diverging)} — align them in Langfuse"
+        )
+        return
+    if not updates:
+        return
+
+    with open(target_file) as f:
         data = yaml.safe_load(f) or {}
 
-    if prompt_name == "system" and "model" in config:
-        data.setdefault("llm", {})["model"] = config["model"]
-        if "extra_body" in config:
-            data["llm"]["extra_body"] = config["extra_body"]
-    elif prompt_name == "summarization" and "model" in config:
-        data.setdefault("summarization", {})["model"] = config["model"]
-        if "max_tokens" in config:
-            data["summarization"]["max_summary_tokens"] = config["max_tokens"]
-        if "extra_body" in config:
-            data["summarization"]["extra_body"] = config["extra_body"]
+    section = data
+    for part in section_path.split("."):
+        section = section.setdefault(part, {})
 
-    with open(AGENT_YAML, "w") as f:
+    if all(section.get(key) == value for key, value in updates.items()):
+        return
+
+    section.update(updates)
+    with open(target_file, "w") as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False)
-    print(f"Updated agent.yaml for {prompt_name}")
-
-
-def _update_security_yaml(config: dict) -> None:
-    with open(SECURITY_YAML) as f:
-        data = yaml.safe_load(f) or {}
-
-    classifier = data.setdefault("llm_classifier", {})
-    if "model" in config:
-        classifier["model"] = config["model"]
-    if "extra_body" in config:
-        classifier["extra_body"] = config["extra_body"]
-
-    with open(SECURITY_YAML, "w") as f:
-        yaml.dump(data, f, default_flow_style=False, sort_keys=False)
-    print("Updated security.yaml for security-classifier")
+    print(f"Updated {target_file.name}: {section_path}")
 
 
 if __name__ == "__main__":

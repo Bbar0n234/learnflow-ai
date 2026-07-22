@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel
@@ -52,11 +52,27 @@ class AvailableModel(BaseModel):
     display_name: str
 
 
+class SubagentSpec(BaseModel):
+    name: str
+    description: str
+    prompt: str
+    model: str | None = None
+    tools: list[str] = []
+    persistence: Literal["none", "inherit"] = "none"
+
+
+class SubagentsConfig(BaseModel):
+    llm: LLMConfig
+    recursion_limit: int = 10
+    registry: list[SubagentSpec] = []
+
+
 class AgentConfig(BaseModel):
     llm: LLMConfig
     context: ContextConfig
     image: ImageConfig
     summarization: SummarizationConfig | None = None
+    subagents: SubagentsConfig | None = None
     mcp_servers: dict[str, MCPServerConfig] = {}
     available_models: list[AvailableModel] = []
 

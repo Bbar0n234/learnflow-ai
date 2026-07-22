@@ -32,3 +32,6 @@ wrappers:
   user_installed_mcp_tools:
   - <user_installed_mcp_tools>
   - </user_installed_mcp_tools>
+  document:
+  - <document id="{id}" title="{title}">
+  - </document>

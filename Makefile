@@ -128,7 +128,7 @@ downgrade:  ## Run alembic downgrade (one step)
 	$(LOAD_ENV) && uv run alembic -c backend/alembic.ini downgrade -1
 
 sync-prompts:  ## Sync prompts from Langfuse to local files
-	$(LOAD_ENV) && uv run python backend/scripts/sync_prompts.py --label production
+	$(LOAD_ENV) && cd backend && PYTHONPATH=. uv run --package learnflow-backend python scripts/sync_prompts.py --label production
 
 security-scan-validate:  ## Validate Promptfoo config for tools/security-scan
 	cd tools/security-scan && npx promptfoo@latest validate

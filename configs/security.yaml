@@ -1,5 +1,5 @@
 llm_classifier:
-  model: z-ai/glm-4.7-flash
+  model: google/gemini-3.5-flash-lite
   extra_body:
     include_reasoning: true
   max_retries: 3

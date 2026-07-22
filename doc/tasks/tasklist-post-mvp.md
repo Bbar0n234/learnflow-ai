@@ -31,7 +31,7 @@ v1.1 (Production Readiness) завершён. Переход на итерати
 | feat-009 | ✅ Done | agent | Многофайловые скиллы (load_skill file param) + перенос скилла tech-article-writing |
 | feat-010 | ✅ Done | cross-cutting | Генерация изображений: OpenRouter Image API, artifact_blobs, media endpoint, живой ImageViewer |
 | feat-011 | ✅ Done | agent | Продуктовые субагенты v1: subagent-as-tool, реестр в agent.yaml, judge + web-research (+ADR) |
-| feat-012 | 🚧 In Progress | cross-cutting | Skill-scoped user context: Store namespace, tools, REST, секция в /settings |
+| feat-012 | ✅ Done | cross-cutting | Skill-scoped user context: Store namespace, tools, REST, секция в /settings |
 
 ## Параллелизация
 
@@ -534,7 +534,7 @@ Backlog P2 «Продуктовые субагенты» + discovery-спайк:
 
 **Цель:** per-user контекст, привязанный к скиллу: namespace `("user", uid, "skill_context", <skill>)`, доменные tools, индекс при `load_skill`, REST CRUD с security-checkpoint, секция «Контекст скиллов» на `/settings`. Первый потребитель — профиль авторского голоса `tech-article-writing`.
 
-**Статус:** 🚧 In Progress
+**Статус:** ✅ Done
 **Scope:** cross-cutting (agent, backend, frontend)
 
 #### Triggered by
@@ -543,11 +543,11 @@ Transfer Brief инициативы (задание T2): README скилла т�
 
 #### Критерии приёмки
 
-- [ ] Tools `get/save/delete_skill_context`; изоляция по user_id и skill_name (тесты)
-- [ ] `load_skill` дописывает индекс контекста пользователя для загружаемого скилла (только key + description)
-- [ ] REST CRUD `/users/me/skill-contexts/...`; PUT — через новый checkpoint SecurityGuard (инъекция → 422)
-- [ ] Секция на `/settings` по мокапу: группировка по скиллу, Markdown-превью, правка raw, удаление, бейдж «скилла нет в библиотеке», пустое состояние
-- [ ] Данные переживают удаление скилла из библиотеки; доставка в модель при этом прекращается
+- [x] Tools `get/save/delete_skill_context`; изоляция по user_id и skill_name (тесты)
+- [x] `load_skill` дописывает индекс контекста пользователя для загружаемого скилла (только key + description)
+- [x] REST CRUD `/users/me/skill-contexts/...`; PUT — через новый checkpoint SecurityGuard (инъекция → 422)
+- [x] Секция на `/settings` по мокапу: группировка по скиллу, Markdown-превью, правка raw, удаление, бейдж «скилла нет в библиотеке», пустое состояние
+- [x] Данные переживают удаление скилла из библиотеки; доставка в модель при этом прекращается
 
 #### Документация
 

@@ -1,20 +1,20 @@
 models:
 - name: z-ai/glm-5
-  match_pattern: (?i)^z-ai/glm-5
+  match_pattern: (?i)^z-ai/glm-5(?![.\d])
   unit: TOKENS
   prices:
-    input: 1.0e-06
-    output: 3.2e-06
-    output_reasoning: 3.2e-06
-    input_cache_read: 2.5e-07
+    input: 9.5e-07
+    output: 2.55e-06
+    output_reasoning: 2.55e-06
+    input_cache_read: 2.0e-07
 - name: z-ai/glm-4.7-flash
   match_pattern: (?i)^z-ai/glm-4\.7-flash
   unit: TOKENS
   prices:
-    input: 1.25e-07
-    output: 5.0e-07
-    output_reasoning: 5.0e-07
-    input_cache_read: 3.125e-08
+    input: 6.0e-08
+    output: 4.0e-07
+    output_reasoning: 4.0e-07
+    input_cache_read: 1.0e-08
 - name: google/gemini-3.1-pro-preview
   match_pattern: (?i)^google/gemini-3\.1-pro-preview
   unit: TOKENS
@@ -39,3 +39,75 @@ models:
     output: 2.5e-06
     output_reasoning: 2.5e-06
     input_cache_read: 3.0e-08
+- name: z-ai/glm-5.2
+  match_pattern: (?i)^z-ai/glm-5\.2
+  unit: TOKENS
+  prices:
+    input: 8.246e-07
+    output: 2.5916e-06
+    output_reasoning: 2.5916e-06
+    input_cache_read: 1.5314e-07
+- name: google/gemini-3.6-flash
+  match_pattern: (?i)^google/gemini-3\.6-flash
+  unit: TOKENS
+  prices:
+    input: 1.5e-06
+    output: 7.5e-06
+    output_reasoning: 7.5e-06
+    input_cache_read: 1.5e-07
+- name: deepseek/deepseek-v4-pro
+  match_pattern: (?i)^deepseek/deepseek-v4-pro
+  unit: TOKENS
+  prices:
+    input: 4.35e-07
+    output: 8.7e-07
+    output_reasoning: 8.7e-07
+    input_cache_read: 3.625e-09
+- name: meta/muse-spark-1.1
+  match_pattern: (?i)^meta/muse-spark-1\.1
+  unit: TOKENS
+  prices:
+    input: 1.25e-06
+    output: 4.25e-06
+    output_reasoning: 4.25e-06
+    input_cache_read: 1.5e-07
+- name: qwen/qwen3.7-max
+  match_pattern: (?i)^qwen/qwen3\.7-max
+  unit: TOKENS
+  prices:
+    input: 1.475e-06
+    output: 4.425e-06
+    output_reasoning: 4.425e-06
+    input_cache_read: 2.95e-07
+- name: deepseek/deepseek-v4-flash
+  match_pattern: (?i)^deepseek/deepseek-v4-flash
+  unit: TOKENS
+  prices:
+    input: 9.8e-08
+    output: 1.96e-07
+    output_reasoning: 1.96e-07
+    input_cache_read: 1.96e-08
+- name: minimax/minimax-m2.5
+  match_pattern: (?i)^minimax/minimax-m2\.5
+  unit: TOKENS
+  prices:
+    input: 1.5e-07
+    output: 9.0e-07
+    output_reasoning: 9.0e-07
+    input_cache_read: 5.0e-08
+- name: tencent/hy3
+  match_pattern: (?i)^tencent/hy3
+  unit: TOKENS
+  prices:
+    input: 1.4e-07
+    output: 5.8e-07
+    output_reasoning: 5.8e-07
+    input_cache_read: 3.5e-08
+- name: stepfun/step-3.5-flash
+  match_pattern: (?i)^stepfun/step-3\.5-flash
+  unit: TOKENS
+  prices:
+    input: 1.0e-07
+    output: 3.0e-07
+    output_reasoning: 3.0e-07
+    input_cache_read: 0.0

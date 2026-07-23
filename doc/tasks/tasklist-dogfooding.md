@@ -24,7 +24,7 @@
 | feat-001 | A | 📋 Planned | cross-cutting | Видимость работы агента: карта событий, live-фазы, reasoning-стрим, след tool-вызовов, security_block в UI |
 | chore-001 | B | 📋 Planned | cross-cutting | Prod-closing: kill-switch LLM-защиты + SIEM kill-switch, X-Forwarded-For, прод-образы без dev-deps; merge develop → main + деплой |
 | feat-002 | C | 📋 Planned | cross-cutting | Chat UX: первое сообщение вместо title, auto-title отдельным модулем, удаление и переименование чатов |
-| feat-003 | D | 📋 Planned | agent | Модели: cost-optimal подбор по внешним бенчмаркам, whitelist 5+, pricing seed в Langfuse |
+| feat-003 | D | 🚧 In Progress | agent | Модели: cost-optimal подбор по внешним бенчмаркам, whitelist 5+, pricing seed в Langfuse |
 | feat-004 | E | 📋 Planned | cross-cutting | File attachments: вход файлов агенту (критический путь догфудинга) |
 | feat-005 | F | 📋 Planned | backend | PDF-экспорт: замена wkhtmltopdf, рендер формул, фирменный стиль |
 | feat-006 | G | 📋 Planned | agent | Генерация слайдов: spike → скилл/интеграция (паттерн ADR-026) |
@@ -127,7 +127,7 @@
 
 **Цель:** подобрать cost-efficient модели по внешним бенчмаркам (собственного eval-контура нет и до конца 5b не будет — сознательно), расширить whitelist, завести pricing в Langfuse. Валидация — сам догфудинг: реальный материал + runtime model switching (post-mvp feat-003).
 
-**Статус:** 📋 Planned
+**Статус:** 🚧 In Progress
 **Scope:** agent
 
 #### Из backlog

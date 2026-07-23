@@ -30,6 +30,10 @@
 - 5d: +3 кейса наследования extra_body в `test_model_config_resolver.py` (None → дефолт; `{}` → дефолт; собственный непустой → приоритетен).
 - Прогоны: `tests/agent/ + tests/personalization/` — 227 passed; `make test` — 753 passed (external реально прошли против живого каталога, не skip); `make check` зелёный. Skip-ветка синтаксически корректна, но не форсировалась изоляцией сети (проверяется подстановкой недоступного base_url).
 
+### Фаза 6 — смоук-скрипт
+
+`model_smoke.py` в директории итерации: голый httpx, 7 моделей состава (5 whitelist + deepseek-v4-flash с `effort: medium`, guard с `effort: minimal`), классификация рассуждений по `message.reasoning` и `reasoning_details[]` (text→полные, summary→суммаризованные, encrypted→нет), usage с `reasoning_tokens`, guard-строка выделена с отдельным резюме. Отказоустойчив по-модельно. Credentials — `.env` worktree или env; без ключа — понятная ошибка, exit 1 до сетевых вызовов. Проверки: py_compile ок; прогон без ключа — корректный отказ; прогон с фиктивным ключом — 7×401 без оплаты, таблица и try/except-контур работают; `doc/` вне линт-скоупа, `make check` зелёный.
+
 ## Follow-ups
 
 - **[P3, drift]** Ретеншн-записи `google/gemini-3.1-pro-preview` и `google/gemini-3-flash-preview` не синхронизированы с живым каталогом по цене — обновить при следующем пересмотре или включить в drift-скоуп, если архитектор решит.

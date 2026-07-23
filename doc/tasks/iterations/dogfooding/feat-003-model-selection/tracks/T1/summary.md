@@ -10,6 +10,10 @@
 - Ретеншн-записи `google/gemini-3.1-pro-preview`, `google/gemini-3-flash-preview` по цене не актуализировались — вне мандата фазы (см. Follow-ups).
 - Verification: `load_pricing_config()` → 14 моделей; `make check` зелёный (предсуществующие arch-checker warnings не связаны с правкой).
 
+### Фаза 2 — agent.yaml: состав моделей + единая reasoning-форма
+
+`configs/agent.yaml` приведён к утверждённому составу: main `z-ai/glm-5.2`; summarization и subagents — `deepseek/deepseek-v4-flash`; whitelist `available_models` — пять записей (GLM-5.2, Gemini 3.6 Flash, DeepSeek V4 Pro, Muse Spark 1.1, Qwen3.7 Max). Deprecated `include_reasoning: true` заменён во всех трёх точках (`llm`, `summarization`, `subagents.llm`) на единую форму `extra_body.reasoning: {effort: medium, exclude: false}`. Схема `app/agent/config.py` не менялась — `extra_body` там свободный `dict[str, Any]`. `image.model`, `context`, `subagents.registry`, `mcp_servers` не тронуты (проверено диффом). Verification: `load_agent_config()` отдаёт ожидаемые main/whitelist; `tests/agent/test_config.py` — 8 passed; `make check` зелёный.
+
 ## Follow-ups
 
 - **[P3, drift]** Ретеншн-записи `google/gemini-3.1-pro-preview` и `google/gemini-3-flash-preview` не синхронизированы с живым каталогом по цене — обновить при следующем пересмотре или включить в drift-скоуп, если архитектор решит.

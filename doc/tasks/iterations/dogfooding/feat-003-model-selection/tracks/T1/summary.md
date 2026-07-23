@@ -1,0 +1,16 @@
+# Post-implementation Summary: feat-003 — трек T1
+
+## Решения и обоснования
+
+### Фаза 1 — pricing.yaml
+
+- Добавлено 9 записей (5 whitelist + `deepseek/deepseek-v4-flash` + альтернативы `minimax/minimax-m2.5`, `tencent/hy3`, `stepfun/step-3.5-flash`), актуализирован дрейф `z-ai/glm-5` и `z-ai/glm-4.7-flash`, ретеншн-записи сохранены. Итог — 14 записей.
+- OQ#1 (решение архитектора): ретеншн `z-ai/glm-5` → `(?i)^z-ai/glm-5(?![.\d])`, новая `z-ai/glm-5.2` → `(?i)^z-ai/glm-5\.2`. Проверено: каждый из 7 активных slug матчится ровно одной из 14 записей; все паттерны компилируются.
+- Цены при правке перепроверены живым каталогом (`GET /api/v1/models`, 200 OK) — каталог дрейфанул от снапшота плана в пределах дня; использованы живые значения: `z-ai/glm-5.2` input 8.246e-07 (план 7.8e-07), output 2.5916e-06 (план 2.45e-06), cache 1.5314e-07; `deepseek/deepseek-v4-pro` cache 3.625e-09; `qwen/qwen3.7-max` output 4.425e-06; `deepseek/deepseek-v4-flash` output 1.96e-07. Остальные совпали с планом. `stepfun/step-3.5-flash` не поддерживает prompt caching (каталог не отдаёт `input_cache_read`) — плейсхолдер 0.0.
+- Ретеншн-записи `google/gemini-3.1-pro-preview`, `google/gemini-3-flash-preview` по цене не актуализировались — вне мандата фазы (см. Follow-ups).
+- Verification: `load_pricing_config()` → 14 моделей; `make check` зелёный (предсуществующие arch-checker warnings не связаны с правкой).
+
+## Follow-ups
+
+- **[P3, drift]** Ретеншн-записи `google/gemini-3.1-pro-preview` и `google/gemini-3-flash-preview` не синхронизированы с живым каталогом по цене — обновить при следующем пересмотре или включить в drift-скоуп, если архитектор решит.
+- **[naблюдение для Фазы 5]** Цены multi-provider open-weights моделей в каталоге OpenRouter флуктуируют внутри дня (агрегат по провайдерам) — жёсткое равенство в price-drift тесте будет флаки-по-данным; семантика допуска — вопрос архитектору (эскалирован оркестратором).

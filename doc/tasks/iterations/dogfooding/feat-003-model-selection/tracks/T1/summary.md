@@ -34,6 +34,10 @@
 
 `model_smoke.py` в директории итерации: голый httpx, 7 моделей состава (5 whitelist + deepseek-v4-flash с `effort: medium`, guard с `effort: minimal`), классификация рассуждений по `message.reasoning` и `reasoning_details[]` (text→полные, summary→суммаризованные, encrypted→нет), usage с `reasoning_tokens`, guard-строка выделена с отдельным резюме. Отказоустойчив по-модельно. Credentials — `.env` worktree или env; без ключа — понятная ошибка, exit 1 до сетевых вызовов. Проверки: py_compile ок; прогон без ключа — корректный отказ; прогон с фиктивным ключом — 7×401 без оплаты, таблица и try/except-контур работают; `doc/` вне линт-скоупа, `make check` зелёный.
 
+### Фикс-цикл — Muse Spark 1.1 → Grok 4.5 (после смоука)
+
+Смоук вскрыл гео-блок `meta/muse-spark-1.1` (HTTP 403 US-only, единственный провайдер Meta) — эскалировано, решение архитектора: `x-ai/grok-4.5`. Заменено в `agent.yaml` (whitelist), `pricing.yaml` (запись muse-spark удалена — модель никогда не была активна в develop, ретеншн не нужен; grok-4.5 добавлен по живым ценам 2.0e-06/6.0e-06/3.0e-07, тарифный тир >200k prompt не моделируется — консистентно с остальными записями), `model_smoke.py`, design-brief. Уникальность паттернов сохранена. Verification: `tests/agent/` — 96 passed (external подтвердили grok-4.5 в живом каталоге); `make check` зелёный. Повторный смоук: 7/7 моделей отвечают ([smoke-run-results.md](../../smoke-run-results.md)); **guard отдаёт рассуждения** (вопрос архитектора закрыт).
+
 ## Follow-ups
 
 - **[P3, drift]** Ретеншн-записи `google/gemini-3.1-pro-preview` и `google/gemini-3-flash-preview` не синхронизированы с живым каталогом по цене — обновить при следующем пересмотре или включить в drift-скоуп, если архитектор решит.

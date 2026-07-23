@@ -7,13 +7,13 @@
 | Роль | Было | Становится |
 |------|------|-----------|
 | Main дефолт (`agent.yaml` → `llm.model`) | `z-ai/glm-5` | `z-ai/glm-5.2` |
-| Whitelist (`available_models`) | GLM-5, GLM-4.7 Flash, Gemini 3.1 Pro | `z-ai/glm-5.2` (GLM-5.2), `google/gemini-3.6-flash` (Gemini 3.6 Flash), `deepseek/deepseek-v4-pro` (DeepSeek V4 Pro), `meta/muse-spark-1.1` (Muse Spark 1.1), `qwen/qwen3.7-max` (Qwen3.7 Max) |
+| Whitelist (`available_models`) | GLM-5, GLM-4.7 Flash, Gemini 3.1 Pro | `z-ai/glm-5.2` (GLM-5.2), `google/gemini-3.6-flash` (Gemini 3.6 Flash), `deepseek/deepseek-v4-pro` (DeepSeek V4 Pro), `x-ai/grok-4.5` (Grok 4.5), `qwen/qwen3.7-max` (Qwen3.7 Max) |
 | Summarization (`summarization.model`) | `z-ai/glm-4.7-flash` | `deepseek/deepseek-v4-flash` |
 | Субагенты (`subagents.llm.model`) | `z-ai/glm-4.7-flash` | `deepseek/deepseek-v4-flash` |
 | Guard (`security.yaml` → `llm_classifier.model`) | `google/gemini-3.5-flash-lite` | **без изменений** |
 | Image (`image.model`) | `google/gemini-3.1-flash-image` | **вне scope** |
 
-Отклонены архитектором: Kimi K3 (медленная, цена на грани), Gemini 3.1 Pro Preview в whitelist не остаётся.
+Отклонены архитектором: Kimi K3 (медленная, цена на грани), Gemini 3.1 Pro Preview в whitelist не остаётся; `meta/muse-spark-1.1` — гео-блок US-only единственного провайдера (вскрыто смоуком), заменена на Grok 4.5.
 
 ## Reasoning-конфиг (единая форма)
 
@@ -30,7 +30,7 @@ Deprecated `include_reasoning: true` заменяется унифицирова
 
 ## pricing.yaml
 
-- **Добавить** (цены живые с OpenRouter, снапшот в [openrouter-catalog-snapshot.md](openrouter-catalog-snapshot.md); перед правкой перепроверить свежим `GET /api/v1/models`): `z-ai/glm-5.2`, `google/gemini-3.6-flash`, `deepseek/deepseek-v4-pro`, `meta/muse-spark-1.1`, `qwen/qwen3.7-max`, `deepseek/deepseek-v4-flash` + утверждённые альтернативы карты ролей: `minimax/minimax-m2.5`, `tencent/hy3`, `stepfun/step-3.5-flash`.
+- **Добавить** (цены живые с OpenRouter, снапшот в [openrouter-catalog-snapshot.md](openrouter-catalog-snapshot.md); перед правкой перепроверить свежим `GET /api/v1/models`): `z-ai/glm-5.2`, `google/gemini-3.6-flash`, `deepseek/deepseek-v4-pro`, `x-ai/grok-4.5`, `qwen/qwen3.7-max`, `deepseek/deepseek-v4-flash` + утверждённые альтернативы карты ролей: `minimax/minimax-m2.5`, `tencent/hy3`, `stepfun/step-3.5-flash`.
 - **Актуализировать** дрейфанувшие цены: `z-ai/glm-5` (0.95/2.55, cache 0.20), `z-ai/glm-4.7-flash` (0.06/0.40, cache 0.01).
 - **Не удалять** записи моделей, выбывших из конфигов (`z-ai/glm-5`, `google/gemini-3.1-pro-preview`, `google/gemini-3-flash-preview`): сохранённые пользовательские overrides могут ссылаться на них — cost-учёт должен продолжать матчиться. Инвариант направленный: *все активные модели ⊆ pricing.yaml*, обратное включение не требуется.
 - Паттерн записи — как существующие: `output_reasoning` = цена output, `match_pattern` — `(?i)^<slug с экранированием>`.
@@ -46,7 +46,7 @@ Deprecated `include_reasoning: true` заменяется унифицирова
 
 - Пользовательские overrides на выбывшие модели продолжают работать (резолвер не перевалидирует сохранённое); валидация whitelist действует на установку нового override.
 - Price-drift-тест будет фейлить CI при дрейфе цен до правки `pricing.yaml` — осознанная forcing function (аналог устаревшего lockfile).
-- Метка Preliminary у Muse Spark 1.1 на арене — рейтинг может осесть; валидация — догфудингом (runtime switching).
+- Метки Preliminary на арене у части кандидатов — рейтинги могут осесть; валидация состава — догфудингом (runtime switching).
 
 ## Env-гигиена
 

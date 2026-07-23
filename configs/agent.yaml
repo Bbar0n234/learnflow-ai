@@ -25,8 +25,8 @@ available_models:
   display_name: Gemini 3.6 Flash
 - name: deepseek/deepseek-v4-pro
   display_name: DeepSeek V4 Pro
-- name: meta/muse-spark-1.1
-  display_name: Muse Spark 1.1
+- name: x-ai/grok-4.5
+  display_name: Grok 4.5
 - name: qwen/qwen3.7-max
   display_name: Qwen3.7 Max
 subagents:

@@ -61,7 +61,7 @@ MODEL_CASES: list[ModelCase] = [
     ModelCase("z-ai/glm-5.2", "whitelist (main llm)", REASONING_MEDIUM),
     ModelCase("google/gemini-3.6-flash", "whitelist", REASONING_MEDIUM),
     ModelCase("deepseek/deepseek-v4-pro", "whitelist", REASONING_MEDIUM),
-    ModelCase("meta/muse-spark-1.1", "whitelist", REASONING_MEDIUM),
+    ModelCase("x-ai/grok-4.5", "whitelist", REASONING_MEDIUM),
     ModelCase("qwen/qwen3.7-max", "whitelist", REASONING_MEDIUM),
     ModelCase(
         "deepseek/deepseek-v4-flash",

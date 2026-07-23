@@ -18,6 +18,10 @@
 
 `ReasoningOptions.exclude` добавлено опциональным полем (`bool | None = None`) — обратная совместимость сохранена: конфиги без `exclude` парсятся (`exclude=None`, `model_dump(exclude_none=True)` опускает его из payload). `configs/security.yaml` → guard на единой reasoning-форме (`effort: minimal, exclude: false`); сериализация подтверждена фактическим `as_dict()`: `{'reasoning': {'effort': 'minimal', 'exclude': False}}`. Модель guard и секции `detectors`/`checkpoints`/`messages` не менялись. `include_reasoning` в `LLMExtraBody` оставлен (план: удаление рискованно без нужды). Verification: `tests/security/` — 147 passed; `make check` зелёный.
 
+### Фаза 4 — resolver: наследование extra_body
+
+В `model_config_resolver.py` добавлен хелпер `_resolve_extra_body`: scope-override (thread/project/user) сохраняет приоритет своего `extra_body` только если он непустой; при `None`/`{}` подставляется дефолт из `agent.yaml` `llm` (`self._llm_config.extra_body or None` — тот же паттерн, что в `_from_llm_config`; truthiness dict эквивалентна «не пустой»). Применён в трёх ветках `resolve()`; ветка Langfuse-config и `default()` не тронуты (свой источник extra_body). Verification: `test_model_config_resolver.py` — 8 passed без правок; `tests/personalization/` — 128 passed; `make check` зелёный.
+
 ## Follow-ups
 
 - **[P3, drift]** Ретеншн-записи `google/gemini-3.1-pro-preview` и `google/gemini-3-flash-preview` не синхронизированы с живым каталогом по цене — обновить при следующем пересмотре или включить в drift-скоуп, если архитектор решит.

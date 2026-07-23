@@ -35,7 +35,7 @@ class ModelConfigResolver:
             if thread_settings and thread_settings.model_name:
                 return ResolvedModelConfig(
                     model=thread_settings.model_name,
-                    extra_body=thread_settings.extra_body,
+                    extra_body=self._resolve_extra_body(thread_settings.extra_body),
                     source="thread",
                 )
 
@@ -45,7 +45,7 @@ class ModelConfigResolver:
             if project_settings and project_settings.model_name:
                 return ResolvedModelConfig(
                     model=project_settings.model_name,
-                    extra_body=project_settings.extra_body,
+                    extra_body=self._resolve_extra_body(project_settings.extra_body),
                     source="project",
                 )
 
@@ -54,7 +54,7 @@ class ModelConfigResolver:
         if user_settings and user_settings.model_name:
             return ResolvedModelConfig(
                 model=user_settings.model_name,
-                extra_body=user_settings.extra_body,
+                extra_body=self._resolve_extra_body(user_settings.extra_body),
                 source="user",
             )
 
@@ -73,6 +73,12 @@ class ModelConfigResolver:
     def default(self) -> ResolvedModelConfig:
         """Resolve the agent.yaml base model config (no per-scope overrides)."""
         return self._from_llm_config(self._llm_config)
+
+    def _resolve_extra_body(self, scope_extra_body: dict | None) -> dict | None:
+        """Fall back to the agent.yaml ``llm.extra_body`` when the scope-override carries none."""
+        if scope_extra_body:
+            return scope_extra_body
+        return self._llm_config.extra_body or None
 
     @staticmethod
     def _from_llm_config(llm: LLMConfig) -> ResolvedModelConfig:

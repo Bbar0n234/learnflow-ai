@@ -164,3 +164,39 @@ def test_default_returns_agent_yaml_config() -> None:
     resolved = _resolver().default()
 
     assert (resolved.model, resolved.source) == ("agent-yaml-model", "config")
+
+
+@pytest.mark.unit
+async def test_resolve_override_with_none_extra_body_inherits_default() -> None:
+    # Scope switched the model but the settings row never carried an
+    # extra_body (None) -> the agent.yaml reasoning default must survive.
+    repo = _fake_repo(user=_settings_row("user-model", extra_body=None))
+
+    resolved = await _resolver().resolve(repo, _UID, _PID, _TID)
+
+    assert (resolved.model, resolved.source) == ("user-model", "user")
+    assert resolved.extra_body == {"foo": "bar"}
+
+
+@pytest.mark.unit
+async def test_resolve_override_with_empty_extra_body_inherits_default() -> None:
+    # Settings rows store extra_body as JSON, so an explicit "no override" can
+    # arrive as {} rather than None -> must inherit the default just the same.
+    repo = _fake_repo(user=_settings_row("user-model", extra_body={}))
+
+    resolved = await _resolver().resolve(repo, _UID, _PID, _TID)
+
+    assert (resolved.model, resolved.source) == ("user-model", "user")
+    assert resolved.extra_body == {"foo": "bar"}
+
+
+@pytest.mark.unit
+async def test_resolve_override_with_own_extra_body_keeps_priority() -> None:
+    # A scope with its own non-empty extra_body must NOT be overwritten by the
+    # agent.yaml default.
+    repo = _fake_repo(user=_settings_row("user-model", extra_body={"own": True}))
+
+    resolved = await _resolver().resolve(repo, _UID, _PID, _TID)
+
+    assert (resolved.model, resolved.source) == ("user-model", "user")
+    assert resolved.extra_body == {"own": True}

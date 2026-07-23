@@ -22,6 +22,14 @@
 
 В `model_config_resolver.py` добавлен хелпер `_resolve_extra_body`: scope-override (thread/project/user) сохраняет приоритет своего `extra_body` только если он непустой; при `None`/`{}` подставляется дефолт из `agent.yaml` `llm` (`self._llm_config.extra_body or None` — тот же паттерн, что в `_from_llm_config`; truthiness dict эквивалентна «не пустой»). Применён в трёх ветках `resolve()`; ветка Langfuse-config и `default()` не тронуты (свой источник extra_body). Verification: `test_model_config_resolver.py` — 8 passed без правок; `tests/personalization/` — 128 passed; `make check` зелёный.
 
+### Фаза 5 — тесты: unit-консистентность + external + маркер + кейсы резолвера
+
+- 5a: маркер `external: hits third-party network APIs` в `backend/pyproject.toml`.
+- 5b: `tests/agent/test_pricing_consistency.py` — активные модели (agent.yaml + security.yaml) ⊆ pricing.yaml; все паттерны компилируются; каждый активный slug матчится ровно одной записью (строгий assertion по решению OQ#1).
+- 5c: `tests/agent/test_pricing_external.py` (маркер `external`) — один `GET {llm_base_url}/models`; сеть недоступна/не-200 → skip; price-drift активных моделей с допуском ±10% (решение архитектора) и диффом в fail-сообщении; поле, которого нет в каталоге, пропускается только при 0 в yaml (кейс `stepfun/step-3.5-flash`); доступность пяти whitelist-моделей (в каталоге, tools, контекст ≥ 100k).
+- 5d: +3 кейса наследования extra_body в `test_model_config_resolver.py` (None → дефолт; `{}` → дефолт; собственный непустой → приоритетен).
+- Прогоны: `tests/agent/ + tests/personalization/` — 227 passed; `make test` — 753 passed (external реально прошли против живого каталога, не skip); `make check` зелёный. Skip-ветка синтаксически корректна, но не форсировалась изоляцией сети (проверяется подстановкой недоступного base_url).
+
 ## Follow-ups
 
 - **[P3, drift]** Ретеншн-записи `google/gemini-3.1-pro-preview` и `google/gemini-3-flash-preview` не синхронизированы с живым каталогом по цене — обновить при следующем пересмотре или включить в drift-скоуп, если архитектор решит.

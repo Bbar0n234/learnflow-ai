@@ -14,6 +14,10 @@
 
 `configs/agent.yaml` приведён к утверждённому составу: main `z-ai/glm-5.2`; summarization и subagents — `deepseek/deepseek-v4-flash`; whitelist `available_models` — пять записей (GLM-5.2, Gemini 3.6 Flash, DeepSeek V4 Pro, Muse Spark 1.1, Qwen3.7 Max). Deprecated `include_reasoning: true` заменён во всех трёх точках (`llm`, `summarization`, `subagents.llm`) на единую форму `extra_body.reasoning: {effort: medium, exclude: false}`. Схема `app/agent/config.py` не менялась — `extra_body` там свободный `dict[str, Any]`. `image.model`, `context`, `subagents.registry`, `mcp_servers` не тронуты (проверено диффом). Verification: `load_agent_config()` отдаёт ожидаемые main/whitelist; `tests/agent/test_config.py` — 8 passed; `make check` зелёный.
 
+### Фаза 3 — security.yaml + `ReasoningOptions.exclude`
+
+`ReasoningOptions.exclude` добавлено опциональным полем (`bool | None = None`) — обратная совместимость сохранена: конфиги без `exclude` парсятся (`exclude=None`, `model_dump(exclude_none=True)` опускает его из payload). `configs/security.yaml` → guard на единой reasoning-форме (`effort: minimal, exclude: false`); сериализация подтверждена фактическим `as_dict()`: `{'reasoning': {'effort': 'minimal', 'exclude': False}}`. Модель guard и секции `detectors`/`checkpoints`/`messages` не менялись. `include_reasoning` в `LLMExtraBody` оставлен (план: удаление рискованно без нужды). Verification: `tests/security/` — 147 passed; `make check` зелёный.
+
 ## Follow-ups
 
 - **[P3, drift]** Ретеншн-записи `google/gemini-3.1-pro-preview` и `google/gemini-3-flash-preview` не синхронизированы с живым каталогом по цене — обновить при следующем пересмотре или включить в drift-скоуп, если архитектор решит.

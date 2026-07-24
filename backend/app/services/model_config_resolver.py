@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 import structlog
 
@@ -74,11 +75,15 @@ class ModelConfigResolver:
         """Resolve the agent.yaml base model config (no per-scope overrides)."""
         return self._from_llm_config(self._llm_config)
 
-    def _resolve_extra_body(self, scope_extra_body: dict | None) -> dict | None:
+    def _resolve_extra_body(
+        self, scope_extra_body: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
         """Fall back to the agent.yaml ``llm.extra_body`` when the scope-override carries none."""
         if scope_extra_body:
             return scope_extra_body
-        return self._llm_config.extra_body or None
+        return (
+            dict(self._llm_config.extra_body) if self._llm_config.extra_body else None
+        )
 
     @staticmethod
     def _from_llm_config(llm: LLMConfig) -> ResolvedModelConfig:

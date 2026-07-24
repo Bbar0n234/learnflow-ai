@@ -4,7 +4,7 @@ Marker ``external`` (registered in ``pyproject.toml``) — hits
 ``GET {Settings.llm_base_url}/models``, OpenRouter's public catalog endpoint
 (no API key required). Runs in the default ``make test`` sweep per design-brief
 § Тесты, but degrades gracefully when the network is unavailable (sandboxed
-CI, offline dev box): any connection failure or non-2xx response skips the
+CI, offline dev box): any connection failure or non-200 response skips the
 whole module rather than failing it — these tests guard against real
 repricing/deprecation on OpenRouter, not against reachability.
 
@@ -24,6 +24,7 @@ import pytest
 from app.agent.config import load_agent_config, load_pricing_config
 from app.agent.security.config import load_security_config
 from app.config import Settings
+from pydantic import ValidationError
 
 PRICE_DRIFT_TOLERANCE = 0.10
 MIN_WHITELIST_CONTEXT = 100_000
@@ -51,7 +52,11 @@ def _active_model_slugs() -> set[str]:
 @pytest.fixture(scope="module")
 def catalog() -> dict[str, dict[str, Any]]:
     """Fetch the live OpenRouter catalog once; skip the module on any network trouble."""
-    settings = Settings()
+    try:
+        settings = Settings()
+    except ValidationError as exc:
+        pytest.skip(f"Settings недоступны (нет env): {exc}")
+
     url = f"{settings.llm_base_url.rstrip('/')}/models"
     try:
         response = httpx.get(url, timeout=10.0)

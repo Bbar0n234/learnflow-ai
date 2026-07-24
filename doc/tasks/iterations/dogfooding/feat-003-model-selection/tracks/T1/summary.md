@@ -38,6 +38,10 @@
 
 Смоук вскрыл гео-блок `meta/muse-spark-1.1` (HTTP 403 US-only, единственный провайдер Meta) — эскалировано, решение архитектора: `x-ai/grok-4.5`. Заменено в `agent.yaml` (whitelist), `pricing.yaml` (запись muse-spark удалена — модель никогда не была активна в develop, ретеншн не нужен; grok-4.5 добавлен по живым ценам 2.0e-06/6.0e-06/3.0e-07, тарифный тир >200k prompt не моделируется — консистентно с остальными записями), `model_smoke.py`, design-brief. Уникальность паттернов сохранена. Verification: `tests/agent/` — 96 passed (external подтвердили grok-4.5 в живом каталоге); `make check` зелёный. Повторный смоук: 7/7 моделей отвечают ([smoke-run-results.md](../../smoke-run-results.md)); **guard отдаёт рассуждения** (вопрос архитектора закрыт).
 
+### Фикс-цикл — замечания code-review (review-a.md)
+
+Все 4 замечания (1 nit + 3 nice-to-have) закрыты: (1) `_resolve_extra_body` возвращает защитную копию `dict(...)` вместо общего объекта — мутация у потребителя не протекает в `LLMConfig` (подтверждено скриптом: разные объекты, мутация копии не трогает исходный); типизация приведена к `dict[str, Any] | None`; (2) `Settings()` в external-тесте под try/except `ValidationError` → skip (окружение без env скипается, а не падает error'ом); (3) docstring синхронизирован с кодом («non-200 → skip»). Ре-верификация: `tests/agent/ + tests/personalization/` — 227 passed; `make check` зелёный. Повторное ревью не требовалось (severity низкие).
+
 ## Follow-ups
 
 - **[P3, drift]** Ретеншн-записи `google/gemini-3.1-pro-preview` и `google/gemini-3-flash-preview` не синхронизированы с живым каталогом по цене — обновить при следующем пересмотре или включить в drift-скоуп, если архитектор решит.

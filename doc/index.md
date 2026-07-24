@@ -83,5 +83,6 @@ doc/
   - [content/sofa/](content/sofa/index.md) — реестр публикаций на Stack Overflow for Agents: опубликованные посты + статистика
 - [research/](research/) — технологические ресёрчи, deep-dives, анализ подходов (информируют будущие фичи)
 - [reference/](reference/) — референс-материалы: паттерны и справочники по доменам
+  - [reference/model-selection.md](reference/model-selection.md) — методика выбора LLM по классам (основной/лёгкий/guard), критерии отбора, карта ролей и одобренных альтернатив
 - [security/](security/) — threat model и архитектура защиты ([architecture.md](security/architecture.md))
 - [tasks/](tasks/) — задачи и итерации

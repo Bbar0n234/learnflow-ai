@@ -187,8 +187,8 @@ SIEM не заменяет Langfuse; они ортогональны. Langfuse �
 
 | Поле | Назначение | Пример |
 |------|------------|--------|
-| `name` | Имя модели | `z-ai/glm-5` |
-| `match_pattern` | Regex для matching | `(?i)^z-ai/glm-5` |
+| `name` | Имя модели | `z-ai/glm-5.2` |
+| `match_pattern` | Regex для matching (уникальность на активные slug обязательна — префиксные коллизии между версиями одного семейства снимаются негативным lookahead) | `(?i)^z-ai/glm-5\.2` |
 | `unit` | Единица биллинга | `TOKENS` |
 | `prices` | Цены за единицу: `input`, `output`, `output_reasoning`, `input_cache_read` | `{input: 0.000001, output: 0.0000032, ...}` |
 

@@ -23,7 +23,7 @@
 |----------|-------|--------|-------|-----------|
 | feat-001 | A | 📋 Planned | cross-cutting | Видимость работы агента: карта событий, live-фазы, reasoning-стрим, след tool-вызовов, security_block в UI |
 | chore-001 | B | 📋 Planned | cross-cutting | Prod-closing: kill-switch LLM-защиты + SIEM kill-switch, X-Forwarded-For, прод-образы без dev-deps; merge develop → main + деплой |
-| feat-002 | C | 📋 Planned | cross-cutting | Chat UX: первое сообщение вместо title, auto-title отдельным модулем, удаление и переименование чатов |
+| feat-002 | C | 🚧 In Progress | cross-cutting | Chat UX: первое сообщение вместо title, auto-title отдельным модулем, удаление и переименование чатов |
 | feat-003 | D | ✅ Done | agent | Модели: cost-optimal подбор по внешним бенчмаркам, whitelist 5+, pricing seed в Langfuse |
 | feat-004 | E | 📋 Planned | cross-cutting | File attachments: вход файлов агенту (критический путь догфудинга) |
 | feat-005 | F | 📋 Planned | backend | PDF-экспорт: замена wkhtmltopdf, рендер формул, фирменный стиль |
@@ -105,7 +105,7 @@
 
 **Цель:** переработка входа в чат: поле ввода — для первого сообщения, а не title; title генерирует модель; чаты можно удалять и переименовывать.
 
-**Статус:** 📋 Planned
+**Статус:** 🚧 In Progress
 **Scope:** cross-cutting (Frontend + Backend)
 **After:** feat-001 (наследует переработанный стрим-контракт)
 

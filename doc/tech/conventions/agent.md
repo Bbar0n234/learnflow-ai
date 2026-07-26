@@ -33,12 +33,11 @@
 
 **Все модели проекта создаются как `ReasoningChatOpenAI` — безусловно.** Это безопасный надкласс `ChatOpenAI`: извлечение reasoning — no-op, когда провайдер не вернул поле `reasoning`. Поэтому ветки «`ReasoningChatOpenAI` или `ChatOpenAI` по флагу» нет — все фабрики (`create_llm_from_config` для агента, `create_summarization_llm` для summarizer, `create_guard_llm` для security guard) идут через единый приватный билдер `_build_chat_model`, который всегда возвращает `ReasoningChatOpenAI`.
 
-**Конфигурация.** `extra_body.include_reasoning: true` управляет тем, *вернёт* ли провайдер reasoning (а не выбором класса):
+**Конфигурация.** `extra_body.reasoning: {effort, exclude}` управляет тем, *вернёт* ли провайдер reasoning и с какой глубиной (а не выбором класса): `effort` задаёт уровень рассуждений — OpenRouter нормализует значение между провайдерами (конвертация в token-budget/thinkingLevel) и молча маппит на ближайший поддерживаемый уровень, если провайдер не поддерживает запрошенный ровно; `exclude: false` — не отбрасывать рассуждения из ответа. Единая форма применяется во всех точках: `configs/agent.yaml` (`llm.extra_body`, `summarization.extra_body`, `subagents.llm.extra_body`) и `configs/security.yaml` (`llm_classifier.extra_body`). Методика подбора самих моделей и effort-уровня по роли — [reference/model-selection.md](../../reference/model-selection.md).
 
-- `configs/agent.yaml`: `llm.extra_body.include_reasoning`, `summarization.extra_body.include_reasoning`.
-- `configs/security.yaml`: `llm_classifier.extra_body.include_reasoning`.
+Legacy-алиас `extra_body.include_reasoning: true` (флаг без градации effort) сохранён в схеме (`LLMExtraBody`) для обратной совместимости, в текущих конфигах не используется.
 
-При `false`/отсутствии reasoning просто не приходит и его цена не списывается в Langfuse — но класс остаётся `ReasoningChatOpenAI`, поведение идентично `ChatOpenAI`.
+При `exclude: true` reasoning не приходит и его цена не списывается в Langfuse — но класс остаётся `ReasoningChatOpenAI`, поведение идентично `ChatOpenAI`.
 
 **Видимость.** В Langfuse generation `additional_kwargs.reasoning` попадает в поле output вместе с основным текстом; цена reasoning-токенов учитывается через `usage.completion_tokens_details.reasoning_tokens` — требуется корректный `prices.output_reasoning` в определении модели.
 

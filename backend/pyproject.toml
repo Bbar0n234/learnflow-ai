@@ -41,6 +41,7 @@ markers = [
     "unit: fast, no external infra",
     "integration: requires real Postgres (testcontainers)",
     "slow: long-running",
+    "external: hits third-party network APIs",
 ]
 
 [tool.uv.sources]

@@ -1,7 +1,9 @@
 llm_classifier:
   model: google/gemini-3.5-flash-lite
   extra_body:
-    include_reasoning: true
+    reasoning:
+      effort: minimal
+      exclude: false
   max_retries: 3
   temperature: 0.0
 detectors:

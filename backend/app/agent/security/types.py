@@ -101,6 +101,7 @@ class CheckpointConfig(BaseModel):
 
 class ReasoningOptions(BaseModel):
     effort: str | None = None
+    exclude: bool | None = None
 
 
 class LLMExtraBody(BaseModel):

@@ -130,6 +130,11 @@ svg { flex-shrink:0; pointer-events:none; }
   55%  { color:var(--primary); background:transparent; }
   100% { color:inherit; background:transparent; }
 }
+/* Печатающийся auto-title (как в ChatGPT) */
+.chat-title, .ci-title, .rl-title { transition:color .4s ease; }
+.typing { color:var(--primary); }
+.type-caret::after { content:""; display:inline-block; width:2px; height:.9em; background:var(--primary); margin-left:1px; vertical-align:-0.08em; animation:caret-blink .7s step-end infinite; }
+@keyframes caret-blink { 50% { opacity:0; } }
 .chip { display:inline-flex; align-items:center; gap:4px; border-radius:9999px; background:var(--secondary); padding:4px 10px; font-size:12px; color:var(--secondary-foreground); transition:background .15s; }
 button.chip:hover { background:color-mix(in srgb,var(--secondary) 80%,transparent); }
 .chat-chips { margin-left:auto; display:flex; align-items:center; gap:6px; flex-shrink:0; }
@@ -411,11 +416,29 @@ function applyTitle(chatId, projectId, title, flash) {
   if (state.openChat && state.openChat.id === chatId) state.openChat.title = title;
   renderSidebar(); renderMain();
   if (flash) {
-    const h = $(".chat-title"); if (h && state.openChat && state.openChat.id === chatId) h.classList.add("flash");
+    const targets = [];
+    const h = $(".chat-title"); if (h && state.openChat && state.openChat.id === chatId) targets.push(h);
     document.querySelectorAll(".ci-title, .rl-title").forEach(el => {
-      if (el.dataset.chat === chatId) el.classList.add("flash");
+      if (el.dataset.chat === chatId) targets.push(el);
     });
+    targets.forEach(el => typeInto(el, title));
   }
+}
+
+/* Посимвольная печать нового названия (визуальная симуляция) */
+function typeInto(el, text) {
+  el.classList.add("typing", "type-caret");
+  el.textContent = "";
+  let i = 0;
+  const int = setInterval(() => {
+    i++;
+    el.textContent = text.slice(0, i);
+    if (i >= text.length) {
+      clearInterval(int);
+      el.classList.remove("type-caret");
+      setTimeout(() => el.classList.remove("typing"), 700);
+    }
+  }, 38);
 }
 
 function renameDialog(chatId, projectId) {

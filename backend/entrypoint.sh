@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# The image ships a runtime-only venv (uv sync --no-dev --package). Without this,
+# `uv run` re-syncs the environment on container start and pulls the dev group back.
+export UV_NO_SYNC=1
+
 echo "Running database migrations..."
 uv run alembic -c backend/alembic.ini upgrade head
 

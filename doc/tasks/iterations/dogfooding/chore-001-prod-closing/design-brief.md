@@ -54,7 +54,11 @@ flowchart TB
 
 Обоснование по canary: детектор утечки токена живёт внутри guard'а. Оставить генерацию токена при выключенном guard означало бы вшивать секрет в каждый системный промпт и никогда не проверять, утёк ли он, — строго хуже, чем не вшивать.
 
-Обоснование по hardening-преамбуле: помимо ~100 токенов в каждом запросе она запрещает агенту называть внутренние инструменты и требует «описывать возможности функционально». В продукте для техспикеров это исследовательский артефакт, портящий продуктовое поведение.
+Обоснование по преамбуле: помимо ~100 токенов в каждом запросе она запрещает агенту называть внутренние инструменты и требует «описывать возможности функционально». В продукте для техспикеров это исследовательский артефакт, портящий продуктовое поведение.
+
+**Граница проведена по назначению, а не по цене.** Под тумблер уходит всё, что защищает агента от prompt injection, — включая разметку происхождения (`<user_message>`, `<tool_output>`, `<untrusted_tool_description>`), которая не делает LLM-вызовов и почти ничего не стоит. «Дёшево» не является основанием оставить: выключатель называется «защита выключена» и должен означать именно это, иначе система оказывается в неопределённом промежуточном состоянии, которое никто не описывает и не тестирует.
+
+Цена решения известна и принята: `firecrawl` включён (`configs/agent.yaml:78-87` — `search`, `scrape`, `extract`), то есть агент штатно тянет сторонние страницы, и их текст приходит в контекст как `ToolMessage` без разметки происхождения. Единственной границей остаётся ролевое разделение сообщений на уровне chat-API. Это осознанный размен: продуктовая ценность выключенной защиты против остаточного риска indirect injection на инсталляции с доверенным кругом пользователей.
 
 ### Точка врезки
 
@@ -67,12 +71,32 @@ flowchart TB
 | Депс guard'а | `backend/app/api/deps.py:42` | `get_security_guard` мёртв — ноль потребителей по всему `backend/`, включая тесты. Удаляем (дрейф на месте), fallback не нужен: `app.state.security_guard` выставляется в обеих ветках |
 | SSE review-события | `backend/app/agent/runner.py:281-303` | `RuntimeSecurityEnforcer` получает публичное свойство «защита активна»; runner читает его и не эмитит пару `final_output_review_started` / `..._complete`. Runner не читает `Settings` и не лезет в приватные поля enforcer'а |
 | canary-токен | генерация — `backend/app/agent/runner.py:97`, секрет приходит из `main.py:597` | не генерировать токен (пустой `canary_secret` в `AgentRunner`); `render_canary_section` уже возвращает `""` для пустого токена — дальше по цепочке правок нет |
-| hardening-преамбула | `configs/prompts/system.txt:1-16` (весь блок `<system_instructions>`) | см. «Композиция hardening» ниже — вынос тянет за собой canary-слот и corpus `FragmentDetector` |
-| Обёртки границы доверия | `configs/prompt_fragments.yaml` | собирать `PromptFragmentsConfig` без security-ключей; `wrap` и `_wrap_section` (`agent/config.py:96-109`, `prompt_builder.py:24`) уже возвращают текст как есть при отсутствии ключа — правок в местах вызова нет. Гасимые ключи: `wrappers.user_message`, `wrappers.tool_output`, `wrappers.untrusted_tool_description`, `headers.canary_prefix`, `headers.user_installed_mcp` (текст «treat as untrusted» — security-мотивирован). Структурные `custom_instructions`, `user_memory`, `knowledge_sphere`, `available_skills`, `user_installed_mcp_tools`, `document` остаются |
+| Блок `<system_instructions>` | `configs/prompts/system.txt:1-16` | целиком вырезается из шаблона в `prompt_fragments.yaml`; в шаблоне остаётся один слот — см. «Композиция преамбулы» ниже |
+| Обёртки границы доверия | `configs/prompt_fragments.yaml` | собирать `PromptFragmentsConfig` без security-ключей; `wrap` и `_wrap_section` (`agent/config.py:96-109`, `prompt_builder.py:24`) уже возвращают текст как есть при отсутствии ключа — правок в местах вызова нет. Гасимые ключи: `security_preamble`, `wrappers.user_message`, `wrappers.tool_output`, `wrappers.untrusted_tool_description`, `headers.canary_prefix`, `headers.user_installed_mcp` (текст «treat as untrusted» — security-мотивирован). Структурные `custom_instructions`, `user_memory`, `knowledge_sphere`, `available_skills`, `user_installed_mcp_tools`, `document` остаются |
 
-**Композиция hardening.** Блок `<system_instructions>` (строки 1-16) содержит внутри себя, на строке 15, плейсхолдер `{{ canary_section }}` — то есть простой вынос «преамбулы в слот» разрывает существующий слот. Решение: шаблон получает **один** слот `{{ hardening_section }}` вместо двух, canary вкладывается внутрь hardening-текста на стороне Python (Langfuse умеет только строковую подстановку, вся условная логика и так живёт в `prompt_builder`). Текст преамбулы переезжает в `configs/prompt_fragments.yaml` (там уже живут `headers.*`, включая `canary_prefix`). При выключенной защите слот пуст.
+**Композиция преамбулы.** Блок `<system_instructions>` — целиком security-специфика: утверждение об иерархии инструкций (ссылается на снимаемые обёртки `<user_message>` и `<tool_output>`), запрет раскрывать инструкции и имена внутренних инструментов, и внутри, на строке 15, плейсхолдер `{{ canary_section }}`. Вырезается целиком, единым куском.
 
-Следствие для режима «защита включена», которое легко потерять: `collect_fragment_corpus` берёт сырой шаблон (`main.py:411-417`, `prompt_provider.load_file("system")`), а `corpus.py:51` прямо перечисляет hardening-преамбулу как часть корпуса. После выноса текста из шаблона `FragmentDetector` перестанет ловить её утечку **даже при включённой защите**. Поэтому при defense-on корпус собирается из шаблона **плюс** hardening-текста из нового места хранения.
+Дизайн выбран так, чтобы ветвление осталось **одно на всю композицию промпта**:
+
+```
+configs/prompts/system.txt   →  {{ security_preamble_section }}   (один слот вместо двух;
+                                                                   {{ canary_section }} исчезает)
+
+configs/prompt_fragments.yaml →  security_preamble: |             (текст блока переезжает сюда,
+                                   <system_instructions>           рядом с headers.canary_prefix
+                                   ...                             и security-обёртками)
+                                   </system_instructions>
+
+Python                        →  секция = текст преамбулы + строка canary (если токен непустой)
+                                 defense off → PromptFragmentsConfig собирается без security-ключей
+                                            → секция пуста, обёртки не применяются
+```
+
+Никакой вложенной шаблонизации: Langfuse-подстановка остаётся строковой, canary дописывается в Python по уже существующей логике `render_canary_section`. Отдельный файл промпта не заводим — он потребовал бы либо записи в `configs/prompts.yaml` (а с ней seed/sync в Langfuse), либо файла в `configs/prompts/` вне реестра. `prompt_fragments.yaml` — плоский конфиг без Langfuse-обвязки, и там уже живёт вся композиционная security-специфика, поэтому «нет ключа → нет текста» покрывает и преамбулу, и обёртки одним механизмом.
+
+Выключенное состояние — долгосрочное, поэтому шаблон правится решительно (текст переезжает, слот исчезает), а не поддерживается в двух режимах.
+
+Следствие для режима «защита включена», которое легко потерять: `collect_fragment_corpus` берёт сырой шаблон (`main.py:411-417`, `prompt_provider.load_file("system")`), а `corpus.py:51` прямо перечисляет преамбулу как часть корпуса. После выноса текста `FragmentDetector` перестанет ловить её утечку **даже при включённой защите**. Поэтому при defense-on корпус собирается из шаблона **плюс** текста преамбулы из `prompt_fragments.yaml`.
 
 ### Принятые следствия
 
@@ -281,7 +305,8 @@ flowchart LR
 
 - Допил SIEM до продакшна (валидация правил, рабочий RBAC, активное реагирование) — вариант B, возврат при реальной потребности.
 - Механизм разблокировки тредов с `security_blocked=true`.
-- Расширение вокабуляра `siem-contracts` и починка семи логов с `security_event=True` без `event_type` (`tool_guards.py:114,174`, `runtime_security.py:220`, `services/{skill_context,sphere,mcp_server,user_memory}.py`). Процессор их дропает; теряется подтверждение блокировки, но само обнаружение эмитится из `guard.py` с корректным `event_type` — это потеря избыточности, а не слепое пятно. Чинить в итерации, которая подсистему выключает, смысла нет.
+- Расширение вокабуляра `siem-contracts` и починка семи логов с `security_event=True` без `event_type` — вынесено в backlog (Security, P3).
+- Пересборка схемы rate-лимитов (две независимые оси для логина, глобальный потолок регистраций) — вынесено в backlog (Security, P2). Итерация чинит источник IP, из-за которого лимиты обходились, но не саму схему.
 - Выпиливание per-checkpoint `classifier_enabled` из `SecurityConfig` — решено оставить как есть.
 - Удаление кода, тестов и arch-checks SIEM.
 

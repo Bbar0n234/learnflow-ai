@@ -686,10 +686,20 @@ const FAKE_ANSWER = [
   "Дальше я предложу структуру материала, а после вашего подтверждения соберу полный конспект с примерами и вопросами для самопроверки.",
 ];
 
-function genTitle(text) {
-  const words = text.replace(/\s+/g, " ").trim().split(" ").slice(0, 6).join(" ");
-  const t = words.charAt(0).toUpperCase() + words.slice(1);
-  return t.length > 46 ? t.slice(0, 46).trimEnd() + "…" : t;
+/* Симуляция LLM-генерации: рандомное лаконичное название из пула (не эхо сообщения) */
+const TITLE_POOL = [
+  "Prompt injection: направления атак",
+  "План лекции для магистрантов",
+  "Границы доверия в LLM-агентах",
+  "Стриминг ответов через SSE",
+  "Конспект: guard-слои на практике",
+  "Вопросы к семинару",
+  "Разбор архитектуры защиты",
+  "Черновик учебного модуля",
+];
+let titlePoolIdx = Math.floor(Math.random() * TITLE_POOL.length);
+function genTitle() {
+  return TITLE_POOL[titlePoolIdx++ % TITLE_POOL.length];
 }
 
 function simulateRun(chatId, projectId, userText) {

@@ -95,7 +95,7 @@ flowchart TB
     end
 
     subgraph EXT [External]
-        LF[Langfuse<br/>prompt title--{env} + трейс]
+        LF["Langfuse<br/>prompt title--development/-production + трейс"]
         OR[OpenRouter]
     end
 

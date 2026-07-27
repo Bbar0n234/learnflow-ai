@@ -227,6 +227,22 @@ sequenceDiagram
 
 Интерактивный HTML-мокап — [mockups/chat-ux.html](mockups/chat-ux.html) (открывать в браузере), **утверждён архитектором как референс для реализации фронта**: оба пути входа (поле проекта / sidebar → модалка выбора проекта → композер), симуляция стрима с заменой «Новый чат» → сгенерированный title анимацией посимвольной печати, rename/delete из списка чатов и recents, флоу «нет проектов» (welcome-заглушка + empty-state модалки + создание проекта), сравнение «сейчас vs станет» для карточки создания, обе темы. Токены и вёрстка — копия `frontend/src/index.css` и реальных компонентов.
 
+## Партиция треков
+
+Заполнена оркестратором (фаза PARTITION), скорректирована по находкам general-purpose ревьюера.
+
+**T1 — Backend: контракты чатов + auto-title.** Файловый скоуп: `backend/**` (routes/schemas чатов, `services/chat.py`, `infra/llm.py`, `infra/langgraph.py`, `agent/config.py`, `agent/runner.py`, репозитории, `main.py`), `configs/agent.yaml`, `configs/prompts.yaml` (реестр промптов — запись `title` для seed/sync в Langfuse), `configs/prompts/title.txt`, `.env.example`, `.env.local.example`, `docker-compose.yml`. Тест-скоуп: `backend/tests/chat/` **плюс точечные правки существующих тестов**, ломающихся от обязательной секции `title` в `AgentConfig` (по прецеденту image-итерации): `backend/tests/agent/test_config.py`, `backend/tests/agent/test_pricing_consistency.py` (добавить `agent.title.model` в `_active_model_slugs`), `backend/tests/personalization/conftest.py`, `backend/tests/personalization/test_model_config_resolver.py`, `backend/tests/subagents/test_runner.py` — только добавление `title=` в конструкторы `AgentConfig`, ничего сверх.
+
+Скоуп-ограничения T1: (а) checkpointer в `LangGraphAgentRunner` — keyword-only параметр с дефолтом по образцу существующих `event_mapper`/`tool_resolver`, чтобы не трогать позиционные конструкторы в `backend/tests/agent/test_runner.py` и `backend/tests/subagents/test_stream_isolation.py`; (б) `ThreadViewFactory` — локальная копия в `backend/tests/chat/conftest.py`, промоушен в `packages/testing` не делаем; (в) стратегия тестов title-задачи — unit на фейковом `session_factory`/репозитории + relay-цикл с готовой задачей, `app.state`-заглушки только в `backend/tests/chat/conftest.py` (честный HTTP-тест fire-and-forget против живой БД в транзакционном харнессе не строится — известный LIMITATION conftest).
+
+**T2 — Frontend: вход через первое сообщение + `title_updated` + ChatActions.** Файловый скоуп: `frontend/src/**` (`pages/chat`, `pages/project-chats`, `app/components`, `features/chat-actions`, `shared/api`, `app/router.tsx`). Тест-скоуп: колокация Vitest-тестов внутри `frontend/src/**` (MSW-инфраструктура `frontend/src/test/` уже есть, `vitest.config.ts` не правится).
+
+**Вне скоупа обоих треков (замороженная инфра и общие ярусы):** `backend/tests/conftest.py`, `packages/testing/**`, `doc/**` (документация закрывается фазой DOC_UPDATE после барьера), `Makefile`. Потребность править — эскалация оркестратору, не молчаливый выход за скоуп.
+
+**Вердикт непересечения:** скоупы не делят ни одного файла (проверено ревьюером по кодовой базе: `ChatCreate`/`ChatService`/`AgentRunner`-фейки — только T1; кодогенерации контрактов нет, типы фронта рукописные — только T2; root-конфиги env — backend-only). Общая точка — контракты (§ Контракты), зафиксированы в брифе до старта; оба трека реализуют против них, не против кода друг друга.
+
+**Параллельность фаз:** все per-track фазы идут T1 ∥ T2 без ограничений (PLAN → PLAN_REVIEW → IMPLEMENT → TEST_AUTHORING → TEST_REVIEW → GREEN → TEST). Per-track гейты: T1 — `make check` + `make test-scope P=backend/tests`; T2 — `make check-fe` + `make test-fe`; полный `make ci` внутри трека не гоняется (покраснеет от промежуточного состояния соседа). Ручные сквозные проверки, требующие обоих треков (реальный SSE `title_updated`, rename/delete против живого API, оба пути входа end-to-end), — cross-cutting кейсы без префикса трека, прогоняются на INTEGRATION_TEST после барьера.
+
 ## SOFA consulted
 
 Ресёрч проведён (9 запросов: auto-title/summary генерация, SSE-контракт, delete cascade, checkpointer cleanup, fire-and-forget, cache invalidation). Прямо релевантных Blueprint по теме итерации нет — валидный пустой исход. Смежные находки:

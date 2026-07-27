@@ -1,0 +1,688 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мокап · feat-002 Chat UX — первое сообщение вместо title, auto-title, rename/delete</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Source+Serif+4:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ══════════ Токены — копия frontend/src/index.css ══════════ */
+:root {
+  --background:#faf7f1; --foreground:#2e2a24;
+  --card:#fffefa; --card-foreground:#2e2a24;
+  --popover:#fffefa; --popover-foreground:#2e2a24;
+  --primary:#7434f4; --primary-foreground:#f6f1ff;
+  --secondary:#efe7fe; --secondary-foreground:#5b21ce;
+  --muted:#f1ede3; --muted-foreground:#8b8370;
+  --accent:#efe7fe; --accent-foreground:#5b21ce;
+  --destructive:#dc2626;
+  --border:#e2dcd0; --input:#d8d1c2; --ring:#7434f4;
+  --radius:0.7rem;
+  --sidebar:#f1ede3; --sidebar-foreground:#2e2a24;
+  --sidebar-accent:#efe7fe; --sidebar-accent-foreground:#5b21ce;
+  --sidebar-border:#e2dcd0;
+  --brand-lavender:#c5a9f9;
+  --bubble-user:#ede7da;
+  --shadow-input:0 2px 10px rgba(80,70,50,.06);
+  --content-max-w:680px;
+  --orb-gradient:radial-gradient(circle at 38% 32%, #a47cfa 0%, #7434f4 52%, #4c16b8 100%);
+}
+.dark {
+  --background:#181420; --foreground:#ede8e2;
+  --card:#221c30; --card-foreground:#ede8e2;
+  --popover:#221c30; --popover-foreground:#ede8e2;
+  --primary:#8a5cf6; --primary-foreground:#f7f4ff;
+  --secondary:rgba(177,148,255,.15); --secondary-foreground:#cdb6ff;
+  --muted:#1e1929; --muted-foreground:#9a90a8;
+  --accent:rgba(177,148,255,.15); --accent-foreground:#cdb6ff;
+  --destructive:#ef5f52;
+  --border:#322a44; --input:#3a3150; --ring:#b194ff;
+  --sidebar:#1e1929; --sidebar-foreground:#ede8e2;
+  --sidebar-accent:rgba(177,148,255,.15); --sidebar-accent-foreground:#cdb6ff;
+  --sidebar-border:#322a44;
+  --brand-lavender:#b194ff;
+  --bubble-user:#262031;
+  --orb-gradient:radial-gradient(circle at 38% 32%, #d0baff 0%, #9d6fff 50%, #5520c8 100%);
+}
+
+* { box-sizing:border-box; margin:0; padding:0; border-color:var(--border); }
+html { font-family:"Instrument Sans",sans-serif; }
+body { background:var(--background); color:var(--foreground); height:100vh; overflow:hidden; }
+button { font:inherit; color:inherit; background:none; border:none; cursor:pointer; }
+textarea, input { font:inherit; color:inherit; }
+svg { flex-shrink:0; pointer-events:none; }
+
+/* ══════════ Каркас ══════════ */
+.app { display:flex; height:100vh; }
+.sidebar { width:252px; flex-shrink:0; background:var(--sidebar); border-right:1px solid var(--border); display:flex; flex-direction:column; color:var(--sidebar-foreground); }
+.main { flex:1; min-width:0; display:flex; flex-direction:column; overflow:hidden; }
+
+/* ══════════ Кнопки (button.tsx) ══════════ */
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; border:1px solid transparent; border-radius:calc(var(--radius)*.8); font-size:.8rem; font-weight:500; white-space:nowrap; transition:background .15s,color .15s,opacity .15s; user-select:none; }
+.btn:active { transform:translateY(1px); }
+.btn:disabled { pointer-events:none; opacity:.5; }
+.btn-sm { height:28px; padding:0 10px; }
+.btn-default { background:var(--primary); color:var(--primary-foreground); }
+.btn-outline { border-color:var(--border); background:var(--background); }
+.btn-outline:hover { background:var(--muted); }
+.dark .btn-outline { border-color:var(--input); background:color-mix(in srgb,var(--input) 30%,transparent); }
+.dark .btn-outline:hover { background:color-mix(in srgb,var(--input) 50%,transparent); }
+.btn-ghost:hover { background:var(--muted); }
+.dark .btn-ghost:hover { background:color-mix(in srgb,var(--muted) 50%,transparent); }
+.btn-destructive { background:color-mix(in srgb,var(--destructive) 10%,transparent); color:var(--destructive); }
+.btn-destructive:hover { background:color-mix(in srgb,var(--destructive) 20%,transparent); }
+.dark .btn-destructive { background:color-mix(in srgb,var(--destructive) 20%,transparent); }
+.dark .btn-destructive:hover { background:color-mix(in srgb,var(--destructive) 30%,transparent); }
+.btn-md-h { height:32px; padding:0 10px; font-size:14px; }
+.icon-sm { width:28px; height:28px; padding:0; border-radius:calc(var(--radius)*.8); }
+.icon-xs { width:24px; height:24px; padding:0; border-radius:calc(var(--radius)*.8); }
+.send-btn { width:34px; height:34px; border-radius:9999px; background:var(--primary); color:var(--primary-foreground); display:flex; align-items:center; justify-content:center; transition:background .15s,opacity .15s; }
+.send-btn:hover { background:color-mix(in srgb,var(--primary) 90%,transparent); }
+.send-btn:disabled { pointer-events:none; opacity:.4; }
+
+/* ══════════ Sidebar ══════════ */
+.sb-head { height:56px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); padding:0 16px; }
+.wordmark { font-weight:700; font-size:18px; letter-spacing:-0.015em; display:inline-flex; align-items:center; }
+.wordmark .orb { display:inline-block; width:.8em; height:.8em; background:var(--orb-gradient); border-radius:50%; transform:translateY(.05em); position:relative; margin:0 .02em; }
+.wordmark .orb::before { content:""; position:absolute; width:calc(.8em + 10px); height:calc(.56em + 7px); left:-5px; top:calc(.12em - 3.5px); border:1.5px solid color-mix(in srgb,var(--ring) 65%,transparent); border-radius:50%; transform:rotate(-18deg); }
+.wordmark .orb::after { content:""; position:absolute; width:.2em; height:.2em; background:var(--brand-lavender); transform:rotate(45deg); top:-.12em; right:-.08em; }
+.sb-actions { display:flex; flex-direction:column; gap:4px; padding:12px; }
+.sb-actions .btn { width:100%; justify-content:flex-start; }
+.sb-scroll { flex:1; overflow:auto; padding:0 12px; }
+.sb-label { margin:0 0 4px; padding:0 12px; font-size:12px; font-weight:500; text-transform:uppercase; letter-spacing:.05em; color:var(--muted-foreground); }
+.sb-list { display:flex; flex-direction:column; gap:2px; }
+.proj-row, .recent-row { position:relative; display:flex; align-items:center; }
+.proj-link { flex:1; display:flex; align-items:center; gap:8px; border-radius:calc(var(--radius)*.8); padding:6px 12px; font-size:14px; color:var(--sidebar-foreground); text-decoration:none; cursor:pointer; min-width:0; }
+.proj-link:hover { background:var(--sidebar-accent); }
+.proj-link.active { background:var(--sidebar-accent); font-weight:500; }
+.proj-dot { width:8px; height:8px; border-radius:9999px; background:var(--brand-lavender); flex-shrink:0; }
+.recent-link { flex:1; display:flex; align-items:center; gap:8px; border-radius:calc(var(--radius)*.8); padding:6px 12px; font-size:14px; color:var(--sidebar-foreground); cursor:pointer; min-width:0; text-align:left; }
+.recent-link:hover { background:var(--sidebar-accent); }
+.recent-link .rl-txt { min-width:0; flex:1; }
+.recent-link .rl-txt p { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.recent-link .rl-sub { font-size:12px; color:var(--muted-foreground); }
+.truncate { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.row-actions { position:absolute; right:4px; }
+.actions-trigger { opacity:0; pointer-events:none; transition:opacity .12s; color:var(--sidebar-foreground); }
+.proj-row:hover .actions-trigger, .recent-row:hover .actions-trigger, .chat-item:hover .actions-trigger,
+.actions-trigger:focus-visible, .actions-trigger.open { opacity:1; pointer-events:auto; }
+.sb-foot { border-top:1px solid var(--border); padding:12px; }
+.sb-foot-row { display:flex; align-items:center; justify-content:space-between; border-radius:var(--radius); padding:4px 8px; }
+.sb-user { display:flex; align-items:center; gap:8px; min-width:0; font-size:14px; }
+.sb-user svg { color:var(--muted-foreground); }
+
+/* ══════════ Шапки main ══════════ */
+.proj-header { height:56px; display:flex; align-items:center; gap:24px; border-bottom:1px solid var(--border); padding:0 24px; flex-shrink:0; }
+.proj-header h1 { font-family:"Source Serif 4",serif; font-size:14px; font-weight:600; }
+.proj-tabs { display:flex; height:100%; gap:4px; }
+.proj-tab { display:flex; height:100%; align-items:center; padding:0 12px; font-size:14px; color:var(--muted-foreground); }
+.proj-tab:hover { color:var(--foreground); }
+.proj-tab.active { color:var(--primary); box-shadow:inset 0 -2px 0 var(--ring); }
+.chat-header { height:56px; display:flex; flex-direction:column; justify-content:center; border-bottom:1px solid var(--border); padding:0 16px; flex-shrink:0; }
+.chat-back { display:flex; align-items:center; gap:4px; font-size:12px; color:var(--muted-foreground); width:fit-content; }
+.chat-back:hover { color:var(--foreground); }
+.chat-title-row { display:flex; align-items:center; gap:8px; }
+.chat-title { font-family:"Source Serif 4",serif; font-size:17px; font-weight:600; letter-spacing:-0.02em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.chat-title.flash { animation:title-flash 1.2s ease-out; }
+@keyframes title-flash { 0% { color:var(--primary); } 100% { color:var(--foreground); } }
+.chip { display:inline-flex; align-items:center; gap:4px; border-radius:9999px; background:var(--secondary); padding:4px 10px; font-size:12px; color:var(--secondary-foreground); transition:background .15s; }
+button.chip:hover { background:color-mix(in srgb,var(--secondary) 80%,transparent); }
+.chat-chips { margin-left:auto; display:flex; align-items:center; gap:6px; flex-shrink:0; }
+
+/* ══════════ Страница проекта (ChatList) ══════════ */
+.screen { flex:1; overflow:auto; }
+.chatlist-page { padding:24px; }
+.compose-card { margin-bottom:24px; border:1px solid var(--border); border-radius:calc(var(--radius)*1.4); background:var(--card); padding:12px; box-shadow:var(--shadow-input); }
+.compose-card textarea { width:100%; min-height:52px; resize:none; border:none; outline:none; background:transparent; font-size:14px; padding:8px 10px; }
+.compose-card textarea::placeholder { color:var(--muted-foreground); }
+.compose-foot { margin-top:8px; display:flex; align-items:center; justify-content:space-between; }
+.chat-items { display:flex; flex-direction:column; gap:2px; }
+.chat-item { position:relative; display:flex; align-items:flex-start; border-radius:var(--radius); padding:12px; transition:background .12s; cursor:pointer; }
+.chat-item:hover { background:var(--muted); }
+.chat-item .ci-body { min-width:0; flex:1; }
+.chat-item .ci-title { font-family:"Source Serif 4",serif; font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.chat-item .ci-title.flash { animation:title-flash 1.2s ease-out; }
+.chat-item .ci-prev { margin-top:2px; font-size:12px; color:var(--muted-foreground); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.chat-item .ci-date { margin-top:6px; font-size:10px; color:var(--muted-foreground); }
+.chat-item .row-actions { right:8px; top:10px; }
+
+/* ══════════ Чат ══════════ */
+.msgs { flex:1; overflow:auto; padding:24px; }
+.msgs-col { margin:0 auto; max-width:var(--content-max-w); display:flex; flex-direction:column; gap:16px; }
+.msg-user { display:flex; justify-content:flex-end; }
+.msg-user .bubble { max-width:80%; border-radius:14px 4px 14px 14px; background:var(--bubble-user); padding:12px 16px; font-size:14px; white-space:pre-wrap; }
+.dark .msg-user .bubble { border:1px solid var(--border); }
+.msg-assistant { font-size:14px; line-height:1.65; }
+.msg-assistant p { margin-bottom:.75rem; }
+.msg-assistant p:last-child { margin-bottom:0; }
+.thinking { display:flex; align-items:center; gap:6px; padding:4px 0; color:var(--muted-foreground); }
+.thinking span { width:6px; height:6px; border-radius:9999px; background:currentColor; animation:tdp 1.2s ease-in-out infinite; }
+.thinking span:nth-child(2) { animation-delay:.15s; }
+.thinking span:nth-child(3) { animation-delay:.3s; }
+@keyframes tdp { 0%,60%,100% { opacity:.25; transform:translateY(0); } 30% { opacity:1; transform:translateY(-2px); } }
+.chat-input-wrap { padding:12px 16px 16px; flex-shrink:0; }
+.chat-input-card { margin:0 auto; max-width:var(--content-max-w); border-radius:var(--radius); background:var(--card); box-shadow:var(--shadow-input); display:flex; align-items:flex-end; gap:8px; padding:12px; }
+.chat-input-card textarea { flex:1; min-height:40px; max-height:160px; resize:none; border:none; outline:none; background:transparent; font-size:14px; padding:8px 10px; }
+.chat-input-card textarea::placeholder { color:var(--muted-foreground); }
+.composer-empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:var(--muted-foreground); }
+.composer-empty .ce-title { font-family:"Source Serif 4",serif; font-size:17px; font-weight:600; color:var(--foreground); }
+.composer-empty .ce-sub { font-size:13px; }
+
+/* ══════════ Dropdown (dropdown-menu.tsx) ══════════ */
+.menu { position:fixed; z-index:60; min-width:150px; border-radius:var(--radius); background:var(--popover); color:var(--popover-foreground); padding:4px; box-shadow:0 4px 6px -1px rgba(0,0,0,.1),0 2px 4px -2px rgba(0,0,0,.1),0 0 0 1px color-mix(in srgb,var(--foreground) 10%,transparent); animation:pop-in .1s ease-out; }
+@keyframes pop-in { from { opacity:0; transform:scale(.95); } to { opacity:1; transform:scale(1); } }
+.menu-item { display:flex; width:100%; align-items:center; gap:6px; border-radius:calc(var(--radius)*.8); padding:4px 6px; font-size:14px; text-align:left; }
+.menu-item:hover { background:var(--accent); color:var(--accent-foreground); }
+.menu-item.destructive { color:var(--destructive); }
+.menu-item.destructive:hover { background:color-mix(in srgb,var(--destructive) 10%,transparent); color:var(--destructive); }
+.dark .menu-item.destructive:hover { background:color-mix(in srgb,var(--destructive) 20%,transparent); }
+
+/* ══════════ Dialog (dialog.tsx) ══════════ */
+.overlay { position:fixed; inset:0; z-index:50; background:rgba(0,0,0,.1); backdrop-filter:blur(2px); animation:fade-in .1s ease-out; }
+@keyframes fade-in { from { opacity:0; } to { opacity:1; } }
+.dialog { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:55; width:calc(100% - 2rem); max-width:384px; display:grid; gap:16px; border-radius:calc(var(--radius)*1.4); background:var(--background); padding:16px; font-size:14px; box-shadow:0 10px 30px rgba(0,0,0,.12),0 0 0 1px color-mix(in srgb,var(--foreground) 10%,transparent); animation:pop-in .12s ease-out; }
+.dialog-close { position:absolute; top:8px; right:8px; }
+.dialog h3 { font-size:16px; font-weight:500; line-height:1; }
+.dialog .dlg-desc { font-size:14px; color:var(--muted-foreground); }
+.dialog-foot { margin:0 -16px -16px; display:flex; justify-content:flex-end; gap:8px; border-top:1px solid var(--border); background:color-mix(in srgb,var(--muted) 50%,transparent); padding:16px; border-radius:0 0 calc(var(--radius)*1.4) calc(var(--radius)*1.4); }
+.input { height:32px; width:100%; border-radius:var(--radius); border:1px solid var(--input); background:transparent; padding:4px 10px; font-size:14px; outline:none; }
+.input::placeholder { color:var(--muted-foreground); }
+.input:focus-visible { border-color:var(--ring); box-shadow:0 0 0 3px color-mix(in srgb,var(--ring) 50%,transparent); }
+.dark .input { background:color-mix(in srgb,var(--input) 30%,transparent); }
+.err { font-size:14px; color:var(--destructive); }
+.proj-pick { display:flex; flex-direction:column; gap:2px; }
+.proj-pick button { display:flex; align-items:center; gap:8px; border-radius:calc(var(--radius)*.8); padding:8px 12px; font-size:14px; text-align:left; width:100%; }
+.proj-pick button:hover { background:var(--accent); color:var(--accent-foreground); }
+.pick-empty { display:flex; flex-direction:column; align-items:center; gap:10px; padding:12px 0 4px; color:var(--muted-foreground); font-size:14px; text-align:center; }
+
+/* ══════════ Обвязка мокапа ══════════ */
+.mock-bar { position:fixed; right:16px; bottom:16px; z-index:70; display:flex; align-items:center; gap:8px; border-radius:9999px; background:var(--popover); padding:6px 12px; font-size:12px; color:var(--muted-foreground); box-shadow:0 4px 14px rgba(0,0,0,.14),0 0 0 1px color-mix(in srgb,var(--foreground) 10%,transparent); }
+.mock-bar b { color:var(--foreground); font-weight:600; }
+.mock-toggle { display:inline-flex; border:1px solid var(--border); border-radius:9999px; overflow:hidden; }
+.mock-toggle button { padding:3px 10px; font-size:12px; color:var(--muted-foreground); }
+.mock-toggle button.on { background:var(--secondary); color:var(--secondary-foreground); }
+.compare-note { margin:-12px 0 8px; display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted-foreground); }
+.compare-note .tag { border-radius:9999px; background:var(--secondary); color:var(--secondary-foreground); padding:2px 10px; font-weight:500; }
+.hidden { display:none !important; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ═══════ Sidebar ═══════ -->
+  <aside class="sidebar">
+    <div class="sb-head">
+      <span class="wordmark">LearnFl<span class="orb"></span>w</span>
+      <button class="btn btn-ghost icon-sm" title="Свернуть">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></svg>
+      </button>
+    </div>
+    <div class="sb-actions">
+      <!-- «+ Новый чат»: теперь доступна всегда, открывает модалку выбора проекта -->
+      <button class="btn btn-default btn-sm" id="btn-new-chat">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+        Новый чат
+      </button>
+      <button class="btn btn-outline btn-sm">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+        Новый проект
+      </button>
+    </div>
+    <div class="sb-scroll">
+      <p class="sb-label">Проекты</p>
+      <div class="sb-list" id="proj-list"></div>
+      <div style="margin-top:16px" id="recents-block">
+        <p class="sb-label">Недавнее</p>
+        <div class="sb-list" id="recents-list"></div>
+      </div>
+    </div>
+    <div class="sb-foot">
+      <div class="sb-foot-row">
+        <div class="sb-user">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span class="truncate">Богдан</span>
+        </div>
+        <button class="btn btn-ghost icon-sm" id="theme-toggle" title="Сменить тему">
+          <svg id="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+          <svg id="icon-sun" class="hidden" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ═══════ Main ═══════ -->
+  <main class="main" id="main"></main>
+</div>
+
+<!-- Обвязка мокапа -->
+<div class="mock-bar">
+  <b>Мокап feat-002</b>
+  <span id="mock-screen-label">страница проекта</span>
+  <span class="mock-toggle" id="compare-toggle">
+    <button data-mode="new" class="on">Станет</button>
+    <button data-mode="old">Сейчас</button>
+  </span>
+  <span class="mock-toggle" id="noproj-toggle" title="Смоделировать пользователя без проектов (для модалки выбора)">
+    <button data-np="off" class="on">Проекты есть</button>
+    <button data-np="on">Нет проектов</button>
+  </span>
+</div>
+
+<div id="layer"></div>
+
+<script>
+/* ─────────── Данные ─────────── */
+const state = {
+  compare: "new",            // new | old — вид карточки создания на странице проекта
+  noProjects: false,
+  activeProject: "p1",
+  projects: [
+    { id: "p1", name: "Защита LLM-приложений" },
+    { id: "p2", name: "Матанализ, 2 семестр" },
+  ],
+  chats: {                   // по проектам
+    p1: [
+      { id: "c1", title: "Дизайн лекции про prompt injection", date: "26 июл." },
+      { id: "c2", title: "Разбор SSE-стриминга для семинара", date: "24 июл." },
+      { id: "c3", title: "Вопросы к контрольной по guard-слоям", date: "21 июл." },
+    ],
+    p2: [
+      { id: "c4", title: "Интеграл Римана — конспект", date: "18 июл." },
+    ],
+  },
+  recents: [
+    { chatId: "c1", projectId: "p1", title: "Дизайн лекции про prompt injection", pname: "Защита LLM-приложений" },
+    { chatId: "c2", projectId: "p1", title: "Разбор SSE-стриминга для семинара", pname: "Защита LLM-приложений" },
+    { chatId: "c4", projectId: "p2", title: "Интеграл Римана — конспект", pname: "Матанализ, 2 семестр" },
+  ],
+  screen: { name: "project" },   // project | composer | chat
+  openChat: null,                // { id, title, projectId, messages, streaming }
+  seq: 10,
+};
+
+const $ = (sel, root) => (root || document).querySelector(sel);
+const projName = id => state.projects.find(p => p.id === id)?.name ?? "Проект";
+
+const ICONS = {
+  more: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>',
+  msg: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+  pencil: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></svg>',
+  trash: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>',
+  send: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.714 3.048a.498.498 0 0 0-.683.627l2.843 7.627a2 2 0 0 1 0 1.396l-2.842 7.627a.498.498 0 0 0 .682.627l18-8.5a.5.5 0 0 0 0-.904z"/><path d="M6 12h16"/></svg>',
+  sendSm: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.714 3.048a.498.498 0 0 0-.683.627l2.843 7.627a2 2 0 0 1 0 1.396l-2.842 7.627a.498.498 0 0 0 .682.627l18-8.5a.5.5 0 0 0 0-.904z"/><path d="M6 12h16"/></svg>',
+  back: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>',
+  bot: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>',
+  tools: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>',
+  x: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
+  plus: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>',
+};
+
+/* ─────────── Sidebar render ─────────── */
+function renderSidebar() {
+  const pl = $("#proj-list");
+  pl.innerHTML = "";
+  state.projects.forEach(p => {
+    const row = document.createElement("div");
+    row.className = "proj-row";
+    row.innerHTML = `
+      <a class="proj-link ${p.id === state.activeProject && state.screen.name === "project" ? "active" : ""}">
+        <span class="proj-dot"></span><span class="truncate">${p.name}</span>
+      </a>
+      <div class="row-actions"><button class="btn btn-ghost icon-xs actions-trigger" title="Действия">${ICONS.more}</button></div>`;
+    row.querySelector(".proj-link").onclick = () => { state.activeProject = p.id; go({ name: "project" }); };
+    row.querySelector(".actions-trigger").onclick = e => openMenu(e, [
+      { label: "Rename", icon: ICONS.pencil },
+      { label: "Delete", icon: ICONS.trash, destructive: true },
+    ], () => {});
+    pl.appendChild(row);
+  });
+
+  const rl = $("#recents-list");
+  rl.innerHTML = "";
+  $("#recents-block").classList.toggle("hidden", state.recents.length === 0);
+  state.recents.forEach(r => {
+    const row = document.createElement("div");
+    row.className = "recent-row";
+    row.dataset.chat = r.chatId;
+    row.innerHTML = `
+      <button class="recent-link">
+        ${ICONS.msg}
+        <span class="rl-txt"><p class="rl-title">${r.title}</p><p class="rl-sub truncate">${r.pname}</p></span>
+      </button>
+      <div class="row-actions"><button class="btn btn-ghost icon-xs actions-trigger" title="Действия">${ICONS.more}</button></div>`;
+    row.querySelector(".recent-link").onclick = () => openExistingChat(r.chatId, r.projectId);
+    row.querySelector(".actions-trigger").onclick = e => chatActionsMenu(e, r.chatId, r.projectId);
+    rl.appendChild(row);
+  });
+}
+
+/* ─────────── ChatActions: dropdown + диалоги ─────────── */
+function chatActionsMenu(e, chatId, projectId) {
+  openMenu(e, [
+    { label: "Переименовать", icon: ICONS.pencil, act: () => renameDialog(chatId, projectId) },
+    { label: "Удалить", icon: ICONS.trash, destructive: true, act: () => deleteDialog(chatId, projectId) },
+  ]);
+}
+
+function openMenu(e, items) {
+  e.stopPropagation(); e.preventDefault();
+  closeLayer();
+  const btn = e.currentTarget; btn.classList.add("open");
+  const m = document.createElement("div");
+  m.className = "menu";
+  items.forEach(it => {
+    const b = document.createElement("button");
+    b.className = "menu-item" + (it.destructive ? " destructive" : "");
+    b.innerHTML = `${it.icon}${it.label}`;
+    b.onclick = () => { closeLayer(); it.act && it.act(); };
+    m.appendChild(b);
+  });
+  $("#layer").appendChild(m);
+  const r = btn.getBoundingClientRect();
+  m.style.top = Math.min(r.bottom + 4, innerHeight - m.offsetHeight - 8) + "px";
+  m.style.left = Math.min(r.right - m.offsetWidth, innerWidth - m.offsetWidth - 8) + "px";
+  setTimeout(() => addEventListener("click", onDocClick));
+}
+
+function onDocClick() { closeLayer(); }
+
+function closeLayer() {
+  removeEventListener("click", onDocClick);
+  $("#layer").innerHTML = "";
+  document.querySelectorAll(".actions-trigger.open").forEach(b => b.classList.remove("open"));
+}
+
+function findChat(chatId, projectId) {
+  return (state.chats[projectId] || []).find(c => c.id === chatId);
+}
+
+function applyTitle(chatId, projectId, title, flash) {
+  const c = findChat(chatId, projectId); if (c) c.title = title;
+  const r = state.recents.find(x => x.chatId === chatId); if (r) r.title = title;
+  if (state.openChat && state.openChat.id === chatId) state.openChat.title = title;
+  renderSidebar(); renderMain();
+  if (flash) {
+    const h = $(".chat-title"); if (h) { h.classList.add("flash"); }
+    document.querySelectorAll(".ci-title").forEach(el => { if (el.dataset.chat === chatId) el.classList.add("flash"); });
+  }
+}
+
+function renameDialog(chatId, projectId) {
+  const c = findChat(chatId, projectId); if (!c) return;
+  dialog(`
+    <h3>Переименовать чат</h3>
+    <p class="dlg-desc">Введите новое название чата.</p>
+    <input class="input" id="rn-input" value="${c.title.replace(/"/g, "&quot;")}" autofocus>
+    <div class="dialog-foot">
+      <button class="btn btn-outline btn-md-h" data-close>Отмена</button>
+      <button class="btn btn-default btn-md-h" id="rn-save">Сохранить</button>
+    </div>`);
+  const input = $("#rn-input"); input.select();
+  const save = () => { const v = input.value.trim(); if (v && v !== c.title) applyTitle(chatId, projectId, v, false); closeDialog(); };
+  $("#rn-save").onclick = save;
+  input.onkeydown = e => { if (e.key === "Enter") save(); };
+}
+
+function deleteDialog(chatId, projectId) {
+  const c = findChat(chatId, projectId); if (!c) return;
+  dialog(`
+    <h3>Удалить чат</h3>
+    <p class="dlg-desc">Удалить «${c.title}»? История сообщений будет удалена. Это действие нельзя отменить. Артефакты чата останутся в проекте.</p>
+    <div class="dialog-foot">
+      <button class="btn btn-outline btn-md-h" data-close>Отмена</button>
+      <button class="btn btn-destructive btn-md-h" id="dl-yes">Удалить</button>
+    </div>`);
+  $("#dl-yes").onclick = () => {
+    state.chats[projectId] = (state.chats[projectId] || []).filter(x => x.id !== chatId);
+    state.recents = state.recents.filter(x => x.chatId !== chatId);
+    closeDialog();
+    if (state.openChat && state.openChat.id === chatId) { state.activeProject = projectId; go({ name: "project" }); }
+    else { renderSidebar(); renderMain(); }
+  };
+}
+
+function dialog(html) {
+  closeLayer();
+  const layer = $("#layer");
+  layer.innerHTML = `<div class="overlay"></div><div class="dialog">${html}
+    <button class="btn btn-ghost icon-sm dialog-close" data-close>${ICONS.x}</button></div>`;
+  layer.querySelectorAll("[data-close]").forEach(b => b.onclick = closeDialog);
+  layer.querySelector(".overlay").onclick = closeDialog;
+}
+function closeDialog() { $("#layer").innerHTML = ""; }
+
+/* ─────────── Модалка выбора проекта («+ Новый чат») ─────────── */
+$("#btn-new-chat").onclick = () => {
+  const body = state.noProjects
+    ? `<div class="pick-empty">
+         <p>У вас пока нет проектов — чат живёт внутри проекта.</p>
+         <button class="btn btn-default btn-md-h">${ICONS.plus}Создать проект</button>
+       </div>`
+    : `<div class="proj-pick">${state.projects.map(p =>
+        `<button data-p="${p.id}"><span class="proj-dot"></span><span class="truncate">${p.name}</span></button>`).join("")}
+       </div>`;
+  dialog(`
+    <h3>Новый чат</h3>
+    <p class="dlg-desc">Выберите проект, в котором начать чат.</p>
+    ${body}`);
+  document.querySelectorAll(".proj-pick button").forEach(b => {
+    b.onclick = () => { closeDialog(); state.activeProject = b.dataset.p; go({ name: "composer" }); };
+  });
+};
+
+/* ─────────── Экраны ─────────── */
+function go(screen) { closeLayer(); state.screen = screen; renderSidebar(); renderMain(); }
+
+function renderMain() {
+  const m = $("#main");
+  const s = state.screen;
+  $("#mock-screen-label").textContent =
+    s.name === "project" ? "страница проекта" : s.name === "composer" ? "композер (чата ещё нет)" : "чат";
+  $("#compare-toggle").style.display = s.name === "project" ? "" : "none";
+  if (s.name === "project") m.innerHTML = tplProject();
+  else if (s.name === "composer") m.innerHTML = tplComposer();
+  else m.innerHTML = tplChat();
+  bindMain();
+}
+
+function tplProjHeader() {
+  return `<div class="proj-header">
+    <h1>${projName(state.activeProject)}</h1>
+    <nav class="proj-tabs">
+      <span class="proj-tab active">Чаты</span><span class="proj-tab">Сфера</span>
+      <span class="proj-tab">Артефакты</span><span class="proj-tab">Настройки</span>
+    </nav></div>`;
+}
+
+function tplProject() {
+  const isNew = state.compare === "new";
+  const compose = isNew
+    ? `<div class="compare-note"><span class="tag">Станет</span> поле — первое сообщение нового чата; название сгенерирует модель</div>
+       <div class="compose-card">
+        <textarea id="first-msg" placeholder="Спросите о чём угодно — начнётся новый чат..." rows="2"></textarea>
+        <div class="compose-foot"><span></span>
+          <button class="send-btn" id="send-first" disabled>${ICONS.send}</button>
+        </div></div>`
+    : `<div class="compare-note"><span class="tag">Сейчас</span> поле — название чата; после создания чат пуст, вопрос печатается заново</div>
+       <div class="compose-card">
+        <textarea placeholder="Название нового чата..." rows="2"></textarea>
+        <div class="compose-foot"><span></span>
+          <button class="send-btn" disabled>${ICONS.send}</button>
+        </div></div>`;
+  const chats = state.chats[state.activeProject] || [];
+  const list = chats.length
+    ? `<div class="chat-items">${chats.map(c => `
+        <div class="chat-item" data-chat="${c.id}">
+          <div class="ci-body">
+            <p class="ci-title" data-chat="${c.id}">${c.title}</p>
+            <p class="ci-prev">Нет превью</p>
+            <p class="ci-date">${c.date}</p>
+          </div>
+          <div class="row-actions"><button class="btn btn-ghost icon-xs actions-trigger" title="Действия">${ICONS.more}</button></div>
+        </div>`).join("")}</div>`
+    : `<p style="font-size:14px;color:var(--muted-foreground);padding:32px 0;text-align:center">Нет чатов. Начните с первого сообщения выше.</p>`;
+  return tplProjHeader() + `<div class="screen"><div class="chatlist-page" style="max-width:760px;margin:0 auto">${compose}${list}</div></div>`;
+}
+
+function tplChatHeader(title, draft) {
+  return `<div class="chat-header">
+    <button class="chat-back" id="back-to-proj">${ICONS.back}<span>${projName(state.activeProject)}</span></button>
+    <div class="chat-title-row">
+      <span class="chat-title">${title}</span>
+      <div class="chat-chips">${draft ? "" : `
+        <button class="chip">${ICONS.bot}Модель</button>
+        <button class="chip">${ICONS.tools}Инструменты</button>`}
+      </div>
+    </div></div>`;
+}
+
+function tplComposer() {
+  return tplChatHeader("Новый чат", true) + `
+    <div class="composer-empty">
+      <p class="ce-title">Новый чат</p>
+      <p class="ce-sub">Напишите первое сообщение — чат появится вместе с ним, а название придумает модель.</p>
+    </div>
+    ${tplInput("composer")}`;
+}
+
+function tplChat() {
+  const oc = state.openChat;
+  const msgs = oc.messages.map(m =>
+    m.role === "user"
+      ? `<div class="msg-user"><div class="bubble">${m.text}</div></div>`
+      : `<div class="msg-assistant" id="${m.id || ""}">${m.text}</div>`
+  ).join("");
+  const thinking = oc.thinking ? `<div class="thinking"><span></span><span></span><span></span></div>` : "";
+  return tplChatHeader(oc.title, false) + `
+    <div class="msgs"><div class="msgs-col">${msgs}${thinking}<div id="bottom"></div></div></div>
+    ${tplInput("chat")}`;
+}
+
+function tplInput(mode) {
+  return `<div class="chat-input-wrap"><div class="chat-input-card">
+    <textarea id="chat-msg" placeholder="Сообщение..." rows="1"></textarea>
+    <button class="send-btn" id="chat-send" disabled>${ICONS.sendSm}</button>
+  </div></div>`;
+}
+
+function bindMain() {
+  const s = state.screen;
+  document.querySelectorAll(".chat-item").forEach(el => {
+    el.onclick = e => {
+      if (e.target.closest(".actions-trigger")) return;
+      openExistingChat(el.dataset.chat, state.activeProject);
+    };
+    el.querySelector(".actions-trigger").onclick = e => chatActionsMenu(e, el.dataset.chat, state.activeProject);
+  });
+  const back = $("#back-to-proj");
+  if (back) back.onclick = () => go({ name: "project" });
+
+  const first = $("#first-msg");
+  if (first) {
+    const btn = $("#send-first");
+    first.oninput = () => btn.disabled = !first.value.trim();
+    const submit = () => { if (first.value.trim()) startNewChat(first.value.trim()); };
+    btn.onclick = submit;
+    first.onkeydown = e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } };
+  }
+  const msg = $("#chat-msg");
+  if (msg) {
+    const btn = $("#chat-send");
+    msg.oninput = () => btn.disabled = !msg.value.trim();
+    const submit = () => {
+      const v = msg.value.trim(); if (!v) return;
+      if (s.name === "composer") startNewChat(v);
+      else { state.openChat.messages.push({ role: "user", text: v }); renderMain(); scrollBottom(); }
+    };
+    btn.onclick = submit;
+    msg.onkeydown = e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } };
+  }
+}
+
+function scrollBottom() { const b = $("#bottom"); if (b) b.scrollIntoView({ behavior: "smooth" }); }
+
+/* ─────────── Новый чат: создание + стрим + auto-title ─────────── */
+function startNewChat(text) {
+  const id = "c" + (++state.seq);
+  const pid = state.activeProject;
+  const chat = { id, title: "Новый чат", date: "сегодня" };
+  (state.chats[pid] = state.chats[pid] || []).unshift(chat);
+  state.recents.unshift({ chatId: id, projectId: pid, title: "Новый чат", pname: projName(pid) });
+  state.recents = state.recents.slice(0, 6);
+  state.openChat = { id, projectId: pid, title: "Новый чат", messages: [{ role: "user", text }], thinking: true };
+  go({ name: "chat" });
+  simulateRun(id, pid, text);
+}
+
+function openExistingChat(chatId, projectId) {
+  const c = findChat(chatId, projectId); if (!c) return;
+  state.activeProject = projectId;
+  state.openChat = { id: chatId, projectId, title: c.title,
+    messages: [
+      { role: "user", text: "Покажи, что мы обсуждали в этом чате." },
+      { role: "assistant", text: "<p>Это существующий чат из мокапа — история условная. Наведите курсор на чат в списке или в «Недавнее», чтобы увидеть меню действий (⋯): переименование и удаление.</p>" },
+    ], thinking: false };
+  go({ name: "chat" });
+}
+
+const FAKE_ANSWER = [
+  "Хороший вопрос — давайте разберём по шагам.",
+  "Сначала зафиксируем контекст и цель: что именно хотим получить на выходе и какие ограничения есть у задачи.",
+  "Дальше я предложу структуру материала, а после вашего подтверждения соберу полный конспект с примерами и вопросами для самопроверки.",
+];
+
+function genTitle(text) {
+  const words = text.replace(/\s+/g, " ").trim().split(" ").slice(0, 6).join(" ");
+  const t = words.charAt(0).toUpperCase() + words.slice(1);
+  return t.length > 46 ? t.slice(0, 46).trimEnd() + "…" : t;
+}
+
+function simulateRun(chatId, projectId, userText) {
+  // фаза guard (~0.9с) → стрим ответа; title-задача стартует после первого события
+  setTimeout(() => {
+    if (!state.openChat || state.openChat.id !== chatId) return;
+    state.openChat.thinking = false;
+    state.openChat.messages.push({ role: "assistant", text: "", id: "streaming-msg" });
+    renderMain();
+    let i = 0;
+    const int = setInterval(() => {
+      if (!state.openChat || state.openChat.id !== chatId) { clearInterval(int); return; }
+      i++;
+      const el = $("#streaming-msg");
+      if (el) el.innerHTML = FAKE_ANSWER.slice(0, i).map(p => `<p>${p}</p>`).join("");
+      state.openChat.messages[state.openChat.messages.length - 1].text =
+        FAKE_ANSWER.slice(0, i).map(p => `<p>${p}</p>`).join("");
+      scrollBottom();
+      if (i >= FAKE_ANSWER.length) clearInterval(int);
+    }, 900);
+    // title_updated прилетает во время стрима (~1.6с после старта)
+    setTimeout(() => applyTitle(chatId, projectId, genTitle(userText), true), 1600);
+  }, 900);
+}
+
+/* ─────────── Обвязка мокапа ─────────── */
+$("#theme-toggle").onclick = () => {
+  const dark = document.documentElement.classList.toggle("dark");
+  $("#icon-moon").classList.toggle("hidden", dark);
+  $("#icon-sun").classList.toggle("hidden", !dark);
+};
+document.querySelectorAll("#compare-toggle button").forEach(b => {
+  b.onclick = () => {
+    state.compare = b.dataset.mode;
+    document.querySelectorAll("#compare-toggle button").forEach(x => x.classList.toggle("on", x === b));
+    renderMain();
+  };
+});
+document.querySelectorAll("#noproj-toggle button").forEach(b => {
+  b.onclick = () => {
+    state.noProjects = b.dataset.np === "on";
+    document.querySelectorAll("#noproj-toggle button").forEach(x => x.classList.toggle("on", x === b));
+  };
+});
+
+renderSidebar();
+renderMain();
+</script>
+</body>
+</html>

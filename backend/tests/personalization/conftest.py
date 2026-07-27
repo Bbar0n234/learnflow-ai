@@ -27,6 +27,7 @@ from app.agent.config import (
     ContextConfig,
     ImageConfig,
     LLMConfig,
+    TitleConfig,
 )
 from app.infra.prompt_provider import PromptProvider
 from app.services.encryption import EncryptionService
@@ -69,6 +70,7 @@ def make_agent_config(
         llm=LLMConfig(model=model),
         context=ContextConfig(max_tokens=1000),
         image=ImageConfig(model="google/gemini-3.1-flash-image"),
+        title=TitleConfig(model="deepseek/deepseek-v4-flash"),
         available_models=[AvailableModel(name=n, display_name=d) for n, d in available],
     )
 

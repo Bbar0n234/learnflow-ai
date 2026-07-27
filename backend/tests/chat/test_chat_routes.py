@@ -21,18 +21,20 @@ from tests.chat.conftest import FakeAgentRunner
 pytestmark = pytest.mark.integration
 
 
-async def test_create_chat_returns_201_with_title(
+async def test_create_chat_ignores_request_body(
     client: AsyncClient, current_user: User, wired_runner: FakeAgentRunner
 ) -> None:
     project = await ProjectFactory.create(user=current_user)
 
+    # Foreign body is ignored: the endpoint takes no request body anymore
+    # (ChatCreate removed) — the server always assigns the placeholder title.
     response = await client.post(
         f"/api/projects/{project.id}/chats", json={"title": "My chat"}
     )
 
     assert response.status_code == 201
     body = response.json()
-    assert body["title"] == "My chat"
+    assert body["title"] == "Новый чат"
     assert body["thread_id"]
 
 
@@ -41,10 +43,10 @@ async def test_create_chat_defaults_title_when_omitted(
 ) -> None:
     project = await ProjectFactory.create(user=current_user)
 
-    response = await client.post(f"/api/projects/{project.id}/chats", json={})
+    response = await client.post(f"/api/projects/{project.id}/chats")
 
     assert response.status_code == 201
-    assert response.json()["title"] == "New Chat"
+    assert response.json()["title"] == "Новый чат"
 
 
 async def test_create_chat_in_other_users_project_returns_404(
@@ -53,9 +55,7 @@ async def test_create_chat_in_other_users_project_returns_404(
     other = await UserFactory.create()
     other_project = await ProjectFactory.create(user=other)
 
-    response = await client.post(
-        f"/api/projects/{other_project.id}/chats", json={"title": "x"}
-    )
+    response = await client.post(f"/api/projects/{other_project.id}/chats")
 
     assert response.status_code == 404
 

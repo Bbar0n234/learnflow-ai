@@ -14,7 +14,13 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
-from app.agent.config import AgentConfig, ContextConfig, ImageConfig, LLMConfig
+from app.agent.config import (
+    AgentConfig,
+    ContextConfig,
+    ImageConfig,
+    LLMConfig,
+    TitleConfig,
+)
 from app.infra.prompt_provider import PromptProvider
 from app.repositories.settings import SettingsRepository
 from app.services.model_config_resolver import ModelConfigResolver
@@ -66,6 +72,7 @@ def _resolver(prompt_config: dict[str, Any] | None = None) -> ModelConfigResolve
         llm=LLMConfig(model="agent-yaml-model", extra_body={"foo": "bar"}),
         context=ContextConfig(max_tokens=1000),
         image=ImageConfig(model="google/gemini-3.1-flash-image"),
+        title=TitleConfig(model="deepseek/deepseek-v4-flash"),
     )
     return ModelConfigResolver(
         prompt_provider=cast(PromptProvider, StubPromptProvider(prompt_config)),

@@ -279,13 +279,13 @@ class RuntimeSecurityEnforcer:
         """Mark the thread blocked.
 
         When a request-scoped ``session`` is provided, reuse it directly: the
-        request transaction already holds the ``thread_views`` row lock (via
-        ``touch``), so opening a second session here would deadlock — the second
-        UPDATE would wait on a lock that only releases when the request commits,
-        which only happens after the stream (and thus this call) finishes.
+        flag belongs to the request that produced the block, so it rides the
+        request transaction instead of taking a second pooled connection.
         ``mark_security_blocked`` flushes; the request transaction commits at the
-        end of the request. The standalone fallback (own session + ``begin()``)
-        covers non-request callers such as tests.
+        end of the request — the block is terminal, so the stream closes right
+        after this call and the row lock is held only for that instant. The
+        standalone fallback (own session + ``begin()``) covers non-request
+        callers such as tests.
         """
         if session is not None:
             try:

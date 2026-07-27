@@ -30,6 +30,11 @@ class ImageConfig(BaseModel):
     params: dict[str, Any] = {}
 
 
+class TitleConfig(BaseModel):
+    model: str
+    extra_body: dict[str, Any] = {}
+
+
 class MCPServerConfig(BaseModel):
     enabled: bool = True
     transport: str  # "http", "sse", "stdio"
@@ -71,6 +76,7 @@ class AgentConfig(BaseModel):
     llm: LLMConfig
     context: ContextConfig
     image: ImageConfig
+    title: TitleConfig
     summarization: SummarizationConfig | None = None
     subagents: SubagentsConfig | None = None
     mcp_servers: dict[str, MCPServerConfig] = {}

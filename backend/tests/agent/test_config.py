@@ -62,6 +62,7 @@ def _minimal_agent_cfg() -> AgentConfig:
             "llm": {"model": "m"},
             "context": {"max_tokens": 100},
             "image": {"model": "google/gemini-3.1-flash-image"},
+            "title": {"model": "deepseek/deepseek-v4-flash"},
         }
     )
 

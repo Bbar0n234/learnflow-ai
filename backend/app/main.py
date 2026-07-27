@@ -96,6 +96,7 @@ from app.security_pipeline.transport import (
     EventTransportHolder,
     RedisEventTransport,
 )
+from app.services.chat_title import ChatTitleGenerator
 from app.services.encryption import EncryptionService
 from app.services.mcp_server import (
     fetch_remote_metadata,
@@ -349,6 +350,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             settings.langfuse_prompt_label,
         )
 
+    # Chat auto-title generator (fire-and-forget, design-brief § Auto-title
+    # модуль). Built here — after session_factory + PromptProvider, before
+    # the LangGraph persistence block below — and stored on app.state so its
+    # in-flight task registry survives across requests.
+    app.state.chat_title_generator = ChatTitleGenerator(
+        session_factory=app.state.session_factory,
+        settings=settings,
+        title_config=agent_config.title,
+        prompt_provider=prompt_provider,
+        prompt_fragments=prompt_fragments,
+        langfuse_enabled=langfuse_enabled,
+    )
+
     # Encryption service
     encryption_service = EncryptionService(settings.mcp_encryption_key)
     app.state.encryption_service = encryption_service
@@ -595,6 +609,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             event_mapper=StreamEventMapper(),
             tool_resolver=tool_resolver,
             canary_secret=settings.canary_secret,
+            checkpointer=checkpointer,
         )
         app.state.agent_config = agent_config
         app.state.security_config = security_config

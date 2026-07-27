@@ -9,6 +9,7 @@ from typing import Any
 
 import structlog
 from langchain_core.messages import AIMessageChunk, HumanMessage
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.checkpoint_history import CheckpointHistory
@@ -49,6 +50,7 @@ class LangGraphAgentRunner:
         event_mapper: StreamEventMapper | None = None,
         tool_resolver: Any | None = None,
         canary_secret: str = "",
+        checkpointer: AsyncPostgresSaver | None = None,
     ) -> None:
         self._graph_factory = graph_factory
         self._model_resolver = model_resolver
@@ -59,6 +61,7 @@ class LangGraphAgentRunner:
         self._event_mapper = event_mapper or StreamEventMapper()
         self._tool_resolver = tool_resolver
         self._canary_secret = canary_secret
+        self._checkpointer = checkpointer
         self._cancel_events: dict[uuid.UUID, asyncio.Event] = {}
         self._pending_cancels: set[uuid.UUID] = set()
 
@@ -359,3 +362,16 @@ class LangGraphAgentRunner:
             return True
         event.set()
         return True
+
+    async def delete_thread(self, *, thread_id: uuid.UUID) -> None:
+        """Delete LangGraph checkpoints for a thread. Best-effort — the
+        caller (``ChatService.delete_chat``) treats failures as a barrier: the
+        DB-side chat row is already committed by then, and orphaned
+        checkpoints degrade the same way pre-existing garbage does."""
+        if self._checkpointer is None:
+            logger.warning(
+                "checkpointer not configured, skipping thread deletion",
+                thread_id=str(thread_id),
+            )
+            return
+        await self._checkpointer.adelete_thread(str(thread_id))

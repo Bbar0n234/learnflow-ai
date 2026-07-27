@@ -162,6 +162,26 @@ class MCPServerRepository:
         )
         await self._session.flush()
 
+    async def cleanup_disables_for_thread(self, thread_id: uuid.UUID) -> None:
+        """Disables не связаны FK (полиморфный scope) — при удалении чата
+        подчищаем его thread-scope и ссылки на его серверы.
+        Вызывать до удаления треда, пока каскад не стёр серверы."""
+        thread_server_ids = select(ThreadMCPServer.id).where(
+            ThreadMCPServer.thread_id == thread_id
+        )
+        await self._session.execute(
+            delete(MCPServerDisable).where(
+                or_(
+                    and_(
+                        MCPServerDisable.scope_type == "thread",
+                        MCPServerDisable.scope_id == thread_id,
+                    ),
+                    MCPServerDisable.server_id.in_(thread_server_ids),
+                )
+            )
+        )
+        await self._session.flush()
+
     async def cleanup_disables_for_project(self, project_id: uuid.UUID) -> None:
         """Disables не связаны FK (полиморфный scope) — при удалении проекта
         подчищаем его project-scope, thread-scope его тредов и ссылки на его серверы.

@@ -1,7 +1,7 @@
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import quote, urlencode
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode
 
 
@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 30
     secure_cookies: bool = True
+
+    # Client IP
+    client_ip_source: Literal["socket", "x-real-ip", "x-forwarded-for"] = "socket"
+    client_ip_xff_hops: int = Field(1, ge=1)
 
     # Langfuse Observability
     langfuse_public_key: str = ""

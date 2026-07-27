@@ -77,6 +77,7 @@ from app.api.routes import (
 )
 from app.api.routes import settings as settings_routes
 from app.config import Settings
+from app.infra.client_ip import get_client_ip, is_health_path
 from app.infra.db import create_engine, create_session_factory
 from app.infra.langfuse import (
     ensure_model_definitions,
@@ -641,24 +642,20 @@ def create_app() -> FastAPI:
         structlog.contextvars.clear_contextvars()
         request_id = str(uuid.uuid4())
 
-        # Extract client IP (handle X-Forwarded-For for proxies)
-        client_ip = "unknown"
-        if request.client:
-            client_ip = request.client.host
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            client_ip = forwarded.split(",")[0].strip()
-
         # Extract User-Agent and hash it
         user_agent = request.headers.get("User-Agent", "")
         user_agent_hash = hashlib.sha256(user_agent.encode()).hexdigest()
 
-        # Bind security context
+        # Bind security context. Client IP goes through app.infra.client_ip
+        # (single source of truth for reading proxy headers); on the health
+        # path it is not bound at all — docker healthcheck bypasses nginx,
+        # so there is no proxy header to read and nothing to log.
         structlog.contextvars.bind_contextvars(
             request_id=request_id,
-            ip=client_ip,
             user_agent_hash=user_agent_hash,
         )
+        if not is_health_path(request.url.path):
+            structlog.contextvars.bind_contextvars(ip=get_client_ip(request, settings))
         try:
             response = await call_next(request)
             return response

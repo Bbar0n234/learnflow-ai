@@ -75,6 +75,7 @@ doc/
 
 **Setup manuals:**
 - [tech/setup/codex-cloud.md](tech/setup/codex-cloud.md) — настройка ChatGPT Codex Environment для cloud-сессий
+- [tech/setup/production.md](tech/setup/production.md) — nginx-периметр прод-VM, инвариант доверия, режимы `CLIENT_IP_SOURCE`, ручной runbook перед деплоем
 
 ## Другие разделы
 

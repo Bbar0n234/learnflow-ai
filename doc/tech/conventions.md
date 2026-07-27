@@ -121,7 +121,7 @@ Dockerfile живёт рядом с `pyproject.toml` пакета (`backend/Dock
 Содержимое — единый шаблон:
 
 - Pinned uv image (`ghcr.io/astral-sh/uv:<version>`), без `latest`. Reproducibility важнее «свежести».
-- Установка через `uv sync --locked --all-packages` с cache-mount. Не `uv pip install -e` — это обходит lock-файл и ломает воспроизводимость.
+- Установка через `uv sync --locked --no-dev --package <имя пакета workspace>` с cache-mount, а не `--all-packages`: образ получает зависимости только своего пакета, без dev-группы (`pytest`, `mypy`, `testcontainers` и т.п.) и без стека остальных членов workspace. Не `uv pip install -e` — это обходит lock-файл и ломает воспроизводимость.
 - Multi-stage build когда есть смысл (frontend bundle, dev-deps отделение).
 
 ### Структура внутри сервиса
@@ -547,6 +547,8 @@ style LAYER fill:#58a6ff1a,stroke:#58a6ff,color:#58a6ff
 ### Security Event Logging
 
 Логирование security-событий для SIEM pipeline (feat-005). Используется флаг `security_event=True` и canonical `event_type` из shared vocabulary. Context (ip, user_id, thread_id, request_id и т.д.) вытягивается из contextvars автоматически.
+
+**Источник `ip`.** Клиентский IP читается только через `app.infra.client_ip.get_client_ip` — нигде больше в кодовой базе `X-Real-IP` и `X-Forwarded-For` напрямую не читаются. Какому заголовку доверять, решает `CLIENT_IP_SOURCE` (`socket` / `x-real-ip` / `x-forwarded-for`), а не код на месте вызова.
 
 **Пример:**
 ```python

@@ -124,8 +124,12 @@ svg { flex-shrink:0; pointer-events:none; }
 .chat-back:hover { color:var(--foreground); }
 .chat-title-row { display:flex; align-items:center; gap:8px; }
 .chat-title { font-family:"Source Serif 4",serif; font-size:17px; font-weight:600; letter-spacing:-0.02em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.chat-title.flash { animation:title-flash 1.2s ease-out; }
-@keyframes title-flash { 0% { color:var(--primary); } 100% { color:var(--foreground); } }
+.flash { animation:title-flash 2.2s ease-out; border-radius:4px; }
+@keyframes title-flash {
+  0%   { color:var(--primary); background:var(--secondary); }
+  55%  { color:var(--primary); background:transparent; }
+  100% { color:inherit; background:transparent; }
+}
 .chip { display:inline-flex; align-items:center; gap:4px; border-radius:9999px; background:var(--secondary); padding:4px 10px; font-size:12px; color:var(--secondary-foreground); transition:background .15s; }
 button.chip:hover { background:color-mix(in srgb,var(--secondary) 80%,transparent); }
 .chat-chips { margin-left:auto; display:flex; align-items:center; gap:6px; flex-shrink:0; }
@@ -142,7 +146,6 @@ button.chip:hover { background:color-mix(in srgb,var(--secondary) 80%,transparen
 .chat-item:hover { background:var(--muted); }
 .chat-item .ci-body { min-width:0; flex:1; }
 .chat-item .ci-title { font-family:"Source Serif 4",serif; font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.chat-item .ci-title.flash { animation:title-flash 1.2s ease-out; }
 .chat-item .ci-prev { margin-top:2px; font-size:12px; color:var(--muted-foreground); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .chat-item .ci-date { margin-top:6px; font-size:10px; color:var(--muted-foreground); }
 .chat-item .row-actions { right:8px; top:10px; }
@@ -224,7 +227,7 @@ button.chip:hover { background:color-mix(in srgb,var(--secondary) 80%,transparen
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
         Новый чат
       </button>
-      <button class="btn btn-outline btn-sm">
+      <button class="btn btn-outline btn-sm" id="btn-new-proj">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
         Новый проект
       </button>
@@ -322,6 +325,11 @@ const ICONS = {
 function renderSidebar() {
   const pl = $("#proj-list");
   pl.innerHTML = "";
+  if (state.noProjects) {
+    pl.innerHTML = '<p style="padding:6px 12px;font-size:12px;color:var(--muted-foreground)">No projects yet</p>';
+    $("#recents-block").classList.add("hidden");
+    return;
+  }
   state.projects.forEach(p => {
     const row = document.createElement("div");
     row.className = "proj-row";
@@ -348,7 +356,7 @@ function renderSidebar() {
     row.innerHTML = `
       <button class="recent-link">
         ${ICONS.msg}
-        <span class="rl-txt"><p class="rl-title">${r.title}</p><p class="rl-sub truncate">${r.pname}</p></span>
+        <span class="rl-txt"><p class="rl-title truncate" data-chat="${r.chatId}">${r.title}</p><p class="rl-sub truncate">${r.pname}</p></span>
       </button>
       <div class="row-actions"><button class="btn btn-ghost icon-xs actions-trigger" title="Действия">${ICONS.more}</button></div>`;
     row.querySelector(".recent-link").onclick = () => openExistingChat(r.chatId, r.projectId);
@@ -403,8 +411,10 @@ function applyTitle(chatId, projectId, title, flash) {
   if (state.openChat && state.openChat.id === chatId) state.openChat.title = title;
   renderSidebar(); renderMain();
   if (flash) {
-    const h = $(".chat-title"); if (h) { h.classList.add("flash"); }
-    document.querySelectorAll(".ci-title").forEach(el => { if (el.dataset.chat === chatId) el.classList.add("flash"); });
+    const h = $(".chat-title"); if (h && state.openChat && state.openChat.id === chatId) h.classList.add("flash");
+    document.querySelectorAll(".ci-title, .rl-title").forEach(el => {
+      if (el.dataset.chat === chatId) el.classList.add("flash");
+    });
   }
 }
 
@@ -457,7 +467,7 @@ $("#btn-new-chat").onclick = () => {
   const body = state.noProjects
     ? `<div class="pick-empty">
          <p>У вас пока нет проектов — чат живёт внутри проекта.</p>
-         <button class="btn btn-default btn-md-h">${ICONS.plus}Создать проект</button>
+         <button class="btn btn-default btn-md-h" id="pick-create-proj">${ICONS.plus}Создать проект</button>
        </div>`
     : `<div class="proj-pick">${state.projects.map(p =>
         `<button data-p="${p.id}"><span class="proj-dot"></span><span class="truncate">${p.name}</span></button>`).join("")}
@@ -469,7 +479,39 @@ $("#btn-new-chat").onclick = () => {
   document.querySelectorAll(".proj-pick button").forEach(b => {
     b.onclick = () => { closeDialog(); state.activeProject = b.dataset.p; go({ name: "composer" }); };
   });
+  const cp = $("#pick-create-proj");
+  if (cp) cp.onclick = () => { closeDialog(); createProjectDialog(); };
 };
+
+/* ─────────── Создание проекта (копия CreateProjectModal) ─────────── */
+function createProjectDialog() {
+  dialog(`
+    <h3>New Project</h3>
+    <input class="input" id="np-input" placeholder="Project name">
+    <div class="dialog-foot">
+      <button class="btn btn-default btn-md-h" id="np-create" disabled>Create</button>
+    </div>`);
+  const input = $("#np-input"); input.focus();
+  const btn = $("#np-create");
+  input.oninput = () => btn.disabled = !input.value.trim();
+  const create = () => {
+    const v = input.value.trim(); if (!v) return;
+    const id = "p" + (++state.seq);
+    state.projects.push({ id, name: v });
+    state.chats[id] = [];
+    state.noProjects = false; syncNoProjToggle();
+    closeDialog();
+    state.activeProject = id;
+    go({ name: "composer" });   // сразу в композер нового чата созданного проекта
+  };
+  btn.onclick = create;
+  input.onkeydown = e => { if (e.key === "Enter") create(); };
+}
+
+function syncNoProjToggle() {
+  document.querySelectorAll("#noproj-toggle button").forEach(x =>
+    x.classList.toggle("on", (x.dataset.np === "on") === state.noProjects));
+}
 
 /* ─────────── Экраны ─────────── */
 function go(screen) { closeLayer(); state.screen = screen; renderSidebar(); renderMain(); }
@@ -478,12 +520,22 @@ function renderMain() {
   const m = $("#main");
   const s = state.screen;
   $("#mock-screen-label").textContent =
+    state.noProjects && s.name === "project" ? "нет проектов" :
     s.name === "project" ? "страница проекта" : s.name === "composer" ? "композер (чата ещё нет)" : "чат";
-  $("#compare-toggle").style.display = s.name === "project" ? "" : "none";
-  if (s.name === "project") m.innerHTML = tplProject();
+  $("#compare-toggle").style.display = s.name === "project" && !state.noProjects ? "" : "none";
+  if (s.name === "project") m.innerHTML = state.noProjects ? tplNoProjects() : tplProject();
   else if (s.name === "composer") m.innerHTML = tplComposer();
   else m.innerHTML = tplChat();
   bindMain();
+}
+
+function tplNoProjects() {
+  return `<div class="screen" style="display:flex;align-items:center;justify-content:center">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;max-width:360px">
+      <p style="font-family:'Source Serif 4',serif;font-size:17px;font-weight:600">Пока нет проектов</p>
+      <p style="font-size:13px;color:var(--muted-foreground)">Чаты живут внутри проектов. Создайте первый проект — или нажмите «+ Новый чат», чтобы увидеть empty-state модалки выбора.</p>
+      <button class="btn btn-default btn-md-h" id="welcome-create">${ICONS.plus}Создать проект</button>
+    </div></div>`;
 }
 
 function tplProjHeader() {
@@ -577,6 +629,8 @@ function bindMain() {
   });
   const back = $("#back-to-proj");
   if (back) back.onclick = () => go({ name: "project" });
+  const wc = $("#welcome-create");
+  if (wc) wc.onclick = createProjectDialog;
 
   const first = $("#first-msg");
   if (first) {
@@ -639,7 +693,7 @@ function genTitle(text) {
 }
 
 function simulateRun(chatId, projectId, userText) {
-  // фаза guard (~0.9с) → стрим ответа; title-задача стартует после первого события
+  // фаза guard (~1.2с, thinking-доты) → стрим ответа; title-задача стартует после первого события
   setTimeout(() => {
     if (!state.openChat || state.openChat.id !== chatId) return;
     state.openChat.thinking = false;
@@ -655,10 +709,10 @@ function simulateRun(chatId, projectId, userText) {
         FAKE_ANSWER.slice(0, i).map(p => `<p>${p}</p>`).join("");
       scrollBottom();
       if (i >= FAKE_ANSWER.length) clearInterval(int);
-    }, 900);
-    // title_updated прилетает во время стрима (~1.6с после старта)
-    setTimeout(() => applyTitle(chatId, projectId, genTitle(userText), true), 1600);
-  }, 900);
+    }, 1300);
+    // title_updated прилетает во время стрима: «Новый чат» видим ~3с, потом замена с подсветкой
+    setTimeout(() => applyTitle(chatId, projectId, genTitle(userText), true), 3000);
+  }, 1200);
 }
 
 /* ─────────── Обвязка мокапа ─────────── */
@@ -677,9 +731,11 @@ document.querySelectorAll("#compare-toggle button").forEach(b => {
 document.querySelectorAll("#noproj-toggle button").forEach(b => {
   b.onclick = () => {
     state.noProjects = b.dataset.np === "on";
-    document.querySelectorAll("#noproj-toggle button").forEach(x => x.classList.toggle("on", x === b));
+    syncNoProjToggle();
+    go({ name: "project" });   // режим влияет на сайдбар и главный экран
   };
 });
+$("#btn-new-proj").onclick = createProjectDialog;
 
 renderSidebar();
 renderMain();

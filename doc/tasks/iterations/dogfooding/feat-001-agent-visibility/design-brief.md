@@ -35,7 +35,9 @@
 
 Удаляются: `tool_start`, `tool_end` (заменены `tool_call_*` / `tool_result`).
 
-**Вложенность субагента** — без отдельных типов событий: те же `tool_call_started` / `tool_call_args` / `tool_result` / `agent_event` с `parent_call_id` = call_id родительского `run_subagent`. Эмиссия — обёртка исполнения инструментов субагента пишет в `get_stream_writer()` (custom-события всплывают из вложенности через contextvars штатно); SubagentRunner остаётся на `ainvoke`. Вход субагента (task) и его ответ — это args/result самого вызова `run_subagent`, отдельного канала не нужно.
+**Вложенность субагента** — без отдельных типов событий: те же `tool_call_started` / `tool_call_args` / `tool_result` / `agent_event` с `parent_call_id` = call_id родительского `run_subagent`. Эмиссия — обёртка исполнения инструментов субагента пишет в stream writer, **захваченный в скоупе tool'а `run_subagent`** (он исполняется в родительском графе, где writer доступен) и переданный вниз явным аргументом; SubagentRunner остаётся на `ainvoke`.
+
+Механизм проверен на langgraph 1.1.3: custom-события из вложенного *скомпилированного* графа в родительский поток **не всплывают** при `subgraphs=False` — contextvars хватает для обычных вложенных функций, но не для вложенного Pregel-графа. Альтернатива `astream(..., subgraphs=True)` даёт namespace вложенности, но меняет форму кортежа стрима на `(namespace, mode, data)` и требует пересмотра изоляции субагентных токенов по `SUBAGENT_TAG` — отклонена. Вход субагента (task) и его ответ — это args/result самого вызова `run_subagent`, отдельного канала не нужно.
 
 **Лимиты и параметры:**
 
@@ -83,7 +85,7 @@ flowchart LR
 
 ## Frontend
 
-- **Реестр подписей инструментов** — `shared/config` (FSD): имя → `{label, icon, argTemplate}`; примеры: `firecrawl_search` → «Ищу в интернете» + шаблон «· „{query}"», `run_subagent` → «{agent_type}-субагент», `update_section` → «Обновляю память проекта · раздел „{section}"». Для имён вне реестра (пользовательские MCP): label = сырое имя + пометка источника («инструмент MCP: {server}»). Сырое имя всегда доступно в развороте. Полноту реестра для built-in/internal инструментов сторожит тест против списка имён бэкенда.
+- **Реестр подписей инструментов** — `shared/config` (FSD): имя → `{label, icon, argTemplate}`; примеры: `firecrawl_search` → «Ищу в интернете» + шаблон «· „{query}"», `run_subagent` → «{agent_type}-субагент», `update_section` → «Обновляю память проекта · раздел „{section}"». Для имён вне реестра (пользовательские MCP): label = сырое имя + пометка источника («инструмент MCP: {server}»). Сырое имя всегда доступно в развороте. Полноту реестра для built-in/internal инструментов сторожит тест против списка имён бэкенда: T1 выкладывает машиночитаемый фикстур имён, сгенерированный из реестра инструментов бэкенда, фронт-тест читает его (путь и генератор фиксирует план T1). Список на стороне фронта отклонён — он сторожил бы сам себя и не краснел бы на забытую подпись к новому инструменту.
 - **Один компонент ленты** для live и истории: рендерит parts; live добавляет поверх состояния running (точки, счётчик), строку-паузу и review-строку.
 - **Stream-store**: `activeTool`-скаляр заменяется аккумулятором parts + map активных вызовов по `call_id` (параллельные вызовы, вложенность по `parent_call_id`).
 - Заменяются: `ThinkingIndicator` → строка-пауза ленты; `ToolIndicator` → строка действия. `ReviewIndicator` сохраняет текущий вид (строкой ленты). `GeneratingArtifactCard` — на данных `tool_call_args` (title картинки из args).
@@ -115,7 +117,7 @@ flowchart LR
 
 | Трек | Скоуп | Файловый/модульный скоуп |
 |------|-------|--------------------------|
-| T1 | Backend: контракт SSE v2, runner, custom-канал, субагентная обёртка, CheckpointHistory → parts, попутные фиксы, переписывание `streaming.md`, конвенции agent | `backend/app/agent/**`, `backend/app/services/chat.py`, `backend/app/api/{routes/messages.py, schemas/chats.py}`, `backend/tests/**`, `doc/tech/streaming.md`, `doc/tech/conventions/agent.md` |
+| T1 | Backend: контракт SSE v2, runner, custom-канал, субагентная обёртка, CheckpointHistory → parts, фикстур имён инструментов, попутные фиксы, переписывание `streaming.md`, конвенции agent | `backend/app/agent/**`, `backend/app/services/{chat.py, agent_runner.py}`, `backend/app/api/{routes/messages.py, routes/chats.py, schemas/chats.py}`, `backend/app/main.py` (сборка `internal_tools` — единый источник имён для фикстура), `backend/tests/**`, `scripts/` (генератор фикстура), сгенерированный фикстур имён инструментов (путь фиксирует план T1; потребитель — тест T2), `doc/tech/streaming.md`, `doc/tech/conventions/agent.md` |
 | T2 | Frontend: лента активности (live+история), реестр подписей, stream-store, таймаут от heartbeat, конвенции frontend | `frontend/src/**`, `doc/tech/conventions/frontend.md` |
 
 Треки последовательные (T2 стартует на готовом контракте T1); параллелизация отклонена — контрактная связность высокая, а форма событий стабилизируется только к концу T1. Вердикт непересечения по файлам: тривиален (backend/doc vs frontend).

@@ -2,21 +2,21 @@
 
 ## TL;DR
 
-Трек закрывает пять фаз. **T1.1** подтвердила reasoning в чекпоинте на streaming-пути (без
-правок `graph.py`). **T1.2** ввела каркас SSE v2: `stream_started` до setup, `HeartbeatPacer`
-(heartbeat + отзывчивая отмена), терминальный `cancelled {}`, generic `security_block {}`.
-**T1.3** переработала token-канал (`TokenChunkMapper`, per-run): `reasoning_chunk`/
-`text_chunk`/ранние `tool_call_started`+`tool_call_args`; изолирован стрим суммаризатора.
-**T1.4** привела updates-канал (`StreamEventMapper`, per-run) к контракту: `tool_result` из
-`ToolMessage`, `artifact_created` по атрибуту, `tool_call_cancelled` через bookkeeping.
-**T1.5** включила `stream_mode="custom"` и хелпер `agent_events.emit_agent_event` (writer:
-контекстная переменная → `get_stream_writer()` → no-op вне графа) — им KS/memory/skill-context
-tools и компакция репортуют `sphere_write`/`memory_write`/`skill_context_write`/`compaction`,
-раннер маппит их в `agent_event {kind, payload}`.
+Трек закрывает шесть фаз. **T1.1** подтвердила reasoning в чекпоинте на streaming-пути.
+**T1.2** ввела каркас SSE v2: `stream_started`, `HeartbeatPacer`, терминальный `cancelled {}`,
+generic `security_block {}`. **T1.3** переработала token-канал (`TokenChunkMapper`):
+`reasoning_chunk`/`text_chunk`/ранние `tool_call_started`+`tool_call_args`. **T1.4** привела
+updates-канал (`StreamEventMapper`) к контракту: `tool_result`, `artifact_created` по
+атрибуту, `tool_call_cancelled`. **T1.5** включила `stream_mode="custom"` и
+`agent_events.emit_agent_event` — им KS/memory/skill-context tools и компакция репортуют
+`sphere_write`/`memory_write`/`skill_context_write`/`compaction`, раннер маппит в
+`agent_event {kind, payload}`. **T1.6** активировала задел T1.5 (`SUBAGENT_STREAM_WRITER`):
+`run_subagent` передаёт `stream_writer`/`call_id` в `SubagentRunner.run`, тот оборачивает тулы
+субагента в `_LifecycleEmittingTool` — прокси, репортующий все четыре lifecycle-события с
+`parent_call_id`; вложенный `emit_agent_event` подхватывает тег через `SUBAGENT_PARENT_CALL_ID`.
 
 `make check` зелёный на всех фазах. `make test`: стабильно **526 passed, 1 failed, 228
-errors** — инфраструктурные (testcontainers) плюс предсуществующий прайсинг-дрейф, ни одна
-фаза не добавила красного.
+errors** — инфраструктурные (testcontainers) плюс предсуществующий прайсинг-дрейф.
 
 ## Реализовано в фазе T1.1
 
@@ -346,6 +346,77 @@ errors** — инфраструктурные (testcontainers) плюс пред
     (`KeyError` от `get_stream_writer()`), поэтому все 39 тестов остались зелёными без единой
     правки; это и есть проверка «no-op вне графа», которую план требует от этой фазы, а не
     новый тест-кейс, который следовало бы писать.
+
+## Реализовано в фазе T1.6
+
+- `backend/app/agent/agent_events.py` — новая контекстная переменная `SUBAGENT_PARENT_CALL_ID:
+  ContextVar[str | None]`, тот же lifetime и тот же `.set()`/`.reset(token)`-паттерн, что у
+  `SUBAGENT_STREAM_WRITER` (T1.5). `emit_agent_event` читает её после сборки
+  `truncated_payload` и, если значение не `None`, добавляет `"parent_call_id"` в
+  верхний уровень эмитируемого словаря — та самая точка, которую план называл «хелпер из T1.5
+  подхватывает parent_call_id»: домен-тулы (`sphere_write`/`memory_write`/
+  `skill_context_write`) сами не знают, вызваны они из основного графа или из-под субагента,
+  поэтому привязка к `parent_call_id` не может быть параметром вызова — только контекстом.
+- `backend/app/agent/subagents/runner.py` — новый класс `_LifecycleEmittingTool(BaseTool)` и
+  фабрика `_wrap_tools_for_lifecycle_events(tools, stream_writer, parent_call_id)`.
+  `_LifecycleEmittingTool` — тонкий прокси: `name`/`description`/`args_schema` скопированы у
+  оборачиваемого тула (чтобы `bind_tools`/`ToolNode`-lookup по имени видели тот же тул, что
+  задан в спеке), а исполнение целиком делегировано `wrapped_tool.ainvoke(...)` — класс не
+  трогает `_run`/`_arun`, поэтому `response_format`/артефакты/что угодно ещё у реального тула
+  продолжает работать без изменений. Переопределённый `ainvoke`:
+  1. эмитит `tool_call_started {call_id, tool, parent_call_id}` и следом сразу
+     `tool_call_args {call_id, args, truncated, parent_call_id}` — у субагента, в отличие от
+     основного агента, `args` приходят от `ToolNode` уже полностью распарсенным словарём (не
+     фрагментами `tool_call_chunks`), поэтому оба события уходят одно за другим, без
+     промежуточного накопления;
+  2. вокруг `await wrapped_tool.ainvoke(...)` выставляет `SUBAGENT_STREAM_WRITER`/
+     `SUBAGENT_PARENT_CALL_ID` (`.set()` → `.reset(token)` в `finally`) — это и есть мост к
+     вложенному `emit_agent_event` домен-тула, если он есть внутри;
+  3. эмитит `tool_result {call_id, tool, status, content, truncated, parent_call_id}` в
+     `finally` — `status`/`content` берутся из `ToolMessage`, если исполнение успешно, либо из
+     пойманного исключения (`status="error"`, `content=str(exc)`), после чего исключение
+     передаётся выше (`raise`) нетронутым — так `ToolNode`'s `handle_tool_errors` продолжает
+     формировать ту же error-`ToolMessage` для LLM субагента, что и без обёртки.
+  `SubagentRunner.run` получил два новых keyword-only параметра, `stream_writer: StreamWriter
+  | None = None` и `parent_call_id: str | None = None` (оба по умолчанию `None` — обратная
+  совместимость с прямыми вызовами `run()` в `test_runner.py`, ни один не передаёт эти
+  параметры и не подвергается обёртке). Обёртка применяется к `resolved_tools` только если оба
+  переданы.
+- `backend/app/agent/tools/subagents.py` — `run_subagent` передаёт
+  `stream_writer=runtime.stream_writer, parent_call_id=runtime.tool_call_id` в `runner.run(...)`
+  — оба берутся из `ToolRuntime`, инжектируемого в тул исполняющим его `ToolNode` основного
+  графа (единственное место, где живой writer и `call_id` этого самого вызова доступны
+  одновременно — design-brief § «Вложенность субагента»).
+- Разовая сквозная проба (не коммитится, аналог `heartbeat_smoke.py`/T1.5-пробы): временный
+  скрипт гонял `SubagentRunner.run()` через реальный `build_subagent_graph`/`ToolNode` со
+  скриптованной моделью, вызывающей фейковый тул, который сам эмитит `sphere_write` изнутри
+  (симулирует KS-инструмент), и собирал события в список через переданный `stream_writer`.
+  Результат — ровно 4 события в порядке `tool_call_started → tool_call_args → sphere_write →
+  tool_result`, все с `parent_call_id == "call-outer-1"` (включая `sphere_write`, дошедший
+  через `SUBAGENT_PARENT_CALL_ID`, а не переданный явно). Второй прогон, с тулом, кидающим
+  исключение: `tool_result` пришёл со `status="error"` и текстом исключения в `content`,
+  исключение при этом действительно долетело до вызывающего (`pytest.raises`-эквивалент) —
+  подтверждает, что обёртка не глотает ошибки молча. Оба скрипта удалены после проверки.
+- Тесты — списком с обоснованием (правило A6: приведение существующего словаря к новым
+  параметрам, не новые кейсы — их пишет `test-author`):
+  - `backend/tests/subagents/test_run_subagent_tool.py` — `SpyRunner.run` получил два новых
+    keyword-only параметра, `stream_writer: Any = None` и `parent_call_id: str | None = None`,
+    записываемых в `self.calls` тем же паттерном, что и остальные аргументы. Без этого правки
+    любой из существующих 7 integration-тестов файла упал бы с `TypeError` на новый keyword
+    argument, который `make_run_subagent_tool`'s `run_subagent` теперь всегда передаёт в
+    `runner.run(...)`. Существующие ассерты (`call["config"]`, `call["canary_token"]` и т. д.)
+    не тронуты — не новый сценарий, только расширение сигнатуры под новый словарь вызова.
+  - Файлы, которые я **не** тронул, хотя план мог предполагать правку: `test_runner.py` (все
+    вызовы `runner.run(...)` не передают `stream_writer`/`parent_call_id` — новые параметры
+    строго опциональны с дефолтом `None`, обёртка тулов не активируется, поведение и ассерты
+    файла не меняются) и `test_stream_isolation.py` (план верификации фазы называет его
+    «дополненным фактом ‘субагентные custom-события проходят’» — прочитан целиком: обе его
+    фикстуры конструируют только текстовые `AIMessageChunk` на уровне `runner.py`'s
+    `stream_mode="messages"`-фильтра, никак не пересекаются с обёрткой тулов внутри
+    `SubagentRunner`, которую вводит эта фаза; факт «доезжают» подтверждён разовой пробой
+    выше, а не новым тест-кейсом в этом файле — тот же прецедент, что и в T1.3 (см.
+    «Решения и обоснования» этой фазы: план предполагал механическую правку файла, по факту
+    скоуп не пересёкся).
 
 ## Решения и обоснования
 
@@ -697,6 +768,63 @@ errors** — инфраструктурные (testcontainers) плюс пред
   `tool_call_started {tool: "create_section"|"update_section"|"delete_section"}` того же
   вызова — `agent_event` не единственный источник этого сигнала, так что минимальный вариант
   не теряет информацию, а лишь не дублирует её на двух каналах.
+
+- **Обёртка тулов субагента — прокси-`BaseTool` вокруг списка `resolved_tools`, а не
+  `ToolNode(..., awrap_tool_call=...)` на стороне `build_subagent_graph`.** LangGraph 1.1.3
+  действительно даёт официальный extension point ровно под эту задачу
+  (`ToolNode.__init__(wrap_tool_call=…, awrap_tool_call=…)`, вызывается с `ToolCallRequest` до
+  исполнения и `execute()`-колбэком) — рассматривал его как альтернативу. Не выбран по двум
+  причинам: (1) план прямо ограничивает файловый скоуп фазы `subagents/runner.py` +
+  `tools/subagents.py` — `awrap_tool_call` потребовал бы новый параметр в
+  `build_subagent_graph`/`ToolNode` внутри `subagents/graph.py`, файла вне списка изменений
+  фазы; (2) прокси-обёртка на уровне списка тулов не требует вообще никакого изменения
+  `graph.py` — `ToolNode`/`bind_tools` получают ровно то же количество объектов с теми же
+  `name`/`args_schema`, что и раньше, просто других экземпляров. Обе формы эквивалентны по
+  наблюдаемому поведению (`ToolCallRequest`/наш `input`-дикт несут один и тот же `{id, name,
+  args}`); прокси — единственная, не раздвигающая границы фазы.
+- **`_LifecycleEmittingTool` делегирует исполнение `wrapped_tool.ainvoke(...)` целиком, не
+  переопределяет `_run`/`_arun`.** Тул-реестр субагента (`internal_tools + mcp_tools`,
+  `main.py`) неоднороден: у части тулов `response_format="content_and_artifact"`
+  (create_artifact, KS/memory/skill-context пишущие тулы), у части — обычные MCP-инструменты.
+  Переопределение `_run`/`_arun` потребовало бы либо копировать вручную это разнообразие полей
+  BaseTool (`response_format`, `handle_tool_error`, `return_direct`, …) на прокси, либо
+  потерять его для конкретных тулов. Проксирование на уровне `ainvoke` (точка, которую
+  `ToolNode` реально вызывает — `tool.ainvoke(call_args, config)`,
+  `langgraph/prebuilt/tool_node.py`) обходит это: реальный тул сам решает, как из своего
+  возврата собрать `ToolMessage`/артефакт, обёртка лишь читает уже готовый результат.
+- **Оборачивание условно — только если оба, `stream_writer` и `parent_call_id`, переданы.**
+  `SubagentRunner.run` вызывается и напрямую в `test_runner.py` (11 существующих тестов, ни
+  один не передаёт эти параметры) — если бы обёртка включалась безусловно (например, по
+  наличию хоть какого-то дефолтного writer'а), тем тестам потребовался бы дополнительный
+  no-op-writer или правка сигнатур без всякой пользы для проверяемого поведения. Условие «оба
+  или ни одного» — то же самое решение, что design-brief закладывает для самого механизма
+  (`run_subagent` — единственное место, где оба значения совместно доступны), просто
+  перенесённое на уровень интерфейса `run()`.
+- **Ошибка исполнения тула: `tool_result` эмитится в `finally` и статус берётся из
+  `except`-ветки, а исключение всё равно `raise`-ится дальше.** Альтернатива — проглотить
+  исключение внутри обёртки и вернуть свой `ToolMessage(status="error")` — отклонена: это
+  задвоило бы обработку ошибок с `ToolNode(handle_tool_errors=handle_tool_error)`
+  (`subagents/graph.py`), которая уже конвертирует необработанное исключение из
+  `tool.ainvoke(...)` в error-`ToolMessage` тем же самым текстом
+  (`app.agent.tool_guards.handle_tool_error`). Обёртке нужно только *узнать* про исход
+  (для `tool_result`), не *решать* его — `except ... raise` даёт это без дублирования логики,
+  которая и так уже есть на уровень выше в `ToolNode._execute_tool_async`. Подтверждено
+  разовой пробой (см. «Реализовано в фазе T1.6»): исключение действительно долетает до
+  вызывающего `wrapped.ainvoke(...)`, `tool_result` при этом всё равно ушёл.
+- **`SUBAGENT_PARENT_CALL_ID` — новая контекстная переменная в `agent_events.py`, файле вне
+  списка изменений фазы в плане (там названы только `subagents/runner.py` и
+  `tools/subagents.py`).** План описывает это явно текстом требования, не файлом: «хелпер из
+  T1.5 её подхватывает» — единственное место, где домен-тул (`sphere_write`/`memory_write`/
+  `skill_context_write`) вообще может узнать про `parent_call_id`, раз сам тул понятия не
+  имеет, вызван ли он из-под субагента (`emit_agent_event(kind, payload)` не принимает такой
+  параметр и не должен — иначе каждый из трёх тул-файлов пришлось бы трогать, чтобы прокинуть
+  его через сигнатуру). `agent_events.py` — тот единственный слой, от которого зависят и тулы,
+  и (теперь) обёртка субагента, не создавая цикл (тот же аргумент, что обосновывал вынос этого
+  модуля отдельно в T1.5, — см. выше). Прочитано как «правка по месту, а не выход за скоуп»:
+  T1.5 уже завела в этом модуле ровно такую же по форме контекстную переменную
+  (`SUBAGENT_STREAM_WRITER`) с явной пометкой «задел под T1.6», просто для writer'а, а не для
+  `parent_call_id`, — вторая переменная того же модуля, для той же обёртки, с тем же
+  lifetime, естественно ложится туда же, а не в файл, который план перечисляет по имени.
 
 ## Инфраструктурная находка фазы T1.2 (эскалация архитектору, не блокирует код)
 

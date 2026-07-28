@@ -30,6 +30,15 @@ three sources, tried in this priority order:
    invoked directly in a unit test) raises ``RuntimeError`` instead — both
    are caught so this helper never breaks a test that doesn't care about
    streaming.
+
+The same subagent tool-execution wrapper also stashes the wrapping
+``run_subagent`` call's own ``call_id`` in :data:`SUBAGENT_PARENT_CALL_ID`,
+for the same duration. A domain tool body (``sphere_write``, ``memory_write``,
+...) has no idea whether it is running inside a subagent — it just calls
+:func:`emit_agent_event` the same way either way — so attaching
+``parent_call_id`` to the wire event has to happen here, by reading this
+contextvar, rather than by threading a parameter through every tool
+(design-brief § "Вложенность субагента").
 """
 
 from __future__ import annotations
@@ -57,6 +66,13 @@ SUBAGENT_STREAM_WRITER: ContextVar[StreamWriter | None] = ContextVar(
     "subagent_stream_writer", default=None
 )
 
+# Set alongside `SUBAGENT_STREAM_WRITER`, same lifetime — the `call_id` of the
+# `run_subagent` tool call whose subagent is currently executing a tool.
+# `None` everywhere else.
+SUBAGENT_PARENT_CALL_ID: ContextVar[str | None] = ContextVar(
+    "subagent_parent_call_id", default=None
+)
+
 
 def _noop_writer(_: Any) -> None:
     return None
@@ -79,6 +95,9 @@ def emit_agent_event(kind: str, payload: dict[str, Any]) -> None:
     sources tried, in order; outside any graph runtime this is a no-op.
     String payload values are truncated by the same policy as the rest of the
     SSE/API surface (``text_limits.truncate``) before reaching the wire.
+    When called while a subagent tool is executing, the emitted event also
+    carries ``parent_call_id`` (read from :data:`SUBAGENT_PARENT_CALL_ID`) so
+    the runner can attribute it to the right nested-line in the activity feed.
     """
     if kind not in DOMAIN_AGENT_EVENT_KINDS:
         raise ValueError(f"unknown agent_event kind: {kind!r}")
@@ -89,5 +108,10 @@ def emit_agent_event(kind: str, payload: dict[str, Any]) -> None:
             value, _truncated = truncate(value)
         truncated_payload[key] = value
 
+    event: dict[str, Any] = {"type": kind, "payload": truncated_payload}
+    parent_call_id = SUBAGENT_PARENT_CALL_ID.get()
+    if parent_call_id is not None:
+        event["parent_call_id"] = parent_call_id
+
     writer = _resolve_writer()
-    writer({"type": kind, "payload": truncated_payload})
+    writer(event)

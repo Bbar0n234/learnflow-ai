@@ -116,14 +116,17 @@ def _content_hash(text: str, config: dict[str, Any]) -> str:
 
 async def _validate_builtin_mcp(
     servers: dict[str, Any],
-    guard: Any,
+    guard: SecurityGuard | None,
     timeout: int,
 ) -> set[str]:
     """Validate each enabled remote built-in MCP server at startup.
 
-    Fetches remote ``tools/list`` and runs the guard against the full
-    metadata blob. Returns names of servers to disable (fetch failed OR
-    guard fired INJECTION). ``stdio`` / disabled servers are skipped.
+    Fetches remote ``tools/list`` and, when the guard is active, runs it
+    against the full metadata blob. Returns names of servers to disable
+    (fetch failed OR guard fired INJECTION). ``stdio`` / disabled servers
+    are skipped. With ``guard=None`` (LLM_DEFENSE_ENABLED=false), the
+    fetch and the network-error fallback still run — only the guard check
+    is skipped.
     """
     disabled: set[str] = set()
     for name, cfg in servers.items():
@@ -134,27 +137,30 @@ async def _validate_builtin_mcp(
             remote_tools = await fetch_remote_metadata(
                 cfg.url or "", cfg.transport, api_key, timeout
             )
-            blob = serialize_mcp_meta_blob(
-                name=name,
-                transport=cfg.transport,
-                url=cfg.url or "",
-                allowed_tools=cfg.allowed_tools or [],
-                remote_tools=remote_tools,
-            )
-            result = await guard.check(
-                blob,
-                Checkpoint.MCP_METADATA,
-                trace_ctx={"top_level": True, "scope": "mcp.builtin"},
-            )
-            if result.verdict == Verdict.INJECTION:
-                logger.warning(
-                    "built-in mcp disabled after guard failure",
+            if guard is not None:
+                blob = serialize_mcp_meta_blob(
                     name=name,
-                    detection_layer=(
-                        result.detection_layer.value if result.detection_layer else None
-                    ),
+                    transport=cfg.transport,
+                    url=cfg.url or "",
+                    allowed_tools=cfg.allowed_tools or [],
+                    remote_tools=remote_tools,
                 )
-                disabled.add(name)
+                result = await guard.check(
+                    blob,
+                    Checkpoint.MCP_METADATA,
+                    trace_ctx={"top_level": True, "scope": "mcp.builtin"},
+                )
+                if result.verdict == Verdict.INJECTION:
+                    logger.warning(
+                        "built-in mcp disabled after guard failure",
+                        name=name,
+                        detection_layer=(
+                            result.detection_layer.value
+                            if result.detection_layer
+                            else None
+                        ),
+                    )
+                    disabled.add(name)
         except Exception:
             logger.warning(
                 "built-in mcp disabled after guard/fetch failure",
@@ -286,7 +292,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     security_config = load_security_config()
     pricing_config = load_pricing_config()
     error_messages = load_error_messages()
-    prompt_fragments = load_prompt_fragments()
+    prompt_fragments = load_prompt_fragments(
+        include_security=settings.llm_defense_enabled
+    )
     prompts_registry = load_prompts_registry()
 
     try:
@@ -315,7 +323,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     app.state.redis = await create_redis(settings)
 
-    if app.state.redis is not None:
+    if not settings.siem_enabled:
+        logger.info("siem event emission disabled by flag")
+    elif app.state.redis is not None:
         event_transport = RedisEventTransport(
             redis_client=app.state.redis,
             queue_maxsize=1000,
@@ -388,7 +398,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             + [load_skill, create_artifact, generate_image]
         )
 
-        # Security guard (Sec 2.0 — always on). Must exist before MCP built-in
+        # Security guard — gated by LLM_DEFENSE_ENABLED (kill-switch, T3).
+        # When disabled, `_build_security_guard` returns None without
+        # constructing guard_llm, classifier, detectors or the fragment
+        # corpus — the flag must not pay for a guard-model instantiation it
+        # never uses. When enabled: must exist before MCP built-in
         # validation so the startup guard can call it. Built here from
         # internal_tools known so far, and rebuilt further below once
         # `run_subagent` (another internal tool) is known — so
@@ -397,24 +411,30 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # split this way: neither detector applies to Checkpoint.MCP_METADATA
         # (see their `applies_to`), so the interim guard built here is
         # complete for the one check it's used for below.
-        guard_llm = create_guard_llm(settings, security_config)
-        classifier = LLMClassifier(
-            llm=guard_llm,
-            prompt_provider=prompt_provider,
-            security_config=security_config,
-            checkpoint_configs=checkpoint_configs(security_config),
-        )
-        guard_observer = GuardObserver(enabled=langfuse_enabled)
+        if settings.llm_defense_enabled:
+            guard_llm = create_guard_llm(settings, security_config)
+            classifier = LLMClassifier(
+                llm=guard_llm,
+                prompt_provider=prompt_provider,
+                security_config=security_config,
+                checkpoint_configs=checkpoint_configs(security_config),
+            )
+            guard_observer = GuardObserver(enabled=langfuse_enabled)
+        else:
+            logger.info("security guard disabled by flag")
 
         def _build_security_guard(
             tools_for_corpus: list[BaseTool],
-        ) -> tuple[SecurityGuard, dict[str, list[str]]]:
+        ) -> SecurityGuard | None:
+            if not settings.llm_defense_enabled:
+                return None
             fragment_corpus = collect_fragment_corpus(
                 system_prompt=prompt_provider.load_file("system"),
                 guard_classifier_prompt=prompt_provider.load_file(
                     "security-classifier"
                 ),
                 internal_tools=tools_for_corpus,
+                security_preamble=prompt_fragments.security_preamble,
             )
             registry = collect_tool_registry(tools_for_corpus)
             detectors: list[DeterministicDetector] = [
@@ -444,9 +464,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 corpus_items=len(fragment_corpus),
                 tool_registry_size=len(registry),
             )
-            return guard, registry
+            return guard
 
-        security_guard, tool_registry = _build_security_guard(internal_tools)
+        security_guard = _build_security_guard(internal_tools)
 
         # Built-in MCP validation: fetch remote tools/list + run guard. A
         # server that fails the fetch or the guard check is excluded from the
@@ -533,7 +553,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             # FragmentDetector cover `run_subagent`'s identifier/description
             # too — see the comment on the first `_build_security_guard`
             # call above for why this reorder is safe.
-            security_guard, tool_registry = _build_security_guard(internal_tools)
+            security_guard = _build_security_guard(internal_tools)
             logger.info(
                 "run_subagent tool registered",
                 tool_pool_size=len(subagent_tool_pool),
@@ -571,7 +591,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         app.state.tool_resolver = tool_resolver
 
-        if not settings.canary_secret:
+        if settings.llm_defense_enabled and not settings.canary_secret:
             logger.warning("CANARY_SECRET not configured, canary protection disabled")
 
         checkpoint_history = CheckpointHistory(checkpointer, security_config.messages)
@@ -595,7 +615,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             error_messages=error_messages,
             event_mapper=StreamEventMapper(),
             tool_resolver=tool_resolver,
-            canary_secret=settings.canary_secret,
+            canary_secret=settings.canary_secret
+            if settings.llm_defense_enabled
+            else "",
         )
         app.state.agent_config = agent_config
         app.state.security_config = security_config

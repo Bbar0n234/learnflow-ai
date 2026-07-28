@@ -37,12 +37,23 @@ class Settings(BaseSettings):
 
     # Security (prompt injection protection)
     canary_secret: str = ""
+    # Операционный тумблер: выключает inline LLM-defense целиком (детекторы,
+    # LLM-классификатор, security-часть промпта); гранулярность для
+    # исследовательских прогонов — в configs/security.yaml, не здесь.
+    llm_defense_enabled: bool = True
 
     # MCP encryption
     mcp_encryption_key: str = ""
 
     # Redis (trace storage for feedback persistence)
     redis_url: str = "redis://localhost:6379/0"
+
+    # SIEM (security event emission)
+    # Операционный тумблер: гасит только эмиссию security-событий в Redis
+    # Stream из этого процесса. Не гасит контейнеры siem-service/siem-db
+    # (COMPOSE_PROFILES) и не гасит UI (VITE_SIEM_ENABLED). Читается один раз
+    # в lifespan — переключение требует рестарта контейнера.
+    siem_enabled: bool = True
 
     # Operational knobs — tune without rebuild (D-ERR-9, D-ERR-11)
     redis_socket_timeout: float = 5.0

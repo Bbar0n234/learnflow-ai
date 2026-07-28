@@ -44,11 +44,19 @@ def collect_fragment_corpus(
     system_prompt: str,
     guard_classifier_prompt: str,
     internal_tools: list[Any],
+    security_preamble: str,
 ) -> list[str]:
     """Collect the corpus FragmentDetector should window-match against.
 
     Sources:
-      - system prompt (base text) — hardening preamble + security instructions
+      - system prompt (base text) — security instructions minus the hardening
+        preamble, which lives in ``prompt_fragments.yaml`` and is composed at
+        runtime, not in the template file
+      - security preamble (from ``PromptFragmentsConfig.security_preamble``,
+        the same object composition uses) — hardening preamble text. Required
+        without a default on purpose: a caller that forgets to wire it would
+        silently drop the preamble from detection, so the omission has to be a
+        type error. Defense off means passing the empty string explicitly.
       - guard-classifier prompt — security instructions
       - internal non-MCP tool descriptions — PROTECTED identifiers
 
@@ -60,6 +68,8 @@ def collect_fragment_corpus(
     parts: list[str] = []
     if system_prompt:
         parts.append(system_prompt)
+    if security_preamble:
+        parts.append(security_preamble)
     if guard_classifier_prompt:
         parts.append(guard_classifier_prompt)
 

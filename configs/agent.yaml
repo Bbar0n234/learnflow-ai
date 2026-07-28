@@ -22,8 +22,7 @@ title:
   model: deepseek/deepseek-v4-flash
   extra_body:
     reasoning:
-      effort: low
-      exclude: false
+      enabled: false
 available_models:
 - name: z-ai/glm-5.2
   display_name: GLM-5.2

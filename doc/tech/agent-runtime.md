@@ -397,7 +397,7 @@ Langfuse выполняет две роли: tracing (observability) + prompt ma
 | `subagents` | Реестр субагентов: LLM-дефолт (`llm`) + `registry` спек (`name`, `description`, `prompt`, `model?`, `tools`, `persistence`) — → [Субагенты](#субагенты) |
 | `mcp_servers` | Built-in MCP-серверы: transport, URL, API keys, whitelist инструментов |
 | `image` | Модель генерации изображений (`model`) + произвольные дефолт-параметры вызова (`params`, прокидываются в запрос as-is) — обязательная секция, без дефолта |
-| `title` | Модель генерации auto-title чата (`model`) + `extra_body` (reasoning effort и т.д.) — обязательная секция, без дефолта, по той же форме, что `llm`/`summarization` |
+| `title` | Модель генерации auto-title чата (`model`) + `extra_body` — обязательная секция, без дефолта, по той же форме, что `llm`/`summarization`. Reasoning выключен (`reasoning.enabled: false`): на однострочном заголовке он не улучшает результат, но вчетверо увеличивает латентность, из-за чего название не успевает доехать в стрим |
 
 Security-конфиги, model pricing и реестр промптов вынесены отдельными файлами — детали в соответствующих документах ([security/architecture.md](../security/architecture.md), [observability.md](observability.md), [prompt-management.md](prompt-management.md)).
 

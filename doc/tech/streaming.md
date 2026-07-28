@@ -25,6 +25,7 @@ data: {"type": "done", "message_id": "msg-uuid", "trace_id": "trace-uuid"}\n\n
 | `final_output_review_started` | `{}` | Перед end-of-stream проверкой final output |
 | `final_output_review_complete` | `{}` | Final output проверен, verdict CLEAN |
 | `trace_id` | `{trace_id}` | Langfuse trace ID (internal, не доходит до frontend) |
+| `title_updated` | `{title}` | Сгенерированное auto-title название чата готово (non-terminal) |
 | `done` | `{message_id, trace_id}` | Генерация завершена успешно |
 | `error` | `{detail}` | Ошибка или отмена генерации |
 | `security_block` | `{checkpoint, detection_layer}` | Блокировка по одному из четырёх runtime-checkpoint'ов |
@@ -36,6 +37,8 @@ data: {"type": "done", "message_id": "msg-uuid", "trace_id": "trace-uuid"}\n\n
 `artifact_created` эмитится маппером по имени tool'а — срабатывает на любой artifact-producing tool (`create_artifact`, `generate_image`), форма события от tool'а не зависит; какие tools её порождают — [agent-runtime.md](agent-runtime.md#internal-tools).
 
 `final_output_review_*` — non-terminal события вокруг end-of-stream проверки final output. Frontend показывает индикатор «проверка ответа» в паузе между последним `text_chunk` и `done`. При INJECTION на этой проверке вместо `final_output_review_complete` отправляется `security_block`.
+
+`title_updated` — non-terminal, эмитится не чаще одного раза за стрим: `ChatService.send_message` запускает fire-and-forget генерацию auto-title чата (→ [backend.md § Layered Architecture](backend.md#layered-architecture)) на первом событии агента, не являющемся `security_block`, и между последующими событиями relay-цикла проверяет её готовность. Если генерация не успевает завершиться до терминального события — событие не отправляется, а title остаётся в БД до fallback-инвалидации (см. TanStack Query Invalidation ниже) или следующего штатного рефетча. После терминального события (`done`/`error`/`security_block`) `title_updated` не эмитится, даже если генерация к этому моменту завершилась.
 
 `trace_id` — internal event: ChatService перехватывает его (не пробрасывает клиенту), сохраняет в Redis, а затем включает trace_id в payload `done` event. Frontend получает trace_id только через `done`.
 
@@ -130,8 +133,8 @@ sequenceDiagram
 
 `ChatService.send_message()` — relay + post-hoc обработка:
 
-1. Валидирует thread ownership, обновляет `updated_at`
-2. Проксирует события от AgentRunner клиенту
+1. Валидирует thread ownership, коммитит обновление `updated_at` до входа в relay-цикл (эффект должен пережить весь стрим, а не только запрос — [conventions/db.md](conventions/db.md#db-сессии-и-commit))
+2. Проксирует события от AgentRunner клиенту; на первом нетерминальном событии, если title чата ещё плейсхолдер, запускает fire-and-forget генерацию auto-title (→ [backend.md § Layered Architecture](backend.md#layered-architecture)) и между последующими событиями опрашивает её готовность, эмитя `title_updated`
 3. **Post-hoc:** связывает артефакты с сообщением (`ArtifactRepository.set_message_id`)
 4. Сохраняет trace_id в Redis (для feedback loop, подробнее — [observability](observability.md))
 5. Emits terminal `done` event с message_id и trace_id
@@ -192,7 +195,8 @@ SSE-события триггерят invalidation cached queries:
 | Событие | Invalidated queries | Зачем |
 |---------|-------------------|-------|
 | `artifact_created` | `["projects", projectId, "artifacts"]` | Новый артефакт в списке |
-| `done` | `["projects", projectId, "chats", chatId]`, `["chats", "recent"]` | Полное сообщение с сервера, обновление списка чатов |
+| `title_updated` | — (`setQueryData`-патч, не инвалидация) | Точечно патчит поле `title` в трёх кэшах: `["projects", projectId, "chats"]` (список), `["chats", "recent"]`, `["projects", projectId, "chats", chatId]` (detail открытого чата). Инвалидация вместо патча зарефетчила бы detail мид-стрим и задвоила optimistic-копию user-сообщения в `localMessages` |
+| `done` | `["projects", projectId, "chats", chatId]`, `["projects", projectId, "chats"]` (`exact: true`), `["chats", "recent"]` | Полное сообщение с сервера, обновление списков чатов; инвалидация списка проекта — fallback на случай, если `title_updated` не успел прийти до конца рана |
 
 ## API Endpoints
 

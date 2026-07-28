@@ -2,26 +2,21 @@
 
 ## TL;DR
 
-Трек закрывает семь фаз. **T1.1** подтвердила reasoning в чекпоинте на streaming-пути.
-**T1.2** ввела каркас SSE v2: `stream_started`, `HeartbeatPacer`, терминальный `cancelled {}`,
-generic `security_block {}`. **T1.3** переработала token-канал (`TokenChunkMapper`):
-`reasoning_chunk`/`text_chunk`/ранние `tool_call_started`+`tool_call_args`. **T1.4** привела
-updates-канал (`StreamEventMapper`) к контракту: `tool_result`, `artifact_created` по
-атрибуту, `tool_call_cancelled`. **T1.5** включила `stream_mode="custom"` и
-`agent_events.emit_agent_event` — им KS/memory/skill-context tools и компакция репортуют
-`sphere_write`/`memory_write`/`skill_context_write`/`compaction`, раннер маппит в
-`agent_event {kind, payload}`. **T1.6** активировала задел T1.5 (`SUBAGENT_STREAM_WRITER`):
-`run_subagent` передаёт `stream_writer`/`call_id` в `SubagentRunner.run`, тот оборачивает тулы
-субагента в `_LifecycleEmittingTool` — прокси, репортующий все четыре lifecycle-события с
-`parent_call_id`; вложенный `emit_agent_event` подхватывает тег через `SUBAGENT_PARENT_CALL_ID`.
-**T1.7** перевела `CheckpointHistory.history()` с фильтрации сообщений на группировку по
-ходам: `AIMessage.tool_calls` + парные `ToolMessage` + финальный `AIMessage` одного хода
-собираются в один `Message` с упорядоченными `parts` (`reasoning`/`text`/`tool_call`);
-`id`/`created_at`/`redacted` берутся у финального `AIMessage` — тот же якорь, что и раньше
-резолвил `trace_id`/`feedback_score`/`artifacts`. `MessageOut.parts` — дискриминированный по
-`type` список в API-схеме.
+Трек закрывает восемь фаз. **T1.1** подтвердила reasoning в чекпоинте на streaming-пути.
+**T1.2** ввела каркас SSE v2 (`stream_started`, `HeartbeatPacer`, `cancelled {}`, generic
+`security_block {}`). **T1.3** переработала token-канал: `reasoning_chunk`/`text_chunk`/ранние
+`tool_call_started`+`tool_call_args`. **T1.4** — updates-канал: `tool_result`,
+`artifact_created` по атрибуту, `tool_call_cancelled`. **T1.5** включила custom-канал:
+`agent_events.emit_agent_event` → `agent_event {kind, payload}` для `sphere_write`/
+`memory_write`/`skill_context_write`/`compaction`. **T1.6** — вложенность субагента:
+`_LifecycleEmittingTool` репортует lifecycle-события его тулов с `parent_call_id`. **T1.7**
+перевела `CheckpointHistory.history()` на группировку по ходам в typed `parts`
+(`reasoning`/`text`/`tool_call`), `MessageOut.parts` в API-схеме. **T1.8** выложила фикстур
+имён инструментов (`backend/contracts/agent-tool-names.json`) из единого источника
+`app.agent.tools.registry` — им пользуются и `main.py`, и CLI-генератор, и backend
+drift-гейт — контракт для реестра подписей T2.
 
-`make check` зелёный на всех фазах. `make test`: стабильно **526 passed, 1 failed, 228
+`make check` зелёный на всех фазах. `make test`: стабильно **527 passed, 1 failed, 228
 errors** — инфраструктурные (testcontainers) плюс предсуществующий прайсинг-дрейф.
 
 ## Реализовано в фазе T1.1
@@ -506,6 +501,74 @@ errors** — инфраструктурные (testcontainers) плюс пред
   что «ход без финального `AIMessage`» не ломает пост-хок резолв `done.message_id`, он просто
   честно не находит его, как и до этой фазы. Скрипт удалён после проверки.
 
+## Реализовано в фазе T1.8
+
+- `backend/app/agent/tools/registry.py` (новый) — единственный источник состава инструментов
+  агента, четыре функции:
+  - `internal_tool_names() -> list[str]` — имена всех internal-инструментов в любом окружении:
+    `[t.name for t in ks_tools]` + `user_memory_tools` + `make_skill_context_tools(frozenset())`
+    (реальные объекты, ноль I/O, `skill_names` не влияет на имена — только на замыкание
+    валидации внутри `save_skill_context`) плюс литеральный кортеж `("load_skill",
+    "create_artifact", "generate_image", "run_subagent")` для четырёх фабричных тулов. Эти
+    четыре — не сконструированные инстансы: их фабрики требуют живой `session_factory`,
+    провалидированный `Settings` (`jwt_secret` без дефолта — `Settings()` без окружения падает)
+    и/или `SubagentRunner`, чего детерминированный, не трогающий сеть/БД генератор не должен
+    требовать. Литералы безопасны ровно потому, что `.name` каждого тула фиксирован на этапе
+    импорта — `@tool` берёт его из `__name__` обёрнутой функции, не из аргументов фабрики.
+    `run_subagent` включён безусловно (та же логика, что и `builtin_mcp_tool_names` не
+    фильтрует по `enabled`): `configs/agent.yaml`'s `subagents` — опциональная секция,
+    подпись нужна независимо от того, включена ли она в конкретном окружении.
+  - `assemble_internal_tools(*, skill_context_tools, load_skill, create_artifact,
+    generate_image, run_subagent=None) -> list[BaseTool]` — сборка реального списка
+    `internal_tools`, которым пользуется `app.main`; та же группировка (`ks_tools`,
+    `user_memory_tools`, skill-context, четыре фабричных тула), что и в
+    `internal_tool_names()`, поэтому фикстур физически не может разойтись с тем, что раннер
+    получает при старте.
+  - `builtin_mcp_tool_names(agent_config) -> list[str]` — `allowed_tools` каждого сервера из
+    `agent_config.mcp_servers`, без фильтра по `enabled` (флаг переключается по окружениям —
+    например отсутствием API-ключа, — подпись нужна для сервера, который просто объявлен).
+  - `build_tool_name_fixture(agent_config) -> list[dict[str, str]]` — объединяет оба списка в
+    `{"name", "origin"}`-записи (`origin` — `"internal"`/`"builtin_mcp"`), сортирует по `name`.
+    Пользовательские MCP-инструменты сюда не попадают — они резолвятся в рантайме, design-brief
+    отводит им сырое имя + пометку источника вместо записи в реестре.
+- `backend/app/agent/tools/__init__.py` — короткий комментарий поясняет, почему `registry`
+  не ре-экспортирован через `__all__` (его импортируют по полному пути `app.agent.tools.
+  registry` — единственные три потребителя это уже делают, лишний слой реэкспорта не даёт
+  эргономики).
+- `backend/app/main.py` — сборка `internal_tools` идёт через `assemble_internal_tools` дважды
+  (интерим-версия до `run_subagent`, финальная — после), обе замены строго механические
+  (тот же порядок аргументов, что раньше был порядком `+`-конкатенации). Прямые импорты
+  `ks_tools`/`user_memory_tools` из `main.py` убраны — `registry.py` теперь единственное место,
+  которое их использует напрямую для сборки.
+- `scripts/generate_tool_names_fixture.py` (новый) — тонкий CLI по образцу
+  `scripts/langfuse_security_experiment.py`: `load_agent_config()` (файл, не БД/сеть) →
+  `build_tool_name_fixture(...)` → пишет отсортированный JSON в
+  `backend/contracts/agent-tool-names.json`. Импортирует `app.*`, поэтому запускается с
+  `PYTHONPATH=backend` (тот же паттерн, что `make lint`'s `lint-imports`, у которого тоже
+  явный `PYTHONPATH=backend:services/siem-service`) — команда зафиксирована в докстринге
+  скрипта и в тексте ассерта drift-гейта.
+- `backend/contracts/agent-tool-names.json` (новый) — сгенерированный фикстур, 18 записей: 13
+  `internal` (4 KS + 2 user-memory + 3 skill-context + `load_skill`/`create_artifact`/
+  `generate_image`/`run_subagent`) + 5 `builtin_mcp` (`firecrawl_extract`/`firecrawl_scrape`/
+  `firecrawl_search`/`tavily_extract`/`tavily_search` — `tavily` объявлен, но
+  `enabled: false`, и всё равно попал в фикстур).
+- `backend/tests/agent/test_tool_names_fixture.py` (новый, предусмотрен планом как часть
+  механизма, не покрытие поведения) — единственный тест-кейс, `@pytest.mark.unit`: читает
+  закоммиченный JSON, сравнивает с `build_tool_name_fixture(load_agent_config())`, при
+  расхождении печатает команду регенерации. По образцу
+  `test_pricing_consistency.py` (тот же класс проверки — конфиг-дрейф, без сети/БД).
+
+**Verification (план T1.8):**
+- `make check`/`make test` — зелёные (см. отчёт фазы ниже).
+- Детерминированность генератора подтверждена: два прогона подряд дают побайтово идентичный
+  `agent-tool-names.json` (проверено `md5sum`/`diff`).
+- Drift-гейт вручную проверен на срабатывание: временно добавлен `tavily_new_probe_tool` в
+  `configs/agent.yaml`'s `mcp_servers.tavily.allowed_tools` без регенерации фикстура — тест
+  покраснел с точным диффом (`tavily_search` != `tavily_new_probe_tool` на позиции 16,
+  `update_section` лишний в правом списке); правка отменена (`git checkout`), тест снова
+  зелёный.
+- Фикстур сверен построчно с ожидаемым составом (см. выше) — совпадает.
+
 ## Решения и обоснования
 
 - **Вывод фазы: reasoning в чекпоинте есть, дособор не понадобился.** Планом было заложено
@@ -973,6 +1036,41 @@ errors** — инфраструктурные (testcontainers) плюс пред
   нескольких LangChain-сообщений — один `HumanMessage` = один `Message`, группировать нечего).
   Заполнение `parts` для роли user было бы данными, которых не просит ни бриф, ни план, без
   видимой пользы фронту (T2 всё равно рендерит user-бабл по `content`) — не добавлено.
+- **Формат фикстура: плоский отсортированный по `name` массив `{"name", "origin"}`, не
+  сгруппированный по `origin` объект.** Путь (`backend/contracts/agent-tool-names.json`) и
+  необходимость пометки происхождения зафиксированы планом; конкретная JSON-форма — решение
+  этой фазы, так как план говорит только «отсортированный массив имён + пометка
+  происхождения». Альтернатива — `{"internal": [...], "builtin_mcp": [...]}` — отклонена: она
+  вынуждала бы фронт-тест (T2, читает файл, не код бэкенда) знать заранее, под каким ключом
+  искать конкретное имя, тогда как реальная задача теста — «для каждого имени в списке есть
+  подпись в реестре», не «для каждой группы». Плоский список с полем `origin` на каждой
+  записи даёт то же различение (T2 фильтрует по `origin`, если нужно) без вложенности.
+  Сортировка — по `name` глобально, не «сначала все `internal`, потом `builtin_mcp`»: делает
+  диффы читаемыми (`git diff` на добавление одного инструмента — одна строка, а не
+  переупорядочивание целой группы) и не требует от читателя решать, в каком порядке идут сами
+  группы.
+- **Пользовательские MCP-инструменты не входят в `build_tool_name_fixture`, хотя технически
+  видны раннеру.** Design-brief явно относит их к другому механизму отображения (сырое имя +
+  пометка источника, не реестр), а `main.py` резолвит их в рантайме через
+  `create_mcp_client`/`mcp_client.get_tools()` — сетевой вызов к конкретному пользовательскому
+  серверу, несовместимый с «генератор детерминирован, без сети и БД». Их включение сделало бы
+  фикстур недетерминированным (зависящим от того, какие MCP-серверы пользователь подключил на
+  момент генерации) и противоречило бы контракту, который фронт-тест должен проверять
+  стабильно в CI.
+- **Четыре фабричных internal-тула (`load_skill`/`create_artifact`/`generate_image`/
+  `run_subagent`) — литералы в `internal_tool_names()`, а не сконструированные инстансы.**
+  Единственная альтернатива, дающая настоящие объекты без литералов — вызвать их фабрики с
+  «пустыми» аргументами (`async_sessionmaker()` без `bind`, `Settings(jwt_secret="x", ...)` в
+  обход `.env`, mock `SubagentRunner`). Отклонено: `Settings` требует явно заданных полей без
+  дефолта (`jwt_secret`) — сборка одноразового валидного `Settings` только ради имени тула
+  добавляет генератору знание о конфигурации приложения, которого у него по плану быть не
+  должно («без сети и БД» — про изоляцию от рантайм-зависимостей вообще, не только от живых
+  сетевых вызовов), и создаёт лишнюю точку поломки (следующее обязательное поле в `Settings` —
+  и генератор ломается без всякой связи с составом инструментов). Литерал безопасен, потому
+  что `.name` каждого из этих тулов — это `__name__` декорированной `@tool`-функции, а он не
+  зависит от того, с какими аргументами вызвана фабрика; переименование функции обязано
+  обновить оба места (`registry.py` и саму фабрику) синхронно, что ловится обычным ревью diff,
+  а не скрытым рантайм-поведением.
 
 ## Инфраструктурная находка фазы T1.2 (эскалация архитектору, не блокирует код)
 

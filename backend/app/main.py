@@ -50,7 +50,6 @@ from app.agent.security.types import Checkpoint, Verdict
 from app.agent.stream_events import StreamEventMapper
 from app.agent.subagents import SubagentRunner
 from app.agent.tools import (
-    ks_tools,
     make_create_artifact_tool,
     make_generate_image_tool,
     make_load_skill_tool,
@@ -58,8 +57,8 @@ from app.agent.tools import (
     make_skill_context_tools,
     scan_skill_names,
     scan_skills_index,
-    user_memory_tools,
 )
+from app.agent.tools.registry import assemble_internal_tools
 from app.agent.tracing import AgentRunTracer
 from app.api.problem import TYPE_PREFIX, problem_response, register_problem_handlers
 from app.api.routes import (
@@ -380,11 +379,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             langfuse_enabled=langfuse_enabled,
         )
 
-        internal_tools: list[BaseTool] = (
-            ks_tools
-            + user_memory_tools
-            + skill_context_tools
-            + [load_skill, create_artifact, generate_image]
+        internal_tools: list[BaseTool] = assemble_internal_tools(
+            skill_context_tools=skill_context_tools,
+            load_skill=load_skill,
+            create_artifact=create_artifact,
+            generate_image=generate_image,
         )
 
         # Security guard (Sec 2.0 — always on). Must exist before MCP built-in
@@ -527,7 +526,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 subagent_runner,
                 agent_config.subagents.registry,
             )
-            internal_tools = [*internal_tools, run_subagent]
+            internal_tools = assemble_internal_tools(
+                skill_context_tools=skill_context_tools,
+                load_skill=load_skill,
+                create_artifact=create_artifact,
+                generate_image=generate_image,
+                run_subagent=run_subagent,
+            )
             # Rebuild the guard so PairedToolIdentifierDetector/
             # FragmentDetector cover `run_subagent`'s identifier/description
             # too — see the comment on the first `_build_security_guard`

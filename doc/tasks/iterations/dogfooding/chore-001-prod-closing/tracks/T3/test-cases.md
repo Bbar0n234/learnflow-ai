@@ -250,18 +250,24 @@ MCP и механика thread-block обязаны работать одина�
 
 ### Layer 2: Integration (cross-cutting, в INTEGRATION_TEST)
 
-*Не гонялись на прогоне трека T3 — cross-cutting без префикса, скоуп INTEGRATION_TEST (`{track_id}=final`).*
+*Прогнаны в INTEGRATION_TEST (`{track_id}=final`). Стенд — два прохода на прод-образах (dev-профиль с
+обоими тумблерами on и прод-профиль с обоими off), описан в `../T1/test-cases.md` § Layer 2.*
 
-- [ ] Полный стек с прод-профилем конфигурации (оба тумблера выключены) поднимается и обслуживает сквозной сценарий: register → login → создать проект → диалог с агентом → артефакт. Ни одной ошибки в логах, связанной с отсутствующим guard'ом.
-- [ ] В обоих режимах остаются включёнными auth, rate limiting и RBAC: повторные попытки логина упираются в 429 с `Retry-After`; чужой проект отдаёт 404.
-- [ ] В обоих режимах работает валидация пользовательских MCP-серверов (SSRF-проверка URL и схема): добавление сервера с `http://169.254.169.254/...` отклоняется.
-- [ ] `make test` и `make check` зелёные на ветке целиком после барьера всех треков.
+- [x] Полный стек с прод-профилем конфигурации (оба тумблера выключены) поднимается и обслуживает сквозной сценарий: register → login → создать проект → диалог с агентом → артефакт. Ни одной ошибки в логах, связанной с отсутствующим guard'ом.
+  **Результат: pass.** Стек `app db redis` поднялся healthy, в логе старта ровно одна INFO `security guard disabled by flag`, ноль `security guard initialized`, ноль `CANARY_SECRET not configured`. Сквозной сценарий пройден целиком: регистрация → логин → проект → чат → диалог с живой моделью (SSE = `text_chunk` → `done` с `trace_id`, ни одного `final_output_review_started`/`_complete`, ни `error`, ни `security_block`) → артефакт (агент вызвал `create_artifact`: `tool_start` → `tool_end` → `artifact_created`, `GET /projects/{id}/artifacts` → 1 запись). Ошибок, связанных с отсутствующим guard'ом, в логе нет: единственная строка уровня ERROR за весь прогон — `ssrf validation failed` от моей же SSRF-пробы (кейс ниже), tracebacks — ноль. Композиция промпта проверена прямо в работающем контейнере (`Settings()` + `load_prompt_fragments(include_security=…)` на его собственном окружении): `llm_defense_enabled = False`, `security_preamble len = 0`, из `headers` остался только `custom_instructions`, в `wrappers` — ровно шесть структурных (`available_skills`, `custom_instructions`, `document`, `knowledge_sphere`, `user_installed_mcp_tools`, `user_memory`), то есть ни преамбула, ни canary, ни обёртки границы доверия в корпус и промпт не попадают.
+- [x] В обоих режимах остаются включёнными auth, rate limiting и RBAC: повторные попытки логина упираются в 429 с `Retry-After`; чужой проект отдаёт 404.
+  **Результат: pass в обоих режимах** (тот же прогон закрывает парный кейс Layer 2 трека T4). Dev-профиль (защита on): шесть логинов под одним именем → пять 401 и 429 с `Retry-After: 60`; чужой проект — 200 у владельца, **404** у другого пользователя. Прод-профиль (защита off): ровно то же — пять 401 и 429 `Retry-After: 60` (ключ `login:fin_prod_2:203.0.113.77`), чужой проект 200/404. Плюс per-IP лимит регистрации сработал в обоих режимах (`[200, 200, 200, 429]`), причём подделанные proxy-заголовки бюджет не расщепили.
+- [x] В обоих режимах работает валидация пользовательских MCP-серверов (SSRF-проверка URL и схема): добавление сервера с `http://169.254.169.254/...` отклоняется.
+  **Результат: pass в обоих режимах.** `POST /api/users/me/mcp-servers` с `url: http://169.254.169.254/latest/meta-data` → **422** `{"type":"urn:learnflow:security-policy-violation","detail":"URL resolves to a private or internal address","reason":"ssrf_private_ip"}` и при defense-on, и при defense-off; в логе — `ssrf validation failed … resolved_ip=169.254.169.254`. Выключение inline LLM-защиты сетевую валидацию не задело.
+- [x] `make test` и `make check` зелёные на ветке целиком после барьера всех треков.
+  **Результат: pass.** `make check` — exit 0: ruff + mypy чисто, import-linter 9 контрактов kept / 0 broken, arch-checker «all AST checks passed» при семи pre-existing WARN'ах (размеры `main.py`, `mcp_servers.py` и пяти каталогов). `make test` — exit 0: backend **857 passed**, siem-service **21 passed**, siem-contracts **64 passed**, 0 failed; известное исключение `test_pricing_external` в этом прогоне прошло (дрейф цен `z-ai/glm-5.2` закрыт коммитом `03bdf09`). Для полноты барьера прогнаны и фронтовые гейты: `make check-fe` exit 0, `make test-fe` — 32 файла / 179 тестов.
 
 ### Layer 3: E2E (cross-cutting, в INTEGRATION_TEST)
 
-*Не гонялся на прогоне трека T3 — cross-cutting без префикса, скоуп INTEGRATION_TEST. Серверная половина этого кейса (пара review-событий есть при defense-on и отсутствует при defense-off, стрим не ломается) уже подтверждена в `{T3.3}`/`{T3.4}`; открытой остаётся только UI-часть.*
+*Серверная половина этого кейса (пара review-событий есть при defense-on и отсутствует при defense-off, стрим не ломается) подтверждена в `{T3.3}`/`{T3.4}` и повторно — на финальном прогоне обоих профилей; открытой остаётся только UI-часть.*
 
 - [ ] 👤 UI-регресс стриминга при defense-off: индикатор «проверка ответа» в чате не появляется и не зависает, ответ отображается полностью, кнопка отмены работает. При defense-on индикатор появляется и исчезает как раньше.
+  **👤 deferred (архитектор)** — браузерная проверка. Серверный контракт, на котором держится индикатор, снят на финальном прогоне повторно и на одном стенде: defense-on (dev-профиль) → SSE несёт `final_output_review_started` → `final_output_review_complete` → `done`; defense-off (прод-профиль) → тех же событий нет вовсе, текст доходит целиком, `done` приходит с `message_id` и `trace_id`, ни `error`, ни `security_block`. То есть индикатору нечем ни появиться, ни зависнуть.
 
 ---
 

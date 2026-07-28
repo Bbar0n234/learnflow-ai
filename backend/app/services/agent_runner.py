@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +23,45 @@ class StreamEvent:
 
 
 @dataclass(frozen=True)
+class ReasoningPart:
+    """One reasoning span of an assistant turn (``AIMessage.additional_kwargs["reasoning"]``)."""
+
+    content: str
+    type: Literal["reasoning"] = "reasoning"
+
+
+@dataclass(frozen=True)
+class TextPart:
+    """The assistant turn's final text (``AIMessage.content``)."""
+
+    content: str
+    type: Literal["text"] = "text"
+
+
+@dataclass(frozen=True)
+class ToolCallPart:
+    """One tool call of an assistant turn: ``AIMessage.tool_calls`` entry + paired ``ToolMessage``.
+
+    ``status`` is ``"pending"`` when the turn was cut short before the paired
+    ``ToolMessage`` was produced (checkpoint ends mid tool-call) — the wire
+    contract (``tool_result``) only ever carries ``success``/``error`` because
+    a live stream always eventually resolves or the run ends; the persisted
+    history can freeze in that in-between state.
+    """
+
+    call_id: str
+    tool: str
+    args: str
+    status: Literal["success", "error", "pending"]
+    result_preview: str
+    truncated: bool
+    type: Literal["tool_call"] = "tool_call"
+
+
+Part = ReasoningPart | TextPart | ToolCallPart
+
+
+@dataclass(frozen=True)
 class Message:
     """Message from chat history (from checkpointer)."""
 
@@ -31,6 +70,7 @@ class Message:
     content: str
     created_at: datetime | None = None
     redacted: bool = False
+    parts: list[Part] = field(default_factory=list)
 
 
 class AgentRunner(Protocol):

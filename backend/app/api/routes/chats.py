@@ -19,9 +19,32 @@ from app.api.schemas.chats import (
     ChatRecentResponse,
     ChatResponse,
     MessageOut,
+    MessagePartOut,
+    ReasoningPartOut,
+    TextPartOut,
+    ToolCallPartOut,
 )
+from app.services.agent_runner import Part, ReasoningPart, TextPart, ToolCallPart
 
 router = APIRouter(tags=["chats"])
+
+
+def _part_out(part: Part) -> MessagePartOut:
+    """Map the internal typed ``Part`` (services layer) to its API shape."""
+    if isinstance(part, ReasoningPart):
+        return ReasoningPartOut(content=part.content)
+    if isinstance(part, TextPart):
+        return TextPartOut(content=part.content)
+    if isinstance(part, ToolCallPart):
+        return ToolCallPartOut(
+            call_id=part.call_id,
+            tool=part.tool,
+            args=part.args,
+            status=part.status,
+            result_preview=part.result_preview,
+            truncated=part.truncated,
+        )
+    raise AssertionError(f"unhandled part type: {type(part).__name__}")
 
 
 @router.post(
@@ -92,6 +115,7 @@ async def get_chat(
                 trace_id=chat_detail.trace_ids.get(m.id),
                 feedback_score=_feedback_for(m.id),
                 redacted=m.redacted,
+                parts=[_part_out(p) for p in m.parts],
             )
             for m in chat_detail.messages
         ],

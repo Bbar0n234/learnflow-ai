@@ -2,10 +2,12 @@
 
 The only collaborator is the checkpointer; it is болезненная граница (real one is
 Postgres/in-memory infra), so it is stubbed to return a chosen message list (or a
-miss / an error). We assert the mapping behavior: history excludes tool-call
-turns, swaps redacted content, parses ``created_at``; the last-AI lookup skips
-tool-call turns; redaction scan finds the latest flag and is bounded by the
-previous human message.
+miss / an error). We assert the mapping behavior: one turn (``HumanMessage`` up
+to the next) collapses into a single assistant ``Message`` with ordered
+``parts``, tool calls pair up with their ``ToolMessage`` by id, redacted
+content is swapped consistently on both ``content`` and ``parts``, and
+``created_at`` parses; the last-AI lookup skips tool-call turns; redaction
+scan finds the latest flag and is bounded by the previous human message.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from typing import Any
 import pytest
 from app.agent.checkpoint_history import CheckpointHistory
 from app.agent.security.types import Checkpoint, DetectionLayer, SecurityMessages
+from app.services.agent_runner import ReasoningPart, TextPart, ToolCallPart
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 
@@ -67,11 +70,21 @@ async def test_raw_messages_returns_empty_on_backend_error() -> None:
 
 
 @pytest.mark.unit
-async def test_history_maps_human_and_assistant_and_excludes_tool_turns() -> None:
+async def test_history_groups_a_tool_call_turn_into_one_assistant_message() -> None:
+    """One turn (tool-calling AIMessage + its ToolMessage + final AIMessage)
+
+    collapses into a single ``Message``, not three — the grouping rule this
+    phase adds. ``id``/``content`` still resolve to the final, tool-call-free
+    ``AIMessage`` (``a2``) — the same id ``routes/chats.py`` resolves
+    ``trace_id``/``feedback_score``/``artifacts`` by, unaffected by grouping.
+    """
     messages = [
         HumanMessage(content="question", id="h1"),
         AIMessage(
-            content="", id="a1", tool_calls=[{"name": "x", "args": {}, "id": "c"}]
+            content="",
+            id="a1",
+            tool_calls=[{"name": "x", "args": {"q": "v"}, "id": "c"}],
+            additional_kwargs={"reasoning": "thinking about x"},
         ),
         ToolMessage(content="tool out", id="t1", tool_call_id="c", name="x"),
         AIMessage(content="answer", id="a2"),
@@ -83,22 +96,41 @@ async def test_history_maps_human_and_assistant_and_excludes_tool_turns() -> Non
         ("user", "question"),
         ("assistant", "answer"),
     ]
+    assistant_message = result[1]
+    assert assistant_message.id == "a2"
+    assert assistant_message.parts == [
+        ReasoningPart(content="thinking about x"),
+        ToolCallPart(
+            call_id="c",
+            tool="x",
+            args='{"q": "v"}',
+            status="success",
+            result_preview="tool out",
+            truncated=False,
+        ),
+        TextPart(content="answer"),
+    ]
 
 
 @pytest.mark.unit
 async def test_history_swaps_redacted_assistant_content() -> None:
     messages = [
+        HumanMessage(content="question", id="h1"),
         AIMessage(
             content="secret leaked",
             id="a1",
             additional_kwargs={"security_redacted": True},
-        )
+        ),
     ]
 
     result = await _history(messages).history(THREAD)
 
-    assert result[0].redacted is True
-    assert result[0].content == SecurityMessages().redacted_user_facing
+    assistant_message = result[-1]
+    assert assistant_message.redacted is True
+    assert assistant_message.content == SecurityMessages().redacted_user_facing
+    assert assistant_message.parts == [
+        TextPart(content=SecurityMessages().redacted_user_facing)
+    ]
 
 
 @pytest.mark.unit

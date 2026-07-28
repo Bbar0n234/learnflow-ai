@@ -2,7 +2,7 @@
 
 ## TL;DR
 
-Трек закрывает шесть фаз. **T1.1** подтвердила reasoning в чекпоинте на streaming-пути.
+Трек закрывает семь фаз. **T1.1** подтвердила reasoning в чекпоинте на streaming-пути.
 **T1.2** ввела каркас SSE v2: `stream_started`, `HeartbeatPacer`, терминальный `cancelled {}`,
 generic `security_block {}`. **T1.3** переработала token-канал (`TokenChunkMapper`):
 `reasoning_chunk`/`text_chunk`/ранние `tool_call_started`+`tool_call_args`. **T1.4** привела
@@ -14,6 +14,12 @@ updates-канал (`StreamEventMapper`) к контракту: `tool_result`, `
 `run_subagent` передаёт `stream_writer`/`call_id` в `SubagentRunner.run`, тот оборачивает тулы
 субагента в `_LifecycleEmittingTool` — прокси, репортующий все четыре lifecycle-события с
 `parent_call_id`; вложенный `emit_agent_event` подхватывает тег через `SUBAGENT_PARENT_CALL_ID`.
+**T1.7** перевела `CheckpointHistory.history()` с фильтрации сообщений на группировку по
+ходам: `AIMessage.tool_calls` + парные `ToolMessage` + финальный `AIMessage` одного хода
+собираются в один `Message` с упорядоченными `parts` (`reasoning`/`text`/`tool_call`);
+`id`/`created_at`/`redacted` берутся у финального `AIMessage` — тот же якорь, что и раньше
+резолвил `trace_id`/`feedback_score`/`artifacts`. `MessageOut.parts` — дискриминированный по
+`type` список в API-схеме.
 
 `make check` зелёный на всех фазах. `make test`: стабильно **526 passed, 1 failed, 228
 errors** — инфраструктурные (testcontainers) плюс предсуществующий прайсинг-дрейф.
@@ -417,6 +423,88 @@ errors** — инфраструктурные (testcontainers) плюс пред
     выше, а не новым тест-кейсом в этом файле — тот же прецедент, что и в T1.3 (см.
     «Решения и обоснования» этой фазы: план предполагал механическую правку файла, по факту
     скоуп не пересёкся).
+
+## Реализовано в фазе T1.7
+
+- `backend/app/services/agent_runner.py` — три новых frozen-dataclass типа рядом с `Message`
+  (та же форма — «внутренний value-объект рантайма агента» из conventions.md § Типизация):
+  `ReasoningPart {content}`, `TextPart {content}`, `ToolCallPart {call_id, tool, args, status,
+  result_preview, truncated}`, каждый с полем-дискриминатором `type: Literal[...]`; тип-алиас
+  `Part = ReasoningPart | TextPart | ToolCallPart`. `Message` получил `parts: list[Part] =
+  field(default_factory=list)` — остальные поля (`id`, `role`, `content`, `created_at`,
+  `redacted`) не тронуты (совместимость).
+- `backend/app/agent/checkpoint_history.py` — `CheckpointHistory.history()` переписан с
+  фильтрации на группировку по ходам:
+  - находит индекс первого `HumanMessage`, отбрасывает всё до него (после компакции там
+    лежит id-less `summary_msg` из `graph.py:_reduce_context` — служебная сводка, не ход);
+  - далее идёт по сообщениям, накапливая сегмент между `HumanMessage`; на каждом
+    `HumanMessage` — `flush_segment()` (сборка предыдущего сегмента в assistant-`Message`,
+    если сегмент непуст) и добавление user-`Message` для самого `HumanMessage` (без `parts` —
+    типизированные parts относятся только к ассистентской стороне хода, дизайн-бриф не
+    описывает их для пользовательских сообщений);
+  - новый метод `_build_turn_message(segment)` строит один assistant-`Message`: собирает
+    `tool_call_id -> ToolMessage` по всему сегменту, затем идёт по `AIMessage`-сообщениям
+    сегмента по порядку — с `tool_calls` эмитит `reasoning`(опц.) + один `tool_call`-part на
+    каждый вызов (парный `ToolMessage` по `call_id`; если не нашёлся — `status="pending"`,
+    `result_preview=""`, ход застал вызов незавершённым); без `tool_calls` — это финальное
+    сообщение хода (`final_ai`): `reasoning`(опц.) + `text`, либо (если
+    `security_redacted`) один `text`-part со стандартной redaction-заглушкой без reasoning
+    (см. «Решения и обоснования»);
+  - `id`/`created_at`/`redacted`/`content` итогового `Message` берутся у `final_ai`, если он
+    есть, иначе у последнего `AIMessage` сегмента (ход, оборвавшийся на tool-вызове) — тот же
+    якорь, на который сегодня резолвятся `trace_id`/`feedback_score`/`artifacts` в
+    `routes/chats.py:86-95`, инвариант не менялся, только источник самого `id`/`created_at`
+    расширен на «последний доступный», а не только «последний без tool_calls».
+  - `args` каждого `tool_call`-part — `json.dumps(tc["args"], ensure_ascii=False)`, тот же
+    вид данных, что и `tool_call_args.args` на проводе (JSON-строка, не dict) — общий
+    `text_limits.truncate` применяется отдельно к `args` и к `result_preview`, `truncated`
+    поднимается, если усечено хоть одно поле.
+- `backend/app/api/schemas/chats.py` — `ReasoningPartOut`/`TextPartOut`/`ToolCallPartOut`
+  (Pydantic `BaseModel`, по одному на форму данных, пересекающих HTTP-границу) + тип-алиас
+  `MessagePartOut = Annotated[ReasoningPartOut | TextPartOut | ToolCallPartOut,
+  Field(discriminator="type")]`; `MessageOut.parts: list[MessagePartOut] = []`.
+- `backend/app/api/routes/chats.py` — приватный маппер `_part_out(part: Part) -> MessagePartOut`
+  (`isinstance`-диспетчер по трём внутренним dataclass-типам в Pydantic-модели); `get_chat`
+  прокидывает `parts=[_part_out(p) for p in m.parts]` в конструктор `MessageOut`. Импорт
+  `Part`/`ReasoningPart`/`TextPart`/`ToolCallPart` из `app.services.agent_runner` — разрешён
+  import-linter'ом (`api/routes` запрещено импортировать только `repositories`/`storage`/
+  `agent` напрямую, `services` не входит в запрет).
+- `alembic`/`app/models` не тронуты — источник один (чекпоинтер), новой персистентности нет.
+- Тесты — списком с обоснованием (правило A6):
+  - `backend/tests/agent/test_checkpoint_history.py` (существующий файл фазы feat-009, не
+    T1.7) — приведён к новой модели, без новых тест-файлов:
+    - `test_history_maps_human_and_assistant_and_excludes_tool_turns` переименован в
+      `test_history_groups_a_tool_call_turn_into_one_assistant_message` и усилен: раньше
+      проверял только `(role, content)`-пары (это осталось бы зелёным и без изменения кода —
+      старое поведение «отфильтровать лишнее» и новое «сгруппировать в одно сообщение» дают
+      одинаковый список пар на этой фикстуре), теперь дополнительно проверяет `len(result) ==
+      2` и `assistant_message.parts == [ReasoningPart(...), ToolCallPart(...),
+      TextPart(...)]` — иначе тест не доказывал бы группировку, которую вводит эта фаза, и
+      прошёл бы одинаково что до, что после правки. Это и есть эмпирическое подтверждение
+      правила «один ход = один `MessageOut`» (см. отчёт фазы).
+    - `test_history_swaps_redacted_assistant_content` — фикстура была нежизнеспособна под
+      новой моделью буквально (единственный `AIMessage` без предшествующего `HumanMessage` —
+      после «сообщения до первого `HumanMessage` дропаются» такой список даёт `[]`, тест упал
+      бы не на редакции, а на отсутствии человеческого сообщения). Добавлен предшествующий
+      `HumanMessage(id="h1")` — минимальная правка прекондиции, сама проверка (redacted flag +
+      content-заглушка) не изменилась; дополнена одной строкой `parts == [TextPart(stub)]`,
+      подтверждающей, что redaction-политика согласована между `content` и `parts` (пункт 4
+      верификации фазы).
+    - Остальные 10 тестов файла (`raw_messages_*`, `created_at`, `last_ai_message_id_*`,
+      `latest_redaction_*`) не тронуты — методы, которые они покрывают
+      (`raw_messages`/`last_ai_message_id`/`latest_redaction`), эта фаза не меняла; прогнаны,
+      зелёные.
+- Разовая проба (не коммитится, тот же паттерн, что `heartbeat_smoke.py`/T1.5/T1.6): скрипт в
+  скрэтчпаде строит ход из `HumanMessage` + `AIMessage(tool_calls=[c1, c2])` + `ToolMessage`
+  только для `c1` (`c2` не резолвлен — ход «застыл» на исполнении инструмента) и гоняет через
+  `CheckpointHistory.history()`. Результат: ровно один assistant-`Message` с `id="a1"` (id
+  единственного, tool-calling `AIMessage` — финального без `tool_calls` в сегменте нет),
+  `content=""`, `parts=[ToolCallPart(call_id="c1", status="success", result_preview="search
+  result"), ToolCallPart(call_id="c2", status="pending", result_preview="")]`. Отдельно
+  проверено, что `last_ai_message_id()` для того же треда возвращает `None` (сообщений без
+  `tool_calls` нет вообще) — поведение не новое, тот же метод этой фазой не менялся; убеждён,
+  что «ход без финального `AIMessage`» не ломает пост-хок резолв `done.message_id`, он просто
+  честно не находит его, как и до этой фазы. Скрипт удалён после проверки.
 
 ## Решения и обоснования
 
@@ -825,6 +913,66 @@ errors** — инфраструктурные (testcontainers) плюс пред
   (`SUBAGENT_STREAM_WRITER`) с явной пометкой «задел под T1.6», просто для writer'а, а не для
   `parent_call_id`, — вторая переменная того же модуля, для той же обёртки, с тем же
   lifetime, естественно ложится туда же, а не в файл, который план перечисляет по имени.
+
+- **`Part`-типы — три `frozen`-dataclass'а в `services/agent_runner.py`, не Pydantic-модели и
+  не один дикт-конверт.** conventions.md § Типизация относит внутренние value-объекты
+  рантайма агента к `@dataclass` (тот же ряд, что уже занимает `Message`/`StreamEvent`) — API
+  границу (`MessageOut.parts`) пересекает отдельный, параллельный набор Pydantic-моделей в
+  `api/schemas/chats.py`, что и требует import-linter'ов layering-контракт (`services` не
+  может импортировать `api.schemas` — обратное направление). Альтернатива «эмитить сразу
+  Pydantic-модели из `checkpoint_history.py`» была отклонена: `app.agent`/`app.services` не
+  участник цепочки, которой разрешён импорт `app.api.*` (единственное разрешённое исключение —
+  `services.mcp_server -> api.schemas.mcp_servers`, точечный allow-list, не прецедент для
+  нового обратного импорта).
+- **Дискриминатор `type` — литеральное поле дискриминированного варианта, не `isinstance` по
+  форме полей.** И внутренний `Part`, и внешний `MessagePartOut` используют
+  `type: Literal[...]` с дефолтным значением — тот же паттерн, каким design-brief описывает
+  сам wire-контракт (`StreamEvent.type`), и то, что явно требует план («дискриминированный по
+  `type` список»). `_part_out()` в `routes/chats.py` всё равно диспетчерит по `isinstance` на
+  внутренней dataclass-стороне (три разных Python-типа, не один тип с полем-тегом) — это
+  единственная граница, где `isinstance` неизбежен, потому что `Part` сам является
+  `Union`, а не одним классом с полем.
+- **Редактированное сообщение (`security_redacted` на финальном `AIMessage`) даёт только
+  `TextPart(stub)`, без `reasoning`-part'а — даже если `additional_kwargs["reasoning"]`
+  присутствует.** Не вытекает из плана буквально (план формулирует это как инвариант для
+  описания, не как готовое решение: «redacted-сообщения отдают parts согласованно с
+  существующей политикой редакции»). Разобрал оба источника редакции по коду:
+  `RuntimeSecurityEnforcer._redact_final_output` (`runtime_security.py:185-209`) создаёт
+  редактированный `AIMessage` с нуля, с собственным `additional_kwargs` — реального
+  `reasoning` там физически нет, вопрос неактуален. Но `guard_tool_call_args`
+  (`tool_guards.py:154-171`) редактирует иначе: `additional_kwargs={**response.additional_kwargs,
+  "security_redacted": True, ...}` — **спред сохраняет исходный `reasoning`**, если модель его
+  прислала вместе с заблокированным tool-call. Существующая политика (`content` до этой фазы)
+  ничего не оставляет от исходного сообщения — полная замена на generic-заглушку, а не частичный
+  показ. Решение: применить тот же принцип к `parts` — раз причина редакции именно в том, что
+  сообщение сгенерировано под воздействием инъекции, показывать «безобидную» половину (reasoning)
+  рядом с заглушкой вместо текста было бы более узкой политикой, чем действующая для `content`, и
+  потенциально утечкой контекста инъекции доверенному наблюдателю пользователя. Проверено разовой
+  пробой (см. «Реализовано в фазе T1.7», тест `test_history_swaps_redacted_assistant_content`).
+- **`status="pending"` — третье значение, которого нет в дизайн-брифе (`success`/`error`
+  только для wire-контракта `tool_result`), добавлено для незавершённого хода.** План прямо
+  делегирует это решение фазе («ход, оборвавшийся на tool-вызове... обрабатывается отдельно —
+  опиши в summary, как именно»), а не описывает готовую форму. Альтернативы: (1) не эмитить
+  `tool_call`-part вовсе для незавершённых вызовов — отклонено, план явно требует «parts
+  показывают, докуда агент дошёл», то есть именно факт начатого-но-незавершённого вызова должен
+  быть виден; (2) `status: str | None` с `None` для «неизвестно» — отклонено в пользу explicit
+  `Literal["success", "error", "pending"]`: третье именованное состояние читается прямо в типе,
+  не требует `is None` проверки на стороне потребителя (фронта T2 или ревьюера), и не путается
+  с «поле отсутствует из-за версии контракта». Подтверждено разовой пробой (см. выше).
+- **Порядок parts — по позиции `AIMessage` в сегменте, `reasoning` и `tool_call`/`text`
+  одного `AIMessage` считаются одним «событием» ленты, не переставляются относительно
+  `ToolMessage`.** ``ToolMessage``ы сами не порождают частей — они только донор
+  `status`/`result_preview` для уже эмитированного `tool_call`-part той же итерации, поэтому
+  физическая позиция `ToolMessage` в списке (она всегда идёт сразу после своего `AIMessage`, до
+  следующего) не может создать «дыру» в порядке parts. Совпадает с design-brief: «Порядок parts
+  — порядок сообщений в треде».
+- **`Message.parts` для пользовательских (`role="user"`) сообщений остаётся пустым списком, не
+  `[TextPart(content)]`.** Design-brief таблица «Модель typed parts» и текст «одно сообщение
+  ассистента = последовательность parts» относят parts исключительно к ассистентской стороне
+  хода; user-сообщение и так полностью представлено плоским `content` (никогда не собирается из
+  нескольких LangChain-сообщений — один `HumanMessage` = один `Message`, группировать нечего).
+  Заполнение `parts` для роли user было бы данными, которых не просит ни бриф, ни план, без
+  видимой пользы фронту (T2 всё равно рендерит user-бабл по `content`) — не добавлено.
 
 ## Инфраструктурная находка фазы T1.2 (эскалация архитектору, не блокирует код)
 

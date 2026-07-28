@@ -411,6 +411,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # split this way: neither detector applies to Checkpoint.MCP_METADATA
         # (see their `applies_to`), so the interim guard built here is
         # complete for the one check it's used for below.
+        # `_build_security_guard` is defined separately in each branch below
+        # (rather than once, gated by an internal early-return) so that
+        # `classifier`/`guard_observer` — bound only on the enabled path —
+        # can never be referenced from a code path where they don't exist:
+        # the disabled-path closure captures nothing from the enabled branch
+        # at all, so there is no unbound-variable access for mypy or a
+        # future refactor to miss.
         if settings.llm_defense_enabled:
             guard_llm = create_guard_llm(settings, security_config)
             classifier = LLMClassifier(
@@ -420,51 +427,54 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 checkpoint_configs=checkpoint_configs(security_config),
             )
             guard_observer = GuardObserver(enabled=langfuse_enabled)
+
+            def _build_security_guard(
+                tools_for_corpus: list[BaseTool],
+            ) -> SecurityGuard | None:
+                fragment_corpus = collect_fragment_corpus(
+                    system_prompt=prompt_provider.load_file("system"),
+                    guard_classifier_prompt=prompt_provider.load_file(
+                        "security-classifier"
+                    ),
+                    internal_tools=tools_for_corpus,
+                    security_preamble=prompt_fragments.security_preamble,
+                )
+                registry = collect_tool_registry(tools_for_corpus)
+                detectors: list[DeterministicDetector] = [
+                    CanaryDetector(),
+                    UnicodeDetector(),
+                    PairedToolIdentifierDetector(
+                        registry,
+                        min_compromised_tools=security_config.detectors.paired.min_compromised_tools,
+                        min_params_per_tool=security_config.detectors.paired.min_params_per_tool,
+                    ),
+                    FragmentDetector(
+                        fragment_corpus,
+                        window_size=security_config.detectors.fragment.window_size,
+                        stride=security_config.detectors.fragment.stride,
+                        min_unique_matches=security_config.detectors.fragment.min_unique_matches,
+                    ),
+                ]
+                guard = SecurityGuard(
+                    detectors=detectors,
+                    classifier=classifier,
+                    observer=guard_observer,
+                    config=security_config,
+                )
+                logger.info(
+                    "security guard initialized",
+                    guard_model=security_config.llm_classifier.model,
+                    corpus_items=len(fragment_corpus),
+                    tool_registry_size=len(registry),
+                )
+                return guard
         else:
             logger.info("security guard disabled by flag")
 
-        def _build_security_guard(
-            tools_for_corpus: list[BaseTool],
-        ) -> SecurityGuard | None:
-            if not settings.llm_defense_enabled:
+            def _build_security_guard(
+                tools_for_corpus: list[BaseTool],
+            ) -> SecurityGuard | None:
                 return None
-            fragment_corpus = collect_fragment_corpus(
-                system_prompt=prompt_provider.load_file("system"),
-                guard_classifier_prompt=prompt_provider.load_file(
-                    "security-classifier"
-                ),
-                internal_tools=tools_for_corpus,
-                security_preamble=prompt_fragments.security_preamble,
-            )
-            registry = collect_tool_registry(tools_for_corpus)
-            detectors: list[DeterministicDetector] = [
-                CanaryDetector(),
-                UnicodeDetector(),
-                PairedToolIdentifierDetector(
-                    registry,
-                    min_compromised_tools=security_config.detectors.paired.min_compromised_tools,
-                    min_params_per_tool=security_config.detectors.paired.min_params_per_tool,
-                ),
-                FragmentDetector(
-                    fragment_corpus,
-                    window_size=security_config.detectors.fragment.window_size,
-                    stride=security_config.detectors.fragment.stride,
-                    min_unique_matches=security_config.detectors.fragment.min_unique_matches,
-                ),
-            ]
-            guard = SecurityGuard(
-                detectors=detectors,
-                classifier=classifier,
-                observer=guard_observer,
-                config=security_config,
-            )
-            logger.info(
-                "security guard initialized",
-                guard_model=security_config.llm_classifier.model,
-                corpus_items=len(fragment_corpus),
-                tool_registry_size=len(registry),
-            )
-            return guard
 
         security_guard = _build_security_guard(internal_tools)
 

@@ -121,7 +121,7 @@ Dockerfile живёт рядом с `pyproject.toml` пакета (`backend/Dock
 Содержимое — единый шаблон:
 
 - Pinned uv image (`ghcr.io/astral-sh/uv:<version>`), без `latest`. Reproducibility важнее «свежести».
-- Установка через `uv sync --locked --no-dev --package <имя пакета workspace>` с cache-mount, а не `--all-packages`: образ получает зависимости только своего пакета, без dev-группы (`pytest`, `mypy`, `testcontainers` и т.п.) и без стека остальных членов workspace. Не `uv pip install -e` — это обходит lock-файл и ломает воспроизводимость.
+- Установка через `uv sync --locked --no-dev --package <имя пакета workspace>` с cache-mount, а не `--all-packages`: образ получает зависимости только своего пакета, без dev-группы (`pytest`, `mypy`, `testcontainers` и т.п.) и без стека остальных членов workspace. Не `uv pip install -e` — это обходит lock-файл и ломает воспроизводимость. Если в файле два вызова `uv sync` (кэш-слой зависимостей и финальный после копирования исходников) — оба несут одинаковые флаги `--no-dev --package`: кэш-слой физически остаётся в образе, и финальный sync его не переустанавливает, только дополняет.
 - Multi-stage build когда есть смысл (frontend bundle, dev-deps отделение).
 
 ### Структура внутри сервиса

@@ -79,7 +79,8 @@ class StreamingToolCallFakeChatModel(ToolBindingFakeChatModel):
     *no* chunks → ``ValueError``). This override emits a terminal
     ``tool_call_chunks`` chunk so the reconstructed message keeps its tool calls
     and the ReAct loop routes to the tools node — letting runner tests exercise
-    ``tool_start``/``tool_end`` through the real ``astream``.
+    ``tool_call_started``/``tool_call_args``/``tool_result`` through the real
+    ``astream``.
     """
 
     async def _astream(

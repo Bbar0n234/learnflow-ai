@@ -18,7 +18,10 @@ def mapper() -> StreamEventMapper:
 
 
 @pytest.mark.unit
-def test_agent_tool_calls_emit_tool_start_events(mapper: StreamEventMapper) -> None:
+def test_agent_tool_calls_emit_nothing(mapper: StreamEventMapper) -> None:
+    # Tool-call announcement moved to the token channel (T1.3's early
+    # ``tool_call_started`` from ``tool_call_chunks``); the updates channel no
+    # longer duplicates it via the removed ``tool_start``.
     data = {
         "agent": {
             "messages": [
@@ -33,12 +36,7 @@ def test_agent_tool_calls_emit_tool_start_events(mapper: StreamEventMapper) -> N
         }
     }
 
-    events = mapper.updates(data)
-
-    assert [(e.type, e.data) for e in events] == [
-        ("tool_start", {"tool": "search", "call_id": "c1"}),
-        ("tool_start", {"tool": "lookup", "call_id": "c2"}),
-    ]
+    assert mapper.updates(data) == []
 
 
 @pytest.mark.unit
@@ -51,7 +49,7 @@ def test_agent_message_without_tool_calls_emits_nothing(
 
 
 @pytest.mark.unit
-def test_tool_message_emits_tool_end_event(mapper: StreamEventMapper) -> None:
+def test_tool_message_emits_tool_result_event(mapper: StreamEventMapper) -> None:
     data = {
         "tools": {
             "messages": [
@@ -63,7 +61,16 @@ def test_tool_message_emits_tool_end_event(mapper: StreamEventMapper) -> None:
     events = mapper.updates(data)
 
     assert [(e.type, e.data) for e in events] == [
-        ("tool_end", {"tool": "search", "call_id": "c1"})
+        (
+            "tool_result",
+            {
+                "call_id": "c1",
+                "tool": "search",
+                "status": "success",
+                "content": "result",
+                "truncated": False,
+            },
+        )
     ]
 
 
@@ -87,7 +94,7 @@ def test_create_artifact_emits_artifact_created_with_remapped_type(
     events = mapper.updates(data)
 
     types = [e.type for e in events]
-    assert types == ["tool_end", "artifact_created"]
+    assert types == ["tool_result", "artifact_created"]
     artifact_event = events[1]
     assert artifact_event.data["artifact_type"] == "note"
     assert "type" not in artifact_event.data
@@ -95,7 +102,7 @@ def test_create_artifact_emits_artifact_created_with_remapped_type(
 
 
 @pytest.mark.unit
-def test_create_artifact_without_artifact_payload_only_emits_tool_end(
+def test_create_artifact_without_artifact_payload_only_emits_tool_result(
     mapper: StreamEventMapper,
 ) -> None:
     data = {
@@ -108,7 +115,7 @@ def test_create_artifact_without_artifact_payload_only_emits_tool_end(
 
     events = mapper.updates(data)
 
-    assert [e.type for e in events] == ["tool_end"]
+    assert [e.type for e in events] == ["tool_result"]
 
 
 @pytest.mark.unit

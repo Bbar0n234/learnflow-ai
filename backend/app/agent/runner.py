@@ -36,7 +36,8 @@ class LangGraphAgentRunner:
     Side concerns are delegated to collaborators: ``RuntimeSecurityEnforcer``
     (guard checkpoints + redaction), ``AgentRunTracer`` (Langfuse spans),
     ``CheckpointHistory`` (checkpointer reads/mapping), ``StreamEventMapper``
-    (graph updates → SSE events), ``TokenChunkMapper`` (messages-channel
+    (graph updates → SSE events, one fresh instance per run — see
+    ``_event_mapper_factory``), ``TokenChunkMapper`` (messages-channel
     chunks → SSE events, one fresh instance per run — see
     ``_token_mapper_factory``), ``HeartbeatPacer`` (silence heartbeats +
     responsive cancellation).
@@ -51,7 +52,7 @@ class LangGraphAgentRunner:
         history: CheckpointHistory,
         error_messages: ErrorMessagesConfig,
         *,
-        event_mapper: StreamEventMapper | None = None,
+        event_mapper_factory: Callable[[], StreamEventMapper] | None = None,
         heartbeat_pacer: HeartbeatPacer | None = None,
         token_mapper_factory: Callable[[], TokenChunkMapper] | None = None,
         tool_resolver: Any | None = None,
@@ -63,12 +64,14 @@ class LangGraphAgentRunner:
         self._enforcer = enforcer
         self._history = history
         self._error_messages = error_messages
-        self._event_mapper = event_mapper or StreamEventMapper()
         self._heartbeat_pacer = heartbeat_pacer or HeartbeatPacer()
-        # Factory, not a shared instance: ``TokenChunkMapper`` accumulates
-        # per-run tool-call assembly state, so each ``stream()`` call must get
-        # its own (conventions.md § module state — no shared/module-level
-        # mutable state across concurrent runs).
+        # Factories, not shared instances: both mappers accumulate per-run
+        # state (``TokenChunkMapper`` — tool-call chunk assembly;
+        # ``StreamEventMapper`` — announced-but-unresolved call ids for
+        # ``tool_call_cancelled``), so each ``stream()`` call must get its own
+        # (conventions.md § module state — no shared/module-level mutable
+        # state across concurrent runs).
+        self._event_mapper_factory = event_mapper_factory or StreamEventMapper
         self._token_mapper_factory = token_mapper_factory or TokenChunkMapper
         self._tool_resolver = tool_resolver
         self._canary_secret = canary_secret
@@ -140,6 +143,7 @@ class LangGraphAgentRunner:
             client_disconnected = False
             full_response = ""
             token_mapper = self._token_mapper_factory()
+            event_mapper = self._event_mapper_factory()
             last_message_id: str | None = None
             injection_emitted = False
             chunks_processed = 0
@@ -268,13 +272,25 @@ class LangGraphAgentRunner:
                                         blocked = True
                                         break
 
+                                if token_event.type == "tool_call_started":
+                                    # Recorded so the updates-channel mapper can
+                                    # later tell a guard cut (empty tool_calls,
+                                    # ``security_redacted``) apart from a plain
+                                    # no-tool-calls turn, and knows which
+                                    # ``call_id``s to report as
+                                    # ``tool_call_cancelled`` — the redacted
+                                    # payload itself no longer carries them.
+                                    event_mapper.note_call_announced(
+                                        token_event.data["call_id"]
+                                    )
+
                                 yield token_event
 
                             if blocked:
                                 return
 
                         elif mode == "updates":
-                            for event in self._event_mapper.updates(data):
+                            for event in event_mapper.updates(data):
                                 yield event
 
                 except (asyncio.CancelledError, GeneratorExit):

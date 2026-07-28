@@ -4,7 +4,7 @@ Contract (design-brief § "Стриминг: изоляция токенов с�
 produced *inside* a subagent run carry the ``subagent`` tag and must be dropped
 by ``LangGraphAgentRunner``'s ``stream_mode="messages"`` branch — before they
 reach ``full_response`` or the chat — while the main agent's own tokens stream
-normally and the ``tool_start``/``tool_end`` indication for ``run_subagent``
+normally and the ``tool_result`` indication for ``run_subagent``
 (from ``stream_mode="updates"``) still flows.
 
 We drive the *real* ``LangGraphAgentRunner`` with a fake graph that scripts a
@@ -30,7 +30,7 @@ from app.agent.security.types import SecurityMessages
 from app.agent.subagents import SUBAGENT_TAG
 from app.agent.tracing import AgentRunTracer
 from app.services.agent_runner import StreamEvent
-from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
+from langchain_core.messages import AIMessageChunk, ToolMessage
 from langgraph.checkpoint.memory import InMemorySaver
 
 pytestmark = pytest.mark.unit
@@ -132,14 +132,9 @@ async def test_subagent_tagged_tokens_are_dropped_from_the_chat() -> None:
     assert "LEAKED_A" not in text and "LEAKED_B" not in text
 
 
-async def test_tool_start_and_end_still_flow_while_tokens_are_filtered() -> None:
-    tool_call = AIMessage(
-        content="",
-        tool_calls=[{"name": "run_subagent", "args": {}, "id": "c1"}],
-    )
+async def test_tool_result_still_flows_while_tokens_are_filtered() -> None:
     graph = _FakeGraph(
         [
-            ("updates", {"agent": {"messages": [tool_call]}}),
             _chunk("LEAKED", tags=[SUBAGENT_TAG]),
             (
                 "updates",
@@ -164,8 +159,7 @@ async def test_tool_start_and_end_still_flow_while_tokens_are_filtered() -> None
 
     types = [e.type for e in events]
     # The subagent-work indication survives the token filter.
-    assert "tool_start" in types
-    assert "tool_end" in types
+    assert "tool_result" in types
     text = "".join(e.data["content"] for e in events if e.type == "text_chunk")
     assert text == "final answer"
     assert "LEAKED" not in text

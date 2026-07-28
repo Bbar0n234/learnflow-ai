@@ -592,7 +592,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             enforcer=runtime_security,
             history=checkpoint_history,
             error_messages=error_messages,
-            event_mapper=StreamEventMapper(),
+            event_mapper_factory=StreamEventMapper,
             tool_resolver=tool_resolver,
             canary_secret=settings.canary_secret,
         )

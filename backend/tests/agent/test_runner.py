@@ -350,14 +350,16 @@ async def test_in_graph_redaction_emits_security_block_after_review_complete() -
     assert types.index("security_block") > types.index("final_output_review_complete")
 
 
-# --- tool lifecycle: real astream drives tool_start / tool_end ---------------
+# --- tool lifecycle: real astream drives tool_call_started / tool_result -----
 
 
 @pytest.mark.integration
-async def test_tool_call_emits_tool_start_and_tool_end_via_astream() -> None:
+async def test_tool_call_emits_started_args_and_result_via_astream() -> None:
     # A real ReAct turn through the runner's graph: the model issues a tool call,
-    # the tools node runs it, the model answers. The runner must surface the
-    # graph ``updates`` as tool_start/tool_end (mapper wired through astream).
+    # the tools node runs it, the model answers. The token channel surfaces the
+    # early tool_call_started/tool_call_args (from tool_call_chunks); the
+    # updates channel surfaces the execution result as tool_result (mapper
+    # wired through astream) — tool_start/tool_end no longer exist.
     model = streaming_tool_fake(
         [
             AIMessage(
@@ -372,13 +374,19 @@ async def test_tool_call_emits_tool_start_and_tool_end_via_astream() -> None:
     events = await _collect(runner, content="use the tool", **_ids())
 
     by_type = {e.type: e for e in events}
-    assert "tool_start" in by_type
-    assert "tool_end" in by_type
-    assert by_type["tool_start"].data == {"tool": "echo", "call_id": "c1"}
-    assert by_type["tool_end"].data == {"tool": "echo", "call_id": "c1"}
-    # tool_start precedes tool_end; final answer still streamed as text.
+    assert "tool_call_started" in by_type
+    assert "tool_result" in by_type
+    assert by_type["tool_call_started"].data == {"tool": "echo", "call_id": "c1"}
+    assert by_type["tool_result"].data == {
+        "call_id": "c1",
+        "tool": "echo",
+        "status": "success",
+        "content": "echoed: hi",
+        "truncated": False,
+    }
+    # tool_call_started precedes tool_result; final answer still streamed as text.
     types = [e.type for e in events]
-    assert types.index("tool_start") < types.index("tool_end")
+    assert types.index("tool_call_started") < types.index("tool_result")
     text = "".join(e.data["content"] for e in events if e.type == "text_chunk")
     assert text == "done"
 

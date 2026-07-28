@@ -55,6 +55,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 #   tool_call_args      -> {"call_id": str, "args": str, "truncated": bool}
 #                           (stream_events.py — token channel, args JSON
 #                           complete, before execution)
+#   tool_call_cancelled -> {"call_id": str}         (stream_events.py — updates
+#                           channel, guard cut a turn's tool calls after
+#                           generation, before execution)
+#   tool_result         -> {"call_id": str, "tool": str, "status": str,
+#                           "content": str, "truncated": bool} (stream_events.py
+#                           — updates channel, ``ToolMessage`` after execution)
 #   cancelled           -> {}                       (runner.py)
 #   error               -> {"detail": str}         (runner.py, streaming.md)
 #   security_block      -> {}                       (runner.py — generic, no
@@ -73,8 +79,8 @@ RUNNER_FORWARDED_TYPES = frozenset(
         "reasoning_chunk",
         "tool_call_started",
         "tool_call_args",
-        "tool_start",
-        "tool_end",
+        "tool_call_cancelled",
+        "tool_result",
         "artifact_created",
         "final_output_review_started",
         "final_output_review_complete",
@@ -113,6 +119,30 @@ def tool_call_args_event(
     return StreamEvent(
         type="tool_call_args",
         data={"call_id": call_id, "args": args, "truncated": truncated},
+    )
+
+
+def tool_call_cancelled_event(call_id: str) -> StreamEvent:
+    return StreamEvent(type="tool_call_cancelled", data={"call_id": call_id})
+
+
+def tool_result_event(
+    call_id: str,
+    tool: str,
+    *,
+    status: str = "success",
+    content: str = "",
+    truncated: bool = False,
+) -> StreamEvent:
+    return StreamEvent(
+        type="tool_result",
+        data={
+            "call_id": call_id,
+            "tool": tool,
+            "status": status,
+            "content": content,
+            "truncated": truncated,
+        },
     )
 
 

@@ -2,38 +2,23 @@
 
 ## TL;DR
 
-Трек на текущий момент закрывает три фазы. **T1.1** (диагностика) подтвердила, что
-`additional_kwargs["reasoning"]` доезжает до сохранённого в чекпоинт `AIMessage` на реальном
-streaming-пути проекта без изменений `graph.py`. **T1.2** ввела транспортный каркас SSE v2 в
-`runner.py`: `stream_started` до setup-фазы; коллаборатор `HeartbeatPacer` (heartbeat каждые
-5 с + проверка `cancel_event` на том же таймере, отмена отзывчива и во время долгого
-tool-вызова); терминальный `cancelled {}` вместо `error`; generic `security_block {}`;
-устранена утечка `_cancel_events`. **T1.3** переработала token-канал: новый `TokenChunkMapper`
-(`stream_events.py`, свежий экземпляр на каждый `stream()` — инжектируемая фабрика в
-конструкторе раннера, а не shared-state) разбирает каждый сырой `AIMessageChunk` на
-`reasoning_chunk` / `text_chunk` / раннюю пару `tool_call_started` + `tool_call_args` (дедуп по
-`call_id`/`index`, JSON args собирается по фрагментам `tool_call_chunks`, эмиссия — по
-достижении валидного JSON, до исполнения, усечение общим хелпером из T1.2). Guard-проверки
-(canary/mid-stream) остаются только на `text_chunk` — reasoning и tool-call вне их скоупа,
-осознанная граница архитектора. Попутно изолирован вызов суммаризатора
-(`graph.py:_reduce_context`) через `RunnableConfig{callbacks: [], tags, run_name}` по образцу
-guard-классификатора — токены компакции больше не текут в пользовательский `text_chunk`
-(попутная находка №1 аудита закрыта).
+Трек закрывает четыре фазы. **T1.1** подтвердила: reasoning доезжает до сохранённого в
+чекпоинт `AIMessage` на реальном streaming-пути, без правок `graph.py`. **T1.2** ввела
+транспортный каркас SSE v2: `stream_started` до setup, `HeartbeatPacer` (heartbeat 5 с +
+отзывчивая отмена во время долгого tool-вызова), терминальный `cancelled {}`, generic
+`security_block {}`, устранена утечка `_cancel_events`. **T1.3** переработала token-канал —
+`TokenChunkMapper` (per-run) разбирает чанк на `reasoning_chunk` / `text_chunk` / ранние
+`tool_call_started` + `tool_call_args`; guard-проверки остались только на `text_chunk`;
+изолирован стрим суммаризатора от пользовательского канала. **T1.4** привела updates-канал
+(`StreamEventMapper`, тоже сделан per-run) к контракту: `tool_start`/`tool_end` удалены;
+`tool_result` — из `ToolMessage` (status/content/truncated); `artifact_created` — по атрибуту
+`ToolMessage.artifact`, не по whitelist имён; `tool_call_cancelled` — при срезе
+`guard_tool_call_args`, через bookkeeping «анонсировано token-каналом, не разрешилось».
 
-`make check` зелёный на всех трёх фазах. `make test` в среде агента (сломанный проброс портов
-Docker — см. ниже): **526 passed, 1 failed, 228 errors** (755 тестов всего) — тот же итог по
-составу и общему числу тестов, что и в T1.2 (527 без-Postgres тестов = 526 зелёных + то же
-известное внешнее падение прайсинга; ~228 падений на testcontainers-Postgres), т.е. фаза T1.3
-не добавила ни одной новой красной строки и не поменяла состав падений. Явно прогнаны и
-зелёные: `tests/agent`, `tests/chat`
-(non-DB часть), `tests/subagents/test_stream_isolation.py`, `tests/image_generation`
-(non-DB часть), `tests/agent/test_graph.py`/`test_graph_factory.py` (суммаризатор-фейки с новым
-`config=` аргументом `ainvoke`). DB-интеграционный слой (~228 тестов, включая
-`chat/test_message_stream.py`) по-прежнему не верифицируется в этой среде — тот же
-инфраструктурный конфликт (testcontainers/Ryuk), что и в T1.2, не кодовый вопрос. Отдельно —
-предсуществующее внешнее падение `test_pricing_external.py` (не связано ни с одной из фаз).
-Ручная проверка на живой reasoning-модели (T1.1) не выполнена — нет сетевого доступа в среде
-агента; отмечена как ручной кейс для архитектора.
+`make check` зелёный на всех фазах. `make test`: стабильно **526 passed, 1 failed, 228
+errors** с T1.2 — падения инфраструктурные (testcontainers/Docker) и один предсуществующий
+внешний прайсинг-дрейф, ни одна фаза не добавила красного. Ручная проверка reasoning на живой
+модели (T1.1) не выполнена — нет сети в среде агента.
 
 ## Реализовано в фазе T1.1
 
@@ -202,6 +187,84 @@ Docker — см. ниже): **526 passed, 1 failed, 228 errors** (755 тесто
     фикстуры не программируют `tool_call_chunks` — новые события там не возникают, а
     существующее поведение фильтра по `SUBAGENT_TAG` не менялось; прогнан и зелёный без единой
     правки — см. «Решения и обоснования»).
+
+## Реализовано в фазе T1.4
+
+- `backend/app/agent/stream_events.py` — `StreamEventMapper` переработан под контракт v2:
+  - `tool_start`/`tool_end` удалены целиком (эмиссия старта вызова уже принадлежит
+    token-каналу с T1.3 — updates-канал её больше не дублирует).
+  - `tool_result {call_id, tool, status, content, truncated}` — из `ToolMessage` узла
+    `tools`: `status` берётся прямо из `ToolMessage.status` (`"success"`/`"error"`, выставляет
+    либо инструмент через `response_format="content_and_artifact"`, либо
+    `ToolNode(handle_tool_errors=...)` на исключении — проверено по
+    `langgraph/prebuilt/tool_node.py`, оба пути дают `status="error"`), `content` усечён общим
+    хелпером `text_limits.truncate` (первый вызов этого хелпера из T1.2 в updates-канале).
+  - `artifact_created` эмитится по `msg.artifact is not None` — захардкоженный whitelist
+    `{"create_artifact", "generate_image"}` снят; событие следует за `tool_result` того же
+    вызова, как и раньше.
+  - `tool_call_cancelled {call_id}` — новый метод `note_call_announced(call_id)` плюс
+    внутренний `_pending_call_ids: list[str]` (per-run bookkeeping, не dict/set — порядок
+    объявления сохраняется для детерминированной эмиссии, если guard срежет несколько
+    параллельных вызовов одного хода разом). `updates()` эмитит `tool_call_cancelled` для
+    каждого ещё не разрешённого `call_id`, обнаружив в данных узла `agent` признак среза:
+    `isinstance(msg, AIMessage) and not msg.tool_calls and
+    msg.additional_kwargs.get("security_redacted")` — именно `AIMessage`, не `ToolMessage`
+    (тот же флаг ставит `guard_tool_results` на `ToolMessage` при независимой
+    TOOL_RESULT-редакции — сравнение типа сообщения обязательно, `original_detection_layer`
+    в условие не входит вообще, как и предупреждал оркестратор). Разрешённые вызовы (получили
+    `tool_result`) вычищаются из `_pending_call_ids` до какой-либо проверки на срез.
+  - `StreamEventMapper` стал **per-run коллаборатором** (docstring класса объясняет почему):
+    без bookkeeping в отдельном инстансе `tool_call_cancelled` физически не собрать — к
+    моменту, когда редактированный `AIMessage` доезжает до `updates()`, `tool_calls` уже
+    пусты (`guard_tool_call_args` их обнулил), и в payload узла `agent` не остаётся ни одного
+    исходного `call_id`.
+- `backend/app/agent/runner.py` — `event_mapper: StreamEventMapper | None` в конструкторе
+  заменён на `event_mapper_factory: Callable[[], StreamEventMapper] | None` (default —
+  `StreamEventMapper`), по прямой аналогии с `token_mapper_factory` из T1.3: `_run_turn()`
+  создаёт `event_mapper = self._event_mapper_factory()` один раз в начале рана, рядом с
+  `token_mapper`. В цикле по `token_mapper.map_chunk(...)`, на каждом событии типа
+  `tool_call_started`, раннер вызывает `event_mapper.note_call_announced(call_id)` — это и
+  есть связка «то же per-run состояние, что у T1.3», которую требовал план: раннер знает про
+  оба канала одновременно и переносит факт анонса из token-канала в updates-канал.
+- `backend/app/main.py` — `event_mapper=StreamEventMapper()` (единственный shared-инстанс на
+  весь процесс) заменён на `event_mapper_factory=StreamEventMapper` — необходимое следствие
+  переименования конструкторского параметра, но и самостоятельно важное исправление: до этой
+  правки один и тот же `StreamEventMapper` обслуживал бы все одновременные пользовательские
+  раны, и с добавлением per-run bookkeeping (`_pending_call_ids`) стал бы местом утечки
+  состояния между параллельными стримами — тем самым нарушением «никакого
+  module-level/shared состояния», которого T1.3 уже избежала для `TokenChunkMapper`.
+- Тесты — списком с обоснованием (правило A6: приведение существующих тестов к новому
+  словарю событий, не новые кейсы — полноценный набор пишет `test-author`):
+  - `backend/tests/agent/test_stream_events.py` — переименованы/переприведены к новому
+    словарю: `test_agent_tool_calls_emit_tool_start_events` →
+    `test_agent_tool_calls_emit_nothing` (агент-узел с `tool_calls` теперь не эмитит ничего —
+    старт уже был отдан token-каналу в T1.3); `test_tool_message_emits_tool_end_event` →
+    `test_tool_message_emits_tool_result_event` (payload расширен под
+    `status`/`content`/`truncated`); `test_create_artifact_emits_artifact_created_with_
+    remapped_type` и `test_create_artifact_without_artifact_payload_only_emits_tool_end` →
+    список типов событий обновлён (`tool_end` → `tool_result`), логика теста не изменилась.
+    Не добавлены: отдельные кейсы на `status="error"`, на усечение `content`, на произвольное
+    (не whitelist) имя инструмента с артефактом, на сам `tool_call_cancelled` — это новое
+    покрытие, а не приведение существующего, значит вне scope фазы (первая черновая версия
+    файла у меня их содержала; вычистил после сверки с правилом A6/планом).
+  - `backend/tests/image_generation/test_stream_events_generate_image.py` — тот же паттерн:
+    `tool_end` → `tool_result` в списках типов и в комментарии, тестовая логика не менялась.
+  - `backend/tests/agent/test_runner.py` —
+    `test_tool_call_emits_tool_start_and_tool_end_via_astream` →
+    `test_tool_call_emits_started_args_and_result_via_astream`: тест уже проверял
+    сквозной `astream`-путь реального графа, план явно требует «событий `tool_start`/`tool_end`
+    в потоке больше нет» — с их удалением из мапперов исходный тест стал бы падать
+    (`tool_start`/`tool_end` больше никогда не появляются), поэтому он не мог остаться
+    нетронутым, хотя явно не назван в списке «Изменения» фазы. Ассерты переведены на
+    `tool_call_started`/`tool_result` с уже известными по контракту payload'ами.
+  - `backend/tests/subagents/test_stream_isolation.py` — по той же причине (реальный
+    `astream`-путь через раннер, который план явно требует очистить от `tool_start`/`tool_end`):
+    `test_tool_start_and_end_still_flow_while_tokens_are_filtered` →
+    `test_tool_result_still_flows_while_tokens_are_filtered`, фикстура упрощена (убран
+    начальный `updates` с `AIMessage.tool_calls` — он больше ничего не эмитит и не нужен
+    тесту), ассерт `"tool_result" in types` вместо пары `tool_start`/`tool_end`. Модульный
+    докстринг и докстринг `StreamingToolCallFakeChatModel` (`tests/agent/conftest.py`) поправлены
+    той же правкой — упоминали устаревшие имена событий в прозе.
 
 ## Решения и обоснования
 
@@ -397,6 +460,43 @@ Docker — см. ниже): **526 passed, 1 failed, 228 errors** (755 тесто
   сохраняющая точную семантику «текст, вызвавший блок, не долетает до клиента, `security_block`
   идёт вместо него» (тест `test_mid_stream_injection_emits_security_block_and_no_text` проходит
   без изменений).
+
+- **`_pending_call_ids` — `list[str]`, не `set[str]`.** CPython не гарантирует порядок
+  итерации по множеству строк; при срезе guard'ом хода с несколькими параллельными
+  tool_calls (несколько `call_id` анонсированы, ни один не разрешён) порядок эмиссии
+  `tool_call_cancelled` должен быть детерминированным для тестов и предсказуемым для фронта
+  (лента активности рендерит действия в порядке появления). `list` с проверкой `not in` перед
+  `append`/`remove` даёт тот же O(1)-по-факту результат при реалистичном числе одновременных
+  вызовов (единицы) и сохраняет порядок объявления.
+- **Признание среза — только `isinstance(msg, AIMessage)`, без явного `not isinstance(msg,
+  ToolMessage)`.** Проверено по факту (`ToolMessage.__mro__`): `ToolMessage` не наследует
+  `AIMessage` в установленной версии `langchain_core`, поэтому `isinstance(msg, AIMessage)`
+  уже исключает `ToolMessage`-сообщения с тем же `security_redacted`-флагом (их ставит
+  `guard_tool_results` на независимой TOOL_RESULT-редакции) — второй explicit-check добавил
+  бы код без изменения поведения. Дополнительно закрыто регрессионным сценарием на этапе
+  черновика теста (redacted `ToolMessage` в данных узла `agent` не даёт `tool_call_cancelled`)
+  — проверено вручную перед вычисткой черновых тестовых кейсов по правилу A6, в
+  зафиксированном виде тест не остался (см. «Реализовано в фазе T1.4»), но инвариант держит
+  сама структура кода (тип `AIMessage` в `isinstance`), а не тест.
+- **Разрешённый вызов вычищается из `_pending_call_ids` безусловно, до какой-либо проверки на
+  срез в той же `updates()`.** В рамках одного вызова `data["tools"]`/`data["agent"]` не
+  встречаются одновременно (узлы LangGraph отдают апдейт по одному на шаг), поэтому порядок
+  «сначала resolve, потом cut» внутри одного вызова `updates()` не наблюдаем на практике; тем
+  не менее ветка `"tools" in data` обрабатывается второй (после `"agent" in data`) намеренно —
+  если бы оба ключа когда-либо оказались в одном payload'е, разрешённый в этом же вызове
+  `call_id` не должен попасть в список отменённых (он уже получил `tool_result`, у него другой
+  жизненный цикл). Порядок веток закрывает этот пограничный случай без дополнительного кода.
+- **`StreamEventMapper.updates()` не проверяет двойную обработку `ToolMessage`, всплывающего
+  повторно под узлом `agent`.** `guard_tool_results` (существующий код, не в scope этой фазы)
+  возвращает обновлённый `ToolMessage` с `security_redacted=True` в `result_prefix`
+  `agent_node`, то есть та же по `id` `ToolMessage` может второй раз появиться в апдейте узла
+  `agent` — с уже отредактированным содержимым. Цикл по `data["agent"]["messages"]` фильтрует
+  по `isinstance(msg, AIMessage)`, так что это повторное появление `ToolMessage` там просто
+  игнорируется — не порождает второй `tool_result` с перезаписанным содержимым. Итог: живой
+  стрим уже показал исходный (нередактированный) результат тула до того, как `agent_node`
+  успел его отредактировать — тот же тайминговый зазор, что существовал в TOOL_RESULT guard'е
+  до этой фазы (не новая проблема T1.4, не входит в её scope: «изменение guard-политик» —
+  явная scope boundary брифа).
 
 ## Инфраструктурная находка фазы T1.2 (эскалация архитектору, не блокирует код)
 

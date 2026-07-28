@@ -20,36 +20,83 @@ from app.services.agent_runner import StreamEvent
 
 
 class StreamEventMapper:
+    """Per-run ``stream_mode="updates"`` node payload -> updates-channel ``StreamEvent``s.
+
+    **Must be instantiated fresh per run**, same reasoning as ``TokenChunkMapper``
+    (see below): it tracks which tool-call ``call_id``s the token channel has
+    already announced (``tool_call_started``) but that haven't resolved yet,
+    via ``note_call_announced`` — the runner calls it whenever the token
+    channel emits ``tool_call_started``. That bookkeeping is what lets
+    ``updates()`` emit ``tool_call_cancelled`` when a guard cuts a turn's tool
+    calls: by the time the redacted ``AIMessage`` reaches this node's payload,
+    ``tool_guards.guard_tool_call_args`` has already stripped ``tool_calls`` to
+    an empty list, so the payload itself no longer carries the cut ids — only
+    this per-run "announced, not yet resolved" set does.
+    """
+
+    def __init__(self) -> None:
+        self._pending_call_ids: list[str] = []
+
+    def note_call_announced(self, call_id: str) -> None:
+        """Record a ``call_id`` the token channel announced via ``tool_call_started``.
+
+        Resolved later either by a matching ``ToolMessage`` (``tool_result``) or
+        by a guard cutting the turn's tool calls (``tool_call_cancelled``).
+        """
+        if call_id not in self._pending_call_ids:
+            self._pending_call_ids.append(call_id)
+
     def updates(self, data: dict[str, Any]) -> list[StreamEvent]:
         events: list[StreamEvent] = []
 
         if "agent" in data:
             for msg in data["agent"].get("messages", []):
-                if isinstance(msg, AIMessage) and msg.tool_calls:
-                    for tc in msg.tool_calls:
+                # Recognizing a guard cut: an ``AIMessage`` (never a
+                # ``ToolMessage`` — ``guard_tool_results`` stamps the same
+                # ``security_redacted`` flag on those, for an unrelated
+                # TOOL_RESULT redaction) with tool_calls stripped to empty by
+                # ``guard_tool_call_args`` (``tool_guards.py``). Comparing
+                # ``original_detection_layer`` to a checkpoint string is not
+                # this signal — that field holds a ``DetectionLayer`` value.
+                if (
+                    isinstance(msg, AIMessage)
+                    and not msg.tool_calls
+                    and msg.additional_kwargs.get("security_redacted")
+                ):
+                    for call_id in self._pending_call_ids:
                         events.append(
                             StreamEvent(
-                                type="tool_start",
-                                data={"tool": tc["name"], "call_id": tc["id"]},
+                                type="tool_call_cancelled",
+                                data={"call_id": call_id},
                             )
                         )
+                    self._pending_call_ids = []
 
         if "tools" in data:
             for msg in data["tools"].get("messages", []):
                 if isinstance(msg, ToolMessage):
+                    call_id = msg.tool_call_id
+                    if call_id in self._pending_call_ids:
+                        self._pending_call_ids.remove(call_id)
+                    content = (
+                        msg.content
+                        if isinstance(msg.content, str)
+                        else str(msg.content)
+                    )
+                    content_text, truncated = truncate(content)
                     events.append(
                         StreamEvent(
-                            type="tool_end",
+                            type="tool_result",
                             data={
+                                "call_id": call_id,
                                 "tool": msg.name or "",
-                                "call_id": msg.tool_call_id,
+                                "status": msg.status,
+                                "content": content_text,
+                                "truncated": truncated,
                             },
                         )
                     )
-                    if (
-                        msg.name in {"create_artifact", "generate_image"}
-                        and msg.artifact is not None
-                    ):
+                    if msg.artifact is not None:
                         artifact = dict(msg.artifact)
                         artifact["artifact_type"] = artifact.pop("type", "")
                         events.append(

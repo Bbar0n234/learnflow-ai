@@ -39,7 +39,7 @@ def test_generate_image_emits_artifact_created_with_remapped_type(
 
     events = mapper.updates(data)
 
-    assert [e.type for e in events] == ["tool_end", "artifact_created"]
+    assert [e.type for e in events] == ["tool_result", "artifact_created"]
     artifact_event = events[1]
     assert artifact_event.data["artifact_type"] == "image"
     assert "type" not in artifact_event.data
@@ -47,7 +47,7 @@ def test_generate_image_emits_artifact_created_with_remapped_type(
     assert artifact_event.data["title"] == "Cover"
 
 
-def test_generate_image_without_artifact_payload_only_emits_tool_end(
+def test_generate_image_without_artifact_payload_only_emits_tool_result(
     mapper: StreamEventMapper,
 ) -> None:
     data = {
@@ -60,5 +60,5 @@ def test_generate_image_without_artifact_payload_only_emits_tool_end(
 
     events = mapper.updates(data)
 
-    # Tool error path: tool_end fires (placeholder clears), no artifact_created.
-    assert [e.type for e in events] == ["tool_end"]
+    # Tool error path: tool_result fires (placeholder clears), no artifact_created.
+    assert [e.type for e in events] == ["tool_result"]

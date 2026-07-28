@@ -367,3 +367,30 @@
     opacity: 0.6;
   }
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   TypedTitle: каретка посимвольной печати auto-title (замена плейсхолдера
+   «Новый чат» на название, сгенерированное моделью, событие `title_updated`).
+   Цветовой переход держит `transition-colors` (Tailwind); только мигание
+   каретки требует кастомного keyframe — аналога нет в tw-animate-css.
+   ─────────────────────────────────────────────────────────────────────────── */
+@keyframes typed-title-caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+.typed-title-caret::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 0.9em;
+  margin-left: 1px;
+  vertical-align: -0.08em;
+  background: var(--primary);
+  animation: typed-title-caret-blink 0.7s step-end infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .typed-title-caret::after {
+    animation: none;
+  }
+}

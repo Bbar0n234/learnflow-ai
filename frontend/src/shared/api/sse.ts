@@ -10,6 +10,7 @@ export type SSEEvent =
       artifact_type: string;
     }
   | { type: "done"; message_id?: string; trace_id?: string }
+  | { type: "title_updated"; title: string }
   | { type: "error"; detail: string }
   | { type: "security_block"; reason: string }
   | { type: "final_output_review_started" }

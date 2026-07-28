@@ -457,4 +457,177 @@ describe("useAgentStream", () => {
     live.close();
     await waitFor(async () => expect(await isStreaming()).toBe(false));
   });
+
+  // feat-002 (T2.2): the non-terminal `title_updated` event carries the
+  // generated chat name mid-stream. It may only patch caches in place — a
+  // refetch of the open chat would duplicate the optimistic user message that
+  // still lives in `localMessages` (design-brief § Доставка title на фронт).
+  const GENERATED_TITLE = "Производные функции";
+
+  function primeTitleCaches(
+    queryClient: ReturnType<typeof renderAgentStream>["queryClient"],
+  ) {
+    queryClient.setQueryData(queryKeys.projects.chats(PROJECT_ID), {
+      items: [{ thread_id: CHAT_ID, title: "Новый чат" }],
+      total: 1,
+      limit: 200,
+      offset: 0,
+    });
+    queryClient.setQueryData(queryKeys.chats.recent, {
+      items: [{ thread_id: CHAT_ID, title: "Новый чат" }],
+      total: 1,
+      limit: 10,
+      offset: 0,
+    });
+    queryClient.setQueryData<ChatDetail>(
+      queryKeys.projects.chat(PROJECT_ID, CHAT_ID),
+      {
+        thread_id: CHAT_ID,
+        title: "Новый чат",
+        security_blocked: false,
+        messages: [],
+      },
+    );
+  }
+
+  function titleIn(
+    queryClient: ReturnType<typeof renderAgentStream>["queryClient"],
+    key: readonly unknown[],
+  ): string | undefined {
+    const data = queryClient.getQueryData<{
+      items: { thread_id: string; title: string }[];
+    }>(key);
+    return data?.items.find((c) => c.thread_id === CHAT_ID)?.title;
+  }
+
+  it("patches the generated title into the chat list, recents and the open chat", async () => {
+    setAccessToken(fakeJwt());
+    server.use(
+      http.post(MESSAGES_URL, () =>
+        streamResponse([
+          { type: "text_chunk", content: "Начнём" },
+          { type: "title_updated", title: GENERATED_TITLE },
+          { type: "done", message_id: "m-t", trace_id: null },
+        ]),
+      ),
+    );
+    const onDone = vi.fn();
+    const { result, queryClient } = renderAgentStream({ onDone });
+    primeTitleCaches(queryClient);
+
+    result.current.send("расскажи про производные");
+
+    await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+    expect(titleIn(queryClient, queryKeys.projects.chats(PROJECT_ID))).toBe(
+      GENERATED_TITLE,
+    );
+    expect(titleIn(queryClient, queryKeys.chats.recent)).toBe(GENERATED_TITLE);
+    expect(
+      queryClient.getQueryData<ChatDetail>(
+        queryKeys.projects.chat(PROJECT_ID, CHAT_ID),
+      )?.title,
+    ).toBe(GENERATED_TITLE);
+  });
+
+  it("keeps the stream running after a title_updated and refetches nothing", async () => {
+    setAccessToken(fakeJwt());
+    const live = liveStream();
+    server.use(http.post(MESSAGES_URL, () => live.response));
+    const { result, queryClient } = renderAgentStream();
+    primeTitleCaches(queryClient);
+
+    result.current.send("привет");
+    live.push({ type: "title_updated", title: GENERATED_TITLE });
+    await waitFor(() =>
+      expect(titleIn(queryClient, queryKeys.chats.recent)).toBe(
+        GENERATED_TITLE,
+      ),
+    );
+
+    // Non-terminal: text keeps arriving and the stream is still open, and no
+    // query was invalidated by the event itself.
+    expect(
+      queryClient.getQueryState(queryKeys.projects.chat(PROJECT_ID, CHAT_ID))
+        ?.isInvalidated,
+    ).toBe(false);
+    expect(
+      queryClient.getQueryState(queryKeys.projects.chats(PROJECT_ID))
+        ?.isInvalidated,
+    ).toBe(false);
+    expect(
+      queryClient.getQueryState(queryKeys.chats.recent)?.isInvalidated,
+    ).toBe(false);
+    live.push({ type: "text_chunk", content: "продолжение" });
+    await waitFor(async () =>
+      expect(await streamingText()).toBe("продолжение"),
+    );
+    expect(await isStreaming()).toBe(true);
+
+    live.push({ type: "done", message_id: "m-open", trace_id: null });
+    live.close();
+    await waitFor(async () => expect(await isStreaming()).toBe(false));
+  });
+
+  it("ignores a title_updated for caches that are not mounted", async () => {
+    setAccessToken(fakeJwt());
+    server.use(
+      http.post(MESSAGES_URL, () =>
+        streamResponse([
+          { type: "title_updated", title: GENERATED_TITLE },
+          { type: "done", message_id: "m-nocache", trace_id: null },
+        ]),
+      ),
+    );
+    const onDone = vi.fn();
+    const onError = vi.fn();
+    // No caches primed: lists may simply not be mounted in this session.
+    const { result, queryClient } = renderAgentStream({ onDone, onError });
+
+    result.current.send("привет");
+
+    await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+    expect(onError).not.toHaveBeenCalled();
+    expect(
+      queryClient.getQueryData(queryKeys.projects.chats(PROJECT_ID)),
+    ).toBeUndefined();
+  });
+
+  it("falls back to refetching the project chat list on done, exactly that key", async () => {
+    setAccessToken(fakeJwt());
+    server.use(
+      http.post(MESSAGES_URL, () =>
+        // No title_updated at all — the generation did not finish in time.
+        streamResponse([{ type: "done", message_id: "m-fb", trace_id: null }]),
+      ),
+    );
+    const onDone = vi.fn();
+    const { result, queryClient } = renderAgentStream({ onDone });
+    primeTitleCaches(queryClient);
+    // A sibling chat's detail shares the list key as a prefix — `exact: true`
+    // must leave it alone even on the terminal event.
+    queryClient.setQueryData<ChatDetail>(
+      queryKeys.projects.chat(PROJECT_ID, "c2"),
+      {
+        thread_id: "c2",
+        title: "Другой чат",
+        security_blocked: false,
+        messages: [],
+      },
+    );
+
+    result.current.send("привет");
+
+    await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+    expect(
+      queryClient.getQueryState(queryKeys.projects.chats(PROJECT_ID))
+        ?.isInvalidated,
+    ).toBe(true);
+    expect(
+      queryClient.getQueryState(queryKeys.chats.recent)?.isInvalidated,
+    ).toBe(true);
+    expect(
+      queryClient.getQueryState(queryKeys.projects.chat(PROJECT_ID, "c2"))
+        ?.isInvalidated,
+    ).toBe(false);
+  });
 });

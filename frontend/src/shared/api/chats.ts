@@ -41,13 +41,22 @@ export interface RecentChat {
   security_blocked: boolean;
 }
 
-export interface CreateChatRequest {
-  title?: string;
+export interface UpdateChatRequest {
+  title: string;
 }
 
 export interface SendMessageRequest {
   content: string;
 }
+
+// === Domain constants ===
+
+// Плейсхолдер названия нового чата — пользователь его больше не задаёт,
+// сервер ставит то же значение при создании (§ Целевой UX design-brief'а).
+export const DEFAULT_CHAT_TITLE = "Новый чат";
+
+// Предел длины названия чата — согласован с серверной Pydantic-валидацией (T1).
+export const CHAT_TITLE_MAX_LENGTH = 100;
 
 // === API ===
 
@@ -67,11 +76,24 @@ export async function getChat(
   return (await apiClient.get(`/projects/${projectId}/chats/${chatId}`)).data;
 }
 
-export async function createChat(
+export async function createChat(projectId: string): Promise<Chat> {
+  return (await apiClient.post(`/projects/${projectId}/chats`)).data;
+}
+
+export async function updateChat(
   projectId: string,
-  data: CreateChatRequest,
+  chatId: string,
+  data: UpdateChatRequest,
 ): Promise<Chat> {
-  return (await apiClient.post(`/projects/${projectId}/chats`, data)).data;
+  return (await apiClient.put(`/projects/${projectId}/chats/${chatId}`, data))
+    .data;
+}
+
+export async function deleteChat(
+  projectId: string,
+  chatId: string,
+): Promise<void> {
+  await apiClient.delete(`/projects/${projectId}/chats/${chatId}`);
 }
 
 export async function getRecentChats(): Promise<ListResponse<RecentChat>> {
@@ -112,16 +134,59 @@ export function useChat(
 export function useCreateChat() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationFn: (projectId: string) => createChat(projectId),
+    onSuccess: (_data, projectId) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.projects.chats(projectId),
+        exact: true,
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chats.recent });
+    },
+  });
+}
+
+export function useUpdateChat() {
+  const queryClient = useQueryClient();
+  return useMutation({
     mutationFn: ({
       projectId,
+      chatId,
       data,
     }: {
       projectId: string;
-      data: CreateChatRequest;
-    }) => createChat(projectId, data),
+      chatId: string;
+      data: UpdateChatRequest;
+    }) => updateChat(projectId, chatId, data),
+    onSuccess: (updated, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.projects.chats(variables.projectId),
+        exact: true,
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chats.recent });
+      // Detail открытого чата — точечный патч поля title, не инвалидация:
+      // симметрично title_updated (T2.2), чтобы не задеть активный стрим.
+      queryClient.setQueryData<ChatDetail>(
+        queryKeys.projects.chat(variables.projectId, variables.chatId),
+        (prev) => (prev ? { ...prev, title: updated.title } : prev),
+      );
+    },
+  });
+}
+
+export function useDeleteChat() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      projectId,
+      chatId,
+    }: {
+      projectId: string;
+      chatId: string;
+    }) => deleteChat(projectId, chatId),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.projects.chats(variables.projectId),
+        exact: true,
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.chats.recent });
     },

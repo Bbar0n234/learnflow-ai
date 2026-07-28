@@ -43,6 +43,7 @@ export function AppRoutes() {
         />
         <Route path="projects/:id" element={<ProjectLayout />}>
           <Route index element={<ChatList />} />
+          <Route path="chats/new" element={<ChatView />} />
           <Route path="chats/:cid" element={<ChatView />} />
           <Route path="sphere" element={<SphereView />} />
           <Route path="artifacts" element={<ArtifactsPage />}>

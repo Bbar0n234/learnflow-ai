@@ -12,7 +12,7 @@ interface StreamState {
   activeTool: string | null;
   streamingChatId: string | null;
   streamingArtifacts: StreamingArtifact[];
-  /** call_id генераций изображений, активных прямо сейчас (tool_start пришёл, tool_end/artifact_created ещё нет). */
+  /** call_id генераций изображений, активных прямо сейчас (вызов начат, результата/артефакта ещё нет). */
   pendingImages: string[];
   redacted: boolean;
   isReviewing: boolean;

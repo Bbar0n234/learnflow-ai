@@ -21,6 +21,28 @@ export interface ChatDetail {
   messages: Message[];
 }
 
+/**
+ * Typed parts ассистентского сообщения — след работы агента, собранный из
+ * чекпоинтера (streaming.md § История: typed parts). Один ход агента = одно
+ * сообщение с упорядоченной последовательностью частей.
+ *
+ * `status: "pending"` — третье значение, которого нет в SSE-контракте: вызов
+ * без парного результата, ход оборвался (отмена, ошибка). `args` — JSON-строка,
+ * а не объект, и при `truncated: true` она обрезана посреди JSON и невалидна.
+ */
+export type MessagePart =
+  | { type: "reasoning"; content: string }
+  | { type: "text"; content: string }
+  | {
+      type: "tool_call";
+      call_id: string;
+      tool: string;
+      args: string;
+      status: "success" | "error" | "pending";
+      result_preview: string;
+      truncated: boolean;
+    };
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
@@ -30,6 +52,11 @@ export interface Message {
   trace_id?: string | null;
   feedback_score?: boolean | null;
   redacted?: boolean;
+  /**
+   * Поле обязано переживать отсутствие в ответе: старые кэши и degraded-случаи
+   * дают пустой список, и сообщение рендерится по плоскому `content`.
+   */
+  parts?: MessagePart[];
 }
 
 export interface RecentChat {

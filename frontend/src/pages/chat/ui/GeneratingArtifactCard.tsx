@@ -1,10 +1,9 @@
 /**
- * Плейсхолдер на время генерации изображения (`tool_start` с `tool === "generate_image"`
- * → `tool_end`/`artifact_created`). Вёрстка — та же карточка, что `ArtifactCard`
+ * Плейсхолдер на время генерации изображения — живёт от начала вызова
+ * `generate_image` до его результата. Вёрстка — та же карточка, что `ArtifactCard`
  * (тот же бордер/паддинг/borderLeft), зона превью — шиммер, заголовок «Генерирую
- * изображение…» (title не показываем — `tool_start` аргументов не несёт), прогресс-бар —
- * indeterminate (реального прогресса генерация не отдаёт). По мокапу
- * `image-artifacts.html` § `#genCardRow`.
+ * изображение…», прогресс-бар — indeterminate (реального прогресса генерация не
+ * отдаёт). По мокапу `image-artifacts.html` § `#genCardRow`.
  */
 export function GeneratingArtifactCard() {
   return (

@@ -311,8 +311,8 @@
 }
 
 /* ─── Generating image-artifact placeholder (T2.4): indeterminate progress bar ──
-   Плейсхолдер на время генерации изображения (`GeneratingArtifactCard`, tool_start →
-   tool_end/artifact_created). Псевдозагрузка — реального прогресса генерация не отдаёт.
+   Плейсхолдер на время генерации изображения (`GeneratingArtifactCard`): живёт от
+   начала вызова до его результата. Псевдозагрузка — реального прогресса генерация не отдаёт.
    Shimmer миниатюры покрыт встроенным `animate-pulse` (tw-animate-css); для бегущей
    полосы аналога в tw-animate-css нет, поэтому кастомный keyframe.
    ─────────────────────────────────────────────────────────────────────────── */

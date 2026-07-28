@@ -80,16 +80,6 @@ async function isStreaming(): Promise<boolean> {
   return useStreamStore.getState().isStreaming;
 }
 
-async function pendingImages(): Promise<string[]> {
-  const { useStreamStore } = await import("@/stores/stream-store");
-  return useStreamStore.getState().pendingImages;
-}
-
-async function activeTool(): Promise<string | null> {
-  const { useStreamStore } = await import("@/stores/stream-store");
-  return useStreamStore.getState().activeTool;
-}
-
 describe("useAgentStream", () => {
   it("invokes onDone with the message and trace ids on a done event", async () => {
     setAccessToken(fakeJwt());
@@ -120,7 +110,7 @@ describe("useAgentStream", () => {
       http.post(MESSAGES_URL, () =>
         streamResponse([
           { type: "text_chunk", content: "leaking secret" },
-          { type: "security_block", reason: "injection" },
+          { type: "security_block" },
         ]),
       ),
     );
@@ -140,7 +130,7 @@ describe("useAgentStream", () => {
     setAccessToken(fakeJwt());
     server.use(
       http.post(MESSAGES_URL, () =>
-        streamResponse([{ type: "security_block", reason: "injection" }]),
+        streamResponse([{ type: "security_block" }]),
       ),
     );
     const onSecurityBlock = vi.fn();
@@ -415,47 +405,6 @@ describe("useAgentStream", () => {
     await waitFor(() =>
       expect(onError).toHaveBeenCalledWith("Ошибка соединения"),
     );
-  });
-
-  // feat-010 (T2.4): generate_image tool_start/tool_end drive the pending-image
-  // placeholder set, keyed by call_id.
-  it("adds a pending image on generate_image tool_start and clears it on tool_end", async () => {
-    setAccessToken(fakeJwt());
-    const live = liveStream();
-    server.use(http.post(MESSAGES_URL, () => live.response));
-    const { result } = renderAgentStream();
-
-    result.current.send("draw me a cover");
-
-    live.push({ type: "tool_start", tool: "generate_image", call_id: "gi-1" });
-    await waitFor(async () => expect(await pendingImages()).toEqual(["gi-1"]));
-
-    // tool_end arrives regardless of tool success/failure — placeholder clears.
-    live.push({ type: "tool_end", tool: "generate_image", call_id: "gi-1" });
-    await waitFor(async () => expect(await pendingImages()).toEqual([]));
-
-    live.push({ type: "done", message_id: "m-gi", trace_id: null });
-    live.close();
-    await waitFor(async () => expect(await isStreaming()).toBe(false));
-  });
-
-  it("does not touch pending images for a non-image tool", async () => {
-    setAccessToken(fakeJwt());
-    const live = liveStream();
-    server.use(http.post(MESSAGES_URL, () => live.response));
-    const { result } = renderAgentStream();
-
-    result.current.send("search the web");
-
-    live.push({ type: "tool_start", tool: "web_search", call_id: "ws-1" });
-    // The active tool is set (existing behavior) but no pending image appears.
-    await waitFor(async () => expect(await activeTool()).toBe("web_search"));
-    expect(await pendingImages()).toEqual([]);
-
-    live.push({ type: "tool_end", tool: "web_search", call_id: "ws-1" });
-    live.push({ type: "done", message_id: "m-ws", trace_id: null });
-    live.close();
-    await waitFor(async () => expect(await isStreaming()).toBe(false));
   });
 
   // feat-002 (T2.2): the non-terminal `title_updated` event carries the

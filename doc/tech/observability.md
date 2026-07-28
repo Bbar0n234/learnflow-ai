@@ -25,7 +25,7 @@ graph TD
 
 **Root span:** `agent-run` — создаётся через `start_as_current_observation()` context manager на время всего стрима. Input — сообщение пользователя, output — полный ответ агента.
 
-**Automatic capture:** `CallbackHandler` инжектируется в `config["callbacks"]` графа — автоматически ловит все LLM calls (модель, токены, latency), tool executions, node transitions. Никакой ручной инструментации внутри графа не требуется.
+**Automatic capture:** `CallbackHandler` инжектируется в `config["callbacks"]` графа — автоматически ловит все LLM calls (модель, токены, latency), tool executions, node transitions. Ручная инструментация нужна только там, где вызов сознательно уходит мимо этой цепочки (§ [Ручной cost-учёт вне CallbackHandler](#ручной-cost-учёт-вне-callbackhandler)).
 
 Вложенные вызовы субагентов (`run_subagent`, → [agent-runtime.md § Субагенты](agent-runtime.md#субагенты)) видны в trace tree как вложенные spans — callbacks пробрасываются во вложенный `StateGraph` автоматически через contextvars, независимо от режима `persistence` субагента.
 
@@ -199,6 +199,8 @@ SIEM не заменяет Langfuse; они ортогональны. Langfuse �
 Схема выше покрывает вызовы через LLM-клиент графа. Вызовы, идущие мимо него (сейчас — генерация изображений: голый `httpx` на OpenRouter Image API, без LangChain-обёртки, чтобы не тянуть SDK ради одного endpoint'а), не проходят через `CallbackHandler` и выпали бы из cost-учёта без явной записи.
 
 Такой tool сам открывает generation-observation внутри текущего spanʼа (`start_as_current_observation(as_type="generation", name=..., model=..., input=..., output=..., cost_details={"total": ...})`) с ценой, которую вернул провайдер (`usage.cost` в ответе), а не производным расчётом по `pricing.yaml` — фактическая цена от провайдера точнее. Блок — fail-safe (`contextlib.suppress(Exception)`, паттерн `security/observer.py`): сбой записи в Langfuse не должен ронять tool. Если провайдер не вернул `usage.cost` — `cost_details` не передаётся вовсе, а не подставляется нулём (нуль читался бы как «генерация бесплатна», что неверно).
+
+Вторая группа мимо `CallbackHandler` — вызовы, намеренно отвязанные от callback-цепочки родительского рана (`"callbacks": []`) ради изоляции их токенов от пользовательского стрима: guard-классификатор (`security/classifier.py`) и компакция контекста (`_reduce_context` в `agent/graph.py`). Отвязка от callbacks — это одновременно и отвязка от Langfuse, поэтому каждый такой вызов компенсирует её собственной generation-observation на текущем контексте: классификатор — через `ObservationHandle.record_classifier_generation` (`security/observer.py`), компакция — через `observe_compaction` (`agent/tracing.py`, generation `context-summarization`). Цену здесь считает Langfuse по `pricing.yaml`, поэтому в `update()` уходит `usage_details`, нормализованный `normalize_usage_for_langfuse()` под ключи цен, а `model` — тот, что реально отвечал на вызов. Телеметрия fail-safe на всех шагах: сбой записи не влияет ни на вердикт guard'а, ни на компакцию.
 
 ## Graceful Degradation
 

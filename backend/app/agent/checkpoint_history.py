@@ -73,12 +73,23 @@ class CheckpointHistory:
         (design-brief § «Модель typed parts») — mirroring how one live turn
         renders as one activity-feed row, not one row per checkpoint message.
 
-        Messages before the first ``HumanMessage`` of the thread are dropped:
-        after compaction, ``graph.py`` prepends an id-less summary ``AIMessage``
-        there (``_reduce_context``) — a context digest, not a turn the user
-        took part in, so it has no place in the feed.
+        Two kinds of stored messages never become a turn. Compaction summaries
+        (``additional_kwargs["context_summary"]``, set by ``_reduce_context``)
+        are a context digest the model reads, not a turn the user took part in;
+        they are dropped wherever they sit — and they sit at the *end* of the
+        state, next to the answer of the turn that triggered compaction, since
+        the id-less summary is appended by ``add_messages``. Messages before the
+        first ``HumanMessage`` of the thread are dropped as well: a feed row
+        without the user turn it answers is meaningless.
         """
         messages = await self.raw_messages(thread_id)
+        messages = [
+            m
+            for m in messages
+            if not (
+                isinstance(m, AIMessage) and m.additional_kwargs.get("context_summary")
+            )
+        ]
         first_human = next(
             (i for i, m in enumerate(messages) if isinstance(m, HumanMessage)), None
         )

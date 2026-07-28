@@ -6,12 +6,17 @@ record a mid-stream guardrail hit). Whether tracing is active is carried by the
 injected ``enabled`` flag — no module-level state, no lazy import of a global
 (see conventions.md § FastAPI / § Module-level state).
 
+``observe_compaction`` stands apart: it instruments an LLM call that runs with
+its callbacks detached, so it hangs the observation on the ambient Langfuse
+context itself instead of going through the injected span.
+
 Every method is fail-safe: Langfuse errors are suppressed and logged so a
 tracing outage never breaks the agent stream.
 """
 
 from __future__ import annotations
 
+import contextlib
 import uuid
 from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
@@ -22,6 +27,7 @@ from langfuse import get_client, propagate_attributes
 from langfuse.langchain import CallbackHandler
 
 from app.agent.security.types import Checkpoint, GuardResult, SecurityMessages, Verdict
+from app.infra.llm import normalize_usage_for_langfuse
 
 logger = structlog.get_logger()
 
@@ -228,3 +234,88 @@ class AgentRunTracer:
                 stack.close()
             except Exception:
                 logger.warning("langfuse cleanup failed", exc_info=True)
+
+
+class CompactionGeneration:
+    """Handle over the Langfuse generation for one context-compaction call.
+
+    Every method is fail-safe: a Langfuse error is suppressed and logged, the
+    compaction it describes goes on regardless.
+    """
+
+    def __init__(self, obs: Any | None) -> None:
+        self._obs = obs
+
+    def record_summary(
+        self, *, summary: str, token_usage: dict[str, Any] | None
+    ) -> None:
+        """Attach the produced summary and the call's token usage.
+
+        ``usage_details`` is what makes the call show up in cost accounting:
+        Langfuse prices it by the generation's ``model`` (``configs/pricing.yaml``).
+        """
+        if self._obs is None:
+            return
+        try:
+            kwargs: dict[str, Any] = {"output": summary}
+            usage_details = normalize_usage_for_langfuse(token_usage)
+            if usage_details:
+                kwargs["usage_details"] = usage_details
+            self._obs.update(**kwargs)
+        except Exception:
+            logger.warning("compaction generation update failed", exc_info=True)
+
+    def record_failure(self, message: str) -> None:
+        if self._obs is None:
+            return
+        with contextlib.suppress(Exception):
+            self._obs.update(level="ERROR", status_message=message)
+
+
+@contextmanager
+def observe_compaction(
+    *,
+    input_payload: list[dict[str, str]],
+    model: str | None,
+    model_parameters: dict[str, Any],
+    metadata: dict[str, Any],
+) -> Iterator[CompactionGeneration]:
+    """Observe the summarization call that compacts the agent's context.
+
+    Compaction invokes its model with the callback chain detached (see
+    ``graph._reduce_context``), which also cuts it off from the Langfuse
+    LangChain handler — this observation is the compensation, the same trade the
+    guard classifier makes (``security/observer.py``). It opens on the ambient
+    Langfuse context, so the generation nests under the current agent-run span
+    when tracing is on and no-ops on a disabled client.
+
+    Manual ``__enter__`` / ``__exit__`` over the sync Langfuse CM (as in
+    ``ObservationHandle``) keeps the setup failure isolated from the caller.
+    """
+    gen_cm: Any = None
+    obs: Any = None
+    try:
+        gen_cm = get_client().start_as_current_observation(
+            as_type="generation",
+            name="context-summarization",
+            model=model,
+            input=input_payload,
+            model_parameters=model_parameters,
+            metadata=metadata,
+        )
+        obs = gen_cm.__enter__()
+    except Exception:
+        logger.warning("compaction observation setup failed", exc_info=True)
+        gen_cm = None
+        obs = None
+
+    handle = CompactionGeneration(obs)
+    try:
+        yield handle
+    except Exception:
+        handle.record_failure("summarization failed")
+        raise
+    finally:
+        if gen_cm is not None:
+            with contextlib.suppress(Exception):
+                gen_cm.__exit__(None, None, None)

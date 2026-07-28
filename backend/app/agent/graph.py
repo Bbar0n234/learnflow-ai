@@ -31,6 +31,7 @@ from app.agent.tool_guards import (
 )
 from app.agent.tools.ks_helpers import build_namespace, format_index
 from app.agent.tools.store_helpers import format_index as fmt_index
+from app.agent.tracing import observe_compaction
 from app.infra.llm import extract_usage
 from app.infra.prompt_provider import PromptProvider
 
@@ -80,16 +81,51 @@ async def _reduce_context(
             "tags": ["context_summarization"],
             "run_name": "context-summarization",
         }
-        response = await summarization_model.ainvoke(
-            [prompt, *old_messages], config=summarization_config
+        summarization_cfg = agent_config.summarization
+        # Detaching the callbacks also detaches Langfuse (tracing rides the
+        # LangChain handler), so the generation is recorded by hand — the same
+        # compensation the guard classifier makes. Pricing is matched by model
+        # name, so it is taken from the model object that answers the call.
+        model_name = getattr(summarization_model, "model_name", None) or (
+            summarization_cfg.model if summarization_cfg else None
         )
-        summary_text = str(response.content)
+        with observe_compaction(
+            input_payload=[
+                {"role": m.type, "content": str(m.content)}
+                for m in (prompt, *old_messages)
+            ],
+            model=model_name,
+            model_parameters=(
+                {"max_tokens": summarization_cfg.max_summary_tokens}
+                if summarization_cfg
+                else {}
+            ),
+            metadata={
+                "messages_compacted": len(old_messages),
+                "messages_kept": keep_count,
+                "context_tokens_before": total_tokens,
+            },
+        ) as generation:
+            response = await summarization_model.ainvoke(
+                [prompt, *old_messages], config=summarization_config
+            )
+            summary_text = str(response.content)
+            generation.record_summary(
+                summary=summary_text, token_usage=extract_usage(response)
+            )
 
         ops_prefix: list[Any] = [
             RemoveMessage(id=m.id) for m in old_messages if m.id is not None
         ]
         summary_msg = AIMessage(
-            content=f"[Previous conversation summary]\n{summary_text}"
+            content=f"[Previous conversation summary]\n{summary_text}",
+            # Marks the message as a context digest, not a turn of the
+            # conversation: it feeds the model but must never reach the user —
+            # ``CheckpointHistory.history`` drops it out of the API history by
+            # this flag. Position can't be used instead: the message carries no
+            # ``id``, so ``add_messages`` appends it to the *end* of the state
+            # (next to the real answer), not in front of the thread.
+            additional_kwargs={"context_summary": True},
         )
         ops_prefix.append(summary_msg)
 

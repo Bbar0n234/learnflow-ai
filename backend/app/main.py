@@ -95,6 +95,7 @@ from app.security_pipeline.transport import (
     EventTransportHolder,
     RedisEventTransport,
 )
+from app.services.chat_title import ChatTitleGenerator
 from app.services.encryption import EncryptionService
 from app.services.mcp_server import (
     fetch_remote_metadata,
@@ -348,6 +349,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             settings.langfuse_prompt_label,
         )
 
+    # Chat auto-title generator (fire-and-forget, design-brief § Auto-title
+    # модуль). Built here — after session_factory + PromptProvider, before
+    # the LangGraph persistence block below — and stored on app.state so its
+    # in-flight task registry survives across requests.
+    app.state.chat_title_generator = ChatTitleGenerator(
+        session_factory=app.state.session_factory,
+        settings=settings,
+        title_config=agent_config.title,
+        prompt_provider=prompt_provider,
+        prompt_fragments=prompt_fragments,
+        langfuse_enabled=langfuse_enabled,
+    )
+
     # Encryption service
     encryption_service = EncryptionService(settings.mcp_encryption_key)
     app.state.encryption_service = encryption_service
@@ -600,6 +614,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             event_mapper_factory=StreamEventMapper,
             tool_resolver=tool_resolver,
             canary_secret=settings.canary_secret,
+            checkpointer=checkpointer,
         )
         app.state.agent_config = agent_config
         app.state.security_config = security_config
@@ -620,6 +635,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         with suppress(asyncio.CancelledError):
             await app.state.security_publisher_task
         logger.info("security event publisher stopped")
+
+    # In-flight auto-title tasks hold sessions from the same engine and can be
+    # parked in the title LLM call for LLM_TITLE_TIMEOUT_SECONDS, so they are
+    # unwound here — before engine.dispose() below, same pattern as the
+    # publisher task above (conventions/api.md § Владение состоянием).
+    await app.state.chat_title_generator.shutdown()
 
     shutdown_langfuse()
     if app.state.redis:

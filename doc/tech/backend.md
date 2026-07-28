@@ -23,6 +23,7 @@ graph TD
 
     subgraph SVCL["Service Layer — app/services/"]
         CHATSVC["ChatService — thread mapping,<br>делегирование в AgentRunner"]
+        TITLESVC["ChatTitleGenerator — fire-and-forget<br>auto-title, own DB session"]
         CRUD["CRUD-сервисы — Project, Artifact,<br>Sphere, UserMemory, SkillContext, MCPServer"]
         RESOLVER["ModelConfigResolver ·<br>MCPToolResolver"]
         ENC["EncryptionService — Fernet"]
@@ -75,6 +76,10 @@ graph TD
     CHATSVC --> RUNNER
     CHATSVC --> REPOS
     CHATSVC --> STORAGE
+    CHATSVC --> TITLESVC
+    TITLESVC --> REPOS
+    TITLESVC --> LLM
+    TITLESVC --> PP
     CRUD --> REPOS
     CRUD --> GUARD
     CRUD --> ENC
@@ -121,7 +126,7 @@ graph TD
 Composition root — `app/main.py`: lifespan инициализирует синглтоны (engine, AgentRunner, guard и т.д.) в `app.state`; `app/api/deps.py` — per-request фабрики поверх `app.state`.
 
 - **API Layer** — HTTP/SSE-интерфейс, Pydantic-валидация, маршрутизация. Не содержит бизнес-логики.
-- **Service Layer** — CRUD-сервисы (ProjectService, ArtifactService, UserMemoryService, SkillContextService, MCPServerService, SphereService) + thin ChatService для chat-операций. ChatService оркестрирует взаимодействие с AgentRunner (маппинг chat_id → thread_id, model resolution, обновление thread_views, формирование config). Write-методы для persistent storage (MCP-серверы, custom instructions, KS write через REST, skill context write через REST) первыми вызывают security guard — INJECTION → HTTP 422, до endpoint-специфичных валидаций ([security/architecture.md](../security/architecture.md)). ModelConfigResolver — каскадное разрешение модели per-request.
+- **Service Layer** — CRUD-сервисы (ProjectService, ArtifactService, UserMemoryService, SkillContextService, MCPServerService, SphereService) + thin ChatService для chat-операций. ChatService оркестрирует взаимодействие с AgentRunner (маппинг chat_id → thread_id, model resolution, обновление thread_views, формирование config), а также rename/delete чата и каскад удаления (полиморфные MCP-disables → удаление строки → commit → best-effort очистка LangGraph checkpoints через `AgentRunner.delete_thread`). Отдельный сервис `ChatTitleGenerator` — fire-and-forget генерация auto-title дешёвой LLM: реестр задач по `thread_id` держится в самом объекте (создаётся в lifespan, живёт в `app.state.chat_title_generator`, с `shutdown()`-teardown), задача работает в собственной DB-сессии и атомарно-условно пишет title (не перезаписывает ручной rename или заблокированный чат). Write-методы для persistent storage (MCP-серверы, custom instructions, KS write через REST, skill context write через REST) первыми вызывают security guard — INJECTION → HTTP 422, до endpoint-специфичных валидаций ([security/architecture.md](../security/architecture.md)). ModelConfigResolver — каскадное разрешение модели per-request.
 - **Agent Layer** — LangGraph-граф, GraphFactory (per-request build+compile), tools, skills, context engineering, memory, security (inline-проверки в графе и стриминге — [architecture.md](../security/architecture.md)). LangGraph-связанность сдержана внутри этого слоя: наружу выходят только доменные типы, не LangGraph-специфичные.
 - **Repository Layer** — SQLAlchemy, CRUD-доступ к app-managed таблицам, по репозиторию на ORM-сущность.
 - **Storage Layer** — абстракции хранилища с заменяемым бэкендом или не-ORM семантикой (blob, key-value); независимый сосед Repository Layer, не наследует и не оборачивает его. `BlobStorage` (`typing.Protocol`, реализация `PgBlobStorage`) и `TraceStore` (Redis) — нейминг и граница с Repository Layer см. [conventions.md § Именование](conventions.md#именование).
@@ -145,6 +150,8 @@ Composition root — `app/main.py`: lifespan инициализирует син
 | API → Agent Layer | ❌ (только через Service) |
 
 Известное локализованное исключение: `services/mcp_server.py` импортирует схему из `api/schemas/mcp_servers.py` — против направления, без цикла.
+
+Известное расхождение стиля DI: `ProjectService` получает `MCPServerRepository` обязательным конструкторским параметром, а `ChatService.delete_chat` инстанцирует его inline от собственной сессии — стили разошлись независимо, унификация не форсирована.
 
 **Исключение — тонкий read-only инжект в route-handler.** API → Repository/Storage в обход Service-слоя допустим, когда выполнены все три условия: (1) только чтение; (2) ноль бизнес-логики в handler'е — он только достаёт данные и отдаёт их; (3) авторизация уже выполнена существующими dependencies (ownership-проверки и т.п.) до обращения к хранилищу. Появление бизнес-логики или записи требует Service-слоя.
 
@@ -197,9 +204,11 @@ JWT + Refresh Token. Access token (short-lived, localStorage) для API-зап�
 
 | Метод | Путь | Назначение |
 |-------|------|-----------|
-| POST | `/projects/{id}/chats` | Создать чат в проекте |
+| POST | `/projects/{id}/chats` | Создать чат в проекте (без тела — сервер ставит плейсхолдер названия) |
 | GET | `/projects/{id}/chats` | Список чатов проекта |
 | GET | `/projects/{id}/chats/{cid}` | История чата (сообщения) |
+| PUT | `/projects/{id}/chats/{cid}` | Переименовать чат |
+| DELETE | `/projects/{id}/chats/{cid}` | Удалить чат (идемпотентно, каскад) |
 | GET | `/chats/recent` | Недавние чаты пользователя (across projects, для sidebar) |
 
 #### Messages (ядро)
@@ -318,7 +327,7 @@ DELETE /projects/{id}
 
 ```
 POST /projects/{id}/chats
-  Request:  { title?: str }
+  Request:  (без тела)
   Response: { thread_id: UUID, title: str, created_at: datetime, updated_at: datetime }
 
 GET /projects/{id}/chats
@@ -327,6 +336,13 @@ GET /projects/{id}/chats
 GET /projects/{id}/chats/{cid}
   Response: { thread_id: UUID, title, messages: [{ id, role, content, created_at?, artifacts: [{ id, title, type, created_at }] }] }
 
+PUT /projects/{id}/chats/{cid}
+  Request:  { title: str }
+  Response: { thread_id: UUID, title, created_at, updated_at }
+
+DELETE /projects/{id}/chats/{cid}
+  Response: 204 No Content (идемпотентно — повторный DELETE тоже 204)
+
 GET /chats/recent?limit=10
   Response: { items: [{ thread_id: UUID, title, project_id, project_name, updated_at }] }
 ```
@@ -334,6 +350,8 @@ GET /chats/recent?limit=10
 `role`: `"user" | "assistant"`. Messages достаются из checkpointer. Tool-сообщения на фронт не отдаются.
 
 Recents — последние чаты пользователя across all projects, сортировка по `updated_at` desc. Для sidebar.
+
+Название чата пользователь нигде не вводит: `POST /chats` ставит плейсхолдер `DEFAULT_CHAT_TITLE` («Новый чат»), дешёвая LLM переписывает его по первому сообщению (см. ниже), `PUT` позволяет переименовать вручную в любой момент, включая заблокированные (`security_blocked`) чаты. `DELETE` каскадно подчищает связанные записи и best-effort удаляет LangGraph checkpoints этого треда — детали см. в описании `ChatService` ниже.
 
 #### Messages
 
@@ -412,9 +430,9 @@ app/
 
 **api/** — HTTP/SSE-интерфейс. Роутеры сгруппированы по ресурсам, каждый вызывает соответствующий сервис. Schemas — Pydantic-контракт с фронтендом. deps.py — FastAPI dependencies для инъекции зависимостей в роутеры.
 
-**services/** — Оркестрация и бизнес-правила. CRUD-сервисы (Project, Artifact, UserMemory, SkillContext, MCPServer) + thin ChatService для chat-операций (маппинг chat_id → thread_id, model resolution, делегирование в AgentRunner, управление ThreadView). ModelConfigResolver — каскадное разрешение модели; MCPToolResolver — резолв MCP-инструментов per-request (оба инжектятся в AgentRunner). EncryptionService (Fernet) — шифрование API-ключей user MCP-серверов. Зависимости (repositories, AgentRunner) — через конструктор, wiring в deps.py.
+**services/** — Оркестрация и бизнес-правила. CRUD-сервисы (Project, Artifact, UserMemory, SkillContext, MCPServer) + thin ChatService для chat-операций (маппинг chat_id → thread_id, model resolution, делегирование в AgentRunner, управление ThreadView, rename/delete чата с каскадом). `ChatTitleGenerator` — отдельный fire-and-forget сервис auto-title (реестр задач в `app.state`, собственная DB-сессия, teardown в lifespan). ModelConfigResolver — каскадное разрешение модели; MCPToolResolver — резолв MCP-инструментов per-request (оба инжектятся в AgentRunner). EncryptionService (Fernet) — шифрование API-ключей user MCP-серверов. Зависимости (repositories, AgentRunner) — через конструктор, wiring в deps.py.
 
-**agent/** — LangGraph-граф, GraphFactory (per-request build+compile), tools, context engineering, промпт. Публичный интерфейс — AgentRunner (stream, get_history, cancel). LangGraph-типы не выходят за пределы этого пакета. tools/ — суб-пакет с внутренней группировкой (KS, artifacts, user memory, skill context, skills).
+**agent/** — LangGraph-граф, GraphFactory (per-request build+compile), tools, context engineering, промпт. Публичный интерфейс — AgentRunner (stream, get_history, get_last_ai_message_id, cancel, delete_thread — best-effort удаление checkpoints по `thread_id`). LangGraph-типы не выходят за пределы этого пакета. tools/ — суб-пакет с внутренней группировкой (KS, artifacts, user memory, skill context, skills).
 
 **skills/** — директория в корне репозитория (`skills/`, рядом с `backend/`, `configs/`). Каждый skill — поддиректория с `SKILL.md` (Claude Code compatible формат). Вынесены из backend, чтобы пользователь мог добавлять skills без необходимости лезть в код приложения.
 

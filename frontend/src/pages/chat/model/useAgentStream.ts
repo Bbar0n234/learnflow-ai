@@ -3,7 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { cancelChat } from "@/shared/api/chats";
 import { ensureFreshToken } from "@/shared/api/client";
 import { queryKeys } from "@/shared/api/query-keys";
-import type { ChatDetail } from "@/shared/api/chats";
+import type { Chat, ChatDetail, RecentChat } from "@/shared/api/chats";
+import type { ListResponse } from "@/shared/api/pagination";
 import type { SSEEvent } from "@/shared/api/sse";
 import { logger } from "@/shared/lib/logger";
 import { getProblemMessageFromBody } from "@/shared/lib/api-error";
@@ -203,6 +204,45 @@ export function useAgentStream(
                 case "final_output_review_complete":
                   setReviewing(false);
                   break;
+                case "title_updated": {
+                  // Только точечный патч кэша — без invalidateQueries, чтобы не
+                  // задеть detail открытого чата посреди активного стрима
+                  // (оптимистичная копия user-сообщения в localMessages задвоилась бы).
+                  const title = event.title;
+                  queryClient.setQueryData<ListResponse<Chat> | undefined>(
+                    queryKeys.projects.chats(projectId),
+                    (prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            items: prev.items.map((chat) =>
+                              chat.thread_id === chatId
+                                ? { ...chat, title }
+                                : chat,
+                            ),
+                          }
+                        : prev,
+                  );
+                  queryClient.setQueryData<
+                    ListResponse<RecentChat> | undefined
+                  >(queryKeys.chats.recent, (prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          items: prev.items.map((chat) =>
+                            chat.thread_id === chatId
+                              ? { ...chat, title }
+                              : chat,
+                          ),
+                        }
+                      : prev,
+                  );
+                  queryClient.setQueryData<ChatDetail | undefined>(
+                    queryKeys.projects.chat(projectId, chatId),
+                    (prev) => (prev ? { ...prev, title } : prev),
+                  );
+                  break;
+                }
                 case "done": {
                   terminated = true;
                   const traceId = event.trace_id ?? null;
@@ -210,6 +250,10 @@ export function useAgentStream(
                   endStream();
                   queryClient.invalidateQueries({
                     queryKey: queryKeys.projects.chat(projectId, chatId),
+                  });
+                  queryClient.invalidateQueries({
+                    queryKey: queryKeys.projects.chats(projectId),
+                    exact: true,
                   });
                   queryClient.invalidateQueries({
                     queryKey: queryKeys.chats.recent,

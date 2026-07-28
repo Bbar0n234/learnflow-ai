@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, status
+import uuid
+
+from fastapi import APIRouter, HTTPException, Response, status
 
 from app.api.deps import (
     ArtifactServiceDep,
@@ -12,12 +14,12 @@ from app.api.deps import (
 )
 from app.api.schemas.artifacts import ArtifactListItem
 from app.api.schemas.chats import (
-    ChatCreate,
     ChatDetailResponse,
     ChatListResponse,
     ChatRecentItem,
     ChatRecentResponse,
     ChatResponse,
+    ChatUpdate,
     MessageOut,
     MessagePartOut,
     ReasoningPartOut,
@@ -25,6 +27,7 @@ from app.api.schemas.chats import (
     ToolCallPartOut,
 )
 from app.services.agent_runner import Part, ReasoningPart, TextPart, ToolCallPart
+from app.services.exceptions import EntityNotFoundError
 
 router = APIRouter(tags=["chats"])
 
@@ -53,13 +56,44 @@ def _part_out(part: Part) -> MessagePartOut:
     status_code=status.HTTP_201_CREATED,
 )
 async def create_chat(
-    body: ChatCreate,
     project: UserProject,
     service: ChatServiceDep,
 ) -> ChatResponse:
-    title = body.title or "New Chat"
-    thread_view = await service.create_chat(project_id=project.id, title=title)
+    thread_view = await service.create_chat(project_id=project.id)
     return ChatResponse.model_validate(thread_view)
+
+
+@router.put("/projects/{project_id}/chats/{chat_id}", response_model=ChatResponse)
+async def rename_chat(
+    body: ChatUpdate,
+    thread: UserThread,
+    service: ChatServiceDep,
+) -> ChatResponse:
+    updated = await service.rename_chat(thread.thread_id, title=body.title)
+    return ChatResponse.model_validate(updated)
+
+
+@router.delete(
+    "/projects/{project_id}/chats/{chat_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_chat(
+    chat_id: uuid.UUID,
+    project: UserProject,
+    service: ChatServiceDep,
+) -> Response:
+    # Idempotent DELETE (api.md): ownership resolved manually here instead of
+    # via the UserThread dependency, which would 404 an already-deleted chat
+    # and break idempotency. Mirrors delete_project's manual pattern
+    # (routes/projects.py) — a documented, deliberate exception to "ownership
+    # only through dependencies" (design-brief § Rename и delete).
+    try:
+        thread_view = await service.get_thread_view(chat_id)
+    except EntityNotFoundError:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    if thread_view.project_id != project.id:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    await service.delete_chat(thread_view.thread_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/projects/{project_id}/chats", response_model=ChatListResponse)

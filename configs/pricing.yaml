@@ -43,10 +43,10 @@ models:
   match_pattern: (?i)^z-ai/glm-5\.2
   unit: TOKENS
   prices:
-    input: 6.72e-07
-    output: 2.112e-06
-    output_reasoning: 2.112e-06
-    input_cache_read: 1.248e-07
+    input: 7.686e-07
+    output: 2.4156e-06
+    output_reasoning: 2.4156e-06
+    input_cache_read: 1.4274e-07
 - name: google/gemini-3.6-flash
   match_pattern: (?i)^google/gemini-3\.6-flash
   unit: TOKENS

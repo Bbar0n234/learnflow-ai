@@ -102,3 +102,9 @@ class AgentRunner(Protocol):
         *,
         thread_id: uuid.UUID,
     ) -> bool: ...
+
+    async def delete_thread(
+        self,
+        *,
+        thread_id: uuid.UUID,
+    ) -> None: ...

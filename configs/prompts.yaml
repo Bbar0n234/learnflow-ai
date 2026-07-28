@@ -10,6 +10,11 @@ prompts:
       model: model
       max_tokens: max_summary_tokens
       extra_body: extra_body
+  title:
+    source: agent.title
+    keys:
+      model: model
+      extra_body: extra_body
   security-classifier:
     source: security.llm_classifier
     keys:

@@ -8,10 +8,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.schemas.artifacts import ArtifactListItem
 from app.api.schemas.common import Page
+from app.services.constants import MAX_TITLE_LENGTH
 
 
-class ChatCreate(BaseModel):
-    title: str | None = None
+class ChatUpdate(BaseModel):
+    title: str = Field(min_length=1, max_length=MAX_TITLE_LENGTH)
 
 
 class ChatResponse(BaseModel):

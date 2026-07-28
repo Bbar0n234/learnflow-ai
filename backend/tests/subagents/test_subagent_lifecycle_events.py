@@ -33,6 +33,7 @@ from app.agent.config import (
     LLMConfig,
     SubagentsConfig,
     SubagentSpec,
+    TitleConfig,
 )
 from app.agent.graph import AgentContext
 from app.agent.subagents.graph import build_subagent_graph
@@ -87,6 +88,7 @@ def _config(tool_name: str) -> AgentConfig:
         llm=LLMConfig(model="main"),
         context=ContextConfig(max_tokens=8000),
         image=ImageConfig(model="img"),
+        title=TitleConfig(model="title"),
         subagents=SubagentsConfig(
             llm=LLMConfig(model="sub"),
             registry=[

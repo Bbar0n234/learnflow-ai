@@ -22,9 +22,9 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 ```
 
 **Sidebar (постоянный):**
-- New chat (активна только в контексте проекта — project_id из URL) / New project
+- New chat (доступна с любого экрана — открывает модалку выбора проекта, даже когда пользователь уже внутри проекта; пустой список проектов → empty-state с переходом в создание проекта) / New project
 - Список проектов пользователя
-- Recents — недавние чаты (быстрое переключение между чатами разных проектов)
+- Recents — недавние чаты (быстрое переключение между чатами разных проектов; rename/delete через `ChatActions`)
 
 **Центральная область** — контент текущего маршрута.
 
@@ -32,9 +32,10 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 
 | Маршрут | Центральная область |
 |---------|---------------------|
-| `/` | Welcome (без input — создание чата только из проекта) |
+| `/` | Welcome (без input; чат создаётся на странице проекта или через композер) |
 | `/settings` | Пользовательские настройки: модель, инструкции, память, MCP серверы |
 | `/projects/:id` | Проект: табы **Chats** / **Sphere** / **Artifacts** / **Settings** |
+| `/projects/:id/chats/new` | Композер: draft-режим чата до отправки первого сообщения (записи в БД ещё нет) |
 | `/projects/:id/chats/:cid` | Чат: ChatHeader (← project, model selector, tools dialog) + сообщения + SSE-стриминг + input |
 | `/projects/:id/sphere` | Knowledge Sphere: просмотр и редактирование (Markdown) |
 | `/projects/:id/artifacts` | Список артефактов проекта |
@@ -44,10 +45,10 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 
 ### Экраны
 
-**Главная (`/`):** welcome-экран без input. Создание чата — только из контекста проекта (`/projects/:id`). Проекты доступны через sidebar.
+**Главная (`/`):** welcome-экран без input. Проекты доступны через sidebar; создание чата — с поля первого сообщения на странице проекта или через кнопку «+ Новый чат» в sidebar (модалка выбора проекта → композер).
 
-**Проект (`/projects/:id`):** имя проекта, input для нового чата в этом проекте, табы:
-- **Chats** (default) — список чатов проекта (название, превью, дата)
+**Проект (`/projects/:id`):** имя проекта, поле первого сообщения для нового чата в этом проекте (не поле названия — само название генерируется после отправки), табы:
+- **Chats** (default) — список чатов проекта (название, превью, дата; rename/delete через `ChatActions`)
 - **Sphere** — Knowledge Sphere
 - **Artifacts** — артефакты проекта
 - **Settings** — настройки проекта (model override, MCP серверы)
@@ -55,6 +56,10 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 Табы Sphere, Artifacts, Settings — те же экраны, что и по прямым маршрутам, но встроены в контекст проекта через табы.
 
 **Чат (`/projects/:id/chats/:cid`):** полноценный chat view на всю центральную область. Sidebar остаётся для навигации назад.
+
+**Композер (`/projects/:id/chats/new`):** draft-режим того же chat view — пустая история, заголовок «Новый чат», обычный `ChatInput`; thread-scoped контролы (селектор модели, чип MCP-инструментов) скрыты — чата в БД ещё нет. Отправка первого сообщения создаёт чат (`POST /projects/:id/chats`, без тела) и однократно переводит на `/projects/:id/chats/{thread_id}` с авто-отправкой этого сообщения.
+
+**Модалка выбора проекта:** открывается кнопкой «+ Новый чат» в sidebar с любого экрана. Список проектов пользователя — клик ведёт в композер выбранного проекта; пустой список — empty-state с переходом в создание проекта (переиспользует модалку создания проекта).
 
 **Создание проекта:** модалка поверх текущего экрана. Один input (название) + кнопка создания. При необходимости расширяется дополнительными полями.
 
@@ -77,15 +82,20 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 - Карточка проекта в sidebar (с контекстным меню rename/delete)
 
 **chat** — ядро приложения.
-- ChatHeader — название чата, ссылка на проект, model selector (dropdown per-thread), tools dialog
+- ChatHeader — название чата (посимвольная печать через `TypedTitle` при замене плейсхолдера сгенерированным title), ссылка на проект, model selector (dropdown per-thread), tools dialog; в draft-режиме (`chats/new`) — заголовок всегда «Новый чат», model selector и tools dialog не рендерятся
 - Список сообщений (scroll, auto-scroll при стриминге)
 - Сообщение — user и assistant рендерятся по-разному (assistant → Markdown через Streamdown)
-- Input с отправкой (Enter / кнопка)
+- Input с отправкой (Enter / кнопка); в draft-режиме — тот же компонент, отправка создаёт чат и однократно переигрывает сообщение на новом маршруте
 - Индикаторы: стриминг текста, tool use (`tool_start`/`tool_end`)
 - Карточка артефакта (инлайн в чате, по событию `artifact_created`); `type === "image"` показывает превью-миниатюру с media-endpoint вместо иконки
 - Плейсхолдер генерации изображения — на `tool_start` с `tool === "generate_image"` встаёт pending-карточка по `call_id` (шиммер, indeterminate-прогресс), снимается на `tool_end`
 - Кнопка cancel
 - Tools dialog — просмотр и управление MCP серверами per-thread (inherited + собственные, toggle)
+
+**chat-actions** — rename/delete чата, переиспользуется на 2+ хостах (список чатов проекта, recents в sidebar).
+- Dropdown по hover (`MoreHorizontal`) → «Переименовать» (диалог с полем) / «Удалить» (диалог-подтверждение, destructive)
+- Доступны и для `security_blocked` чатов — блокировка ограничивает только продолжение диалога (`POST /messages`), не управление самим чатом
+- Удаление открытого чата — переход на страницу проекта
 
 **settings** — пользовательские настройки и per-scope конфигурация.
 - SettingsPage (`/settings`) — user-level: ModelSelector, CustomInstructionsSection, AgentMemorySection, SkillContextSection, MCPServersSection
@@ -187,9 +197,12 @@ Settings и MCP-серверы используют единый ключ с о�
 | Действие | Инвалидирует |
 |----------|-------------|
 | Создать/обновить/удалить проект | `queryKeys.projects.all` |
-| Создать чат | `queryKeys.projects.chats(id)`, `queryKeys.chats.recent` |
+| Создать чат | `queryKeys.projects.chats(id)` (`exact: true`), `queryKeys.chats.recent` |
+| Переименовать чат | `queryKeys.projects.chats(id)` (`exact: true`), `queryKeys.chats.recent`, + точечный `setQueryData`-патч `queryKeys.projects.chat(id, cid)` |
+| Удалить чат | `queryKeys.projects.chats(id)` (`exact: true`), `queryKeys.chats.recent` |
 | Обновить sphere | `queryKeys.projects.sphere(id)` |
-| Стрим завершён (`done`) | `queryKeys.projects.chat(id, cid)`, `queryKeys.chats.recent` |
+| Событие `title_updated` (стрим) | — `setQueryData`-патч поля `title`, не инвалидация: `queryKeys.projects.chats(id)`, `queryKeys.chats.recent`, `queryKeys.projects.chat(id, cid)` |
+| Стрим завершён (`done`) | `queryKeys.projects.chat(id, cid)`, `queryKeys.projects.chats(id)` (`exact: true`, fallback на случай непришедшего `title_updated`), `queryKeys.chats.recent` |
 | Событие `artifact_created` | `queryKeys.projects.artifacts(id)` |
 | Обновить settings (any scope) | `queryKeys.settings(scope, …)` |
 | Обновить instructions | `queryKeys.instructions` |
@@ -197,6 +210,8 @@ Settings и MCP-серверы используют единый ключ с о�
 | Обновить/удалить skill context | `queryKeys.skillContexts` |
 | CRUD MCP server (any scope) | `queryKeys.mcpServers(scope, …)` |
 | Ack/resolve alert, CRUD rule | `queryKeys.security.alerts` / `queryKeys.security.rules` |
+
+**Инвариант:** любая инвалидация `queryKeys.projects.chats(id)` идёт с `exact: true` — этот ключ является префиксом detail-ключей `queryKeys.projects.chat(id, cid)`, префиксная инвалидация зарефетчила бы открытый чат посреди активного стрима (в т.ч. на своём же `title_updated`/`done`) и задвоила бы optimistic-копию user-сообщения в клиентском стриминговом состоянии.
 
 ### Zustand — клиентский state
 
@@ -254,7 +269,10 @@ shared/api/
 ├── pagination.ts    — ListResponse<T>
 ├── sse.ts           — SSEEvent
 ├── projects.ts      — Project + getProjects… + useProjects, useProject, useCreate/Update/DeleteProject
-├── chats.ts         — Chat/ChatDetail/Message… + getChats… + useChats, useChat, useCreateChat, useRecentChats
+├── chats.ts         — Chat/ChatDetail/Message… + DEFAULT_CHAT_TITLE/CHAT_TITLE_MAX_LENGTH (доменные
+│                       константы плейсхолдера и лимита названия) + createChat (без тела)/updateChat/
+│                       deleteChat + useChats, useChat, useCreateChat, useUpdateChat, useDeleteChat,
+│                       useRecentChats
 ├── sphere.ts        — Sphere + getSphere/updateSphere + useSphere, useUpdateSphere
 ├── artifacts.ts     — Artifact… + getArtifacts/getArtifact/downloadArtifact/getArtifactMedia + useArtifacts,
 │                       useArtifact, useArtifactMedia, isArtifactMediaNotFound
@@ -337,7 +355,7 @@ graph TD
         ROUTERX["router.tsx"]
         LAY["layouts/ — AppLayout, ProjectLayout"]
         PROVX["providers/ — QueryClientProvider"]
-        ACOMP["components/ — Sidebar, project-управление,<br>AuthGate, ErrorBoundary"]
+        ACOMP["components/ — Sidebar, project- и chat-модалки,<br>AuthGate, ErrorBoundary"]
     end
 
     subgraph PAGESL["pages/ — слайсы уровня маршрута (ui/ + model/)"]
@@ -352,6 +370,7 @@ graph TD
     subgraph FEATSL["features/ — переиспользуемые interactions"]
         MSEL["model-selector"]
         MCPF["mcp-servers"]
+        CHACT["chat-actions"]
     end
 
     subgraph CLST["stores/ — клиентский state, Zustand"]
@@ -403,17 +422,22 @@ frontend/
 │   ├── app/                       — application shell
 │   │   ├── layouts/               — AppLayout (sidebar + центр), ProjectLayout (табы)
 │   │   ├── components/            — Sidebar, ProjectList/ProjectCard/ProjectActions/
-│   │   │                            CreateProjectModal, AuthGate, ErrorBoundary
+│   │   │                            CreateProjectModal, NewChatModal (модалка выбора проекта,
+│   │   │                            единственный хост — Sidebar), AuthGate, ErrorBoundary
 │   │   ├── providers/             — QueryClientProvider, прочие провайдеры
 │   │   └── router.tsx             — конфигурация маршрутов
 │   │
 │   ├── pages/                     — слайсы уровня маршрута (ui/ + при нужде model/), public API в index.ts
 │   │   ├── welcome/               — /
-│   │   ├── project-chats/         — /projects/:id (ChatList)
-│   │   ├── chat/                  — /projects/:id/chats/:cid
-│   │   │   ├── ui/                — ChatView, ChatHeader, ChatInput, MessageList, MessageItem,
-│   │   │   │                        ToolIndicator, ReviewIndicator, ArtifactCard,
-│   │   │   │                        GeneratingArtifactCard, FeedbackButtons
+│   │   ├── project-chats/         — /projects/:id (ChatList — список + поле первого сообщения)
+│   │   ├── chat/                  — /projects/:id/chats/:cid, /projects/:id/chats/new
+│   │   │   ├── ui/                — ChatView (тонкий диспетчер по наличию `cid`) → ChatThread
+│   │   │   │                        (обычный режим) | ChatDraft (композер, без useChat/
+│   │   │   │                        useAgentStream/useStudio); ChatHeader (проп `draft`),
+│   │   │   │                        ChatInput (опциональный контролируемый режим value/
+│   │   │   │                        onValueChange), MessageList, MessageItem, ToolIndicator,
+│   │   │   │                        ReviewIndicator, ArtifactCard, GeneratingArtifactCard,
+│   │   │   │                        FeedbackButtons
 │   │   │   └── model/             — useAgentStream (SSE-оркестрация)
 │   │   ├── sphere/                — /projects/:id/sphere (SphereView/Viewer/Editor)
 │   │   ├── artifacts/             — /projects/:id/artifacts (ArtifactList)
@@ -425,7 +449,9 @@ frontend/
 │   │
 │   ├── features/                  — переиспользуемые interactions (2+ страниц), public API в index.ts
 │   │   ├── model-selector/        — ModelSelector (chat + user/project settings)
-│   │   └── mcp-servers/           — MCPServersSection (+ MCPServerForm, приватный)
+│   │   ├── mcp-servers/           — MCPServersSection (+ MCPServerForm, приватный)
+│   │   └── chat-actions/          — ChatActions (rename/delete dropdown + диалоги; хосты —
+│   │                                project-chats/ChatList и app/components/Sidebar recents)
 │   │
 │   ├── shared/
 │   │   ├── api/                   — HTTP-слой: домен = типы + API-функции + data-хуки
@@ -436,13 +462,14 @@ frontend/
 │   │   │   ├── projects.ts  chats.ts  sphere.ts  artifacts.ts  models.ts
 │   │   │   ├── settings.ts  user-memory.ts  skill-context.ts  mcp-servers.ts  feedback.ts  auth.ts
 │   │   │   └── security.ts        — SIEM типы + siemClient + хуки (siem-service API)
-│   │   ├── ui/                    — shadcn/ui примитивы + MarkdownRenderer
+│   │   ├── ui/                    — shadcn/ui примитивы + MarkdownRenderer + TypedTitle
+│   │   │                            (посимвольная печать auto-title, домен-нейтральный)
 │   │   └── lib/                   — утилиты (logger, utils, security-error)
 │   │
 │   └── stores/                    — Zustand stores (ui-store, stream-store)
 ```
 
-**Принципы:** `pages/` — композиция уровня маршрута, каждая изолирована и закрыта `index.ts`. `features/` — только реально переиспользуемое между страницами (`model-selector`, `mcp-servers`); кросс-импортов между слайсами одного слоя нет — страницы тянут общие куски вниз, из `features/`. `shared/api` держит data-хуки и фабрику ключей. `app/` — shell (layouts, providers, router, постоянный Sidebar с управлением проектами), не бизнес-логика. `stores/` отдельно — `stream-store` cross-feature.
+**Принципы:** `pages/` — композиция уровня маршрута, каждая изолирована и закрыта `index.ts`. `features/` — только реально переиспользуемое между страницами (`model-selector`, `mcp-servers`, `chat-actions`); кросс-импортов между слайсами одного слоя нет — страницы тянут общие куски вниз, из `features/`. Компонент с одним хостом (`NewChatModal`) остаётся в `app/components/`, а не заводит `features/` — критерий 2+ страниц не выполнен. `shared/api` держит data-хуки и фабрику ключей. `app/` — shell (layouts, providers, router, постоянный Sidebar с управлением проектами), не бизнес-логика. `stores/` отдельно — `stream-store` cross-feature.
 
 ## Logging
 

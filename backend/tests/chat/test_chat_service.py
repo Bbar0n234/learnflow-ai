@@ -19,12 +19,15 @@ from app.agent import runner as runner_module
 from app.agent import stream_events as stream_events_module
 from app.agent.subagents import runner as subagent_runner_module
 from app.models.thread_view import ThreadView
+from app.services import chat as chat_service_module
 from app.services.agent_runner import Message, StreamEvent
 from app.services.chat import ChatService
+from app.services.constants import DEFAULT_CHAT_TITLE
 from app.services.exceptions import EntityNotFoundError
 
 from tests.chat.conftest import (
     RUNNER_FORWARDED_TYPES,
+    SERVICE_SYNTHESISED_TYPES,
     FakeAgentRunner,
     FakeArtifactRepo,
     FakeThreadViewRepo,
@@ -87,13 +90,13 @@ async def _drain(service: ChatService, thread: ThreadView) -> list[StreamEvent]:
 # --- create / list ---------------------------------------------------------
 
 
-async def test_create_chat_returns_thread_view_with_given_title() -> None:
+async def test_create_chat_returns_thread_view_with_placeholder_title() -> None:
     repo = FakeThreadViewRepo()
     service = _build_service(thread_repo=repo, runner=FakeAgentRunner())
 
-    result = await service.create_chat(project_id=uuid.uuid4(), title="My chat")
+    result = await service.create_chat(project_id=uuid.uuid4())
 
-    assert result.title == "My chat"
+    assert result.title == DEFAULT_CHAT_TITLE
     assert result.thread_id in repo.threads
 
 
@@ -310,11 +313,13 @@ async def test_cancel_returns_runner_result(expected: bool) -> None:
 def _stream_event_type_literals(*modules: object) -> set[str]:
     """Collect every ``StreamEvent(type="literal", ...)`` string in the sources.
 
-    AST-scans the runner/mapper modules for ``StreamEvent(...)`` constructions
-    and extracts the ``type`` argument when it is a string literal (positional or
+    AST-scans the given modules for ``StreamEvent(...)`` constructions and
+    extracts the ``type`` argument when it is a string literal (positional or
     keyword). A new emission site with a fresh literal type widens this set and
-    trips the contract test below — forcing the vocabulary (and the frontend
-    switch) to be updated deliberately.
+    trips the contract tests below — forcing the vocabulary (and the frontend
+    switch) to be updated deliberately. Both ends of the wire are scanned: the
+    runner/mapper modules and ``ChatService`` itself, which synthesises event
+    types of its own.
     """
     found: set[str] = set()
     for module in modules:
@@ -379,6 +384,17 @@ def test_runner_emits_only_the_agreed_wire_vocabulary() -> None:
     # other emitted type is forwarded to the wire. Nothing the runner emits may
     # fall outside the union the frontend (and ChatService) know how to handle.
     assert emitted == RUNNER_FORWARDED_TYPES | {"trace_id"}
+
+
+def test_chat_service_emits_only_the_agreed_synthesised_wire_types() -> None:
+    emitted = _stream_event_type_literals(chat_service_module)
+
+    # ChatService is the second emitter on this wire: besides forwarding runner
+    # events it puts the terminal ``done`` and the auto-title ``title_updated``
+    # on the stream itself. Those never pass through the runner, so the guard
+    # above cannot see them — without this one a new service-side event type
+    # would reach the frontend union unannounced.
+    assert emitted == SERVICE_SYNTHESISED_TYPES
 
 
 async def test_chat_service_forwards_each_runner_type_and_consumes_trace_id() -> None:

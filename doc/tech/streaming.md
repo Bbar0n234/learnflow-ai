@@ -33,6 +33,7 @@ data: {"type": "done", "message_id": "msg-uuid", "trace_id": "trace-uuid"}\n\n
 | `agent_event` | `{kind, payload, parent_call_id?}` | custom-канал (`get_stream_writer`): `sphere_write`, `memory_write`, `skill_context_write`, `compaction` | |
 | `artifact_created` | `{id, title, artifact_type}` | по наличию `ToolMessage.artifact` (не по имени инструмента) | |
 | `final_output_review_started` / `final_output_review_complete` | `{}` | вокруг end-of-stream FINAL_OUTPUT-классификатора — только когда ход дал непустой `full_response` | |
+| `title_updated` | `{title}` | `ChatService`: готов сгенерированный auto-title чата, не чаще одного раза за поток | |
 | `security_block` | `{}` | любой из четырёх runtime-чекпоинтов защиты выдал вердикт INJECTION (см. «Security-чекпоинты» ниже) | ✔ |
 | `cancelled` | `{}` | отмена пользователем через `POST /cancel` | ✔ |
 | `error` | `{detail}` | необработанное исключение в ходе рана; `detail` — из `configs/error_messages.yaml` | ✔ |
@@ -57,13 +58,15 @@ data: {"type": "done", "message_id": "msg-uuid", "trace_id": "trace-uuid"}\n\n
 
 **`error`.** `detail` берётся из `configs/error_messages.yaml` через `error_mapper.normalize_error_message` для исключений, пойманных внутри рана (`_run_turn`). Отдельно от этого пути в `api/routes/messages.py`'s `_event_generator` есть транспортный fallback: если итерация по потоку событий бросает исключение (например, сбой сериализации JSON), клиенту уходит `{"type": "error", "detail": "Stream failed"}` — строка литеральная, не ключ `error_messages.yaml` (в файле нет ни значения, ни ключа с этим текстом). Расхождение подтверждено, не исправлено этой ревизией документа — это единственное место в контракте, где `error.detail` не проходит через `ErrorMessagesConfig`.
 
+**`title_updated`.** Единственное non-terminal событие, которое эмитит не раннер, а `ChatService.send_message`. Генерация auto-title (→ [backend.md § Layered Architecture](backend.md#layered-architecture)) запускается fire-and-forget, если title чата всё ещё плейсхолдер, на **первом событии рана, несущем вердикт guard'а USER_INPUT** — то есть на первом событии вне пролога (`stream_started` идёт безусловно первым, `heartbeat` заполняет тишину, пока guard ещё работает; оба ничего не говорят о вердикте). Если это событие — само `security_block`, генерация не запускается вовсе: заблокированный ввод не уходит в title-модель. Дальше между событиями relay-цикла проверяется готовность задачи; готовый непустой title уходит на провод ровно один раз за поток. После терминального события (`done` / `error` / `security_block` / `cancelled`) `title_updated` не эмитится, даже если генерация к этому моменту завершилась, — терминальное событие закрывает поток. Не успевший title остаётся в БД и доезжает до клиента fallback-инвалидацией (см. «TanStack Query Invalidation» ниже) либо следующим штатным рефетчем.
+
 **`done`.** `message_id` резолвится post-hoc в `ChatService` (`get_last_ai_message_id`) уже после того, как раннер закрыл поток без терминального события — `done` эмитится не раннером, а `ChatService.send_message`.
 
 **`trace_id`.** `ChatService` перехватывает событие (не пробрасывает клиенту напрямую), сохраняет `trace_id` в Redis вместе с `message_id`, включает его в payload `done`.
 
 ## Forward-compat
 
-Контракт растёт: новые `kind` в `agent_event`, новые типы событий верхнего уровня (пример — будущий `title_updated`) добавляются без версионирования пути. Требование к потребителю: неизвестный `type` в `event_generator`/на фронте логируется и игнорируется, не приводит к ошибке обработки потока — переключатель по `event.type` не должен ронять диспетчер на неизвестном значении.
+Контракт растёт: новые `kind` в `agent_event`, новые типы событий верхнего уровня (последний пример — `title_updated`) добавляются без версионирования пути. Требование к потребителю: неизвестный `type` в `event_generator`/на фронте логируется и игнорируется, не приводит к ошибке обработки потока — переключатель по `event.type` не должен ронять диспетчер на неизвестном значении.
 
 ## Лимиты
 
@@ -223,10 +226,11 @@ sequenceDiagram
 
 `send_message()` — relay + post-hoc:
 
-1. Валидирует существование чата (defense in depth — `require_unblocked_thread`/ownership-зависимости уже проверили это на уровне API), обновляет `updated_at`.
+1. Валидирует существование чата (defense in depth — `require_unblocked_thread`/ownership-зависимости уже проверили это на уровне API), обновляет `updated_at` и **коммитит это обновление до входа в relay-цикл** ([conventions/db.md](conventions/db.md#db-сессии-и-commit)): эффект должен пережить весь стрим, а не только запрос. Незакоммиченный `touch` держит row-lock на строке чата на всё время рана — фоновая задача auto-title (своя сессия) виснет на ней и на длинном ране умирает по `DB_STATEMENT_TIMEOUT_SECONDS`.
 2. Проксирует события `AgentRunner.stream()` клиенту; перехватывает `trace_id` (не форвардит), копит `artifact_created.id` в список.
-3. `stream_ended_without_done`: `True`, если раннер уже отдал `error` / `security_block` / `cancelled` — три терминальных события взаимоисключающи с `done`; в этом случае post-hoc и синтетический `done` пропускаются целиком.
-4. Иначе — post-hoc: `get_last_ai_message_id()`, привязка артефактов к сообщению (`ArtifactRepository.set_message_id`), сохранение `trace_id` в Redis, эмиссия `done {message_id, trace_id}`.
+3. Ведёт auto-title: на первом событии вне пролога запускает fire-and-forget генерацию (если title всё ещё плейсхолдер и это событие не `security_block`), между последующими событиями опрашивает её готовность и эмитит `title_updated` — см. «Уточнения по отдельным событиям» выше.
+4. `stream_ended_without_done`: `True`, если раннер уже отдал `error` / `security_block` / `cancelled` — три терминальных события взаимоисключающи с `done`; с этого момента `title_updated` больше не эмитится, а post-hoc и синтетический `done` пропускаются целиком.
+5. Иначе — post-hoc: `get_last_ai_message_id()`, привязка артефактов к сообщению (`ArtifactRepository.set_message_id`), сохранение `trace_id` в Redis (для feedback loop, подробнее — [observability](observability.md)), эмиссия `done {message_id, trace_id}`.
 
 ### API Layer
 
@@ -270,7 +274,8 @@ TanStack Query invalidation на ключевых событиях:
 | Событие | Invalidated queries | Зачем |
 |---------|-------------------|-------|
 | `artifact_created` | `["projects", projectId, "artifacts"]` | Новый артефакт в списке |
-| `done` | `["projects", projectId, "chats", chatId]`, `["chats", "recent"]` | Полное сообщение с сервера (включая `parts`), обновление списка чатов |
+| `title_updated` | — (`setQueryData`-патч, не инвалидация) | Точечно патчит поле `title` в трёх кэшах: `["projects", projectId, "chats"]` (список), `["chats", "recent"]`, `["projects", projectId, "chats", chatId]` (detail открытого чата). Инвалидация вместо патча зарефетчила бы detail мид-стрим и задвоила optimistic-копию user-сообщения в `localMessages` |
+| `done` | `["projects", projectId, "chats", chatId]`, `["projects", projectId, "chats"]` (`exact: true`), `["chats", "recent"]` | Полное сообщение с сервера (включая `parts`), обновление списков чатов; инвалидация списка проекта — fallback на случай, если `title_updated` не успел прийти до конца рана |
 
 ## API Endpoints
 

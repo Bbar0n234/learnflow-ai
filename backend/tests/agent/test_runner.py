@@ -31,6 +31,7 @@ from app.agent.config import (
     ResolvedModelConfig,
     SubagentsConfig,
     SubagentSpec,
+    TitleConfig,
     load_agent_config,
     load_error_messages,
 )
@@ -458,6 +459,7 @@ async def test_subagent_steps_reach_the_parent_stream_with_parent_call_id(
         llm=LLMConfig(model="main"),
         context=ContextConfig(max_tokens=8000),
         image=ImageConfig(model="img"),
+        title=TitleConfig(model="title"),
         subagents=SubagentsConfig(
             llm=LLMConfig(model="sub"),
             registry=[

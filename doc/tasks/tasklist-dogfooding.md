@@ -22,8 +22,8 @@
 | Итерация | Алиас | Статус | Scope | Закрывает |
 |----------|-------|--------|-------|-----------|
 | feat-001 | A | 🚧 In Progress | cross-cutting | Видимость работы агента: карта событий, live-фазы, reasoning-стрим, след tool-вызовов, security_block в UI |
-| chore-001 | B | 📋 Planned | cross-cutting | Prod-closing: kill-switch LLM-защиты + SIEM kill-switch, X-Forwarded-For, прод-образы без dev-deps; merge develop → main + деплой |
-| feat-002 | C | 🚧 In Progress | cross-cutting | Chat UX: первое сообщение вместо title, auto-title отдельным модулем, удаление и переименование чатов |
+| chore-001 | B | 🚧 In Progress | cross-cutting | Prod-closing: kill-switch LLM-защиты + SIEM kill-switch, X-Forwarded-For, прод-образы без dev-deps; merge develop → main + деплой |
+| feat-002 | C | ✅ Done | cross-cutting | Chat UX: первое сообщение вместо title, auto-title отдельным модулем, удаление и переименование чатов |
 | feat-003 | D | ✅ Done | agent | Модели: cost-optimal подбор по внешним бенчмаркам, whitelist 5+, pricing seed в Langfuse |
 | feat-004 | E | 📋 Planned | cross-cutting | File attachments: вход файлов агенту (критический путь догфудинга) |
 | feat-005 | F | 📋 Planned | backend | PDF-экспорт: замена wkhtmltopdf, рендер формул, фирменный стиль |
@@ -90,7 +90,7 @@
 
 **Цель:** сделать merge `develop` → `main` нестрашным и задеплоить накопленное (>300 коммитов с последнего релиза): выключить в проде исследовательские подсистемы, закрыть известные прод-дефекты периметра, вычистить прод-образы.
 
-**Статус:** 📋 Planned
+**Статус:** 🚧 In Progress
 **Scope:** cross-cutting (Backend + Agent + Infra)
 **Параллельно с:** feat-001 (не пересекаются)
 
@@ -111,7 +111,7 @@
 
 **Цель:** переработка входа в чат: поле ввода — для первого сообщения, а не title; title генерирует модель; чаты можно удалять и переименовывать.
 
-**Статус:** 🚧 In Progress
+**Статус:** ✅ Done
 **Scope:** cross-cutting (Frontend + Backend)
 **After:** feat-001 (наследует переработанный стрим-контракт)
 
@@ -126,6 +126,19 @@
 
 - **Title-модуль:** генерация title — не основной агент, а отдельный лёгкий модуль в сервисном слое (fire-and-forget после первого сообщения, дешёвая модель); кандидат на конфиг — секция в `agent.yaml` по образцу секции `image` (feat-010 post-mvp). Точная архитектура — на design-brief.
 - **Доставка title на фронт:** рефетч списка чатов после `done` vs отдельное SSE-событие `title_updated` (второе — аргумент делать итерацию после feat-001, контракт уже будет переработан).
+
+#### Документация
+
+- [design-brief.md](iterations/dogfooding/feat-002-chat-ux/design-brief.md) — целевой UX (два пути входа), архитектура auto-title модуля, доставка `title_updated` (+ отвергнутые альтернативы), каскад удаления чата, партиция треков T1/T2
+- [mockups/chat-ux.html](iterations/dogfooding/feat-002-chat-ux/mockups/chat-ux.html) — интерактивный мокап, утверждён архитектором как референс реализации фронта
+- [tracks/T1/plan.md](iterations/dogfooding/feat-002-chat-ux/tracks/T1/plan.md) / [tracks/T2/plan.md](iterations/dogfooding/feat-002-chat-ux/tracks/T2/plan.md) — implementation plans (backend: контракты чатов + auto-title; frontend: вход через первое сообщение + `title_updated` + ChatActions)
+- [tracks/T1/summary.md](iterations/dogfooding/feat-002-chat-ux/tracks/T1/summary.md) — post-implementation summary T1: bodyless `POST /chats`, rename/delete с каскадом, `ChatTitleGenerator`, фиксы находок F1 (row-lock) и CODE_REVIEW (teardown, atomic-write guard и др.)
+- [tracks/T2/summary.md](iterations/dogfooding/feat-002-chat-ux/tracks/T2/summary.md) — post-implementation summary T2: оба пути входа, `title_updated` → `setQueryData`-патч, `TypedTitle`, `features/chat-actions`, фиксы прод-багов ручного прогона (F2, F3)
+- [tracks/T1/test-cases.md](iterations/dogfooding/feat-002-chat-ux/tracks/T1/test-cases.md) / [tracks/T2/test-cases.md](iterations/dogfooding/feat-002-chat-ux/tracks/T2/test-cases.md) — тестовые кейсы
+- [review-a.md](iterations/dogfooding/feat-002-chat-ux/review-a.md) / [review-b.md](iterations/dogfooding/feat-002-chat-ux/review-b.md) — code review (независимый + соответствие контракту)
+- [harvest-proposals.md](iterations/dogfooding/feat-002-chat-ux/harvest-proposals.md) — кандидаты в backlog/конвенции, собранные по ходу итерации
+- [sofa-proposals.md](iterations/dogfooding/feat-002-chat-ux/sofa-proposals.md) — SOFA-кандидаты (3 TIL + 1 Blueprint, доведены до финала, не опубликованы)
+- Обновлены по итогам: [streaming.md](../tech/streaming.md) (`title_updated`), [backend.md](../tech/backend.md) (эндпоинты чатов, `ChatService`, `ChatTitleGenerator`), [frontend.md](../tech/frontend.md) (экраны, mutations-таблица, дерево модулей), [agent-runtime.md](../tech/agent-runtime.md) (секция `title` в `agent.yaml`), [prompt-management.md](../tech/prompt-management.md) (реестр промптов)
 
 ---
 

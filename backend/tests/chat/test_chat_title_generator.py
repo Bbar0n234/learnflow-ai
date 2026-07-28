@@ -34,6 +34,7 @@ from structlog.testing import capture_logs
 from tests.chat.conftest import (
     FakeSessionFactory,
     FakeTitleModel,
+    ModelCallGate,
     TitleGeneratorBuilder,
 )
 
@@ -53,11 +54,13 @@ def _model(
     *replies: str,
     failure: Exception | None = None,
     on_call: Callable[[], None] | None = None,
+    gate: ModelCallGate | None = None,
 ) -> FakeTitleModel:
     return FakeTitleModel(
         messages=iter([AIMessage(content=reply) for reply in replies]),
         failure=failure,
         on_call=on_call,
+        gate=gate,
     )
 
 
@@ -174,8 +177,13 @@ async def test_generate_title_leaves_chat_untouched_when_guard_rejects(
 # and the chat is fully usable during it: the user can rename or delete it, and
 # the guard can block it on the final output. Whatever the task read before the
 # call is stale by the time it writes, so the state that matters is the state at
-# write time. The fake session models that honestly — the task works on its own
-# snapshot of the row and only sees an outside change if it re-reads.
+# write time — and only at write time, in the same statement that writes.
+#
+# The fake session is what keeps these tests honest about that (see
+# ``FakeAsyncSession``): the row the task read before the call is a snapshot
+# that never learns of the change, while the conditional UPDATE is evaluated
+# against the store. Weakening the predicate in production turns each case below
+# red, and so does deciding from the snapshot instead — verified by mutation.
 
 
 def _block_chat(chat: ThreadView) -> None:
@@ -328,6 +336,44 @@ async def test_generate_title_accepts_new_request_after_previous_finished(
     second = generator.generate_title(chat.thread_id, "второе сообщение")
     assert second is not None
     await second  # drain it: a task left pending would be destroyed with the loop
+
+
+# --- shutdown --------------------------------------------------------------
+
+
+async def test_shutdown_unwinds_a_generation_parked_in_the_model_call(
+    build_title_generator: TitleGeneratorBuilder,
+) -> None:
+    chat = _chat()
+    sessions = FakeSessionFactory()
+    sessions.add(chat)
+    gate = ModelCallGate()
+    generator = build_title_generator(_model("Название от модели", gate=gate), sessions)
+
+    task = generator.generate_title(chat.thread_id, "Объясни дискриминант")
+    assert task is not None
+    await gate.wait_until_in_the_call()
+
+    with capture_logs() as logs:
+        await generator.shutdown()
+
+    # The application is going down while a generation still holds a session
+    # from the engine that is about to be disposed. Shutdown ends it and waits
+    # for it to unwind — an awaited, finished task, no half-written title, and
+    # no degradation warning: giving up on a title at shutdown is not a failure.
+    assert task.done()
+    assert task.cancelled()
+    assert chat.title == DEFAULT_CHAT_TITLE
+    assert sessions.sessions[0].commits == 0
+    assert [entry for entry in logs if entry["log_level"] == "warning"] == []
+
+
+async def test_shutdown_without_any_generation_running_is_a_no_op(
+    build_title_generator: TitleGeneratorBuilder,
+) -> None:
+    generator = build_title_generator(_model(), FakeSessionFactory())
+
+    await generator.shutdown()  # the common case: nothing in flight at exit
 
 
 # --- prompt / seed wiring --------------------------------------------------

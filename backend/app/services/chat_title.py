@@ -25,7 +25,6 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from langfuse import get_client
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from sqlalchemy.orm.exc import ObjectDeletedError
 
 from app.agent.config import PromptFragmentsConfig, TitleConfig
 from app.agent.prompt_builder import wrap_user_message
@@ -40,11 +39,16 @@ logger = structlog.get_logger()
 
 
 def _title_write_blocked(thread_view: ThreadView) -> bool:
-    """Whether a generated title must NOT be written to this chat.
+    """Whether this chat already cannot take an auto-title — cheap early exit.
 
     A blocked chat never gets an auto-title, and a chat whose title is no
     longer the placeholder was either renamed by the user or already titled —
-    both cases mean the generated title is stale and must not overwrite it.
+    both cases mean a generated title would be stale and must not overwrite it.
+
+    This is a *snapshot* read taken before the LLM call, so it only saves the
+    call; it decides nothing. The decision is the conditional UPDATE at write
+    time (``ThreadViewRepository.apply_generated_title``), which restates the
+    same predicate in SQL.
     """
     return thread_view.security_blocked or thread_view.title != DEFAULT_CHAT_TITLE
 
@@ -88,6 +92,28 @@ class ChatTitleGenerator:
         self._llm: BaseChatModel = create_title_llm(settings, title_config)
         self._tasks: dict[uuid.UUID, asyncio.Task[str | None]] = {}
 
+    async def shutdown(self) -> None:
+        """Cancel every in-flight generation and wait for it to unwind.
+
+        Called from the lifespan after ``yield`` and **before**
+        ``engine.dispose()`` (conventions/api.md § Владение состоянием:
+        background tasks are torn down where they were created). A running
+        task holds a session from the same ``session_factory`` and can sit in
+        ``ainvoke`` for up to ``LLM_TITLE_TIMEOUT_SECONDS`` — disposing the
+        engine under it would pull the pool out from beneath a live
+        connection, and leaving it unawaited turns every restart into a
+        "Task was destroyed but it is pending".
+
+        Iterates a snapshot of the registry: the done-callback mutates it as
+        the cancellations land.
+        """
+        tasks = list(self._tasks.values())
+        if not tasks:
+            return
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
     def generate_title(
         self, thread_id: uuid.UUID, content: str
     ) -> asyncio.Task[str | None] | None:
@@ -123,20 +149,20 @@ class ChatTitleGenerator:
                     return None
 
                 # Decisive guard (design-brief § Auto-title модуль: the task
-                # re-reads ``ThreadView`` *before the write*). The LLM call
-                # above is the window in which the chat can be deleted, flagged
-                # ``security_blocked`` mid-stream or renamed by the user, so the
-                # state read before the call is stale by now. ``session.refresh``
-                # re-SELECTs the row — a second ``repo.get_by_id`` would hand
-                # back the identity-map copy without touching the DB.
-                try:
-                    await session.refresh(thread_view)
-                except ObjectDeletedError:
-                    return None  # chat deleted during the LLM call
-                if _title_write_blocked(thread_view):
+                # must not write a title into a chat that was deleted, blocked
+                # or renamed). The LLM call above is that window, so the state
+                # read before it is stale by now — and re-reading here would
+                # not help either: a mid-stream ``security_blocked`` is flushed
+                # in the *request's* session and stays uncommitted (invisible
+                # under READ COMMITTED) until the request ends. So the write is
+                # conditional in SQL: the database checks the predicate against
+                # the committed row at the moment it writes, and a no-match
+                # (deleted / blocked / renamed) simply writes nothing.
+                written = await repo.apply_generated_title(
+                    thread_id, title=title, placeholder=DEFAULT_CHAT_TITLE
+                )
+                if not written:
                     return None
-
-                await repo.update(thread_view, title=title)
                 await session.commit()
         except Exception:
             logger.warning(

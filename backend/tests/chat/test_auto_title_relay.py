@@ -72,22 +72,34 @@ async def _run(
     *,
     title_generator: FakeTitleGenerator | None,
     resolve_title_before_event: int | None = None,
+    cancel_title_before_event: int | None = None,
 ) -> list[StreamEvent]:
     repo = FakeThreadViewRepo()
     repo.add(thread)
     runner = FakeAgentRunner()
     runner.events = events
     runner.last_ai_message_id = "m1"
-    if resolve_title_before_event is not None:
+    settle_before_event = (
+        resolve_title_before_event
+        if resolve_title_before_event is not None
+        else cancel_title_before_event
+    )
+    if settle_before_event is not None:
         assert title_generator is not None
+        settle = (
+            title_generator.resolve
+            if resolve_title_before_event is not None
+            else title_generator.cancel
+        )
 
-        def _complete_generation(index: int) -> None:
-            # The generation finishes in the gap between the poll that followed
-            # the previous event and the delivery of event ``index``.
-            if index == resolve_title_before_event:
-                title_generator.resolve()
+        def _settle_generation(index: int) -> None:
+            # The generation ends — with a title or with a cancellation — in the
+            # gap between the poll that followed the previous event and the
+            # delivery of event ``index``.
+            if index == settle_before_event:
+                settle()
 
-        runner.on_event = _complete_generation
+        runner.on_event = _settle_generation
     service = _build_service(
         thread_repo=repo, runner=runner, title_generator=title_generator
     )
@@ -312,6 +324,24 @@ async def test_send_message_emits_no_title_updated_without_a_ready_title(
     # generation already in flight from an earlier message — in all three the
     # stream is exactly what it would be without the auto-title feature.
     assert [e.type for e in events] == ["text_chunk", "done"]
+
+
+async def test_send_message_survives_a_generation_cancelled_mid_stream() -> None:
+    generator = FakeTitleGenerator(mode="deferred")
+
+    events = await _run(
+        _thread(),
+        [text_chunk_event("Привет"), text_chunk_event(", мир")],
+        title_generator=generator,
+        cancel_title_before_event=1,
+    )
+
+    # Application shutdown cancels every in-flight generation, and a stream that
+    # is still open finds its handle finished — carrying a CancelledError, not a
+    # title. That is the same outcome as "the generation did not make it": the
+    # answer keeps streaming to the user and ends normally, instead of the
+    # cancellation tearing the SSE response apart.
+    assert [e.type for e in events] == ["text_chunk", "text_chunk", "done"]
 
 
 async def test_send_message_emits_no_title_updated_without_a_generator() -> None:

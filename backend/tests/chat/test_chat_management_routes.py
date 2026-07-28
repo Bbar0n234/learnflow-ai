@@ -21,6 +21,7 @@ from httpx import AsyncClient
 from learnflow_testing.factories import ProjectFactory, UserFactory
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from structlog.testing import capture_logs
 
 from tests.chat.conftest import FakeAgentRunner, ThreadViewFactory
 
@@ -314,15 +315,27 @@ async def test_delete_chat_survives_a_failing_checkpoint_cleanup(
     thread = await thread_factory.create(project=project)
     wired_runner.raise_on_delete_thread = True
 
-    response = await client.delete(
-        f"/api/projects/{project.id}/chats/{thread.thread_id}"
-    )
+    with capture_logs() as logs:
+        response = await client.delete(
+            f"/api/projects/{project.id}/chats/{thread.thread_id}"
+        )
 
     # The DB transaction is the source of truth and is already committed: a dead
     # checkpointer leaves orphaned checkpoints, never a live chat with a wiped
     # history, and never a failed request.
     assert response.status_code == 204
     assert not await _thread_exists(db_session, thread.thread_id)
+    # Silent success would hide the orphans: the failure is still recorded, as a
+    # warning rather than as a raised error. (This assertion used to live in a
+    # service-level unit test built with ``session=None``; the delete path now
+    # requires a session outright, so the degradation is only expressible here.)
+    warnings = [
+        entry
+        for entry in logs
+        if entry["log_level"] == "warning"
+        and entry["event"] == "checkpoint thread deletion failed"
+    ]
+    assert len(warnings) == 1
 
 
 async def test_delete_chat_clears_its_mcp_disables_and_servers(

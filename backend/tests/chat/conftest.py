@@ -20,11 +20,12 @@ Nothing here touches the frozen harness (``packages/testing`` or the parent
 from __future__ import annotations
 
 import asyncio
+import operator
 import uuid
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import pytest
 from app.agent.config import TitleConfig, load_prompt_fragments
@@ -41,14 +42,29 @@ from app.services.chat_title import ChatTitleGenerator
 from app.services.constants import DEFAULT_CHAT_TITLE
 from async_factory_boy.factory.sqlalchemy import AsyncSQLAlchemyFactory
 from fastapi import FastAPI
-from langchain_core.callbacks import CallbackManagerForLLMRun
+from langchain_core.callbacks import (
+    AsyncCallbackManagerForLLMRun,
+    CallbackManagerForLLMRun,
+)
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import BaseMessage
 from langchain_core.outputs import ChatResult
 from learnflow_testing.factories import bind_session
-from sqlalchemy import inspect
+from sqlalchemy.exc import MultipleResultsFound
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm.exc import ObjectDeletedError
+from sqlalchemy.sql import operators as sa_operators
+from sqlalchemy.sql.dml import Update
+from sqlalchemy.sql.elements import (
+    BinaryExpression,
+    BindParameter,
+    BooleanClauseList,
+    ColumnClause,
+    ColumnElement,
+    False_,
+    Null,
+    True_,
+)
+from sqlalchemy.sql.expression import Executable, TableClause
 
 # Repo root -> configs/, so tests can build the *real* PromptProvider (file
 # fallback, no Langfuse) and prompt fragments the title generator uses.
@@ -298,6 +314,26 @@ class FakeTraceStore:
 # ---------------------------------------------------------------------------
 
 
+@dataclass
+class ModelCallGate:
+    """Parks the fake title model inside its call until the test lets it out.
+
+    The seam for anything that happens *while a generation is running* and has
+    to be observed at a known point: shutdown cancelling a task that sits in
+    ``ainvoke``. ``on_call`` covers the same window for changes to the chat, but
+    it returns immediately — this one keeps the call open across await points.
+    """
+
+    entered: asyncio.Event = field(default_factory=asyncio.Event)
+    released: asyncio.Event = field(default_factory=asyncio.Event)
+
+    async def wait_until_in_the_call(self) -> None:
+        await self.entered.wait()
+
+    def release(self) -> None:
+        self.released.set()
+
+
 class FakeTitleModel(GenericFakeChatModel):
     """Fake title LLM that records its prompts and can fail on demand.
 
@@ -308,12 +344,18 @@ class FakeTitleModel(GenericFakeChatModel):
 
     ``on_call`` fires while the call is "in flight" — the window in which the
     chat can be deleted, blocked or renamed by someone else. It is the seam for
-    the mid-call race the decisive pre-write guard exists for.
+    the mid-call race the conditional title write exists for. ``gate`` holds the
+    call open instead of just interleaving with it.
+
+    ``_agenerate`` is overridden so the call runs on the test's own event loop:
+    the inherited default hands ``_generate`` to a thread executor, where a
+    ``gate`` could not be awaited and a cancellation could not land.
     """
 
     recorded: list[list[BaseMessage]] = []
     failure: Exception | None = None
     on_call: Callable[[], None] | None = None
+    gate: ModelCallGate | None = None
 
     def _generate(
         self,
@@ -329,8 +371,20 @@ class FakeTitleModel(GenericFakeChatModel):
             raise self.failure
         return super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
 
+    async def _agenerate(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: AsyncCallbackManagerForLLMRun | None = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        if self.gate is not None:
+            self.gate.entered.set()
+            await self.gate.released.wait()
+        return self._generate(messages, stop=stop, **kwargs)
 
-# Columns the fake session copies between its snapshot and the shared store;
+
+# Columns the fake session copies from the store into a session snapshot;
 # ``thread_id`` is the key and is set when the snapshot is built.
 _THREAD_VIEW_STATE = ("project_id", "title", "security_blocked")
 
@@ -340,23 +394,106 @@ def _copy_thread_view_state(source: ThreadView, target: ThreadView) -> None:
         setattr(target, name, getattr(source, name))
 
 
+# How the fake evaluates a WHERE criterion. ``eq``/``ne`` come from Python's
+# ``==``/``!=`` on a column, ``is_``/``is_not`` from ``Column.is_(...)`` — the
+# form ``ThreadView.security_blocked.is_(False)`` compiles to. Anything else is
+# a comparison the fake would have to guess at, so it raises instead (see
+# ``_criterion_holds``): a predicate the fake silently mis-evaluates is worse
+# than one it refuses to run.
+_COMPARISONS: dict[Any, Callable[[Any, Any], bool]] = {
+    operator.eq: lambda stored, wanted: bool(stored == wanted),
+    operator.ne: lambda stored, wanted: bool(stored != wanted),
+    sa_operators.is_: lambda stored, wanted: stored is wanted,
+    sa_operators.is_not: lambda stored, wanted: stored is not wanted,
+}
+
+
+def _column_key(column: object) -> str:
+    """The model attribute a statement's column stands for."""
+    if isinstance(column, str):
+        return column
+    if isinstance(column, ColumnClause) and isinstance(column.key, str):
+        return column.key
+    raise NotImplementedError(f"fake session cannot address column {column!r}")
+
+
+def _literal(clause: object) -> Any:
+    """The Python value a right-hand side of a criterion compares against."""
+    if isinstance(clause, BindParameter):
+        return clause.value
+    if isinstance(clause, False_):
+        return False
+    if isinstance(clause, True_):
+        return True
+    if isinstance(clause, Null):
+        return None
+    raise NotImplementedError(f"fake session cannot read literal {clause!r}")
+
+
+def _criterion_holds(criterion: ColumnElement[Any], row: ThreadView) -> bool:
+    """Evaluate one ``column <op> literal`` criterion against a stored row."""
+    if not isinstance(criterion, BinaryExpression):
+        raise NotImplementedError(f"fake session cannot evaluate {criterion!r}")
+    compare = _COMPARISONS.get(criterion.operator)
+    if compare is None:
+        raise NotImplementedError(
+            f"fake session cannot evaluate operator {criterion.operator!r}"
+        )
+    stored = getattr(row, _column_key(criterion.left))
+    return compare(stored, _literal(criterion.right))
+
+
+def _where_holds(whereclause: ColumnElement[Any] | None, row: ThreadView) -> bool:
+    if whereclause is None:
+        return True
+    if isinstance(whereclause, BooleanClauseList):
+        if whereclause.operator is not sa_operators.and_:
+            raise NotImplementedError(f"fake session cannot evaluate {whereclause!r}")
+        return all(_criterion_holds(clause, row) for clause in whereclause.clauses)
+    return _criterion_holds(whereclause, row)
+
+
+@dataclass
+class FakeResult:
+    """What ``FakeAsyncSession.execute`` hands back — the RETURNING rows."""
+
+    rows: list[tuple[Any, ...]]
+
+    def scalar_one_or_none(self) -> Any:
+        if not self.rows:
+            return None
+        if len(self.rows) > 1:
+            raise MultipleResultsFound(f"{len(self.rows)} rows returned")
+        return self.rows[0][0]
+
+
 @dataclass
 class FakeAsyncSession:
     """Async-session stand-in backed by an in-memory ``ThreadView`` store.
 
     The title task builds a *real* ``ThreadViewRepository`` over whatever the
     session factory hands it, so the fake implements exactly the operations that
-    repository uses (``get`` / ``flush`` / ``refresh``) plus ``commit`` and the
-    async-context protocol callers of ``async_sessionmaker`` rely on.
+    repository uses — ``get`` and ``execute`` — plus ``flush`` / ``commit`` and
+    the async-context protocol callers of ``async_sessionmaker`` rely on.
 
-    Sessions are isolated from the store the way a real one is isolated from the
-    database, and that isolation is the point: ``get`` hands out a per-session
-    *snapshot* of the row, ``flush`` writes the snapshot's values back to the
-    store, and ``refresh`` re-reads the store into the snapshot — raising
-    ``ObjectDeletedError`` when the row is gone, exactly as SQLAlchemy does.
-    Without it a "re-read before the write" would be indistinguishable from the
-    read the task already did, and a chat blocked, renamed or deleted *during*
-    the LLM call would be unobservable (fixer handoff on finding R3).
+    Two things make it a fake with teeth rather than a dictionary:
+
+    * ``threads`` is *the database*: committed state, shared by every session
+      the factory hands out. ``get`` returns a per-session **snapshot** taken
+      once and never re-read, which is what a session's row really is — an
+      in-flight change made elsewhere (worse: made and not yet committed, as a
+      mid-stream ``security_blocked`` is) is invisible in it. So a title write
+      decided from the snapshot cannot pass the mid-call tests; only one
+      decided at write time can.
+    * ``execute`` genuinely *interprets* the conditional UPDATE — it evaluates
+      the statement's WHERE against the store and reports the RETURNING rows.
+      Weaken the predicate in production and the fake writes the row, which is
+      exactly when the mid-call tests must go red.
+
+    There is deliberately no ``refresh``: re-reading the row before the write is
+    the approach that could not work (an uncommitted change from another session
+    stays invisible under READ COMMITTED), so an implementation that tries it
+    fails here loudly instead of finding a fake that pretends it works.
     """
 
     threads: dict[uuid.UUID, ThreadView]
@@ -380,22 +517,47 @@ class FakeAsyncSession:
         self.snapshots[pk] = snapshot
         return snapshot
 
-    async def flush(self) -> None:
-        for pk, snapshot in self.snapshots.items():
-            stored = self.threads.get(pk)
-            if stored is None:
-                continue  # row deleted meanwhile: the UPDATE matches nothing
-            _copy_thread_view_state(snapshot, stored)
+    async def execute(self, statement: Executable) -> FakeResult:
+        """Run a conditional UPDATE against the store, honouring its WHERE.
 
-    async def refresh(self, instance: object) -> None:
-        snapshot = cast(ThreadView, instance)
-        stored = self.threads.get(snapshot.thread_id)
-        if stored is None:
-            raise ObjectDeletedError(inspect(snapshot))
-        _copy_thread_view_state(stored, snapshot)
+        Only ``UPDATE thread_views`` is supported; anything else raises, so a
+        production statement the fake does not model surfaces as a failure
+        rather than as a quietly wrong result. ``_values`` / ``_returning`` are
+        SQLAlchemy internals — there is no public accessor for the SET clause of
+        a Core statement, and this fake is pinned to the project's SQLAlchemy.
+        """
+        if not isinstance(statement, Update):
+            raise NotImplementedError(f"fake session cannot run {statement!r}")
+        table = statement.table
+        if not isinstance(table, TableClause) or table.name != ThreadView.__tablename__:
+            raise NotImplementedError(f"fake session cannot run {statement!r}")
+
+        assignments = {
+            _column_key(column): _literal(value)
+            for column, value in (statement._values or {}).items()
+        }
+        matched = [
+            row
+            for row in self.threads.values()
+            if _where_holds(statement.whereclause, row)
+        ]
+        for row in matched:
+            for name, value in assignments.items():
+                setattr(row, name, value)
+        returning = [_column_key(column) for column in statement._returning]
+        return FakeResult(
+            [tuple(getattr(row, key) for key in returning) for row in matched]
+        )
+
+    async def flush(self) -> None:
+        """No-op: ``execute`` already wrote through to the store.
+
+        Nothing in the title path mutates the snapshot, so there is no pending
+        ORM state to push — an implementation that writes by assigning to the
+        snapshot leaves the store untouched and fails on the stored title.
+        """
 
     async def commit(self) -> None:
-        await self.flush()
         self.commits += 1
 
 
@@ -464,6 +626,17 @@ class FakeTitleGenerator:
         for handle in self.handles:
             if not handle.done():
                 handle.set_result(self.title)
+
+    def cancel(self) -> None:
+        """Cancel every handle still in flight — "shutdown got there first".
+
+        The real generator cancels its whole registry on application shutdown,
+        which lands on a handle a running stream is still holding: the handle is
+        ``done()`` but carries a ``CancelledError`` instead of a title.
+        """
+        for handle in self.handles:
+            if not handle.done():
+                handle.cancel()
 
 
 class ThreadViewFactory(AsyncSQLAlchemyFactory):

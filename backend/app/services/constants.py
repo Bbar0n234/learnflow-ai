@@ -9,9 +9,12 @@ architecture contract (backend.md § Правила вызовов); the reverse
 from __future__ import annotations
 
 DEFAULT_CHAT_TITLE = "Новый чат"
-"""Placeholder title the server sets on chat creation. Auto-title generation
-(T1.4) looks for chats whose title still equals this exact value before
-overwriting it, so it must never collide with a user- or LLM-chosen title."""
+"""Placeholder title the server sets on chat creation.
+
+The auto-title trigger is an exact match against this value — nothing keeps a
+user or the title model from choosing the same string, and renaming a chat to
+it re-arms generation for the next message (design-brief § Триггер accepts that
+edge case as harmless)."""
 
 MAX_TITLE_LENGTH = 100
 """Shared length limit for chat/project titles: ``ChatUpdate.title``,

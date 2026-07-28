@@ -631,6 +631,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             await app.state.security_publisher_task
         logger.info("security event publisher stopped")
 
+    # In-flight auto-title tasks hold sessions from the same engine and can be
+    # parked in the title LLM call for LLM_TITLE_TIMEOUT_SECONDS, so they are
+    # unwound here — before engine.dispose() below, same pattern as the
+    # publisher task above (conventions/api.md § Владение состоянием).
+    await app.state.chat_title_generator.shutdown()
+
     shutdown_langfuse()
     if app.state.redis:
         await app.state.redis.aclose()

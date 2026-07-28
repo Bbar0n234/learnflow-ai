@@ -49,6 +49,19 @@ class ChatService:
         self._session = session
         self._title_generator = title_generator
 
+    def _require_session(self, operation: str) -> AsyncSession:
+        """The session for an operation that cannot be expressed without one.
+
+        ``session`` is optional on the constructor for the sociable-unit test
+        form (fake repos, no DB), and most methods degrade to "the caller's
+        session commits later". Writes whose effect must be complete before
+        the method returns cannot: raising here keeps a missing session a
+        loud wiring error instead of a silently skipped half of the work.
+        """
+        if self._session is None:
+            raise RuntimeError(f"ChatService.{operation} requires a DB session")
+        return self._session
+
     async def create_chat(self, *, project_id: uuid.UUID) -> ThreadView:
         thread_view = await self._thread_view_repo.create(
             project_id=project_id, title=DEFAULT_CHAT_TITLE
@@ -72,6 +85,13 @@ class ChatService:
         if thread_view is None:
             raise EntityNotFoundError("Chat", thread_id)
         updated = await self._thread_view_repo.update(thread_view, title=title)
+        # Commit before returning, same rule as create_chat above
+        # (conventions/db.md § DB-сессии и commit): the client refetches the
+        # chat lists straight off this response, and those GETs run in their
+        # own sessions — a commit deferred to the end of the response cycle
+        # lets them read the old title back.
+        if self._session is not None:
+            await self._session.commit()
         logger.info("chat renamed", thread_id=str(thread_id))
         return updated
 
@@ -98,16 +118,19 @@ class ChatService:
         and can't join this transaction — if it fails, the worst case is
         orphaned checkpoints (the same class of garbage that already exists
         today), never a "deleted chat with intact history" inconsistency.
+
+        The cascade is unconditional, so a session is required: skipping the
+        polymorphic-disables cleanup would leave dangling scope rows behind a
+        log line that reads like success. Existence is resolved first — the
+        not-found contract the route turns into an idempotent 204 outranks a
+        wiring error.
         """
         thread_view = await self.get_thread_view(thread_id)
+        session = self._require_session("delete_chat")
 
-        if self._session is not None:
-            await MCPServerRepository(self._session).cleanup_disables_for_thread(
-                thread_id
-            )
+        await MCPServerRepository(session).cleanup_disables_for_thread(thread_id)
         await self._thread_view_repo.delete(thread_view)
-        if self._session is not None:
-            await self._session.commit()
+        await session.commit()
         logger.info("chat deleted", thread_id=str(thread_id))
 
         try:
@@ -215,16 +238,17 @@ class ChatService:
         trace_id = ""
 
         # Auto-title (design-brief § Доставка title): trigger is "title still
-        # the placeholder". The generation task is started on the first agent
-        # event that clears the security guard — never on a first event that
-        # is itself security_block (blocked input never reaches the title
-        # LLM). ``title_task`` is polled between agent events below; a ready,
-        # non-empty result is forwarded as a title_updated event exactly once
-        # per run, then the handle is dropped — never after a terminal event
-        # (see the poll site).
-        should_generate_title = (
-            self._title_generator is not None
-            and thread_view.title == DEFAULT_CHAT_TITLE
+        # the placeholder". Binding the generator to a local (None when this
+        # run must not generate) is what makes the trigger and the call site
+        # one and the same condition. The generation task is started on the
+        # first agent event that clears the security guard — never on a first
+        # event that is itself security_block (blocked input never reaches the
+        # title LLM). ``title_task`` is polled between agent events below; a
+        # ready, non-empty result is forwarded as a title_updated event exactly
+        # once per run, then the handle is dropped — never after a terminal
+        # event (see the poll site).
+        title_generator = (
+            self._title_generator if thread_view.title == DEFAULT_CHAT_TITLE else None
         )
         guard_checked = False
         title_task: asyncio.Task[str | None] | None = None
@@ -244,13 +268,10 @@ class ChatService:
             if event.type in ("error", "security_block"):
                 had_error = True
 
-            if should_generate_title and not guard_checked:
+            if title_generator is not None and not guard_checked:
                 guard_checked = True
                 if event.type != "security_block":
-                    assert self._title_generator is not None
-                    title_task = self._title_generator.generate_title(
-                        thread_id, content
-                    )
+                    title_task = title_generator.generate_title(thread_id, content)
 
             yield event
 
@@ -264,7 +285,13 @@ class ChatService:
                 continue
 
             if title_task is not None and title_task.done():
-                title = title_task.result()
+                # A cancelled task carries no title, only a CancelledError that
+                # ``.result()`` would raise straight into this SSE generator
+                # (``ChatTitleGenerator._run``'s barrier catches Exception, and
+                # CancelledError is a BaseException). Shutdown cancels the whole
+                # registry, so the run losing its title here is exactly the
+                # "generation did not make it" case — treat it as such.
+                title = None if title_task.cancelled() else title_task.result()
                 title_task = None
                 if title:
                     yield StreamEvent(type="title_updated", data={"title": title})

@@ -584,5 +584,8 @@ Main app реализует: иерархию `AppError` в `services/exceptions
 - `LANGFUSE_PROMPT_LABEL` — label для фетча промптов (default: `development`)
 - `LANGFUSE_PROMPT_CACHE_TTL` — TTL кэша промптов в секундах (default: `60`)
 - `CANARY_SECRET` — HMAC secret для canary token (→ [architecture.md](../security/architecture.md))
+- `LLM_DEFENSE_ENABLED` — операционный тумблер inline LLM-защиты (guard + security-часть промпта); default `true`, в проде `false` (→ [architecture.md](../security/architecture.md))
+- `SIEM_ENABLED` — операционный тумблер эмиссии security-событий в Redis Stream; default `true`, в проде `false` (→ [siem-service.md](siem-service.md#kill-switch))
+- `CLIENT_IP_SOURCE` / `CLIENT_IP_XFF_HOPS` — источник клиентского IP (`socket` / `x-real-ip` / `x-forwarded-for`) и отступ справа для XFF; default `socket`, в проде `x-real-ip` (→ [conventions.md](conventions.md#logging-conventions), [setup/production.md](setup/production.md))
 
 Agent-специфичная конфигурация (модель, контекст, промпт, summarization, MCP) — отдельный YAML-файл, не env vars. Prompt management — [prompt-management.md](prompt-management.md).

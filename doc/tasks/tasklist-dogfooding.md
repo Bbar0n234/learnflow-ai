@@ -95,6 +95,17 @@
 - **P2** `X-Forwarded-For` доверяется безусловно — спуфинг IP: `backend/app/main.py` (request_id middleware) и `backend/app/api/routes/auth.py` (`_get_client_ip`) берут первый IP из XFF без проверки доверенного прокси. Следствия: обход per-IP rate-лимитов (подтверждено прогонами feat-002/feat-004), подмена IP в логах и SIEM-событиях. Решение — по факту топологии прода (читается из deploy-конфигов в рамках итерации): trusted-hops (N-й IP справа), `uvicorn --proxy-headers --forwarded-allow-ips`, конфиг-флаг `TRUST_PROXY_HEADERS` *(Backend, Auth, Security, Infra)*
 - **P3** Прод-образы тащат dev-зависимости — `uv sync --all-packages` в `backend/Dockerfile` и `services/siem-service/Dockerfile` ставит dev-группу, включая test-harness (`learnflow-testing` → `testcontainers`, `pytest`, `factory-boy`). Почистить через `--no-dev`, проверив что entrypoint (alembic + uvicorn) не нуждается в dev-deps *(Infra)*
 
+#### Документация
+
+- [design-brief.md](iterations/dogfooding/chore-001-prod-closing/design-brief.md) — контекст решений, партиция треков
+- Ревью: [review-a.md](iterations/dogfooding/chore-001-prod-closing/review-a.md), [review-b.md](iterations/dogfooding/chore-001-prod-closing/review-b.md)
+- **T1 клиентский IP:** [plan](iterations/dogfooding/chore-001-prod-closing/tracks/T1/plan.md), [summary](iterations/dogfooding/chore-001-prod-closing/tracks/T1/summary.md), [test-cases](iterations/dogfooding/chore-001-prod-closing/tracks/T1/test-cases.md)
+- **T2 прод-образы:** [plan](iterations/dogfooding/chore-001-prod-closing/tracks/T2/plan.md), [summary](iterations/dogfooding/chore-001-prod-closing/tracks/T2/summary.md), [test-cases](iterations/dogfooding/chore-001-prod-closing/tracks/T2/test-cases.md)
+- **T3 kill-switch LLM-защиты:** [plan](iterations/dogfooding/chore-001-prod-closing/tracks/T3/plan.md), [summary](iterations/dogfooding/chore-001-prod-closing/tracks/T3/summary.md), [test-cases](iterations/dogfooding/chore-001-prod-closing/tracks/T3/test-cases.md)
+- **T4 SIEM kill-switch:** [plan](iterations/dogfooding/chore-001-prod-closing/tracks/T4/plan.md), [summary](iterations/dogfooding/chore-001-prod-closing/tracks/T4/summary.md), [test-cases](iterations/dogfooding/chore-001-prod-closing/tracks/T4/test-cases.md)
+- Новый: [tech/setup/production.md](../tech/setup/production.md) — nginx-периметр, runbook; [tech/adr/ADR-029](../tech/adr/ADR-029-operational-kill-switches.md) — принцип операционных kill-switch'ей
+- Актуализированы: [security/architecture.md](../security/architecture.md), [tech/siem-service.md](../tech/siem-service.md), [tech/agent-runtime.md](../tech/agent-runtime.md), [tech/streaming.md](../tech/streaming.md), [tech/observability.md](../tech/observability.md), [tech/backend.md](../tech/backend.md), [tech/auth.md](../tech/auth.md), [tech/conventions.md](../tech/conventions.md), [tech/conventions/agent.md](../tech/conventions/agent.md), [tech/adr/ADR-017](../tech/adr/ADR-017-prompt-injection-defense.md)
+
 #### Завершение итерации
 
 Смоук полного стека с выключенными тумблерами → merge `develop` → `main` (PR) → автодеплой → проверка на проде.

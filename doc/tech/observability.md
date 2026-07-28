@@ -108,7 +108,7 @@ Feedback — подресурс чата: `PUT | DELETE /projects/{id}/chats/{ci
 
 ## Security Observability: Langfuse Tracing
 
-Мониторинг security incidents и detector-действий через Langfuse. Архитектура защиты — [architecture.md](../security/architecture.md).
+Мониторинг security incidents и detector-действий через Langfuse. Архитектура защиты — [architecture.md](../security/architecture.md). Вся эта секция описывает наблюдаемость `SecurityGuard` — она существует только при `LLM_DEFENSE_ENABLED=true`. При выключенном тумблере guard не строится: score `security_verdict` не создаётся ни для одного trace, guardrail observation'ов `guard-<checkpoint>` нет, cost tracking guard-модели не идёт — не деградация, а следствие отсутствующего guard'а.
 
 **Score:** `security_verdict` (CATEGORICAL: `CLEAN` / `SUSPICIOUS` / `INJECTION`) на уровне trace. Создаётся при старте через `ensure_security_score_config()`. Применяется и к agent-trace (runtime checkpoints), и к top-level traces `security.<checkpoint>` (add-time checkpoints в service-слое).
 

@@ -2,7 +2,9 @@
 
 Защита AI-агента от prompt injection и от утечки внутренней реализации в выходные данные. Восемь точек проверки покрывают входы, выходы и точки записи: пользовательский ввод, результаты инструментов, аргументы tool-вызовов, финальный ответ, регистрация MCP-серверов, запись custom instructions, прямая запись Knowledge Sphere через REST, прямая запись Skill Context через REST.
 
-Логика защиты живёт в Agent Layer и в service-методах, выполняющих запись. API Layer пробрасывает события: `security_block` через SSE, HTTP 403 на заблокированном thread'е, HTTP 422 на отклонённой записи. Обоснование — [ADR-017](../tech/adr/ADR-017-prompt-injection-defense.md) (Sec 1.0: sync guard, fail-open), [ADR-022](../tech/adr/ADR-022-protected-disclosable-boundary.md) (confidentiality boundary), [ADR-023](../tech/adr/ADR-023-two-level-detection.md) (detection layers), [ADR-024](../tech/adr/ADR-024-streaming-security-guard.md) (streaming guard); модель угроз — [threat-model.md](threat-model.md).
+Логика защиты живёт в Agent Layer и в service-методах, выполняющих запись. API Layer пробрасывает события: `security_block` через SSE, HTTP 403 на заблокированном thread'е, HTTP 422 на отклонённой записи. Обоснование — [ADR-017](../tech/adr/ADR-017-prompt-injection-defense.md) (Sec 1.0: sync guard, fail-open), [ADR-022](../tech/adr/ADR-022-protected-disclosable-boundary.md) (confidentiality boundary), [ADR-023](../tech/adr/ADR-023-two-level-detection.md) (detection layers), [ADR-024](../tech/adr/ADR-024-streaming-security-guard.md) (streaming guard), [ADR-029](../tech/adr/ADR-029-operational-kill-switches.md) (`LLM_DEFENSE_ENABLED` как операционный тумблер); модель угроз — [threat-model.md](threat-model.md).
+
+Вся защита, описанная на этой странице, — под операционным тумблером `LLM_DEFENSE_ENABLED` (дефолт `true`, в проде `false`). При выключении `SecurityGuard` не строится (`app.state.security_guard = None`) и не эмитит ни одного checkpoint'а из Coverage map ниже; hardening-преамбула, canary и обёртки границы доверия не попадают в system prompt. Auth, rate limiting, RBAC, SSRF- и схема-валидация MCP тумблером не затрагиваются — это обычная app-security, а не предмет этого документа. Треды, уже заблокированные (`security_blocked=true`), остаются заблокированными и при выключенном тумблере — блокировка исторический факт, а не runtime-решение.
 
 ## Принципы
 
@@ -62,7 +64,7 @@ Knowledge Sphere через agent-tool попадает в `tool_call_arg`; че
 
 ### Canary
 
-HMAC-токен от `(CANARY_SECRET, thread_id)`. Embedded в system prompt при composition; substring match на любом checkpoint'е → INJECTION. Появление токена в data — признак скомпрометированного потока.
+HMAC-токен от `(CANARY_SECRET, thread_id)`. Embedded в system prompt при composition; substring match на любом checkpoint'е → INJECTION. Появление токена в data — признак скомпрометированного потока. Токен не генерируется при `LLM_DEFENSE_ENABLED=false` (guard не построен — детектору нечего проверять).
 
 ### Unicode
 
@@ -86,7 +88,7 @@ Verdict: CLEAN / SUSPICIOUS / INJECTION. SUSPICIOUS пока только лог
 
 ## Trust boundaries в system prompt
 
-System prompt собирается секционно (Python, не Jinja-template). Структура:
+System prompt собирается секционно (Python, не Jinja-template). Структура (текст `<system_instructions>` и обёртки границы доверия живут в `configs/prompt_fragments.yaml`; вырезаются целиком при `LLM_DEFENSE_ENABLED=false` — секция становится пустой, остальные секции не меняются):
 
 ```
 <system_instructions> ... </system_instructions>
@@ -197,10 +199,10 @@ graph LR
 - Alerts пишутся в `siem_alerts` с status='new'
 
 **Admin Operations (SIEM REST API):**
-- GET `/security/events` — список всех events с фильтрами и пагинацией
-- GET `/security/alerts` — список alerts (фильтры: severity, status)
-- PATCH `/security/alerts/:id` — change status (new → acknowledged → resolved) → emit `siem.alert.acknowledged` / `siem.alert.resolved` event
-- GET/POST/PATCH/DELETE `/security/rules` — CRUD rules → emit `siem.rule.*` meta-events
+- GET `/api/security/events` — список всех events с фильтрами и пагинацией
+- GET `/api/security/alerts` — список alerts (фильтры: severity, status)
+- PATCH `/api/security/alerts/:id` — change status (new → acknowledged → resolved) → emit `siem.alert.acknowledged` / `siem.alert.resolved` event
+- GET/POST/PATCH/DELETE `/api/security/rules` — CRUD rules → emit `siem.rule.*` meta-events
 
 **Baseline Rules:**
 1. `brute_force_auth`: 5+ auth.login.failed in 60s, group by ip, severity=critical
@@ -227,14 +229,15 @@ graph LR
 |------|-----------|
 | `configs/security.yaml` | Per-checkpoint config (description, specifics, classifier_enabled), пороги детекторов, llm_classifier (модель, retries, reasoning), user-facing messages |
 | `configs/pricing.yaml` | Pricing моделей, включая guard-модель (shared с agent для cost tracking в Langfuse) |
-| `configs/prompt_fragments.yaml` | XML-обёртки `<user_message>`, `<tool_output>`, `<custom_instructions>` и заголовки секций |
+| `configs/prompt_fragments.yaml` | Hardening-преамбула `<system_instructions>`, XML-обёртки `<user_message>`, `<tool_output>`, `<custom_instructions>` и заголовки секций — все security-ключи гасятся разом при `LLM_DEFENSE_ENABLED=false` |
 | `configs/prompts.yaml` | Реестр промптов с указанием source-файла |
 | `configs/error_messages.yaml` | Нормализованные сообщения SSE error events и заглушки |
 | `configs/prompts/security-classifier.txt` | Composite classifier prompt (seed + fallback) |
 
 | Env | Назначение |
 |-----|-----------|
-| `CANARY_SECRET` | HMAC-secret для canary-токена; пусто → canary отключён + warning |
+| `LLM_DEFENSE_ENABLED` | Операционный тумблер: `false` выключает весь inline-defense разом — `SecurityGuard` (детекторы + LLM classifier) и security-часть композиции промпта (canary, hardening-преамбула, обёртки границы доверия). Читается один раз в lifespan, переключение требует рестарта контейнера. Дефолт `true`; в проде — `false` |
+| `CANARY_SECRET` | HMAC-secret для canary-токена; пусто при включённой защите → canary отключён + warning. При `LLM_DEFENSE_ENABLED=false` секрет не используется вовсе, warning не эмитится |
 
 ## Связанные документы
 
@@ -243,6 +246,7 @@ graph LR
 - [ADR-022](../tech/adr/ADR-022-protected-disclosable-boundary.md) — PROTECTED / DISCLOSABLE boundary, MCP trust hierarchy
 - [ADR-023](../tech/adr/ADR-023-two-level-detection.md) — deterministic detectors + LLM classifier, composite prompt
 - [ADR-024](../tech/adr/ADR-024-streaming-security-guard.md) — streaming guard, block mechanics, replace-by-id
+- [ADR-029](../tech/adr/ADR-029-operational-kill-switches.md) — `LLM_DEFENSE_ENABLED` как операционный тумблер: почему один флаг на подсистему, а не per-checkpoint env-переменные
 - [ADR-018](../tech/adr/ADR-018-siem-service-topology.md) — SIEM topology: separate service, identity, data isolation
 - [ADR-020](../tech/adr/ADR-020-security-event-contract.md) — event contract: vocabulary, identifiers, strictness
 - [ADR-028](../tech/adr/ADR-028-product-subagents.md) — субагенты: subagent-as-tool, переиспользование границы вместо нового периметра

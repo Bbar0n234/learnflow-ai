@@ -20,3 +20,20 @@
  */
 export const SHOW_GROUP_B_STUBS =
   import.meta.env.DEV && import.meta.env.VITE_SHOW_GROUP_B_STUBS === "true";
+
+/**
+ * SIEM kill-switch: включает роут `/security` и кнопку «Безопасность» в сайдбаре.
+ *
+ * Build-time флаг — значение вшивается в бандл на этапе сборки (`vite build`),
+ * смена требует пересборки, а не рестарта процесса. В docker-сборке значение
+ * приезжает из бэкендового `SIEM_ENABLED` через `build.args` в docker-compose.
+ *
+ * Семантика «всё, что не литеральное `"false"`, означает включено» — дефолт
+ * `true`: сборка без build-args (`make dev-fe`, голый `npm run build`, `vite dev`)
+ * ведёт себя как сейчас.
+ *
+ * В отличие от `SHOW_GROUP_B_STUBS`, флаг не привязан к `import.meta.env.DEV` —
+ * он обязан быть выставляемым именно в прод-сборке.
+ */
+export const SIEM_ENABLED =
+  (import.meta.env.VITE_SIEM_ENABLED ?? "true") !== "false";

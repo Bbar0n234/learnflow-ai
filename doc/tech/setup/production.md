@@ -94,7 +94,7 @@ server {
 - **`proxy_set_header X-Real-IP $remote_addr`** в `location /` — это **замена** заголовка целиком, не дописывание. Присланный клиентом `X-Real-IP` уничтожается nginx до того, как запрос дойдёт до приложения; в значении, которое видит `get_client_ip()`, нет ни одного байта, подконтрольного клиенту.
 - **`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for`** — nginx дописывает `$remote_addr` в конец существующего значения. Заголовок остаётся в конфиге для форензики и ручной отладки, но кодом приложения не читается ни в одном режиме, кроме явного `CLIENT_IP_SOURCE=x-forwarded-for` (см. ниже).
 - **`location = /health` не ставит ни одного `proxy_set_header`.** Health-запросы, прошедшие через nginx, приходят без `X-Real-IP` и без `X-Forwarded-For` — факт, а не недосмотр: `get_client_ip()` для health-пути IP не резолвит и WARNING не пишет вообще (см. `app.infra.client_ip.is_health_path`), поэтому отсутствие заголовков здесь безопасно.
-- **`location /siem/` срезает префикс**: `proxy_pass http://127.0.0.1:8001/` с завершающим слэшем переписывает `/siem/<путь>` в `/<путь>` на upstream. Факт с VM: при выключенном SIEM-сервисе (`COMPOSE_PROFILES` без `siem`, upstream не поднят) этот location отдаёт `502 Bad Gateway` — фиксируется здесь как наблюдаемое поведение, без рекомендации, что с этим делать.
+- **`location /siem/` срезает префикс**: `proxy_pass http://127.0.0.1:8001/` с завершающим слэшем переписывает `/siem/<путь>` в `/<путь>` на upstream. Факт с VM: при выключенном SIEM-сервисе (`COMPOSE_PROFILES` без `siem`, upstream не поднят) этот location отдаёт `502 Bad Gateway` — фиксируется здесь как наблюдаемое поведение; рекомендация, что с этим делать, — в [§ SIEM](#siem) runbook'а ниже.
 
 **Дрейф `sites-available` vs `sites-enabled`.** На прод-VM `/etc/nginx/sites-available/learnflow` расходится с боевым `sites-enabled/learnflow` — в `available` лежит устаревшая топология (фронтенд на `:3000`, префикс `/api/`, `location /api/health`). Это повторный дрейф: та же пара файлов уже расходилась и была синхронизирована вручную ранее (зафиксировано в `doc/tasks/iterations/production/chore-001-ci-cd/summary.md`, находка 5), и `sites-enabled/learnflow` уже тогда оказался обычным файлом, а не симлинком на `sites-available`. Поскольку симлинк не восстановлен, конфиги продолжают жить независимо и снова разошлись. Ручной шаг по приведению в порядок — в runbook ниже.
 
@@ -137,8 +137,37 @@ server {
    `nginx -t` разбирает конфиг и не даёт применить сломанный (при ошибке `reload` не выполнится из-за `&&`, а nginx продолжит работать на старом конфиге). Именно `reload`, а не `restart`: reload поднимает новые worker'ы и даёт старым дожить свои соединения, restart рвёт живые запросы, включая открытые SSE-стримы. Если `nginx -t` ругается — восстановить конфиг из резервной копии (`cp /root/learnflow.nginx.bak /etc/nginx/sites-available/learnflow`) и разобраться до применения.
 5. После деплоя (`docker compose up -d` из `deploy.yml`) проверить, что переменная действительно попала в контейнер: `docker compose exec app env | grep CLIENT_IP_SOURCE` должен показать `x-real-ip`.
 
+### SIEM
+
+Выполнить на прод-VM до merge PR, вводящего SIEM kill-switch, в `main`:
+
+1. Открыть боевой `.env` в `~/learnflow-ai/` (файл вне git, правится руками) и дописать две строки: `SIEM_ENABLED=false` и `COMPOSE_PROFILES=` (пустое значение). Обе строки нужны: первая гасит эмиссию security-событий в Redis Stream из процесса `app`, вторая — SIEM-контейнеры; вывести вторую из первой compose не умеет, это две независимые переменные.
+
+   **Писать именно `false` в нижнем регистре.** Значение уходит во фронтовый build-arg `VITE_SIEM_ENABLED` сырым passthrough, а фронт считает выключением только литеральное `false`: `0` или `False` бэкенд как falsy примет и эмиссию погасит, но кнопка «Безопасность» и роут `/security` останутся в бандле — и упрутся в `502` на `/siem/`.
+
+2. Остановить уже запущенные SIEM-контейнеры явно и только их:
+
+   ```bash
+   docker compose --profile siem down siem-service siem-db
+   ```
+
+   Важны обе части команды. `--profile siem` нужен, чтобы compose вообще увидел эти сервисы: после перевода их в профиль он перестаёт ими управлять, а `restart: unless-stopped` оставляет уже запущенные контейнеры работать — голый `docker compose down` их не заметит. Список сервисов (`siem-service siem-db`) нужен, чтобы `down` не снёс всё остальное: compose берёт набор сервисов из конфига после фильтрации по профилям, поэтому без явного списка `down` останавливает и удаляет **все сервисы активного набора** — с `--profile siem` это `app`, `db`, `redis` плюс оба SIEM-сервиса, и прод лежит от этого шага до `up -d` на деплое. Команда с явными `siem-service siem-db` — не то же самое, что голый `--profile siem down`; разница здесь принципиальна, не стилистическая.
+3. UI-флаг «Безопасность» вшивается в бандл при сборке, а не читается в рантайме: после merge `deploy.yml` выполняет `docker compose build`, и `VITE_SIEM_ENABLED` возьмётся из уже подготовленного `SIEM_ENABLED=false` через `build.args`. Если `.env` не был подготовлен до merge — потребуется отдельный `docker compose build && docker compose up -d` после правки, обычного рестарта недостаточно.
+4. Проверка после деплоя:
+   - `docker compose ps` не показывает `siem-service`/`siem-db`, но показывает живые `app`, `db`, `redis` — шаг 2 их не трогал, список сервисов в команде на это и рассчитан.
+   - `docker compose exec app env | grep SIEM_ENABLED` → `false`.
+   - в логах приложения при старте есть строка `siem event emission disabled by flag`.
+   - в UI кнопка «Безопасность» отсутствует (флаг вшит при сборке шагом 3).
+5. Обратное включение стоит двух строк в `.env` (`SIEM_ENABLED=true`, `COMPOSE_PROFILES=siem`) плюс `docker compose build && docker compose up -d`. Данные не теряются: volume `siem_pgdata` сохраняется, правила корреляции остаются в БД как есть.
+
+Два факта, зафиксированных здесь как наблюдаемое поведение, а не как задачи на исправление:
+
+- **Рассинхрон `SIEM_ENABLED=true` при пустом `COMPOSE_PROFILES` безобиден.** Если строка 1 руками дописана, а строка `COMPOSE_PROFILES=` — нет (или наоборот), эмиссия идёт в Redis Stream без консьюмера (siem-service не поднят). Рост буфера ограничен `MAXLEN ~100_000` (`transport.py:28`) — это буфер, а не утечка. Чинить нечего; окно рассинхрона ограничено периодом до merge PR, описанным выше.
+- **`location /siem/` в nginx после выключения SIEM отдаёт `502 Bad Gateway`** (upstream не поднят, см. § Референс nginx-конфига выше). Рекомендация — оставить `location` как есть, ничего не удалять: маршрут admin-only, UI на него больше не ссылается при выключенном флаге, а удаление строки удорожило бы обратное включение и разошлось бы с референсной копией конфига в этом же документе.
+
 ## Related docs
 
 - [tech/conventions.md](../conventions.md) § Logging Conventions → Security Event Logging — правило единственной точки чтения клиентского IP.
 - [tech/security-events.md](../security-events.md) — поле `ip` в каталоге security-событий.
+- [tech/siem-service.md](../siem-service.md) — устройство SIEM-подсистемы, которую гасит § SIEM выше.
 - [tech/setup/codex-cloud.md](codex-cloud.md) — соседний setup-мануал, cloud-окружение.

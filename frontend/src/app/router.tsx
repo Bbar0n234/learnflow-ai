@@ -11,6 +11,7 @@ import { ArtifactView } from "@/pages/artifact";
 import { SettingsPage } from "@/pages/user-settings";
 import { ProjectSettingsPage } from "@/pages/project-settings";
 import { SecurityRouteGuard } from "@/pages/security";
+import { SIEM_ENABLED } from "@/shared/config/feature-flags";
 
 // Lazy load Security page
 const SecurityPage = lazy(() =>
@@ -31,16 +32,18 @@ export function AppRoutes() {
       <Route element={<AppLayout />}>
         <Route index element={<WelcomePage />} />
         <Route path="settings" element={<SettingsPage />} />
-        <Route
-          path="security"
-          element={
-            <SecurityRouteGuard>
-              <Suspense fallback={<LoadingFallback />}>
-                <SecurityPage />
-              </Suspense>
-            </SecurityRouteGuard>
-          }
-        />
+        {SIEM_ENABLED && (
+          <Route
+            path="security"
+            element={
+              <SecurityRouteGuard>
+                <Suspense fallback={<LoadingFallback />}>
+                  <SecurityPage />
+                </Suspense>
+              </SecurityRouteGuard>
+            }
+          />
+        )}
         <Route path="projects/:id" element={<ProjectLayout />}>
           <Route index element={<ChatList />} />
           <Route path="chats/:cid" element={<ChatView />} />

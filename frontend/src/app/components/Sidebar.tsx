@@ -22,6 +22,7 @@ import { useUIStore } from "@/stores/ui-store";
 import { useThemeStore } from "@/stores/theme-store";
 import { useRecentChats } from "@/shared/api/chats";
 import { useCreateChat } from "@/shared/api/chats";
+import { SIEM_ENABLED } from "@/shared/config/feature-flags";
 import { ProjectList } from "./ProjectList";
 import { CreateProjectModal } from "./CreateProjectModal";
 
@@ -93,7 +94,7 @@ export function Sidebar() {
           <Plus className="mr-2 h-4 w-4" />
           Новый проект
         </Button>
-        {isAdmin && (
+        {SIEM_ENABLED && isAdmin && (
           <Button
             variant="ghost"
             size="sm"

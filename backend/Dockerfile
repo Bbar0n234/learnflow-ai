@@ -1,6 +1,8 @@
 # Stage 1: Build frontend
 FROM node:22-alpine AS frontend-build
 WORKDIR /build
+ARG VITE_SIEM_ENABLED=true
+ENV VITE_SIEM_ENABLED=$VITE_SIEM_ENABLED
 COPY frontend/package*.json ./
 RUN npm ci
 COPY frontend/ ./

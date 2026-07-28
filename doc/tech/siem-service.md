@@ -146,14 +146,14 @@ stateDiagram-v2
 
 | Метод | Путь | Назначение |
 |-------|------|-----------|
-| GET | `/security/events` | список событий; фильтры event_type, severity, период; пагинация |
-| GET | `/security/alerts` | список алертов; фильтры severity, status; пагинация |
-| GET | `/security/alerts/{id}` | детали алерта |
-| PATCH | `/security/alerts/{id}` | смена статуса (acknowledge/resolve) → meta-событие |
-| GET | `/security/rules` | список правил |
-| POST | `/security/rules` | создание правила → meta-событие |
-| PATCH | `/security/rules/{id}` | изменение правила → meta-событие |
-| DELETE | `/security/rules/{id}` | удаление правила → meta-событие |
+| GET | `/api/security/events` | список событий; фильтры event_type, severity, период; пагинация |
+| GET | `/api/security/alerts` | список алертов; фильтры severity, status; пагинация |
+| GET | `/api/security/alerts/{id}` | детали алерта |
+| PATCH | `/api/security/alerts/{id}` | смена статуса (acknowledge/resolve) → meta-событие |
+| GET | `/api/security/rules` | список правил |
+| POST | `/api/security/rules` | создание правила → meta-событие |
+| PATCH | `/api/security/rules/{id}` | изменение правила → meta-событие |
+| DELETE | `/api/security/rules/{id}` | удаление правила → meta-событие |
 
 Добавление нового правила корреляции — это INSERT через REST, без деплоя; расширение набора event_type — расширение Literal-vocabulary в `siem-contracts`.
 

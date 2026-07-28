@@ -18,6 +18,7 @@ from typing import Any
 import pytest
 from app.agent.checkpoint_history import CheckpointHistory
 from app.agent.security.types import Checkpoint, DetectionLayer, SecurityMessages
+from app.agent.text_limits import TRUNCATION_LIMIT
 from app.services.agent_runner import ReasoningPart, TextPart, ToolCallPart
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
@@ -129,6 +130,199 @@ async def test_history_swaps_redacted_assistant_content() -> None:
     assert assistant_message.redacted is True
     assert assistant_message.content == SecurityMessages().redacted_user_facing
     assert assistant_message.parts == [
+        TextPart(content=SecurityMessages().redacted_user_facing)
+    ]
+
+
+@pytest.mark.unit
+async def test_history_keeps_several_tool_calls_of_one_turn_in_one_message() -> None:
+    # Rendering rule (streaming.md § «История: typed parts»): one turn is one
+    # assistant message whatever happened inside it, and the parts keep the
+    # order the agent produced them in — that is what makes history render
+    # identically to the live feed.
+    messages = [
+        HumanMessage(content="research this", id="h1"),
+        AIMessage(
+            content="",
+            id="a1",
+            tool_calls=[
+                {"name": "search", "args": {"q": "a"}, "id": "c1"},
+                {"name": "scrape", "args": {"url": "b"}, "id": "c2"},
+            ],
+        ),
+        ToolMessage(content="hits", id="t1", tool_call_id="c1", name="search"),
+        ToolMessage(content="page", id="t2", tool_call_id="c2", name="scrape"),
+        AIMessage(content="summary", id="a2"),
+    ]
+
+    result = await _history(messages).history(THREAD)
+
+    assert [m.role for m in result] == ["user", "assistant"]
+    assistant = result[1]
+    assert assistant.id == "a2"
+    assert [p.type for p in assistant.parts] == ["tool_call", "tool_call", "text"]
+    assert [
+        (p.call_id, p.tool, p.args, p.result_preview)
+        for p in assistant.parts
+        if isinstance(p, ToolCallPart)
+    ] == [
+        ("c1", "search", '{"q": "a"}', "hits"),
+        ("c2", "scrape", '{"url": "b"}', "page"),
+    ]
+
+
+@pytest.mark.unit
+async def test_history_reports_a_failed_tool_call_with_error_status() -> None:
+    messages = [
+        HumanMessage(content="q", id="h1"),
+        AIMessage(
+            content="",
+            id="a1",
+            tool_calls=[{"name": "search", "args": {}, "id": "c1"}],
+        ),
+        ToolMessage(
+            content="upstream refused",
+            id="t1",
+            tool_call_id="c1",
+            name="search",
+            status="error",
+        ),
+        AIMessage(content="sorry", id="a2"),
+    ]
+
+    result = await _history(messages).history(THREAD)
+
+    tool_part = next(p for p in result[1].parts if isinstance(p, ToolCallPart))
+    assert tool_part.status == "error"
+    assert tool_part.result_preview == "upstream refused"
+
+
+@pytest.mark.unit
+async def test_history_marks_an_unresolved_tool_call_as_pending() -> None:
+    # The checkpoint can freeze between the call and its result (run cut short);
+    # history shows how far the agent got instead of dropping the row.
+    messages = [
+        HumanMessage(content="q", id="h1"),
+        AIMessage(
+            content="",
+            id="a1",
+            tool_calls=[{"name": "search", "args": {}, "id": "c1"}],
+        ),
+    ]
+
+    result = await _history(messages).history(THREAD)
+
+    assistant = result[1]
+    assert assistant.id == "a1"
+    assert assistant.content == ""
+    tool_part = next(p for p in assistant.parts if isinstance(p, ToolCallPart))
+    assert (tool_part.status, tool_part.result_preview) == ("pending", "")
+
+
+@pytest.mark.unit
+async def test_history_truncates_oversized_args_and_result_preview() -> None:
+    # Same limit as the wire (design-brief § «Лимиты»): the API must not ship a
+    # megabyte of scraped page into the history payload.
+    messages = [
+        HumanMessage(content="q", id="h1"),
+        AIMessage(
+            content="",
+            id="a1",
+            tool_calls=[
+                {"name": "write", "args": {"text": "x" * 5000}, "id": "c1"},
+            ],
+        ),
+        ToolMessage(content="y" * 5000, id="t1", tool_call_id="c1", name="write"),
+        AIMessage(content="done", id="a2"),
+    ]
+
+    result = await _history(messages).history(THREAD)
+
+    tool_part = next(p for p in result[1].parts if isinstance(p, ToolCallPart))
+    assert len(tool_part.args) == TRUNCATION_LIMIT
+    assert len(tool_part.result_preview) == TRUNCATION_LIMIT
+    assert tool_part.truncated is True
+
+
+@pytest.mark.unit
+async def test_history_drops_the_compaction_summary_before_the_first_turn() -> None:
+    # ``_reduce_context`` prepends an id-less summary AIMessage — a context
+    # digest, not a turn the user took part in, so it has no row in the feed.
+    messages = [
+        AIMessage(content="previous conversation summary"),
+        HumanMessage(content="next question", id="h1"),
+        AIMessage(content="next answer", id="a1"),
+    ]
+
+    result = await _history(messages).history(THREAD)
+
+    assert [(m.role, m.content) for m in result] == [
+        ("user", "next question"),
+        ("assistant", "next answer"),
+    ]
+
+
+@pytest.mark.unit
+async def test_history_is_empty_when_the_thread_has_no_human_message() -> None:
+    assert await _history([AIMessage(content="orphan", id="a1")]).history(THREAD) == []
+
+
+@pytest.mark.unit
+async def test_history_separates_consecutive_turns() -> None:
+    messages = [
+        HumanMessage(content="q1", id="h1"),
+        AIMessage(content="a1", id="ai1", additional_kwargs={"reasoning": "r1"}),
+        HumanMessage(content="q2", id="h2"),
+        AIMessage(content="a2", id="ai2"),
+    ]
+
+    result = await _history(messages).history(THREAD)
+
+    assert [(m.role, m.content) for m in result] == [
+        ("user", "q1"),
+        ("assistant", "a1"),
+        ("user", "q2"),
+        ("assistant", "a2"),
+    ]
+    assert result[1].parts == [
+        ReasoningPart(content="r1"),
+        TextPart(content="a1"),
+    ]
+    assert result[3].parts == [TextPart(content="a2")]
+
+
+@pytest.mark.unit
+async def test_history_user_messages_carry_no_parts() -> None:
+    messages = [
+        HumanMessage(content="q", id="h1"),
+        AIMessage(content="a", id="a1"),
+    ]
+
+    result = await _history(messages).history(THREAD)
+
+    assert result[0].parts == []
+
+
+@pytest.mark.unit
+async def test_history_redacted_turn_hides_its_reasoning_too() -> None:
+    # Redaction policy is all-or-nothing: showing the "harmless" half of the
+    # message that triggered the block would be a narrower policy than the one
+    # already applied to ``content``.
+    messages = [
+        HumanMessage(content="q", id="h1"),
+        AIMessage(
+            content="secret leaked",
+            id="a1",
+            additional_kwargs={
+                "security_redacted": True,
+                "reasoning": "here is how I would leak it",
+            },
+        ),
+    ]
+
+    result = await _history(messages).history(THREAD)
+
+    assert result[1].parts == [
         TextPart(content=SecurityMessages().redacted_user_facing)
     ]
 

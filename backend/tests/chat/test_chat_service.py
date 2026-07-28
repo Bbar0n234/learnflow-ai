@@ -14,6 +14,7 @@ import uuid
 from pathlib import Path
 
 import pytest
+from app.agent import heartbeat as heartbeat_module
 from app.agent import runner as runner_module
 from app.agent import stream_events as stream_events_module
 from app.models.thread_view import ThreadView
@@ -28,9 +29,15 @@ from tests.chat.conftest import (
     FakeThreadViewRepo,
     FakeTraceStore,
     artifact_created_event,
+    cancelled_event,
     error_event,
+    heartbeat_event,
+    reasoning_chunk_event,
     security_block_event,
+    stream_started_event,
     text_chunk_event,
+    tool_call_args_event,
+    tool_call_started_event,
     trace_id_event,
 )
 
@@ -219,10 +226,11 @@ async def test_send_message_links_created_artifacts_to_message() -> None:
     ("terminal_event", "terminal_type"),
     [
         (error_event("graph failed"), "error"),
-        (security_block_event("llm_classifier"), "security_block"),
+        (security_block_event(), "security_block"),
+        (cancelled_event(), "cancelled"),
     ],
 )
-async def test_send_message_terminal_failure_skips_done(
+async def test_send_message_terminal_event_skips_done(
     terminal_event: StreamEvent, terminal_type: str
 ) -> None:
     thread = _thread()
@@ -234,9 +242,9 @@ async def test_send_message_terminal_failure_skips_done(
 
     events = await _drain(service, thread)
 
-    # error/security_block and done are mutually exclusive terminal events.
-    # Partial text emitted before the terminal must survive unchanged, and the
-    # terminal payload is forwarded verbatim (detail / reason per prod shape).
+    # error/security_block/cancelled and done are mutually exclusive terminal
+    # events. Partial text emitted before the terminal must survive unchanged,
+    # and the terminal payload is forwarded verbatim (prod shape).
     assert [e.type for e in events] == ["text_chunk", terminal_type]
     assert events[0].data == {"content": "partial"}
     assert events[-1].data == terminal_event.data
@@ -325,7 +333,9 @@ def _stream_event_type_literals(*modules: object) -> set[str]:
 
 
 def test_runner_emits_only_the_agreed_wire_vocabulary() -> None:
-    emitted = _stream_event_type_literals(runner_module, stream_events_module)
+    emitted = _stream_event_type_literals(
+        runner_module, stream_events_module, heartbeat_module
+    )
 
     # trace_id is emitted by the runner but consumed inside ChatService; every
     # other emitted type is forwarded to the wire. Nothing the runner emits may
@@ -340,11 +350,16 @@ async def test_chat_service_forwards_each_runner_type_and_consumes_trace_id() ->
     runner = FakeAgentRunner()
     runner.last_ai_message_id = "m1"
     # One non-terminal event of every forwarded type, plus trace_id which must be
-    # swallowed. Terminals (error/security_block) are exercised separately so we
-    # can reach the synthesised ``done`` here.
+    # swallowed. Terminals (error/security_block/cancelled) are exercised
+    # separately so we can reach the synthesised ``done`` here.
     runner.events = [
         trace_id_event("tr-1"),
+        stream_started_event(),
+        heartbeat_event(),
+        reasoning_chunk_event("thinking..."),
         text_chunk_event("hi"),
+        tool_call_started_event("c1", "search"),
+        tool_call_args_event("c1", '{"query": "hi"}'),
         StreamEvent(type="tool_start", data={"tool": "search", "call_id": "c1"}),
         StreamEvent(type="tool_end", data={"tool": "search", "call_id": "c1"}),
         artifact_created_event(uuid.uuid4()),
@@ -359,7 +374,12 @@ async def test_chat_service_forwards_each_runner_type_and_consumes_trace_id() ->
     # trace_id consumed; all other types forwarded in order; done synthesised.
     assert "trace_id" not in forwarded
     assert forwarded == [
+        "stream_started",
+        "heartbeat",
+        "reasoning_chunk",
         "text_chunk",
+        "tool_call_started",
+        "tool_call_args",
         "tool_start",
         "tool_end",
         "artifact_created",
@@ -370,4 +390,5 @@ async def test_chat_service_forwards_each_runner_type_and_consumes_trace_id() ->
     assert set(forwarded) - {"done"} == RUNNER_FORWARDED_TYPES - {
         "error",
         "security_block",
+        "cancelled",
     }

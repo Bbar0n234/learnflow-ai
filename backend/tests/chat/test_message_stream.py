@@ -106,7 +106,7 @@ async def test_stream_security_block_is_terminal_without_done(
     project, thread = await _make_thread(db_session, current_user)
     wired_runner.events = [
         text_chunk_event("partial answer"),
-        security_block_event("llm_classifier"),
+        security_block_event(),
     ]
 
     url = f"/api/projects/{project.id}/chats/{thread.thread_id}/messages"
@@ -116,11 +116,12 @@ async def test_stream_security_block_is_terminal_without_done(
 
     types = [e.json()["type"] for e in events]
     # security_block is a terminal event distinct from error: no trailing done,
-    # the partial text emitted before the block is preserved on the wire, and the
-    # prod ``reason`` field is forwarded verbatim.
+    # the partial text emitted before the block is preserved on the wire, and
+    # the payload is the generic prod shape — no reason/checkpoint/
+    # detection_layer (design-brief § "Контракт SSE v2").
     assert types == ["text_chunk", "security_block"]
     assert events[0].json()["content"] == "partial answer"
-    assert events[-1].json()["reason"] == "llm_classifier"
+    assert events[-1].json() == {"type": "security_block"}
     assert all(e.json()["type"] != "done" for e in events)
 
 

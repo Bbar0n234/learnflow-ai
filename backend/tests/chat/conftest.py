@@ -37,51 +37,95 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # Production wire vocabulary
 # ---------------------------------------------------------------------------
 #
-# The real ``AgentRunner`` (``app.agent.runner`` + ``StreamEventMapper``) only
-# ever emits the event types below; ``ChatService`` forwards them verbatim and
-# the frontend (``pages/chat/model/useAgentStream.ts``) switches on exactly this
-# set (plus the service-synthesised ``done``). Tests MUST program the fake with
-# these builders rather than ad-hoc dicts, otherwise a green test can pin a type
-# that prod never produces (the M1 finding: the fake used ``type="token"`` while
+# The real ``AgentRunner`` (``app.agent.runner`` + ``app.agent.heartbeat`` +
+# ``StreamEventMapper``/``TokenChunkMapper``) only ever emits the event types
+# below; ``ChatService`` forwards them verbatim and the frontend
+# (``pages/chat/model/useAgentStream.ts``) switches on exactly this set (plus
+# the service-synthesised ``done``). Tests MUST program the fake with these
+# builders rather than ad-hoc dicts, otherwise a green test can pin a type that
+# prod never produces (the M1 finding: the fake used ``type="token"`` while
 # prod emits ``text_chunk``). Payload shapes mirror prod exactly:
-#   text_chunk        -> {"content": str}        (runner.py:218)
-#   error             -> {"detail": str}         (runner.py:234, streaming.md:29)
-#   security_block    -> {"reason": str}         (runner.py:128/210/264/281)
-#   trace_id          -> {"trace_id": str}       (consumed by ChatService)
-#   artifact_created  -> {"id": str, ...}        (stream_events.py:48)
-#
-# ``security_block`` carries ``reason`` (a detection-layer name or the
-# ``"prompt_injection"`` fallback from ``RuntimeSecurityEnforcer.block_reason``),
-# NOT ``{checkpoint, detection_layer}``. streaming.md still documents the latter
-# — a doc/prod drift flagged for the architect (the frontend reads no field off
-# ``security_block`` at all, so the wire payload is whatever prod sends).
+#   stream_started      -> {}                      (runner.py)
+#   heartbeat           -> {}                       (heartbeat.py)
+#   text_chunk          -> {"content": str}        (runner.py, stream_events.py)
+#   reasoning_chunk     -> {"content": str}        (stream_events.py — token
+#                           channel, ``additional_kwargs["reasoning"]``)
+#   tool_call_started   -> {"call_id": str, "tool": str} (stream_events.py —
+#                           token channel, first ``tool_call_chunk`` of a call)
+#   tool_call_args      -> {"call_id": str, "args": str, "truncated": bool}
+#                           (stream_events.py — token channel, args JSON
+#                           complete, before execution)
+#   cancelled           -> {}                       (runner.py)
+#   error               -> {"detail": str}         (runner.py, streaming.md)
+#   security_block      -> {}                       (runner.py — generic, no
+#                           reason/checkpoint/detection_layer: design-brief §
+#                           "Контракт SSE v2")
+#   trace_id            -> {"trace_id": str}       (consumed by ChatService)
+#   artifact_created    -> {"id": str, ...}        (stream_events.py)
 
 # The wire types ChatService forwards to the frontend (trace_id is consumed
 # internally and never forwarded; done is synthesised by the service).
 RUNNER_FORWARDED_TYPES = frozenset(
     {
+        "stream_started",
+        "heartbeat",
         "text_chunk",
+        "reasoning_chunk",
+        "tool_call_started",
+        "tool_call_args",
         "tool_start",
         "tool_end",
         "artifact_created",
         "final_output_review_started",
         "final_output_review_complete",
         "security_block",
+        "cancelled",
         "error",
     }
 )
+
+
+def stream_started_event() -> StreamEvent:
+    return StreamEvent(type="stream_started", data={})
+
+
+def heartbeat_event() -> StreamEvent:
+    return StreamEvent(type="heartbeat", data={})
 
 
 def text_chunk_event(content: str) -> StreamEvent:
     return StreamEvent(type="text_chunk", data={"content": content})
 
 
+def reasoning_chunk_event(content: str) -> StreamEvent:
+    return StreamEvent(type="reasoning_chunk", data={"content": content})
+
+
+def tool_call_started_event(call_id: str, tool: str) -> StreamEvent:
+    return StreamEvent(
+        type="tool_call_started", data={"call_id": call_id, "tool": tool}
+    )
+
+
+def tool_call_args_event(
+    call_id: str, args: str, *, truncated: bool = False
+) -> StreamEvent:
+    return StreamEvent(
+        type="tool_call_args",
+        data={"call_id": call_id, "args": args, "truncated": truncated},
+    )
+
+
 def error_event(detail: str = "Stream failed") -> StreamEvent:
     return StreamEvent(type="error", data={"detail": detail})
 
 
-def security_block_event(reason: str = "llm_classifier") -> StreamEvent:
-    return StreamEvent(type="security_block", data={"reason": reason})
+def security_block_event() -> StreamEvent:
+    return StreamEvent(type="security_block", data={})
+
+
+def cancelled_event() -> StreamEvent:
+    return StreamEvent(type="cancelled", data={})
 
 
 def trace_id_event(trace_id: str) -> StreamEvent:

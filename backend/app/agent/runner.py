@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -16,9 +17,10 @@ from app.agent.config import ErrorMessagesConfig, ResolvedModelConfig
 from app.agent.error_mapper import normalize_error_message
 from app.agent.graph import AgentContext
 from app.agent.graph_factory import GraphFactory
+from app.agent.heartbeat import HeartbeatPacer
 from app.agent.runtime_security import RuntimeSecurityEnforcer
 from app.agent.security.canary import generate_canary_token
-from app.agent.stream_events import StreamEventMapper
+from app.agent.stream_events import StreamEventMapper, TokenChunkMapper
 from app.agent.subagents import SUBAGENT_TAG
 from app.agent.tracing import AgentRunTracer
 from app.repositories.settings import SettingsRepository
@@ -34,7 +36,10 @@ class LangGraphAgentRunner:
     Side concerns are delegated to collaborators: ``RuntimeSecurityEnforcer``
     (guard checkpoints + redaction), ``AgentRunTracer`` (Langfuse spans),
     ``CheckpointHistory`` (checkpointer reads/mapping), ``StreamEventMapper``
-    (graph updates → SSE events).
+    (graph updates → SSE events), ``TokenChunkMapper`` (messages-channel
+    chunks → SSE events, one fresh instance per run — see
+    ``_token_mapper_factory``), ``HeartbeatPacer`` (silence heartbeats +
+    responsive cancellation).
     """
 
     def __init__(
@@ -47,6 +52,8 @@ class LangGraphAgentRunner:
         error_messages: ErrorMessagesConfig,
         *,
         event_mapper: StreamEventMapper | None = None,
+        heartbeat_pacer: HeartbeatPacer | None = None,
+        token_mapper_factory: Callable[[], TokenChunkMapper] | None = None,
         tool_resolver: Any | None = None,
         canary_secret: str = "",
     ) -> None:
@@ -57,6 +64,12 @@ class LangGraphAgentRunner:
         self._history = history
         self._error_messages = error_messages
         self._event_mapper = event_mapper or StreamEventMapper()
+        self._heartbeat_pacer = heartbeat_pacer or HeartbeatPacer()
+        # Factory, not a shared instance: ``TokenChunkMapper`` accumulates
+        # per-run tool-call assembly state, so each ``stream()`` call must get
+        # its own (conventions.md § module state — no shared/module-level
+        # mutable state across concurrent runs).
+        self._token_mapper_factory = token_mapper_factory or TokenChunkMapper
         self._tool_resolver = tool_resolver
         self._canary_secret = canary_secret
         self._cancel_events: dict[uuid.UUID, asyncio.Event] = {}
@@ -78,253 +91,284 @@ class LangGraphAgentRunner:
             self._pending_cancels.discard(thread_id)
             cancel_event.set()
 
-        if model_config is None and session is not None:
-            settings_repo = SettingsRepository(session)
-            model_config = await self._model_resolver.resolve(
-                settings_repo, user_id, project_id, thread_id
-            )
-        if model_config is None:
-            model_config = self._model_resolver.default()
+        async def _run_turn() -> AsyncGenerator[StreamEvent, None]:
+            """One full agent turn: setup, graph run, security reviews.
 
-        extra_tools = await self._resolve_user_tools(user_id, project_id, thread_id)
-        user_installed_tool_names = frozenset(
-            getattr(t, "name", "") for t in extra_tools if getattr(t, "name", None)
-        )
-        graph = self._graph_factory.build(model_config, extra_tools=extra_tools)
-
-        canary_token = ""
-        if self._canary_secret:
-            canary_token = generate_canary_token(str(thread_id), self._canary_secret)
-
-        logger.info(
-            "agent invoked",
-            thread_id=str(thread_id),
-            project_id=str(project_id),
-            model=model_config.model,
-            model_source=model_config.source,
-        )
-        logger.debug(
-            "user message",
-            thread_id=str(thread_id),
-            preview=content[:500],
-            length=len(content),
-        )
-        stream_start = time.monotonic()
-        stream_error = False
-        client_disconnected = False
-        full_response = ""
-        last_message_id: str | None = None
-        injection_emitted = False
-        chunks_processed = 0
-
-        with self._tracer.run(
-            content=content,
-            user_id=user_id,
-            thread_id=thread_id,
-            project_id=project_id,
-        ) as span:
-            # --- Pre-graph security check (USER_INPUT) ---
-            guard_result = await self._enforcer.check_user_input(
-                thread_id=thread_id,
-                content=content,
-                canary_token=canary_token,
-                graph=graph,
-                session=session,
-            )
-            if guard_result is not None and guard_result.verdict.value == "INJECTION":
-                span.finalize_blocked(guard_result)
-                yield StreamEvent(
-                    type="security_block",
-                    data={"reason": RuntimeSecurityEnforcer.block_reason(guard_result)},
+            Runs *inside* the heartbeat pacer (see below) — the pacer emits
+            ``heartbeat`` for any silence here (setup included) and detects
+            cancellation on its own timer, so this generator does not need to
+            poll ``cancel_event`` itself except at the one point (the astream
+            loop) where a per-iteration check is cheap and catches a
+            cancellation faster than the heartbeat interval would.
+            """
+            nonlocal model_config
+            if model_config is None and session is not None:
+                settings_repo = SettingsRepository(session)
+                model_config = await self._model_resolver.resolve(
+                    settings_repo, user_id, project_id, thread_id
                 )
-                for _ev in self._trace_id_event(span):
-                    yield _ev
-                return
-            if guard_result is not None:
-                span.score(guard_result.verdict, guard_result.detection_layer)
+            if model_config is None:
+                model_config = self._model_resolver.default()
 
-            config: dict[str, Any] = {"configurable": {"thread_id": str(thread_id)}}
-            if span.callback_handler:
-                config["callbacks"] = [span.callback_handler]
+            extra_tools = await self._resolve_user_tools(user_id, project_id, thread_id)
+            user_installed_tool_names = frozenset(
+                getattr(t, "name", "") for t in extra_tools if getattr(t, "name", None)
+            )
+            graph = self._graph_factory.build(model_config, extra_tools=extra_tools)
 
-            context = AgentContext(
+            canary_token = ""
+            if self._canary_secret:
+                canary_token = generate_canary_token(
+                    str(thread_id), self._canary_secret
+                )
+
+            logger.info(
+                "agent invoked",
+                thread_id=str(thread_id),
                 project_id=str(project_id),
-                user_id=str(user_id),
-                canary_token=canary_token,
-                user_installed_tool_names=user_installed_tool_names,
+                model=model_config.model,
+                model_source=model_config.source,
             )
-            input_msg = {
-                "messages": [
-                    HumanMessage(
-                        content=content,
-                        additional_kwargs={"created_at": datetime.now(UTC).isoformat()},
-                    )
-                ]
-            }
+            logger.debug(
+                "user message",
+                thread_id=str(thread_id),
+                preview=content[:500],
+                length=len(content),
+            )
+            stream_start = time.monotonic()
+            stream_error = False
+            client_disconnected = False
+            full_response = ""
+            token_mapper = self._token_mapper_factory()
+            last_message_id: str | None = None
+            injection_emitted = False
+            chunks_processed = 0
 
-            try:
-                async for mode, data in graph.astream(  # type: ignore[call-overload]
-                    input_msg,
-                    config,
-                    stream_mode=["messages", "updates"],
-                    context=context,
-                ):
-                    if cancel_event.is_set():
-                        yield StreamEvent(
-                            type="error",
-                            data={
-                                "detail": normalize_error_message(
-                                    asyncio.CancelledError(), self._error_messages
-                                )
-                            },
-                        )
-                        return
-
-                    if mode == "messages":
-                        msg_chunk, chunk_metadata = data
-                        if chunk_metadata and SUBAGENT_TAG in (
-                            chunk_metadata.get("tags") or ()
-                        ):
-                            # Subagent LLM tokens: dropped before full_response
-                            # accumulation and canary/mid-stream checks (design-brief
-                            # § "Стриминг: изоляция токенов субагента"). cancel_event
-                            # is still checked every iteration at the top of this
-                            # loop, so cancellation stays responsive during a
-                            # subagent run; Langfuse callbacks are untouched — only
-                            # this stream-loop projection is filtered.
-                            continue
-                        if not (
-                            isinstance(msg_chunk, AIMessageChunk)
-                            and isinstance(msg_chunk.content, str)
-                            and msg_chunk.content
-                        ):
-                            continue
-                        if msg_chunk.id is not None:
-                            last_message_id = str(msg_chunk.id)
-                        full_response += msg_chunk.content
-                        chunks_processed += 1
-
-                        tail_len = RuntimeSecurityEnforcer.tail_window_len(canary_token)
-                        tail = full_response[-(tail_len + len(msg_chunk.content)) :]
-                        mid_outcome = await self._enforcer.check_mid_stream(
-                            thread_id=thread_id,
-                            full_response=full_response,
-                            tail=tail,
-                            canary_token=canary_token,
-                            graph=graph,
-                            config=config,
-                            last_message_id=last_message_id,
-                            session=session,
-                        )
-                        if mid_outcome is not None:
-                            injection_emitted = True
-                            span.record_mid_stream_hit(
-                                thread_id=thread_id,
-                                full_response=full_response,
-                                tail=tail,
-                                result=mid_outcome.result,
-                                chunks_processed=chunks_processed,
-                            )
-                            span.finalize_blocked(mid_outcome.result)
-                            yield StreamEvent(
-                                type="security_block",
-                                data={"reason": mid_outcome.reason},
-                            )
-                            for _ev in self._trace_id_event(span):
-                                yield _ev
-                            return
-
-                        yield StreamEvent(
-                            type="text_chunk", data={"content": msg_chunk.content}
-                        )
-
-                    elif mode == "updates":
-                        for event in self._event_mapper.updates(data):
-                            yield event
-
-            except (asyncio.CancelledError, GeneratorExit):
-                # Client disconnect: both are BaseException, so the handler
-                # below never sees them and the run used to be reported as
-                # status="ok". Flag for the finally-log and re-raise —
-                # cancellation semantics are unchanged.
-                client_disconnected = True
-                raise
-            except Exception as e:
-                stream_error = True
-                logger.error(
-                    "agent stream error",
-                    thread_id=str(thread_id),
-                    error_type=type(e).__name__,
-                    exc_info=e,
-                )
-                yield StreamEvent(
-                    type="error",
-                    data={"detail": normalize_error_message(e, self._error_messages)},
-                )
-            finally:
-                duration_ms = int((time.monotonic() - stream_start) * 1000)
-                if client_disconnected:
-                    status = "client_disconnected"
-                elif stream_error:
-                    status = "error"
-                else:
-                    status = "ok"
-                logger.info(
-                    "agent completed",
-                    thread_id=str(thread_id),
-                    duration_ms=duration_ms,
-                    status=status,
-                )
-                self._cancel_events.pop(thread_id, None)
-                self._pending_cancels.discard(thread_id)
-
-            # --- End-of-stream FINAL_OUTPUT classifier ---
-            if not stream_error and not injection_emitted and full_response:
-                yield StreamEvent(type="final_output_review_started", data={})
-                final_outcome = await self._enforcer.check_final_output(
+            with self._tracer.run(
+                content=content,
+                user_id=user_id,
+                thread_id=thread_id,
+                project_id=project_id,
+            ) as span:
+                # --- Pre-graph security check (USER_INPUT) ---
+                guard_result = await self._enforcer.check_user_input(
                     thread_id=thread_id,
-                    full_response=full_response,
+                    content=content,
                     canary_token=canary_token,
                     graph=graph,
-                    config=config,
-                    last_message_id=last_message_id,
                     session=session,
                 )
-                if final_outcome is not None:
-                    injection_emitted = True
-                    span.finalize_blocked(final_outcome.result)
-                    yield StreamEvent(
-                        type="security_block",
-                        data={"reason": final_outcome.reason},
-                    )
+                if (
+                    guard_result is not None
+                    and guard_result.verdict.value == "INJECTION"
+                ):
+                    span.finalize_blocked(guard_result)
+                    yield StreamEvent(type="security_block", data={})
                     for _ev in self._trace_id_event(span):
                         yield _ev
                     return
-                yield StreamEvent(type="final_output_review_complete", data={})
+                if guard_result is not None:
+                    span.score(guard_result.verdict, guard_result.detection_layer)
 
-            # --- Post-stream in-graph INJECTION inspection ---
-            if not injection_emitted and not stream_error:
-                in_graph = await self._enforcer.inspect_in_graph(
-                    thread_id=thread_id, session=session
+                config: dict[str, Any] = {"configurable": {"thread_id": str(thread_id)}}
+                if span.callback_handler:
+                    config["callbacks"] = [span.callback_handler]
+
+                context = AgentContext(
+                    project_id=str(project_id),
+                    user_id=str(user_id),
+                    canary_token=canary_token,
+                    user_installed_tool_names=user_installed_tool_names,
                 )
-                if in_graph is not None:
-                    injection_emitted = True
-                    span.finalize_blocked(in_graph.result)
+                input_msg = {
+                    "messages": [
+                        HumanMessage(
+                            content=content,
+                            additional_kwargs={
+                                "created_at": datetime.now(UTC).isoformat()
+                            },
+                        )
+                    ]
+                }
+
+                try:
+                    async for mode, data in graph.astream(  # type: ignore[call-overload]
+                        input_msg,
+                        config,
+                        stream_mode=["messages", "updates"],
+                        context=context,
+                    ):
+                        if cancel_event.is_set():
+                            yield StreamEvent(type="cancelled", data={})
+                            return
+
+                        if mode == "messages":
+                            msg_chunk, chunk_metadata = data
+                            if chunk_metadata and SUBAGENT_TAG in (
+                                chunk_metadata.get("tags") or ()
+                            ):
+                                # Subagent LLM tokens: dropped before full_response
+                                # accumulation and canary/mid-stream checks (design-brief
+                                # § "Стриминг: изоляция токенов субагента"). cancel_event
+                                # is still checked every iteration at the top of this
+                                # loop, so cancellation stays responsive during a
+                                # subagent run; Langfuse callbacks are untouched — only
+                                # this stream-loop projection is filtered.
+                                continue
+                            if not isinstance(msg_chunk, AIMessageChunk):
+                                continue
+                            if msg_chunk.id is not None:
+                                last_message_id = str(msg_chunk.id)
+
+                            # ``token_mapper`` splits the raw chunk into its
+                            # text/reasoning/tool-call-assembly events. Only
+                            # ``text_chunk`` feeds full_response and the
+                            # canary/mid-stream guard — reasoning and
+                            # tool_call_* stream live without guard
+                            # involvement (design-brief § "Контракт SSE v2":
+                            # a conscious boundary, not an oversight).
+                            blocked = False
+                            for token_event in token_mapper.map_chunk(msg_chunk):
+                                if token_event.type == "text_chunk":
+                                    token_text = token_event.data["content"]
+                                    full_response += token_text
+                                    chunks_processed += 1
+
+                                    tail_len = RuntimeSecurityEnforcer.tail_window_len(
+                                        canary_token
+                                    )
+                                    tail = full_response[
+                                        -(tail_len + len(token_text)) :
+                                    ]
+                                    mid_outcome = await self._enforcer.check_mid_stream(
+                                        thread_id=thread_id,
+                                        full_response=full_response,
+                                        tail=tail,
+                                        canary_token=canary_token,
+                                        graph=graph,
+                                        config=config,
+                                        last_message_id=last_message_id,
+                                        session=session,
+                                    )
+                                    if mid_outcome is not None:
+                                        injection_emitted = True
+                                        span.record_mid_stream_hit(
+                                            thread_id=thread_id,
+                                            full_response=full_response,
+                                            tail=tail,
+                                            result=mid_outcome.result,
+                                            chunks_processed=chunks_processed,
+                                        )
+                                        span.finalize_blocked(mid_outcome.result)
+                                        yield StreamEvent(
+                                            type="security_block", data={}
+                                        )
+                                        for _ev in self._trace_id_event(span):
+                                            yield _ev
+                                        blocked = True
+                                        break
+
+                                yield token_event
+
+                            if blocked:
+                                return
+
+                        elif mode == "updates":
+                            for event in self._event_mapper.updates(data):
+                                yield event
+
+                except (asyncio.CancelledError, GeneratorExit):
+                    # Two distinct causes land here: a real client disconnect
+                    # (cancel_event unset) and the heartbeat pacer interrupting
+                    # a blocked tool call after detecting our own cancel_event
+                    # (event-map.md попутная находка №3) — the flag picked for
+                    # the completion log below distinguishes them.
+                    client_disconnected = not cancel_event.is_set()
+                    raise
+                except Exception as e:
+                    stream_error = True
+                    logger.error(
+                        "agent stream error",
+                        thread_id=str(thread_id),
+                        error_type=type(e).__name__,
+                        exc_info=e,
+                    )
                     yield StreamEvent(
-                        type="security_block", data={"reason": in_graph.reason}
+                        type="error",
+                        data={
+                            "detail": normalize_error_message(e, self._error_messages)
+                        },
+                    )
+                finally:
+                    duration_ms = int((time.monotonic() - stream_start) * 1000)
+                    if client_disconnected:
+                        status = "client_disconnected"
+                    elif stream_error:
+                        status = "error"
+                    elif cancel_event.is_set():
+                        status = "cancelled"
+                    else:
+                        status = "ok"
+                    logger.info(
+                        "agent completed",
+                        thread_id=str(thread_id),
+                        duration_ms=duration_ms,
+                        status=status,
                     )
 
-            if not injection_emitted:
-                logger.debug(
-                    "agent reply",
-                    thread_id=str(thread_id),
-                    preview=full_response[:500],
-                    length=len(full_response),
-                )
-                span.set_output(full_response)
+                # --- End-of-stream FINAL_OUTPUT classifier ---
+                if not stream_error and not injection_emitted and full_response:
+                    yield StreamEvent(type="final_output_review_started", data={})
+                    final_outcome = await self._enforcer.check_final_output(
+                        thread_id=thread_id,
+                        full_response=full_response,
+                        canary_token=canary_token,
+                        graph=graph,
+                        config=config,
+                        last_message_id=last_message_id,
+                        session=session,
+                    )
+                    if final_outcome is not None:
+                        injection_emitted = True
+                        span.finalize_blocked(final_outcome.result)
+                        yield StreamEvent(type="security_block", data={})
+                        for _ev in self._trace_id_event(span):
+                            yield _ev
+                        return
+                    yield StreamEvent(type="final_output_review_complete", data={})
 
-        for _ev in self._trace_id_event(span):
-            yield _ev
+                # --- Post-stream in-graph INJECTION inspection ---
+                if not injection_emitted and not stream_error:
+                    in_graph = await self._enforcer.inspect_in_graph(
+                        thread_id=thread_id, session=session
+                    )
+                    if in_graph is not None:
+                        injection_emitted = True
+                        span.finalize_blocked(in_graph.result)
+                        yield StreamEvent(type="security_block", data={})
+
+                if not injection_emitted:
+                    logger.debug(
+                        "agent reply",
+                        thread_id=str(thread_id),
+                        preview=full_response[:500],
+                        length=len(full_response),
+                    )
+                    span.set_output(full_response)
+
+            for _ev in self._trace_id_event(span):
+                yield _ev
+
+        try:
+            yield StreamEvent(type="stream_started", data={})
+            async with contextlib.aclosing(
+                self._heartbeat_pacer.pace(_run_turn(), cancel_event)
+            ) as paced:
+                async for event in paced:
+                    yield event
+        finally:
+            self._cancel_events.pop(thread_id, None)
+            self._pending_cancels.discard(thread_id)
 
     async def _resolve_user_tools(
         self, user_id: uuid.UUID, project_id: uuid.UUID, thread_id: uuid.UUID

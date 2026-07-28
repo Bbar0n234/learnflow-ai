@@ -13,6 +13,7 @@ from langchain_core.messages import (
     SystemMessage,
 )
 from langchain_core.messages.utils import count_tokens_approximately, trim_messages
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -69,7 +70,18 @@ async def _reduce_context(
     try:
         prompt_text = prompt_provider.get_prompt("summarization")
         prompt = SystemMessage(content=prompt_text)
-        response = await summarization_model.ainvoke([prompt, *old_messages])
+        # Detach from the parent runnable's callback chain, same as the guard
+        # classifier (security/classifier.py): keeps compaction generations out
+        # of ``stream_mode="messages"`` so its tokens don't leak into the
+        # user-facing text_chunk stream (event-map.md попутная находка №1).
+        summarization_config: RunnableConfig = {
+            "callbacks": [],
+            "tags": ["context_summarization"],
+            "run_name": "context-summarization",
+        }
+        response = await summarization_model.ainvoke(
+            [prompt, *old_messages], config=summarization_config
+        )
         summary_text = str(response.content)
 
         ops_prefix: list[Any] = [

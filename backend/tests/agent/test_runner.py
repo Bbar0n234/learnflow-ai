@@ -221,7 +221,7 @@ async def test_stream_maps_model_failure_to_error_event() -> None:
 
 
 @pytest.mark.integration
-async def test_precancelled_thread_emits_cancelled_error_and_no_text() -> None:
+async def test_precancelled_thread_emits_cancelled_event_and_no_text() -> None:
     runner = _make_runner(tool_binding_fake([AIMessage(content="Hello world")]))
     ids = _ids()
 
@@ -230,9 +230,10 @@ async def test_precancelled_thread_emits_cancelled_error_and_no_text() -> None:
 
     types = [e.type for e in events]
     assert "text_chunk" not in types
-    error_events = [e for e in events if e.type == "error"]
-    assert error_events
-    assert error_events[0].data["detail"] == load_error_messages().cancelled
+    assert "error" not in types
+    cancelled_events = [e for e in events if e.type == "cancelled"]
+    assert cancelled_events
+    assert cancelled_events[0].data == {}
 
 
 # --- negative: client disconnect mid-stream -----------------------------------
@@ -249,7 +250,8 @@ async def test_client_disconnect_logs_client_disconnected_status() -> None:
     assert isinstance(stream, AsyncGenerator)  # narrows to expose aclose()
 
     with capture_logs() as logs:
-        await anext(stream)
+        await anext(stream)  # stream_started — precedes the graph run
+        await anext(stream)  # first text_chunk — now inside the graph run
         await stream.aclose()
 
     completed = [e for e in logs if e["event"] == "agent completed"]
@@ -280,8 +282,9 @@ async def test_user_input_injection_emits_security_block_and_stops() -> None:
 @pytest.mark.integration
 async def test_mid_stream_injection_emits_security_block_and_no_text() -> None:
     # The enforcer flags the streamed tail on the first chunk: the runner must
-    # emit ``security_block`` (carrying the outcome's reason) and stop before any
-    # ``text_chunk`` reaches the client.
+    # emit a generic ``security_block`` (no reason/checkpoint/detection_layer —
+    # design-brief § "Контракт SSE v2") and stop before any ``text_chunk``
+    # reaches the client.
     runner = _make_runner(
         tool_binding_fake([AIMessage(content="leaked secret")]),
         enforcer=_StagedEnforcer(mid=_outcome("unicode")),
@@ -294,7 +297,7 @@ async def test_mid_stream_injection_emits_security_block_and_no_text() -> None:
     assert "text_chunk" not in types
     assert "final_output_review_complete" not in types
     block = next(e for e in events if e.type == "security_block")
-    assert block.data["reason"] == "unicode"
+    assert block.data == {}
 
 
 # --- negative: end-of-stream final-output security block ---------------------
@@ -318,7 +321,7 @@ async def test_final_output_injection_blocks_after_text_streamed() -> None:
     assert "final_output_review_started" in types
     assert "final_output_review_complete" not in types
     block = next(e for e in events if e.type == "security_block")
-    assert block.data["reason"] == "llm_classifier"
+    assert block.data == {}
     # security_block is terminal: nothing emitted after it.
     assert types[-1] in {"security_block", "trace_id"}
 
@@ -342,7 +345,7 @@ async def test_in_graph_redaction_emits_security_block_after_review_complete() -
     types = [e.type for e in events]
     assert "final_output_review_complete" in types
     block = next(e for e in events if e.type == "security_block")
-    assert block.data["reason"] == "fragment"
+    assert block.data == {}
     # Block comes after the (clean) review completed.
     assert types.index("security_block") > types.index("final_output_review_complete")
 

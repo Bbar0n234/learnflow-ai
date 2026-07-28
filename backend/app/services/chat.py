@@ -138,7 +138,7 @@ class ChatService:
         await self._thread_view_repo.touch(thread_view)
 
         artifact_ids: list[str] = []
-        had_error = False
+        stream_ended_without_done = False
         trace_id = ""
 
         async for event in self._agent_runner.stream(
@@ -153,13 +153,14 @@ class ChatService:
                 continue
             if event.type == "artifact_created":
                 artifact_ids.append(event.data["id"])
-            if event.type in ("error", "security_block"):
-                had_error = True
+            if event.type in ("error", "security_block", "cancelled"):
+                stream_ended_without_done = True
             yield event
 
-        # error and done are mutually exclusive terminal events (SSE contract).
-        # If runner already emitted error — skip post-hoc and don't emit done.
-        if had_error:
+        # error/security_block/cancelled and done are mutually exclusive
+        # terminal events (SSE contract). If the runner already emitted one of
+        # them — skip post-hoc and don't emit done.
+        if stream_ended_without_done:
             return
 
         # Post-hoc: resolve message_id + link artifacts

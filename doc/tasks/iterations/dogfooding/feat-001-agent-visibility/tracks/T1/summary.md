@@ -2,19 +2,20 @@
 
 ## TL;DR
 
-Трек закрывает восемь фаз. **T1.1** подтвердила reasoning в чекпоинте на streaming-пути.
-**T1.2** ввела каркас SSE v2 (`stream_started`, `HeartbeatPacer`, `cancelled {}`, generic
-`security_block {}`). **T1.3** переработала token-канал: `reasoning_chunk`/`text_chunk`/ранние
-`tool_call_started`+`tool_call_args`. **T1.4** — updates-канал: `tool_result`,
-`artifact_created` по атрибуту, `tool_call_cancelled`. **T1.5** включила custom-канал:
-`agent_events.emit_agent_event` → `agent_event {kind, payload}` для `sphere_write`/
-`memory_write`/`skill_context_write`/`compaction`. **T1.6** — вложенность субагента:
-`_LifecycleEmittingTool` репортует lifecycle-события его тулов с `parent_call_id`. **T1.7**
-перевела `CheckpointHistory.history()` на группировку по ходам в typed `parts`
-(`reasoning`/`text`/`tool_call`), `MessageOut.parts` в API-схеме. **T1.8** выложила фикстур
-имён инструментов (`backend/contracts/agent-tool-names.json`) из единого источника
-`app.agent.tools.registry` — им пользуются и `main.py`, и CLI-генератор, и backend
-drift-гейт — контракт для реестра подписей T2.
+Трек закрывает девять фаз контракта SSE v2 и следа работы агента. **T1.1** подтвердила
+reasoning в чекпоинте на streaming-пути. **T1.2** ввела каркас v2 (`stream_started`,
+`HeartbeatPacer`, `cancelled {}`, generic `security_block {}`). **T1.3** переработала
+token-канал (`reasoning_chunk`/`text_chunk`/ранние `tool_call_started`+`tool_call_args`) и
+изолировала суммаризатор. **T1.4** — updates-канал: `tool_result`, `artifact_created` по
+атрибуту, `tool_call_cancelled`. **T1.5** включила custom-канал `agent_event {kind, payload}`
+для `sphere_write`/`memory_write`/`skill_context_write`/`compaction`. **T1.6** — вложенность
+субагента: lifecycle-события его тулов с `parent_call_id`. **T1.7** перевела
+`CheckpointHistory.history()` на группировку по ходам в typed `parts`, `MessageOut.parts` — в
+API-схеме. **T1.8** выложила фикстур имён инструментов (`agent-tool-names.json`) из
+`app.agent.tools.registry` — контракт для реестра подписей T2. **T1.9** переписала
+`streaming.md` целиком под контракт v2 (закрыла четыре неточности аудита) и завела чек-лист
+«добавляешь инструмент агенту» в `conventions/agent.md`, поправив попутный дрейф в
+`agent-runtime.md`.
 
 `make check` зелёный на всех фазах. `make test`: стабильно **527 passed, 1 failed, 228
 errors** — инфраструктурные (testcontainers) плюс предсуществующий прайсинг-дрейф.
@@ -569,6 +570,47 @@ errors** — инфраструктурные (testcontainers) плюс пред
   зелёный.
 - Фикстур сверен построчно с ожидаемым составом (см. выше) — совпадает.
 
+## Реализовано в фазе T1.9
+
+- `doc/tech/streaming.md` — переписан целиком под контракт v2: полная таблица событий с
+  источником и терминальностью, отдельные разделы forward-compat / лимиты (heartbeat 5 с,
+  усечение 2000 симв., таймаут клиента — 3 пропущенных heartbeat) / вложенность субагента
+  (`parent_call_id`, механизм явного writer'а вместо `get_stream_writer()` внутри субагента) /
+  изоляция токенов (два разных механизма — тег+фильтр для субагента, callback-detach для
+  суммаризатора) / четыре security-чекпоинта + pre-stream 403-гейт `require_unblocked_thread` /
+  история typed parts (таблица `Part`, границы хода, `status="pending"`, redaction-политика).
+  Обновлены обе диаграммы: `Stream Lifecycle` (`sequenceDiagram`, все четыре точки эмиссии
+  `security_block`, включая post-stream после `final_output_review_complete`) и `Cancellation`
+  (два независимых чекпоинта — между итерациями `astream` и на таймере `HeartbeatPacer`). Обе
+  сверены рендером через `mermaid` MCP на тёмной теме (`theme="dark"`) — при первом прогоне
+  lifecycle-диаграмма не парсилась из-за `;` внутри текста `Note over R: ...` (mermaid трактует
+  `;` как разделитель внутри реплики персонажа), заменено на скобки; после правки обе валидны.
+  Раздел «Frontend: потребление стрима» сужен до протокольного контракта потребления
+  (диспетчеризация по типу, forward-compat, отмена, таймаут от heartbeat, TanStack invalidation)
+  — детали текущей реализации (`Zustand`-поля `activeTool` и т. п., компоненты `ThinkingIndicator`/
+  `ToolIndicator`) не перенесены: они привязаны к словарю v1 (`tool_start`/`tool_end`), который
+  контракт этой фазы убрал, и их полная перестройка — предмет T2, не этой фазы; описывать их как
+  «текущее поведение» значило бы фиксировать в источнике правды состояние, которое сам этот
+  документ делает некорректным с момента публикации. Решение задокументировано ниже.
+- `doc/tech/conventions/agent.md` — таблица коллабораторов `Runner`'а (§ Agent Runtime)
+  исправлена (была: `StreamEventMapper` → `tool_start`/`tool_end`/`artifact_created`; стало:
+  `TokenChunkMapper` и `StreamEventMapper` раздельно, с актуальным словарём событий) и дополнена
+  `HeartbeatPacer`. Новая подсекция «Добавляешь инструмент агенту» — чек-лист из четырёх пунктов
+  design-brief § «Конвенции» (подпись фронта + машинная цепочка проверки полноты реестра;
+  artifact по атрибуту; `agent_event` через `emit_agent_event`, не голый `get_stream_writer()`;
+  raw-разворот без rich-рендера), с явной командой перегенерации фикстура.
+- `doc/tech/agent-runtime.md` — правка дрейфа: строка `get_history` в таблице `AgentRunner`
+  (была «HumanMessage + AIMessage без tool_calls», стало — typed parts со ссылкой на
+  `streaming.md`); `stream_mode` в § «Agent Graph» — было два канала (`messages`/`updates`) с
+  устаревшим списком событий (`tool_start`/`tool_end`), стало три канала с актуальным составом
+  и ссылкой на `streaming.md`; абзац о субагенте в § «Субагенты» дополнен фактом, что его шаги
+  видны в live-ленте через lifecycle-события с `parent_call_id` (раньше документ говорил только
+  про фильтрацию токенов, создавая впечатление, что субагент — чёрный ящик до самого результата).
+- `doc/tech/backend.md` — сверен построчно (flowchart «Сквозной поток: сообщение в чат», § API
+  Layer, таблица эндпоинтов `Messages`): расхождений с кодом не найдено, документ на своём
+  уровне абстракции («события графа» без перечисления конкретных типов) остаётся верным
+  независимо от состава событий — правок не потребовалось.
+
 ## Решения и обоснования
 
 - **Вывод фазы: reasoning в чекпоинте есть, дособор не понадобился.** Планом было заложено
@@ -1071,6 +1113,65 @@ errors** — инфраструктурные (testcontainers) плюс пред
   зависит от того, с какими аргументами вызвана фабрика; переименование функции обязано
   обновить оба места (`registry.py` и саму фабрику) синхронно, что ловится обычным ревью diff,
   а не скрытым рантайм-поведением.
+
+- **Утверждения старого `streaming.md`, оказавшиеся неверными, и чем заменены** (материал для
+  ревью — список, не всё как единая находка):
+  1. *Wire-примеры и таблица событий несли `tool_start`/`tool_end`, без `stream_started`,
+     `heartbeat`, `reasoning_chunk`, `tool_call_started`/`tool_call_args`, `tool_call_cancelled`,
+     `agent_event`, `cancelled`.* Заменено полной таблицей v2: `tool_start`/`tool_end` удалены из
+     документа (как и из кода — T1.4), добавлены все восемь новых типов с источником и
+     терминальностью.
+  2. *`security_block` документировался с payload `{checkpoint, detection_layer}`.* Код (T1.2)
+     давно отдаёт `{}` — реальный payload проверен по `runner.py` построчно на всех четырёх
+     точках эмиссии; заменено на явное «generic, `reason`/`checkpoint`/`detection_layer` остаются
+     в Langfuse/SIEM».
+  3. *Диаграмма `Stream Lifecycle` показывала одно ветвление (INJECTION на USER_INPUT / CLEAN),
+     будто это единственная точка `security_block`.* На деле их четыре: pre-graph, mid-stream
+     (детерминированный tail-чек на каждом `text_chunk`), end-of-stream classifier, post-stream
+     in-graph inspection (`inspect_in_graph`) — причём четвёртая срабатывает **после**
+     `final_output_review_complete`, а не вместо неё (аудит-находка №4, event-map.md). Новая
+     диаграмма показывает все четыре точки и их порядок.
+  4. *`final_output_review_started`/`_complete` описывались как эмитящиеся «как сейчас», без
+     оговорки.* Код условен: `if not stream_error and not injection_emitted and full_response`
+     (`runner.py:368`) — на чисто tool-ходе без единого текстового чанка пара не эмитится вовсе.
+     Явно зафиксировано (вторая часть аудит-находки №4).
+  5. *Отмена документировалась как `error ("Cancelled")` с единственной точкой проверки —
+     между итерациями `astream`.* Заменено: терминальный `cancelled {}` (T1.2), плюс второй,
+     независимый чекпоинт на таймере `HeartbeatPacer` — ловит отмену и во время долгого
+     tool-вызова (аудит-находка №3), не только между шагами графа.
+  6. *Ack/heartbeat в документе не существовали вообще* (раздел отсутствовал; event-map.md
+     зафиксировал это как немую зону). Теперь центральная часть контракта: `stream_started` до
+     setup-фазы, `heartbeat` каждые 5 с в любой тишине.
+  7. *Pre-stream гейт `require_unblocked_thread` (HTTP 403) не упоминался нигде* (третья часть
+     аудит-находки №4) — добавлен отдельным абзацем в § «Security-чекпоинты», как механизм,
+     отдельный от SSE-контракта.
+  8. *Транспортный fallback `error {"Stream failed"}` подразумевался идущим через
+     `error_messages.yaml`, как и остальные `error`.* Проверено по `configs/error_messages.yaml`
+     (нет такого ключа/значения) — задокументировано как единственное исключение из правила
+     (четвёртая часть аудит-находки №4; код не тронут — см. решение фазы T1.2).
+  9. *`get_history`/история не имела ни слова про typed parts* (в старом `streaming.md` не было
+     раздела про историю вообще — `Message.content` был единственным источником текста). Добавлен
+     раздел «История: typed parts» с таблицей `Part`, правилом группировки по ходам и
+     `status="pending"` для оборвавшегося хода.
+- **Frontend-раздел `streaming.md` сужен до протокольного контракта, детали `Zustand`-стора и
+  конкретных компонентов (`activeTool`, `ThinkingIndicator`, `ToolIndicator`) не перенесены.**
+  Не решение архитектуры фронта — решение о том, что именно фиксировать в документе, который
+  T2 использует как источник правды по форме событий. Текущий фронтенд (не тронут в этом треке)
+  всё ещё диспетчерит по словарю v1 — `tool_start`/`tool_end`, которых на проводе больше нет, —
+  то есть буквальное описание «текущего поведения» в деталях устарело бы в момент публикации
+  этого же документа. Протокольный контракт (диспетчеризация по типу, forward-compat, отмена,
+  таймаут от heartbeat, TanStack invalidation) остаётся верным независимо от внутреннего
+  устройства стора и не создаёт немедленно устаревшего материала; глубокая перестройка
+  фронтенд-потребления — предмет T2 (`frontend.md`/`conventions/frontend.md`, не в файловом
+  скоупе T1).
+- **Дрейф, поправленный на месте в соседних документах** (см. «Реализовано в фазе T1.9» выше за
+  подробностями): `conventions/agent.md` (таблица коллабораторов `StreamEventMapper` называла
+  `tool_start`/`tool_end` вместо актуального словаря T1.4, `TokenChunkMapper`/`HeartbeatPacer`
+  отсутствовали в таблице вовсе); `agent-runtime.md` (`get_history` описывал фильтрацию, не
+  typed parts; `stream_mode` был двухканальным со старым списком событий; абзац о субагенте не
+  упоминал видимость его шагов через `parent_call_id`). `backend.md` сверен построчно — реального
+  расхождения с кодом не найдено (документ намеренно абстрактен на уровне «события графа»),
+  правок не потребовалось.
 
 ## Инфраструктурная находка фазы T1.2 (эскалация архитектору, не блокирует код)
 

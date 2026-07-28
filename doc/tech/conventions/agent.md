@@ -14,14 +14,29 @@
 |--------------|-----------------|
 | `RuntimeSecurityEnforcer` | Четыре runtime-чекпоинта guard'а (user input / mid-stream / final output / in-graph inspection) + редакция сообщений + пометка thread'а blocked. Каждый `check_*` делает свои сайд-эффекты и возвращает `SecurityOutcome | None`; runner по исходу решает `yield security_block`. |
 | `AgentRunTracer` / `AgentRunSpan` | Langfuse-спан рана: score, finalize-on-block, output, mid-stream observation. Fail-safe (ошибки Langfuse подавляются). |
-| `CheckpointHistory` | Единственное место, знающее форму `channel_values["messages"]`: чтение, маппинг в `Message`, поиск редакций. |
-| `StreamEventMapper` | `stream_mode="updates"` → доменные `StreamEvent` (tool_start / tool_end / artifact_created). |
+| `CheckpointHistory` | Единственное место, знающее форму `channel_values["messages"]`: чтение, маппинг в typed-parts `Message`, поиск редакций. |
+| `TokenChunkMapper` | `stream_mode="messages"` chunk → `text_chunk` / `reasoning_chunk` / `tool_call_started` / `tool_call_args`. Per-run (фабрика в конструкторе раннера, не shared-инстанс) — накапливает состояние сборки tool-call args по `call_id`. |
+| `StreamEventMapper` | `stream_mode="updates"` → `tool_result` / `artifact_created` / `tool_call_cancelled`. Тоже per-run — ведёт список анонсированных, но ещё не разрешённых `call_id`. |
+| `HeartbeatPacer` | `heartbeat {}` на 5 с тишины в любой точке рана + проверка `cancel_event` на том же таймере (отмена остаётся отзывчивой во время долгого tool-вызова, не только между итерациями `astream`). |
+
+Полный контракт SSE-событий, lifecycle и security-чекпоинты — [streaming.md](../streaming.md).
 
 Принцип: новая сквозная забота в runtime → отдельный коллаборатор за портом, а не ещё один метод в runner.
 
 **Инъектируемый `ToolRuntime`-параметр tool'а: точная аннотация + модульный sentinel.** Параметр tool'а, инъектируемый runtime'ом (`runtime: ToolRuntime`), аннотируется **ровно** типом `ToolRuntime` — не `ToolRuntime | None`: framework распознаёт инъекцию (и исключает параметр из LLM-схемы tool'а) по точному типу аннотации, а `Union`/`Optional` ломает и распознавание, и генерацию JSON Schema (`PydanticInvalidForJsonSchema`). Обязательный параметр без default при этом ломает прямой `tool.ainvoke({...})` без runtime (`ValidationError: Field required`) — тесты и ручные прогоны. Решение: default через модульную typed-константу `_NO_RUNTIME = cast("ToolRuntime", None)` (не инлайн в сигнатуре — ruff B008) и явная ветка `if runtime is None` в теле. Прецеденты: `app/agent/tools/user_memory.py`, `app/agent/tools/skill_context.py`.
 
 **Слоистость security: движок vs enforcement.** Security-движок — `app/agent/security/` (детекторы, LLM-классификатор, `SecurityGuard`, типы): самодостаточный пакет, знающий, *что такое* инъекция. Точки применения (enforcement-адаптеры) живут уровнем выше, в `app/agent/`, рядом с кодом, который они защищают: `runtime_security.py` (`RuntimeSecurityEnforcer`) — stream-чекпоинты runner'а, `tool_guards.py` — in-graph чекпоинты `TOOL_RESULT`/`TOOL_CALL_ARG`, переиспользуемые основным графом и графами субагентов. Адаптеры знают, *где и как* вызвать guard и что делать с вердиктом (redact / срез `tool_calls`); в `security/` они не входят — движок не зависит от графов и runner'а.
+
+### Добавляешь инструмент агенту
+
+Чек-лист, обязательный для любого нового tool'а (internal или built-in MCP), — четыре пункта из design-brief feat-001 § «Конвенции»:
+
+1. **Подпись фронта.** Имя → `{label, icon, argTemplate}` в реестре подписей фронта (`shared/config`, FSD). Полноту сторожит машинная цепочка, не память разработчика: инструмент добавляется в реестр бэкенда (`app.agent.tools.registry`) → перегенерируется фикстур `backend/contracts/agent-tool-names.json` (`PYTHONPATH=backend uv run --package learnflow-backend python scripts/generate_tool_names_fixture.py`, из корня репозитория) → пропуск регенерации красит backend drift-гейт (`backend/tests/agent/test_tool_names_fixture.py`) → отсутствие подписи на фронте красит фронтовый тест полноты реестра. Пропустить любое звено — увидеть красный CI, не тихий пробел в UI.
+2. **Артефакт — по атрибуту, не по имени.** Artifact-producing инструмент возвращает `response_format="content_and_artifact"`; событие `artifact_created` эмитится по наличию `ToolMessage.artifact`, не по whitelist имён — новый инструмент не требует правки маппера.
+3. **Доменное действие — через `agent_events.emit_agent_event`, не напрямую.** Инструмент, совершающий доменную запись (Knowledge Sphere, память, skill context), сообщает об этом через хелпер `app.agent.agent_events.emit_agent_event(kind, payload)`, не через голый `get_stream_writer()`: последний бросает `KeyError`/`RuntimeError` вне графового рантайма (юнит-тесты, вызывающие tool через `tool.ainvoke(...)` напрямую) и молча пишет в никуда, если тул исполняется внутри графа субагента (тот работает через `ainvoke`, его собственный custom-стрим никто не читает). Хелпер разруливает оба случая и приписывает `parent_call_id`, если вызов идёт из-под субагента.
+4. **UI-содержимое результата — raw-разворот, не rich-рендер.** Результат инструмента показывается в развороте сырым текстом с усечением (2000 символов + `truncated`, `app.agent.text_limits.truncate`) — типизированный rich-рендер по видам результата не вводится этим чек-листом.
+
+Полный контракт событий, которые видит фронт (`tool_call_started` / `tool_call_args` / `tool_result` / `agent_event` / …), — [streaming.md](../streaming.md).
 
 ## Skills
 

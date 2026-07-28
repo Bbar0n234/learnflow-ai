@@ -31,7 +31,7 @@ graph TD
 | Метод | Назначение |
 |-------|------------|
 | `stream(thread_id, content, project_id, user_id, session?, model_config?)` | Генерация ответа, поток `StreamEvent` |
-| `get_history(thread_id)` | История сообщений (HumanMessage + AIMessage без tool_calls) |
+| `get_history(thread_id)` | История чата: один `Message` на ход (user или assistant), ассистентский `Message` несёт `parts` — typed-разбор хода (`reasoning`/`text`/`tool_call`), собранный из чекпоинта, → [streaming.md § История: typed parts](streaming.md#история-typed-parts) |
 | `get_last_ai_message_id(thread_id)` | ID последнего ответа агента (для привязки артефактов) |
 | `cancel(thread_id)` | Отмена генерации через `asyncio.Event` |
 
@@ -77,10 +77,13 @@ graph LR
 
 **Invocation:**
 ```
-graph.astream(input_msg, config, stream_mode=["messages", "updates"], context=context)
+graph.astream(input_msg, config, stream_mode=["messages", "updates", "custom"], context=context)
 ```
-- `stream_mode=["messages"]` — потоковые токены от LLM → `text_chunk` SSE events
-- `stream_mode=["updates"]` — результаты узлов → `tool_start`, `tool_end`, `artifact_created` events
+- `stream_mode=["messages"]` — сырые чанки LLM → `text_chunk` / `reasoning_chunk` / ранние `tool_call_started` / `tool_call_args` (`TokenChunkMapper`)
+- `stream_mode=["updates"]` — результаты узлов → `tool_result` / `artifact_created` / `tool_call_cancelled` (`StreamEventMapper`)
+- `stream_mode=["custom"]` — `get_stream_writer()` из tools/графа → `agent_event` (доменные записи, факт компакции) и, для инструментов субагента, те же lifecycle-события с `parent_call_id`
+
+Полный контракт событий и их payload'ы — [streaming.md](streaming.md).
 
 ## System Message
 
@@ -334,7 +337,7 @@ flowchart LR
 
 **Persistence** — `none` (v1, все три типа): `compile(checkpointer=False)`, субагент полностью stateless между вызовами. `inherit` — субграф наследует PG checkpointer родителя под отдельным `checkpoint_ns`; свойство архитектуры, доступное сменой одного поля спеки, не задействовано ни одним v1-типом.
 
-**Наблюдаемость** — запуски видны в Langfuse вложенными span'ами независимо от режима `persistence` (callbacks пробрасываются во вложенный граф автоматически через contextvars, → [observability.md](observability.md)). Токены субагента в чат не рисуются: чанки `stream_mode="messages"`, помеченные тегом `subagent` в metadata, отфильтровываются в стрим-цикле до аккумуляции `full_response` и до canary/mid-stream проверок — → [streaming.md](streaming.md). Промпты трёх типов — в том же Langfuse-контуре, что остальные системные промпты (`prompts.yaml` + seed + file fallback) — → [prompt-management.md](prompt-management.md).
+**Наблюдаемость** — запуски видны в Langfuse вложенными span'ами независимо от режима `persistence` (callbacks пробрасываются во вложенный граф автоматически через contextvars, → [observability.md](observability.md)). Токены субагента (сырой LLM-текст) в чат не рисуются: чанки `stream_mode="messages"`, помеченные тегом `subagent` в metadata, отфильтровываются в стрим-цикле до аккумуляции `full_response` и до canary/mid-stream проверок. Шаги субагента при этом не немы: каждый резолвленный для него инструмент оборачивается (`SubagentRunner`, `_LifecycleEmittingTool`) так, что его вызов даёт те же `tool_call_started`/`tool_call_args`/`tool_result`/`agent_event`, что и вызов инструмента основным агентом, с `parent_call_id` = `call_id` вызова `run_subagent` — механизм и лимиты этой live-ленты → [streaming.md § Вложенность субагента](streaming.md#вложенность-субагента). Промпты трёх типов — в том же Langfuse-контуре, что остальные системные промпты (`prompts.yaml` + seed + file fallback) — → [prompt-management.md](prompt-management.md).
 
 ## Security
 

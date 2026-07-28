@@ -19,6 +19,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.runtime import Runtime
 
+from app.agent.agent_events import emit_agent_event
 from app.agent.config import AgentConfig, PromptFragmentsConfig
 from app.agent.prompt_builder import build_system_message, compose_for_llm
 from app.agent.security.guard import SecurityGuard
@@ -92,6 +93,7 @@ async def _reduce_context(
         )
         ops_prefix.append(summary_msg)
 
+        emit_agent_event("compaction", {})
         return [summary_msg, *recent_messages], ops_prefix
     except Exception:
         logger.warning("summarization failed, falling back to trim-only", exc_info=True)

@@ -61,6 +61,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 #   tool_result         -> {"call_id": str, "tool": str, "status": str,
 #                           "content": str, "truncated": bool} (stream_events.py
 #                           — updates channel, ``ToolMessage`` after execution)
+#   agent_event         -> {"kind": str, "payload": dict, "parent_call_id"?: str}
+#                           (runner.py — custom channel, our own tools'
+#                           ``agent_events.emit_agent_event`` domain writes:
+#                           sphere_write / memory_write / skill_context_write /
+#                           compaction)
 #   cancelled           -> {}                       (runner.py)
 #   error               -> {"detail": str}         (runner.py, streaming.md)
 #   security_block      -> {}                       (runner.py — generic, no
@@ -81,6 +86,7 @@ RUNNER_FORWARDED_TYPES = frozenset(
         "tool_call_args",
         "tool_call_cancelled",
         "tool_result",
+        "agent_event",
         "artifact_created",
         "final_output_review_started",
         "final_output_review_complete",
@@ -144,6 +150,15 @@ def tool_result_event(
             "truncated": truncated,
         },
     )
+
+
+def agent_event_event(
+    kind: str, payload: dict[str, object], *, parent_call_id: str | None = None
+) -> StreamEvent:
+    data: dict[str, object] = {"kind": kind, "payload": payload}
+    if parent_call_id is not None:
+        data["parent_call_id"] = parent_call_id
+    return StreamEvent(type="agent_event", data=data)
 
 
 def error_event(detail: str = "Stream failed") -> StreamEvent:

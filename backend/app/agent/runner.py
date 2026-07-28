@@ -12,6 +12,7 @@ import structlog
 from langchain_core.messages import AIMessageChunk, HumanMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agent.agent_events import DOMAIN_AGENT_EVENT_KINDS
 from app.agent.checkpoint_history import CheckpointHistory
 from app.agent.config import ErrorMessagesConfig, ResolvedModelConfig
 from app.agent.error_mapper import normalize_error_message
@@ -199,7 +200,7 @@ class LangGraphAgentRunner:
                     async for mode, data in graph.astream(  # type: ignore[call-overload]
                         input_msg,
                         config,
-                        stream_mode=["messages", "updates"],
+                        stream_mode=["messages", "updates", "custom"],
                         context=context,
                     ):
                         if cancel_event.is_set():
@@ -292,6 +293,37 @@ class LangGraphAgentRunner:
                         elif mode == "updates":
                             for event in event_mapper.updates(data):
                                 yield event
+
+                        elif mode == "custom" and isinstance(data, dict):
+                            custom_type = data.get("type")
+                            if custom_type in DOMAIN_AGENT_EVENT_KINDS:
+                                # Our own tools' domain writes
+                                # (`agent_events.emit_agent_event`) — wrapped
+                                # into the wire's `agent_event {kind, payload,
+                                # parent_call_id?}` (design-brief § "Контракт
+                                # SSE v2").
+                                agent_event_data: dict[str, Any] = {
+                                    "kind": custom_type,
+                                    "payload": data.get("payload", {}),
+                                }
+                                parent_call_id = data.get("parent_call_id")
+                                if parent_call_id is not None:
+                                    agent_event_data["parent_call_id"] = parent_call_id
+                                yield StreamEvent(
+                                    type="agent_event", data=agent_event_data
+                                )
+                            elif custom_type is not None:
+                                # Lifecycle types (tool_call_started /
+                                # tool_call_args / tool_result) written to the
+                                # custom channel by the subagent-step wrapper —
+                                # already shaped like the final wire event's
+                                # data, passed through unchanged rather than
+                                # wrapped in agent_event: on the wire these
+                                # must be "те же типы, что у основного агента"
+                                # (design-brief § "Вложенность субагента").
+                                yield StreamEvent(
+                                    type=custom_type, data=data.get("data", {})
+                                )
 
                 except (asyncio.CancelledError, GeneratorExit):
                     # Two distinct causes land here: a real client disconnect

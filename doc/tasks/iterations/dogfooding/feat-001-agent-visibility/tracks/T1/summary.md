@@ -2,23 +2,21 @@
 
 ## TL;DR
 
-Трек закрывает четыре фазы. **T1.1** подтвердила: reasoning доезжает до сохранённого в
-чекпоинт `AIMessage` на реальном streaming-пути, без правок `graph.py`. **T1.2** ввела
-транспортный каркас SSE v2: `stream_started` до setup, `HeartbeatPacer` (heartbeat 5 с +
-отзывчивая отмена во время долгого tool-вызова), терминальный `cancelled {}`, generic
-`security_block {}`, устранена утечка `_cancel_events`. **T1.3** переработала token-канал —
-`TokenChunkMapper` (per-run) разбирает чанк на `reasoning_chunk` / `text_chunk` / ранние
-`tool_call_started` + `tool_call_args`; guard-проверки остались только на `text_chunk`;
-изолирован стрим суммаризатора от пользовательского канала. **T1.4** привела updates-канал
-(`StreamEventMapper`, тоже сделан per-run) к контракту: `tool_start`/`tool_end` удалены;
-`tool_result` — из `ToolMessage` (status/content/truncated); `artifact_created` — по атрибуту
-`ToolMessage.artifact`, не по whitelist имён; `tool_call_cancelled` — при срезе
-`guard_tool_call_args`, через bookkeeping «анонсировано token-каналом, не разрешилось».
+Трек закрывает пять фаз. **T1.1** подтвердила reasoning в чекпоинте на streaming-пути (без
+правок `graph.py`). **T1.2** ввела каркас SSE v2: `stream_started` до setup, `HeartbeatPacer`
+(heartbeat + отзывчивая отмена), терминальный `cancelled {}`, generic `security_block {}`.
+**T1.3** переработала token-канал (`TokenChunkMapper`, per-run): `reasoning_chunk`/
+`text_chunk`/ранние `tool_call_started`+`tool_call_args`; изолирован стрим суммаризатора.
+**T1.4** привела updates-канал (`StreamEventMapper`, per-run) к контракту: `tool_result` из
+`ToolMessage`, `artifact_created` по атрибуту, `tool_call_cancelled` через bookkeeping.
+**T1.5** включила `stream_mode="custom"` и хелпер `agent_events.emit_agent_event` (writer:
+контекстная переменная → `get_stream_writer()` → no-op вне графа) — им KS/memory/skill-context
+tools и компакция репортуют `sphere_write`/`memory_write`/`skill_context_write`/`compaction`,
+раннер маппит их в `agent_event {kind, payload}`.
 
 `make check` зелёный на всех фазах. `make test`: стабильно **526 passed, 1 failed, 228
-errors** с T1.2 — падения инфраструктурные (testcontainers/Docker) и один предсуществующий
-внешний прайсинг-дрейф, ни одна фаза не добавила красного. Ручная проверка reasoning на живой
-модели (T1.1) не выполнена — нет сети в среде агента.
+errors** — инфраструктурные (testcontainers) плюс предсуществующий прайсинг-дрейф, ни одна
+фаза не добавила красного.
 
 ## Реализовано в фазе T1.1
 
@@ -232,7 +230,14 @@ errors** с T1.2 — падения инфраструктурные (testcontai
   правки один и тот же `StreamEventMapper` обслуживал бы все одновременные пользовательские
   раны, и с добавлением per-run bookkeeping (`_pending_call_ids`) стал бы местом утечки
   состояния между параллельными стримами — тем самым нарушением «никакого
-  module-level/shared состояния», которого T1.3 уже избежала для `TokenChunkMapper`.
+  module-level/shared состояния», которого T1.3 уже избежала для `TokenChunkMapper`. **Это
+  меняет публичную сигнатуру конструктора `LangGraphAgentRunner`**
+  (`event_mapper: StreamEventMapper | None` → `event_mapper_factory: Callable[[],
+  StreamEventMapper] | None`, тот же переход, что T1.3 уже сделала для `token_mapper_factory`)
+  — предмет отдельного внимания на code review: единственный продакшн-вызывающий —
+  `main.py` (правка внесена в этом же диффе), тестовые конструкторы раннера (`test_runner.py`,
+  `test_stream_isolation.py`) параметр вообще не передавали (полагались на дефолт), поэтому
+  их не потребовалось трогать под переименование.
 - Тесты — списком с обоснованием (правило A6: приведение существующих тестов к новому
   словарю событий, не новые кейсы — полноценный набор пишет `test-author`):
   - `backend/tests/agent/test_stream_events.py` — переименованы/переприведены к новому
@@ -263,8 +268,84 @@ errors** с T1.2 — падения инфраструктурные (testcontai
     `test_tool_result_still_flows_while_tokens_are_filtered`, фикстура упрощена (убран
     начальный `updates` с `AIMessage.tool_calls` — он больше ничего не эмитит и не нужен
     тесту), ассерт `"tool_result" in types` вместо пары `tool_start`/`tool_end`. Модульный
-    докстринг и докстринг `StreamingToolCallFakeChatModel` (`tests/agent/conftest.py`) поправлены
-    той же правкой — упоминали устаревшие имена событий в прозе.
+    докстринг поправлен той же правкой — упоминал устаревшие имена событий в прозе.
+  - `backend/tests/agent/conftest.py` — только докстринг `StreamingToolCallFakeChatModel`
+    поправлен (упоминал «letting runner tests exercise `tool_start`/`tool_end`» — заменено на
+    актуальные `tool_call_started`/`tool_call_args`/`tool_result`); сам фейк (`_astream`,
+    сборка `tool_call_chunks`) не менялся — он и раньше отдавал корректные chunk'и, которые
+    `TokenChunkMapper` (T1.3) уже умеет собирать.
+  - `backend/tests/chat/conftest.py` — вокабуляр `RUNNER_FORWARDED_TYPES` пополнен
+    `tool_call_cancelled`/`tool_result` взамен `tool_start`/`tool_end`; добавлены билдеры
+    `tool_call_cancelled_event()`/`tool_result_event()` тем же паттерном, что и существующие
+    (`tool_call_started_event()` и др.) — без них AST-страж словаря в `test_chat_service.py`
+    не смог бы запрограммировать новые типы в тестах, а комментарий-таблица payload'ов над
+    `RUNNER_FORWARDED_TYPES` дополнен строками по обоим новым типам.
+  - `backend/tests/chat/test_chat_service.py` — `test_runner_emits_only_the_agreed_wire_
+    vocabulary` и `test_chat_service_forwards_each_runner_type_and_consumes_trace_id`
+    (сквозная сверка словаря + «по одному событию каждого форвардящегося типа») переприведены:
+    инлайновые `StreamEvent(type="tool_start", ...)`/`StreamEvent(type="tool_end", ...)`
+    заменены на `tool_call_cancelled_event("c2")`/`tool_result_event("c1", "search",
+    content="ok")`, ожидаемая последовательность `forwarded` обновлена соответственно. Это
+    приведение существующих тестов к новому словарю (тот же тест, тот же охват сценариев),
+    не новый тест-кейс.
+
+## Реализовано в фазе T1.5
+
+- `backend/app/agent/agent_events.py` (новый) — хелпер `emit_agent_event(kind, payload)` и
+  общий реестр `DOMAIN_AGENT_EVENT_KINDS = {"sphere_write", "memory_write",
+  "skill_context_write", "compaction"}`. Резолвит writer в порядке приоритета: (1) явный
+  writer из контекстной переменной `SUBAGENT_STREAM_WRITER` (пока никем не выставляется — это
+  задел под T1.6: обёртка исполнения инструментов субагента будет делать `.set()`/
+  `.reset(token)` вокруг вызова каждого инструмента; до T1.6 переменная всегда `None`, и
+  хелпер безусловно проходит к пункту 2), (2) `get_stream_writer()`, (3) no-op-функция при
+  `KeyError`/`RuntimeError` (вне графового рантайма). Строковые значения payload проходят
+  `text_limits.truncate` перед уходом на wire.
+- `backend/app/agent/runner.py` — `stream_mode` расширен до `["messages", "updates",
+  "custom"]`; новая ветка `elif mode == "custom"`: конверт `{"type": ..., "payload"?: ...,
+  "data"?: ..., "parent_call_id"?: ...}` от writer'а — если `type` есть в
+  `DOMAIN_AGENT_EVENT_KINDS` (импортирован из `agent_events.py`, не продублирован), раннер
+  оборачивает в `StreamEvent(type="agent_event", data={"kind", "payload", "parent_call_id"?})`;
+  для любого другого известного (не `None`) `type` — пробрасывает как есть
+  (`StreamEvent(type=custom_type, data=data.get("data", {}))`), не оборачивая, — это ветка,
+  которой в T1.6 воспользуется субагентная обёртка для `tool_call_started`/`tool_call_args`/
+  `tool_result` с `parent_call_id`, на проводе неотличимых от событий основного агента.
+- `backend/app/agent/tools/knowledge_sphere.py` — `create_section`/`update_section`/
+  `delete_section` эмитят `sphere_write {"section_id": section_id}` после
+  `store.aput`/`store.adelete`; `get_section` (read-only) не эмитит.
+- `backend/app/agent/tools/user_memory.py` — `save_user_memory`/`delete_user_memory` эмитят
+  `memory_write {"key": key}`.
+- `backend/app/agent/tools/skill_context.py` — `save_skill_context`/`delete_skill_context`
+  эмитят `skill_context_write {"skill_name": skill_name, "key": key}`.
+- `backend/app/agent/graph.py` — `_reduce_context` эмитит `compaction {}` сразу после сборки
+  `ops_prefix` на успешном пути сжатия (не в `except`-ветке отказа суммаризации — там
+  компакции фактически не произошло).
+- Ручная сквозная проверка (не коммитится, аналог `heartbeat_smoke.py` из T1.2): временный
+  pytest-тест гонял `LangGraphAgentRunner.stream()` через реальный `astream` с фейковой
+  моделью, вызывающей `create_section`, — подтвердил, что `agent_event {"kind":
+  "sphere_write", "payload": {"section_id": "s1"}}` действительно доезжает на wire между
+  `tool_call_args` и `tool_result`, в правильном порядке; удалён после проверки.
+- Тесты — списком с обоснованием (правило A6: приведение существующего словаря, не новые
+  кейсы — их пишет `test-author`):
+  - `backend/tests/chat/conftest.py` — `RUNNER_FORWARDED_TYPES` пополнен `agent_event`
+    (иначе AST-страж словаря в `test_chat_service.py` покраснел бы на новый emission site в
+    `runner.py`); добавлен билдер `agent_event_event(kind, payload, *, parent_call_id=None)`
+    тем же паттерном, что и остальные (`tool_result_event()` и др.); комментарий-таблица
+    payload'ов над `RUNNER_FORWARDED_TYPES` дополнен строкой по новому типу.
+  - `backend/tests/chat/test_chat_service.py` — `test_runner_emits_only_the_agreed_wire_
+    vocabulary` (сверка множества литералов) и `test_chat_service_forwards_each_runner_
+    type_and_consumes_trace_id` («по одному событию каждого форвардящегося типа») дополнены
+    одним `agent_event_event("sphere_write", {"section_id": "s1"})` каждый — без этого первый
+    тест упал бы на новом emission site `StreamEvent(type="agent_event", ...)` в `runner.py`
+    (сканируется по AST независимо от того, вызывается ли он в реальном ране), второй бы не
+    покрывал новый forwarded-тип. Тот же тест, тот же охват сценариев — не новый кейс.
+  - Файлы, которые я **не** тронул, хотя мог ожидать: unit-тесты инструментов
+    (`tests/personalization/test_user_memory_tools.py`,
+    `tests/skill_context/test_skill_context_tools.py`,
+    `tests/sphere/test_knowledge_sphere_tools.py`) вызывают tools через `tool.ainvoke(...)`
+    напрямую — это ровно путь, на котором `emit_agent_event` резолвится в no-op
+    (`KeyError` от `get_stream_writer()`), поэтому все 39 тестов остались зелёными без единой
+    правки; это и есть проверка «no-op вне графа», которую план требует от этой фазы, а не
+    новый тест-кейс, который следовало бы писать.
 
 ## Решения и обоснования
 
@@ -497,6 +578,125 @@ errors** с T1.2 — падения инфраструктурные (testcontai
   успел его отредактировать — тот же тайминговый зазор, что существовал в TOOL_RESULT guard'е
   до этой фазы (не новая проблема T1.4, не входит в её scope: «изменение guard-политик» —
   явная scope boundary брифа).
+- **Как `tool_call_cancelled` переиспользует per-run состояние T1.3, а не заводит своё
+  параллельно.** План прямо требовал «того же per-run состояния, что и T1.3» — рассмотрел
+  два способа этого добиться:
+  1. *(отверг)* Передавать `pending_call_ids` как обычный `set`/`list` параметром в
+     `updates(data, pending_call_ids)` на каждый вызов, а бухгалтерию (кто анонсирован, кто
+     разрешён) вести целиком в `_run_turn()` раннера. Это оставило бы `StreamEventMapper`
+     формально «чистым» (без своего состояния), но раздвоило бы одну заботу («какие call_id
+     ещё не закрыты») между раннером и мапперои: раннер добавлял бы id при
+     `tool_call_started`, а мапперу пришлось бы мутировать тот же объект по ссылке при
+     `tool_result` — семантика мутации разделяемого изменяемого объекта между двумя
+     компонентами хуже читается и тестируется, чем инкапсуляция в одном месте.
+  2. *(выбрал)* Сделать `StreamEventMapper` per-run коллаборатором (как `TokenChunkMapper` уже
+     стал в T1.3) с собственным `_pending_call_ids` и публичным методом
+     `note_call_announced(call_id)`, который раннер дёргает при каждом `tool_call_started` из
+     token-канала. Раннер остаётся точкой связи двух каналов (он один видит оба потока
+     событий — `messages` и `updates` — в одном цикле `async for mode, data in
+     graph.astream(...)`), но вся бухгалтерия «объявлен / разрешён / срезан» инкапсулирована
+     в одном объекте с одним инвариантом, а не размазана по двум местам. Тот же принцип
+     factory-инъекции (`event_mapper_factory`, конструктор раннера), что и у
+     `token_mapper_factory` — согласованность двух коллабораторов одного слоя.
+- **Дедупликация с token-каналом: `tool_start`/`tool_end` не оставлены «на всякий случай»
+  рядом с новыми событиями, а вычищены целиком.** Альтернатива — оставить их эмитироваться
+  параллельно с `tool_call_started`/`tool_result` для обратной совместимости — отвергнута:
+  design-brief таблица контракта v2 прямо перечисляет `tool_start`/`tool_end` в строке
+  «Удаляются», а не «форвардить оба». Двойной сигнал начала вызова (ранний
+  `tool_call_started` из token-канала — раньше на чанк раньше, ещё до завершения узла `agent`
+  — и `tool_start` из updates на завершении узла) создал бы на фронте два конкурирующих
+  события с разным таймингом для одного и того же логического «вызов начался», что
+  противоречит модели «одна строка ленты = одна последовательность typed-parts» из брифа.
+  Оставлять фронту разрешать эту гонку самому — плодить сложность вместо архитектурного
+  решения «одно событие, один источник правды на этап жизненного цикла вызова».
+- **`artifact_created` — признак по атрибуту (`msg.artifact is not None`), не whitelist имён.**
+  Прямое следствие design-brief контракта (строка `artifact_created`: «по наличию
+  `ToolMessage.artifact` (замена захардкоженного whitelist имён)») и чек-листа конвенций п.2
+  («Artifact-producing → `response_format="content_and_artifact"` → событие по атрибуту, не по
+  имени»). Whitelist требовал ручной правки `stream_events.py` на каждый новый
+  artifact-producing инструмент (пропущенная правка молча теряла бы событие); признак по
+  атрибуту делает это автоматическим следствием контракта самого инструмента — если тул
+  вернул `artifact`, лента об этом узнает независимо от того, как он называется.
+
+- **`agent_events.py` — отдельный модуль, не метод/функция в `stream_events.py` или
+  `runner.py`.** Прямое следствие conventions/agent.md § Agent Runtime («новая сквозная
+  забота в runtime → отдельный коллаборатор, а не ещё один метод»), но здесь причина ещё и
+  структурная: этот код вызывается не раннером и не мапперами, а *инструментами*
+  (`knowledge_sphere.py`, `user_memory.py`, `skill_context.py`) и *графом* (`graph.py`) —
+  модулями, которые физически не могут импортировать `runner.py` (не по кругу — `runner.py`
+  сам импортирует `graph_factory`, который в конечном счёте собирает граф из тех же tools) и
+  не должны обзаводиться знанием о `StreamEventMapper`/`TokenChunkMapper` (те заняты формой
+  событий `messages`/`updates`, а не тем, что писать в `custom`). Отдельный модуль на уровне
+  `app/agent/` — единственное место, от которого могут зависеть и тулы, и граф, и раннер, не
+  создавая цикл.
+- **Приоритет источников writer'а: контекстная переменная → `get_stream_writer()` → no-op —
+  и не в другом порядке.** Если бы `get_stream_writer()` шёл первым, а контекстная переменная
+  — вторым (или вообще не проверялась бы до T1.6), то в момент, когда T1.6 добавит обёртку
+  субагента и её контекстную переменную, вызов KS/memory/skill-context тула *внутри*
+  субагента продолжил бы резолвиться в `get_stream_writer()` того субагентского Pregel-рана
+  (см. входной факт плана №5 — вложенный граф исполняется через `ainvoke`, значит его
+  `custom`-стрим никем не потребляется) — событие тихо терялось бы, и ни один тест не
+  показал бы красного (нет исключения, просто нет события на выходе). Обратный порядок не
+  «тоже сработал бы, но менее элегантно» — он был бы молчаливым регрессом на T1.6, который
+  проявился бы не в этой фазе, а в следующей, причём как отсутствие, а не как ошибка. Именно
+  поэтому приоритет — часть контракта этой фазы, а не деталь реализации: T1.6 не должен
+  трогать порядок проверки, только выставлять переменную.
+- **`DOMAIN_AGENT_EVENT_KINDS` живёт в `agent_events.py`, импортируется в `runner.py`, не
+  продублирован списком-литералом на стороне раннера.** Один и тот же набор строк решает две
+  разные задачи на двух концах custom-канала: `emit_agent_event` использует его как
+  allowlist для валидации `kind` на входе (не даёт эмитировать опечатку), `runner.py` — как
+  условие маршрутизации «обернуть в `agent_event` или пробросить как есть» на выходе. Если бы
+  каждая сторона держала свою копию множества, добавление нового доменного kind (например,
+  в T1.6 или позже) потребовало бы синхронно править оба файла — разъехавшиеся копии дали бы
+  либо непойманную опечатку в эмиттере, либо кind, который эмиттер считает валидным, а
+  раннер — нет (и тогда он попал бы в ветку passthrough как «недоменный», ломая контракт
+  `agent_event {kind, payload}` без единой ошибки).
+- **`emit_agent_event` бросает `ValueError` на неизвестный `kind`, а не проглатывает молча.**
+  Асимметрично с «безопасно вне графа»: там отсутствие рантайма — ожидаемая, штатная ситуация
+  (тесты вызывают tools напрямую), а неизвестный `kind` — программная ошибка вызывающего
+  (опечатка в строковом литерале внутри своего же тула). Проглотить её так же тихо, как
+  отсутствие рантайма, означало бы, что и настоящую типографскую ошибку в коде проекта нельзя
+  было бы отличить от штатного «нет графа» — а именно эту не-разделённость и предупреждал
+  design-brief про «безопасный хелпер» (safety относится к *рантайм-контексту*, а не к
+  *данным*, которые передаёт наш собственный код). `ValueError` здесь падает при разработке
+  (юнит-тест инструмента или ручной прогон), не в проде на реальном трафике — там `kind`
+  всегда один из четырёх литералов, зашитых в вызовах этой же фазы.
+- **Ловятся именно `KeyError` и `RuntimeError`, не голый `except Exception`.** Это ровно два
+  исключения, которые реально бросает `get_stream_writer()` в двух разных «вне графа»
+  сценариях (проверено экспериментально, не только по формулировке плана): `KeyError
+  ('__pregel_runtime')` — когда есть хоть какой-то runnable-контекст, но не полный
+  Pregel-рантайм (ровно случай `tool.ainvoke(...)` в существующих тестах инструментов);
+  `RuntimeError("Called get_config outside of a runnable context")` — когда вызов происходит
+  вообще вне какого-либо runnable-контекста (ровно случай прямого вызова
+  `_reduce_context(...)` в `test_graph.py`, минуя граф целиком). Широкий `except Exception`
+  спрятал бы и настоящий баг где-то глубже в резолве раннер-контекста LangGraph — узкий
+  перехват двух конкретных, проверенных типов оставляет любую другую ошибку падать, как ей
+  положено.
+- **Усечение payload'а — по строковому значению каждого поля через общий `text_limits.truncate`,
+  без отдельного флага `truncated` на самом `agent_event`.** Design-brief таблица контракта
+  перечисляет поля `agent_event` как ровно `{kind, payload, parent_call_id?}` — никакого
+  `truncated` там нет (в отличие от `tool_call_args`/`tool_result`, где он есть явно). При
+  этом design-brief прямо требует «усечение args/content/task в SSE и API — 2000 символов +
+  флаг truncated» как общую политику лимитов — то, что для `agent_event` эта политика
+  выражена без отдельного видимого флага, а просто как факт использования того же
+  `truncate()`, — осознанное отражение того, что текущие четыре kind'а несут только
+  короткие идентификаторы (`section_id`/`key`/`skill_name`), а не произвольный
+  пользовательский текст: усечение здесь — defensive-мера на случай будущего роста полей, не
+  ожидаемое поведение сегодня (ни один существующий вызов `emit_agent_event` в этой фазе
+  передаёт строку длиннее лимита).
+- **Минимальный payload на kind — только идентифицирующее поле(я), без поля-действия
+  (`action`/`operation`).** План формулирует требование буквально: «минимальным payload (то,
+  что нужно подписи на фронте: раздел/ключ/скилл)» — это `section_id` для `sphere_write`,
+  `key` для `memory_write`, `skill_name`+`key` для `skill_context_write`, ничего для
+  `compaction`. Рассматривался вариант добавить `action: "create"|"update"|"delete"` (или
+  `"save"|"delete"`), чтобы отличать создание секции от её удаления в подписи фронта, — не
+  добавлен: (1) буквальная формулировка плана называет только идентифицирующие поля, а
+  добавление таксономии действий — решение о форме продукта, которое стоит взять у
+  архитектора явно, а не выводить по аналогии; (2) для `sphere_write`/`skill_context_write`
+  различение create/update/delete и так доступно на фронте через parallельные события
+  `tool_call_started {tool: "create_section"|"update_section"|"delete_section"}` того же
+  вызова — `agent_event` не единственный источник этого сигнала, так что минимальный вариант
+  не теряет информацию, а лишь не дублирует её на двух каналах.
 
 ## Инфраструктурная находка фазы T1.2 (эскалация архитектору, не блокирует код)
 

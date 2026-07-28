@@ -3,6 +3,8 @@ from __future__ import annotations
 from langchain_core.tools import tool
 from langgraph.prebuilt import ToolRuntime
 
+from app.agent.agent_events import emit_agent_event
+
 
 def _store(runtime: ToolRuntime):  # type: ignore[no-untyped-def]
     if runtime.store is None:
@@ -35,6 +37,7 @@ async def save_user_memory(
         key,
         {"description": description, "content": content},
     )
+    emit_agent_event("memory_write", {"key": key})
     return f"Memory saved: {key}"
 
 
@@ -47,4 +50,5 @@ async def delete_user_memory(key: str, runtime: ToolRuntime) -> str:
     """
     store = _store(runtime)
     await store.adelete(("user", _user_id(runtime), "memory"), key)
+    emit_agent_event("memory_write", {"key": key})
     return f"Memory deleted: {key}"

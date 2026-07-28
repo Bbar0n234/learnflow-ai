@@ -3,6 +3,7 @@ from __future__ import annotations
 from langchain_core.tools import BaseTool, tool
 from langgraph.prebuilt import ToolRuntime
 
+from app.agent.agent_events import emit_agent_event
 from app.agent.tools.skills import _SKILL_NAME_RE
 
 _MAX_CONTENT_LENGTH = 20_000
@@ -106,6 +107,7 @@ def make_skill_context_tools(skill_names: frozenset[str]) -> list[BaseTool]:
                 )
 
         await store.aput(ns, key, {"description": description, "content": content})
+        emit_agent_event("skill_context_write", {"skill_name": skill_name, "key": key})
         return f"Skill context saved: {skill_name}/{key}"
 
     @tool
@@ -120,6 +122,7 @@ def make_skill_context_tools(skill_names: frozenset[str]) -> list[BaseTool]:
         """
         store = _store(runtime)
         await store.adelete(_ns(runtime, skill_name), key)
+        emit_agent_event("skill_context_write", {"skill_name": skill_name, "key": key})
         return f"Skill context deleted: {skill_name}/{key}"
 
     return [get_skill_context, save_skill_context, delete_skill_context]

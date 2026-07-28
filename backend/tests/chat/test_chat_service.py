@@ -17,6 +17,7 @@ import pytest
 from app.agent import heartbeat as heartbeat_module
 from app.agent import runner as runner_module
 from app.agent import stream_events as stream_events_module
+from app.agent.subagents import runner as subagent_runner_module
 from app.models.thread_view import ThreadView
 from app.services.agent_runner import Message, StreamEvent
 from app.services.chat import ChatService
@@ -333,6 +334,40 @@ def _stream_event_type_literals(*modules: object) -> set[str]:
             if isinstance(type_arg, ast.Constant) and isinstance(type_arg.value, str):
                 found.add(type_arg.value)
     return found
+
+
+def _custom_channel_type_literals(*modules: object) -> set[str]:
+    """Collect every ``{"type": "literal", ...}`` envelope in the sources.
+
+    The subagent's tool wrapper does not build ``StreamEvent``s — it writes wire
+    envelopes straight into the stream writer, and the runner passes them
+    through under whatever ``type`` they carry. That puts those literals on the
+    wire just as directly as the runner's own, so they need the same guard:
+    without it, a typo there produces a wire event no consumer knows, and
+    nothing anywhere turns red.
+    """
+    found: set[str] = set()
+    for module in modules:
+        source = Path(module.__file__).read_text(encoding="utf-8")  # type: ignore[attr-defined]
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Dict):
+                continue
+            for key, value in zip(node.keys, node.values, strict=True):
+                if not (isinstance(key, ast.Constant) and key.value == "type"):
+                    continue
+                if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                    found.add(value.value)
+    return found
+
+
+def test_subagent_wrapper_emits_only_the_agreed_wire_vocabulary() -> None:
+    emitted = _custom_channel_type_literals(subagent_runner_module)
+
+    # Non-empty: an empty result would mean the scan stopped seeing the
+    # emission site and the guard silently guards nothing.
+    assert emitted
+    assert emitted <= RUNNER_FORWARDED_TYPES
 
 
 def test_runner_emits_only_the_agreed_wire_vocabulary() -> None:

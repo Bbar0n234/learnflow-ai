@@ -1,15 +1,24 @@
-"""HTTP integration: the SSE v2 vocabulary as it actually leaves the server.
+"""HTTP integration: how a v2 event turns into an SSE frame, end to end.
 
-``test_message_stream.py`` covers the transport (ordering, terminals, headers,
-the 403/404 gates); this suite covers the *shape* of the new v2 events on the
-wire — the exact JSON the frontend's dispatcher switches on. The whole chain is
-real (route -> ``ChatService`` -> ``_event_generator`` -> ``StreamingResponse``)
-with only the agent runner faked, so what is asserted is the serialised frame:
-``data: {...}\\n\\n`` with ``type`` merged into the event's own payload.
+``test_message_stream.py`` covers the transport basics (ordering, terminals,
+headers, the 403/404 gates); this suite covers what the transport *does to* a
+v2 event: the route -> ``ChatService`` -> ``_event_generator`` ->
+``StreamingResponse`` chain is real, and the assertions are on the serialised
+frame — ``data: {...}\\n\\n`` with ``type`` merged into the event's own payload,
+nothing dropped, renamed or nested along the way. That flattening is the step
+where a field can quietly disappear between the runner and the browser, and the
+nesting/terminal/forward-compat semantics below are the transport's own
+behaviour, not the mappers'.
 
-This is the document T2 builds against, so a silent change of a field name here
-(``args`` -> ``arguments``, ``content`` -> ``result``) has to turn something
-red before it reaches the frontend.
+**What this suite is not**: the oracle for the payloads themselves. The runner
+is faked here, so the events come from the builders in ``tests/chat/conftest.py``
+which mirror prod by hand. That a real run produces exactly these fields is
+proven where the events are born — the mapper units (``test_stream_events.py``,
+``test_token_chunk_mapper.py``) and the real-``astream`` runs in
+``tests/agent/test_runner.py`` — while the *set* of types the builders may use
+is tied to prod by the AST vocabulary guard in ``test_chat_service.py``. Read
+those three together for the full contract; this file guarantees that whatever
+the runner emits reaches the client unmangled.
 """
 
 from __future__ import annotations

@@ -67,7 +67,7 @@ data: {"type": "done", "message_id": "msg-uuid", "trace_id": "trace-uuid"}\n\n
 
 ## Лимиты
 
-- **Усечение.** `args` / `content` (tool-результат) / `payload`-строки `agent_event` — единый лимит **2 000 символов** + флаг `truncated`, один хелпер (`app/agent/text_limits.truncate`) на весь SSE-контракт и на `tool_call`-parts в API-истории (§ «История: typed parts» ниже) — лимит бизнес-инвариант в коде, не env.
+- **Усечение.** `args` / `content` (tool-результат) / `payload`-строки `agent_event` — единый лимит **2 000 символов**, один хелпер (`app/agent/text_limits.truncate`) на весь SSE-контракт и на `tool_call`-parts в API-истории (§ «История: typed parts» ниже); лимит — бизнес-инвариант в коде, не env. Флаг `truncated` несут те события, у которых он объявлен в таблице выше (`tool_call_args`, `tool_result`) и `tool_call`-part истории; строки `payload` у `agent_event` усекаются молча — отдельного поля под флаг у этого события нет.
 - **Heartbeat.** Таймер **5 с** тишины (`HEARTBEAT_INTERVAL_SECONDS`, `app/agent/heartbeat.py`) — событие уходит в любой точке рана, где источник ничего не отдал за интервал.
 - **Таймаут клиента от heartbeat.** Контракт для потребителя: соединение считается потерянным после **3 пропущенных heartbeat подряд** (~15 с полной тишины на проводе) — это заменяет прежний таймаут по first-byte, бессмысленный при SSE (HTTP-заголовки уходят сразу вместе с `stream_started`, поэтому first-byte-таймер измерял не рабочее состояние стрима, а факт открытия соединения).
 

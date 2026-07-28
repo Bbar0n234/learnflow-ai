@@ -35,6 +35,7 @@ from app.agent.config import (
     SubagentSpec,
 )
 from app.agent.graph import AgentContext
+from app.agent.subagents.graph import build_subagent_graph
 from app.agent.subagents.runner import SubagentRunner
 from app.agent.tools.subagents import make_run_subagent_tool
 from langchain_core.messages import AIMessage
@@ -252,33 +253,101 @@ async def test_no_events_are_reported_without_a_writer_to_report_to(
 # --- the attribution is scoped to one call ----------------------------------
 
 
-@pytest.mark.parametrize("subagent_tool", [note, explode], ids=["success", "failure"])
-async def test_the_parent_attribution_does_not_outlive_the_subagent_call(
-    monkeypatch: pytest.MonkeyPatch, prompt_fragments: Any, subagent_tool: Any
-) -> None:
-    # Whether the call succeeded or blew up, the writer and the parent id are
-    # dropped when it ends — otherwise the next domain event of the run (from
-    # the main agent, in a completely different row) would be filed under this
-    # subagent and pushed into a writer that no longer belongs to it.
-    model = CapturingModel(
-        [
-            AIMessage(
-                content="",
-                tool_calls=[
-                    {"name": subagent_tool.name, "args": {"text": "x"}, "id": "i1"}
-                ],
-            ),
-            AIMessage(content="verdict"),
-        ]
-    )
-    runner = _make_runner(monkeypatch, model, subagent_tool, prompt_fragments)
-    writer = _RecordingWriter()
-    await runner.run("judge", "task", stream_writer=writer, parent_call_id="outer-1")
-    written_during_the_call = len(writer.written)
+async def _wrapped_tools(
+    monkeypatch: pytest.MonkeyPatch,
+    subagent_tool: Any,
+    prompt_fragments: Any,
+    writer: _RecordingWriter,
+    *,
+    parent_call_id: str,
+) -> list[Any]:
+    """Run a subagent and return the tools it actually executed with.
 
+    The wrapping happens inside ``SubagentRunner.run`` and the wrapped tools go
+    straight into the graph, so the only way to get hold of them is at the
+    collaborator boundary the runner hands them over at (``build_subagent_graph``).
+    Holding them lets the next cases invoke a subagent tool call *in the test's
+    own context*, which is where the contextvar scoping is observable at all:
+    under ``ToolNode`` every call runs in its own task with its own copy of the
+    context, so nothing set (or left unset) inside it can be seen from outside.
+    """
+    captured: list[Any] = []
+    real_build = build_subagent_graph
+
+    def _spy(**kwargs: Any) -> Any:
+        captured.extend(kwargs["tools"])
+        return real_build(**kwargs)
+
+    monkeypatch.setattr("app.agent.subagents.runner.build_subagent_graph", _spy)
+    model = CapturingModel([AIMessage(content="verdict")])
+    runner = _make_runner(monkeypatch, model, subagent_tool, prompt_fragments)
+    await runner.run(
+        "judge", "task", stream_writer=writer, parent_call_id=parent_call_id
+    )
+    writer.written.clear()  # the probing run itself made no tool calls
+    return captured
+
+
+def _call(tool_name: str, call_id: str, text: str) -> dict[str, Any]:
+    return {
+        "name": tool_name,
+        "args": {"text": text},
+        "id": call_id,
+        "type": "tool_call",
+    }
+
+
+async def test_the_parent_attribution_does_not_outlive_one_tool_call(
+    monkeypatch: pytest.MonkeyPatch, prompt_fragments: Any
+) -> None:
+    # The leak this guards against is what happens *between* two calls: if the
+    # writer and parent id stayed set after a call ended, the next domain event
+    # of the run — the main agent's own work, a completely different row — would
+    # be filed under this subagent and pushed into a writer that no longer
+    # belongs to it. So the probe is an ordinary emission in between: it must
+    # find no ambient subagent scope to attach itself to.
+    writer = _RecordingWriter()
+    tools = await _wrapped_tools(
+        monkeypatch, note, prompt_fragments, writer, parent_call_id="outer-1"
+    )
+
+    await tools[0].ainvoke(_call("note", "inner-1", "first"))
+    emit_agent_event("memory_write", {"key": "between the calls"})
+    await tools[0].ainvoke(_call("note", "inner-2", "second"))
+
+    assert writer.types == [
+        "tool_call_started",
+        "tool_call_args",
+        "memory_write",
+        "tool_result",
+        "tool_call_started",
+        "tool_call_args",
+        "memory_write",
+        "tool_result",
+    ]
+    # Only the two tool bodies reported a domain write; the one emitted between
+    # them found no writer at all, so it never reached the stream.
+    assert [item["payload"]["key"] for item in writer.written if "payload" in item] == [
+        "first",
+        "second",
+    ]
+
+
+async def test_the_parent_attribution_is_dropped_after_a_failing_tool_call(
+    monkeypatch: pytest.MonkeyPatch, prompt_fragments: Any
+) -> None:
+    # Same guarantee on the failure path — the scope is unwound in ``finally``,
+    # so an exception must not leave the attribution behind.
+    writer = _RecordingWriter()
+    tools = await _wrapped_tools(
+        monkeypatch, explode, prompt_fragments, writer, parent_call_id="outer-1"
+    )
+
+    with pytest.raises(RuntimeError, match="tool blew up"):
+        await tools[0].ainvoke(_call("explode", "inner-1", "x"))
     emit_agent_event("compaction", {})
 
-    assert len(writer.written) == written_during_the_call
+    assert writer.types == ["tool_call_started", "tool_call_args", "tool_result"]
 
 
 # --- the hand-over from the run_subagent tool -------------------------------

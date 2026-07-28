@@ -207,6 +207,27 @@ def test_parallel_tool_calls_are_announced_and_filled_independently(
     ]
 
 
+def test_args_that_never_complete_are_never_announced(
+    mapper: TokenChunkMapper,
+) -> None:
+    # A generation cut short (cancelled turn, dropped connection) leaves the
+    # arguments as a JSON fragment. ``tool_call_args`` means "the call is fully
+    # generated", so it must not go out for a fragment — the row stays open
+    # with its name and no "ВЫЗОВ" section, which is the truth of what happened.
+    events = [
+        *mapper.map_chunk(
+            _chunk(
+                tool_calls=[
+                    _fragment(name="search", args='{"q": "ca', id="c1", index=0)
+                ]
+            )
+        ),
+        *mapper.map_chunk(_chunk(tool_calls=[_fragment(args="ts", index=0)])),
+    ]
+
+    assert [e.type for e in events] == ["tool_call_started"]
+
+
 def test_oversized_args_are_truncated_and_flagged(mapper: TokenChunkMapper) -> None:
     args = json.dumps({"text": "x" * (TRUNCATION_LIMIT * 2)})
 

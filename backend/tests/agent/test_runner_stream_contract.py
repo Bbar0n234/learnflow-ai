@@ -54,13 +54,19 @@ class _ScriptedGraph:
 
     ``block`` models a graph stuck inside a single iteration — a long tool call
     or a subagent run — which is exactly the situation the heartbeat timer, not
-    the astream loop, is responsible for.
+    the astream loop, is responsible for. ``then`` gives the *second* run of the
+    same runner its own script, so two consecutive turns can be told apart.
     """
 
     def __init__(
-        self, events: list[tuple[str, Any]], *, block: asyncio.Event | None = None
+        self,
+        events: list[tuple[str, Any]],
+        *,
+        block: asyncio.Event | None = None,
+        then: list[tuple[str, Any]] | None = None,
     ) -> None:
-        self._events = events
+        self._scripts = [events] if then is None else [events, then]
+        self._runs = 0
         self._block = block
 
     async def astream(
@@ -71,7 +77,9 @@ class _ScriptedGraph:
         stream_mode: Any = None,
         context: Any = None,
     ) -> AsyncGenerator[tuple[str, Any], None]:
-        for event in self._events:
+        script = self._scripts[min(self._runs, len(self._scripts) - 1)]
+        self._runs += 1
+        for event in script:
             yield event
         if self._block is not None:
             await self._block.wait()
@@ -337,6 +345,65 @@ async def test_a_call_cut_by_the_guard_is_reported_as_cancelled() -> None:
     cancelled = [e for e in events if e.type == "tool_call_cancelled"]
     assert [e.data for e in cancelled] == [{"call_id": "c1"}]
     assert types.index("tool_call_started") < types.index("tool_call_cancelled")
+
+
+# --- one run's tool-call bookkeeping never reaches the next ------------------
+
+
+async def test_a_later_run_announces_a_repeated_call_id_again() -> None:
+    # Tool-call assembly state belongs to one run. A shared mapper would treat
+    # the second turn's ``c1`` as already announced and swallow the row — and
+    # since provider ids repeat across concurrent users' streams, that is one
+    # user's action silently missing from another user's feed.
+    runner = _make_runner(
+        _FakeFactory(_ScriptedGraph([_tool_call_chunk("c1", "echo", "{}")]))
+    )
+
+    first = await _collect(runner)
+    second = await _collect(runner)
+
+    assert [e.type for e in first if e.type.startswith("tool_call")] == [
+        "tool_call_started",
+        "tool_call_args",
+    ]
+    assert [e.type for e in second if e.type.startswith("tool_call")] == [
+        "tool_call_started",
+        "tool_call_args",
+    ]
+
+
+async def test_a_guard_cut_does_not_cancel_a_previous_runs_call() -> None:
+    # The mirror image on the updates side: a call left unresolved by an earlier
+    # turn must not be reported as cancelled when a *later* turn gets cut. With
+    # shared bookkeeping the second stream would carry a phantom row id its
+    # client never saw announced.
+    runner = _make_runner(
+        _FakeFactory(
+            _ScriptedGraph(
+                [_tool_call_chunk("c1", "echo", "{}")],
+                then=[
+                    (
+                        "updates",
+                        {
+                            "agent": {
+                                "messages": [
+                                    AIMessage(
+                                        content="",
+                                        additional_kwargs={"security_redacted": True},
+                                    )
+                                ]
+                            }
+                        },
+                    )
+                ],
+            )
+        )
+    )
+
+    await _collect(runner)
+    second = await _collect(runner)
+
+    assert [e.type for e in second if e.type == "tool_call_cancelled"] == []
 
 
 # --- reasoning is streamed, never guarded ------------------------------------

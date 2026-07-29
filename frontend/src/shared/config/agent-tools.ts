@@ -92,6 +92,21 @@ export const SUBAGENT_TOOL_NAME = "run_subagent";
 /** Аргумент `run_subagent`, несущий задание субагенту, — в развороте он проза. */
 export const SUBAGENT_TASK_ARG = "task";
 
+/**
+ * Поиск по реестру среди собственных ключей. Имена инструментов и типов
+ * субагента приезжают с провода, а обычное обращение к объектному литералу
+ * резолвит `constructor`, `toString`, `valueOf`, `hasOwnProperty` в члены
+ * `Object.prototype`: запись «находится», но подписи и иконки в ней нет —
+ * fallback не срабатывает, а рендер строки получает `undefined` вместо
+ * компонента иконки и роняет всё сообщение ассистента. `Object.hasOwn`
+ * недоступен: `lib` проекта — ES2020.
+ */
+function ownEntry<T>(registry: Record<string, T>, key: string): T | undefined {
+  return Object.prototype.hasOwnProperty.call(registry, key)
+    ? registry[key]
+    : undefined;
+}
+
 /** Читаемые имена субагентов из реестра бэкенда (`configs/agent.yaml`). */
 const SUBAGENT_LABELS: Record<string, string> = {
   judge: "Проверяющий субагент",
@@ -165,7 +180,9 @@ export const AGENT_TOOL_SIGNATURES: Record<string, ToolSignature> = {
     icon: Bot,
     labelTemplate: (args) => {
       const agentType = text(args, "agent_type");
-      return agentType === null ? null : (SUBAGENT_LABELS[agentType] ?? null);
+      return agentType === null
+        ? null
+        : (ownEntry(SUBAGENT_LABELS, agentType) ?? null);
     },
     argTemplate: (args) => text(args, "agent_type"),
   },
@@ -198,10 +215,11 @@ export const AGENT_TOOL_SIGNATURES: Record<string, ToolSignature> = {
 
 /**
  * Подпись инструмента по имени. Имя вне реестра (пользовательский MCP) даёт
- * сырое имя с нейтральной пометкой источника — не пустую строку и не исключение.
+ * сырое имя с нейтральной пометкой источника — не пустую строку и не исключение;
+ * имя, совпадающее с ключом `Object.prototype`, — тоже (см. `ownEntry`).
  */
 export function resolveToolSignature(name: string): ResolvedToolSignature {
-  const signature = AGENT_TOOL_SIGNATURES[name];
+  const signature = ownEntry(AGENT_TOOL_SIGNATURES, name);
   if (signature) return { ...signature, name, known: true };
   return {
     label: name,

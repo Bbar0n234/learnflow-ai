@@ -45,15 +45,34 @@ function pendingImageCalls(feed: AgentFeedItem[]): string[] {
 }
 
 /**
- * Объём хвоста ленты — сигнал роста для автопрокрутки: текст и рассуждения
- * растут внутри одного элемента, не меняя их числа.
+ * Число строк по всей ленте, включая вложенные: шаги субагента приезжают в
+ * `children` строки его вызова, и массив верхнего уровня при этом не меняется —
+ * счёта по корню для автопрокрутки не хватает.
  */
-function feedTailLength(feed: AgentFeedItem[]): number {
-  const last = feed.at(-1);
-  if (last === undefined) return 0;
-  return last.type === "text" || last.type === "reasoning"
-    ? last.content.length
-    : 0;
+function feedSize(feed: AgentFeedItem[]): number {
+  let size = 0;
+  for (const item of feed) {
+    size += 1;
+    if (item.type === "tool_call") size += feedSize(item.children);
+  }
+  return size;
+}
+
+/**
+ * Объём текста ленты — вторая половина сигнала роста: текст и рассуждения
+ * растут внутри одного элемента, не меняя их числа. Считается по всей ленте,
+ * включая рассуждения субагента внутри его вызова.
+ */
+function feedTextLength(feed: AgentFeedItem[]): number {
+  let length = 0;
+  for (const item of feed) {
+    if (item.type === "text" || item.type === "reasoning") {
+      length += item.content.length;
+    } else if (item.type === "tool_call") {
+      length += feedTextLength(item.children);
+    }
+  }
+  return length;
 }
 
 export function MessageList({
@@ -70,22 +89,17 @@ export function MessageList({
   const isReviewing = useStreamStore((s) => s.isReviewing);
   const liveBlocks = groupFeedBlocks(feed);
   const pendingImages = pendingImageCalls(feed);
-  const tailLength = feedTailLength(feed);
+  const size = feedSize(feed);
+  const textLength = feedTextLength(feed);
   // Хвост живой ленты — единственный элемент, который поток ещё дописывает.
   const activeId = feed.at(-1)?.id ?? null;
 
-  // Прокрутка следует за ростом ленты, а не за одним текстом: ход из одних
-  // tool-событий, без единого `text_chunk`, тоже уезжал бы за нижнюю границу.
+  // Прокрутка следует за ростом всей ленты, а не за одним текстом и не за одним
+  // её корнем: ход из одних tool-событий, без единого `text_chunk`, уезжал бы за
+  // нижнюю границу, а работающий субагент растит только свою вложенную ленту.
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [
-    messages.length,
-    feed.length,
-    tailLength,
-    isStreaming,
-    isReviewing,
-    endNotice,
-  ]);
+  }, [messages.length, size, textLength, isStreaming, isReviewing, endNotice]);
 
   return (
     <div className="flex-1 overflow-auto p-6">

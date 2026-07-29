@@ -66,6 +66,23 @@ describe("реестр подписей инструментов", () => {
     expect(described.icon).toBeDefined();
   });
 
+  // Имена инструментов приезжают с провода, и ключ `Object.prototype` — такое
+  // же имя вне реестра, как любое другое: fallback обязан сработать. Пока
+  // реестр опрашивался обычным обращением, эти имена резолвились в
+  // унаследованные члены — подпись считалась известной, но приходила без
+  // `label` и `icon`, и строка ленты роняла рендер всего сообщения.
+  it.each(["constructor", "toString", "valueOf", "hasOwnProperty"])(
+    "имя %s из Object.prototype резолвится fallback'ом, а не членом прототипа",
+    (name) => {
+      const described = describeToolCall(name, { args: "{}" });
+
+      expect(described.known).toBe(false);
+      expect(described.label).toBe(name);
+      expect(described.arg).toBe("инструмент MCP");
+      expect(described.icon).toBeDefined();
+    },
+  );
+
   it("имя вызова с вложенной лентой присутствует в фикстуре бэкенда", () => {
     // Вложенность рендерится по имени инструмента: переименуй его бэкенд — и
     // шаги субагента молча перестанут узнаваться, ничего при этом не уронив.
@@ -150,6 +167,17 @@ describe("подпись вызова из имени и аргументов", 
 
     expect(described.label).toBe("Субагент");
     expect(described.arg).toBe("brand-new-role");
+  });
+
+  it("тип субагента, совпадающий с ключом Object.prototype, даёт базовую подпись", () => {
+    // Реестр читаемых имён субагентов опрашивается тем же именем с провода —
+    // ключ прототипа обязан считаться неизвестным типом, а не подписью.
+    const described = describeToolCall(SUBAGENT_TOOL_NAME, {
+      args: JSON.stringify({ agent_type: "constructor" }),
+    });
+
+    expect(described.label).toBe("Субагент");
+    expect(described.arg).toBe("constructor");
   });
 
   it("вызов без аргументов подписан без дополнения", () => {

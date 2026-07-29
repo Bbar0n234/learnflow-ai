@@ -484,10 +484,38 @@ describe("MessageList — автопрокрутка за ростом лент�
     expect(scrollCount()).toBeGreaterThan(before);
   });
 
-  // Рост вложенной ленты субагента прокрутку сегодня не двигает — сигнал
-  // считается только по корню (`feed.length` + длина хвостового текста).
-  // Кейс на это здесь не заведён намеренно: он закрепил бы дефект.
-  // Прод-баг П1, см. `tracks/T2/test-cases.md` § Дизайн автотестов.
+  it("догоняет шаг, дорисованный во вложенную ленту субагента", () => {
+    const subagent: SSEEvent[] = [
+      { type: "tool_call_started", call_id: "sub-1", tool: "run_subagent" },
+      {
+        type: "tool_call_args",
+        call_id: "sub-1",
+        args: JSON.stringify({ agent_type: "judge", task: "Проверь выводы." }),
+        truncated: false,
+      },
+    ];
+    const { rerender } = renderFeed(feedFrom(subagent));
+    const before = scrollCount();
+
+    rerender(
+      listTree(
+        feedFrom([
+          ...subagent,
+          {
+            type: "tool_call_started",
+            call_id: "sub-1-step",
+            tool: "firecrawl_search",
+            parent_call_id: "sub-1",
+          },
+        ]),
+      ),
+    );
+
+    // Шаг субагента приезжает в `children` строки его вызова: корневой массив
+    // при этом не меняется, а лента на экране растёт — сигнал прокрутки обязан
+    // считаться по всей ленте, включая вложенную.
+    expect(scrollCount()).toBeGreaterThan(before);
+  });
 });
 
 describe("MessageList — терминальные состояния", () => {

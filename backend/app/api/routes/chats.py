@@ -43,9 +43,10 @@ def _part_out(part: Part) -> MessagePartOut:
             call_id=part.call_id,
             tool=part.tool,
             args=part.args,
+            args_truncated=part.args_truncated,
             status=part.status,
             result_preview=part.result_preview,
-            truncated=part.truncated,
+            result_truncated=part.result_truncated,
         )
     raise AssertionError(f"unhandled part type: {type(part).__name__}")
 

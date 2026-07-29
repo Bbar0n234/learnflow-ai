@@ -63,9 +63,10 @@ class ToolCallPartOut(BaseModel):
     call_id: str
     tool: str
     args: str
+    args_truncated: bool
     status: Literal["success", "error", "pending"]
     result_preview: str
-    truncated: bool
+    result_truncated: bool
 
 
 MessagePartOut = Annotated[

@@ -220,9 +220,10 @@ class CheckpointHistory:
                     call_id=call_id,
                     tool=tc.get("name", ""),
                     args=args_text,
+                    args_truncated=args_truncated,
                     status=status,
                     result_preview=result_text,
-                    truncated=args_truncated or result_truncated,
+                    result_truncated=result_truncated,
                 )
             )
         return parts

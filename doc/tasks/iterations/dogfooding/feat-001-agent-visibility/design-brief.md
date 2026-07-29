@@ -41,7 +41,7 @@
 
 **Лимиты и параметры:**
 
-- Усечение `args` / `content` / task в SSE и API — **2 000 символов** + флаг `truncated` (бизнес-константа в коде, не env).
+- Усечение `args` / `content` / task в SSE и API — **2 000 символов** + флаг усечения (бизнес-константа в коде, не env). На проводе каждое событие несёт свой `truncated`, поскольку описывает что-то одно; part истории покрывает и аргументы, и результат сразу, поэтому несёт два независимых флага — `args_truncated` и `result_truncated`.
 - Heartbeat — **5 с** тишины; фронт-таймаут — **3 пропущенных heartbeat подряд** (заменяет first-byte-таймаут 300 с, который сегодня меряет только заголовки).
 - Расширяемость: неизвестные типы событий фронт логирует и игнорирует (forward-compat; feat-002 добавит `title_updated` без ломки).
 
@@ -76,7 +76,7 @@ flowchart LR
 |------|------|----------------------|
 | `reasoning` | `content` | `AIMessage.additional_kwargs["reasoning"]` |
 | `text` | `content` | `AIMessage.content` |
-| `tool_call` | `call_id, tool, args, status, result_preview, truncated` | `AIMessage.tool_calls` + парный `ToolMessage` (status, content) |
+| `tool_call` | `call_id, tool, args, status, result_preview, args_truncated, result_truncated` | `AIMessage.tool_calls` + парный `ToolMessage` (status, content) |
 
 - **Сборка — из чекпоинтера LangGraph** (решение архитектора): `CheckpointHistory` снимает фильтры «без ToolMessage / без AIMessage с tool_calls» и маппит последовательность сообщений треда в parts. Новой персистентности нет — один источник правды, ноль миграций.
 - `content` (плоский текст), `artifacts`, `trace_id`, `feedback_score`, `redacted` — остаются как есть (совместимость); `parts` — дополнение, фронт рендерит parts, `content` остаётся для обратной совместимости и degraded-случаев.

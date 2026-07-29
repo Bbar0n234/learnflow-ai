@@ -70,7 +70,7 @@ data: {"type": "done", "message_id": "msg-uuid", "trace_id": "trace-uuid"}\n\n
 
 ## Лимиты
 
-- **Усечение.** `args` / `content` (tool-результат) / `payload`-строки `agent_event` — единый лимит **2 000 символов**, один хелпер (`app/agent/text_limits.truncate`) на весь SSE-контракт и на `tool_call`-parts в API-истории (§ «История: typed parts» ниже); лимит — бизнес-инвариант в коде, не env. Флаг `truncated` несут те события, у которых он объявлен в таблице выше (`tool_call_args`, `tool_result`) и `tool_call`-part истории; строки `payload` у `agent_event` усекаются молча — отдельного поля под флаг у этого события нет.
+- **Усечение.** `args` / `content` (tool-результат) / `payload`-строки `agent_event` — единый лимит **2 000 символов**, один хелпер (`app/agent/text_limits.truncate`) на весь SSE-контракт и на `tool_call`-parts в API-истории (§ «История: typed parts» ниже); лимит — бизнес-инвариант в коде, не env. Флаг `truncated` несут те события, у которых он объявлен в таблице выше (`tool_call_args`, `tool_result`); `tool_call`-part истории несёт два раздельных флага (`args_truncated`, `result_truncated`) — он покрывает оба усечения сразу, где на проводе им отвечают два отдельных события. Строки `payload` у `agent_event` усекаются молча — отдельного поля под флаг у этого события нет.
 - **Heartbeat.** Таймер **5 с** тишины (`HEARTBEAT_INTERVAL_SECONDS`, `app/agent/heartbeat.py`) — событие уходит в любой точке рана, где источник ничего не отдал за интервал.
 - **Таймаут клиента от heartbeat.** Контракт для потребителя: соединение считается потерянным после **3 пропущенных heartbeat подряд** (~15 с полной тишины на проводе) — это заменяет прежний таймаут по first-byte, бессмысленный при SSE (HTTP-заголовки уходят сразу вместе с `stream_started`, поэтому first-byte-таймер измерял не рабочее состояние стрима, а факт открытия соединения).
 
@@ -252,7 +252,9 @@ sequenceDiagram
 |------|------|----------------------|
 | `reasoning` | `content` | `AIMessage.additional_kwargs["reasoning"]` |
 | `text` | `content` | `AIMessage.content` |
-| `tool_call` | `call_id, tool, args, status, result_preview, truncated` | `AIMessage.tool_calls` + парный `ToolMessage` по `tool_call_id` (`status`: `success` \| `error` \| `pending`) |
+| `tool_call` | `call_id, tool, args, args_truncated, status, result_preview, result_truncated` | `AIMessage.tool_calls` + парный `ToolMessage` по `tool_call_id` (`status`: `success` \| `error` \| `pending`) |
+
+Аргументы и результат усекаются независимо, поэтому у каждого свой флаг — как на проводе, где `tool_call_args` и `tool_result` приходят разными событиями со своими `truncated`. Один общий флаг схлопывал бы два факта в один: потребитель не мог бы понять, обрезаны ли аргументы, результат или оба, и рисовал бы отметку «обрезано сервером» над нетронутой зоной.
 
 Один ход агента = один `MessageOut` с последовательностью `parts`, а не сообщение на каждое сырое LangChain-сообщение чекпоинта: границы хода — от `HumanMessage` до следующего `HumanMessage`; всё между ними (tool-calling `AIMessage`, `ToolMessage`, финальный `AIMessage`) складывается в один ассистентский `Message`. `id`/`created_at` берутся у финального `AIMessage` без `tool_calls` (тот же якорь, на который резолвятся `trace_id`/`feedback_score`/`artifacts`), а если ход оборвался на tool-вызове — у последнего доступного `AIMessage`; непарный `ToolMessage` в этом случае даёт `tool_call`-part со `status="pending"` — третье значение статуса, которого нет в SSE-контракте (там `tool_result` всегда либо `success`, либо `error`, потому что живой стрим либо разрешает вызов, либо обрывает ран целиком).
 

@@ -105,9 +105,10 @@ async def test_history_groups_a_tool_call_turn_into_one_assistant_message() -> N
             call_id="c",
             tool="x",
             args='{"q": "v"}',
+            args_truncated=False,
             status="success",
             result_preview="tool out",
-            truncated=False,
+            result_truncated=False,
         ),
         TextPart(content="answer"),
     ]
@@ -217,6 +218,7 @@ async def test_history_marks_an_unresolved_tool_call_as_pending() -> None:
     assert assistant.content == ""
     tool_part = next(p for p in assistant.parts if isinstance(p, ToolCallPart))
     assert (tool_part.status, tool_part.result_preview) == ("pending", "")
+    assert tool_part.result_truncated is False
 
 
 @pytest.mark.unit
@@ -241,7 +243,35 @@ async def test_history_truncates_oversized_args_and_result_preview() -> None:
     tool_part = next(p for p in result[1].parts if isinstance(p, ToolCallPart))
     assert len(tool_part.args) == TRUNCATION_LIMIT
     assert len(tool_part.result_preview) == TRUNCATION_LIMIT
-    assert tool_part.truncated is True
+    assert tool_part.args_truncated is True
+    assert tool_part.result_truncated is True
+
+
+@pytest.mark.unit
+async def test_history_flags_args_and_result_truncation_independently() -> None:
+    # Two independent cuts, two independent flags: a long result must not mark
+    # the (intact) args as truncated, and vice versa — otherwise the consumer
+    # renders a "cut by the server" marker over a zone that was never cut.
+    messages = [
+        HumanMessage(content="q", id="h1"),
+        AIMessage(
+            content="",
+            id="a1",
+            tool_calls=[
+                {"name": "write", "args": {"text": "x"}, "id": "c1"},
+                {"name": "write", "args": {"text": "x" * 5000}, "id": "c2"},
+            ],
+        ),
+        ToolMessage(content="y" * 5000, id="t1", tool_call_id="c1", name="write"),
+        ToolMessage(content="ok", id="t2", tool_call_id="c2", name="write"),
+        AIMessage(content="done", id="a2"),
+    ]
+
+    result = await _history(messages).history(THREAD)
+
+    long_result, long_args = (p for p in result[1].parts if isinstance(p, ToolCallPart))
+    assert (long_result.args_truncated, long_result.result_truncated) == (False, True)
+    assert (long_args.args_truncated, long_args.result_truncated) == (True, False)
 
 
 @pytest.mark.unit

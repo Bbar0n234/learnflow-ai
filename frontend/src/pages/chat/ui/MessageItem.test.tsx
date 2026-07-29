@@ -43,9 +43,10 @@ describe("smoke: лента в истории", () => {
           call_id: "c-1",
           tool: "firecrawl_search",
           args: '{"query": "изоляция контекста"}',
+          args_truncated: false,
           status: "success",
           result_preview: "нашлось",
-          truncated: false,
+          result_truncated: false,
         },
       ]),
     );
@@ -64,9 +65,10 @@ describe("smoke: лента в истории", () => {
           call_id: "c-1",
           tool: "firecrawl_search",
           args: '{"query": "изоляция контекста"}',
+          args_truncated: false,
           status: "success",
           result_preview: "нашлось восемь источников",
-          truncated: false,
+          result_truncated: false,
         },
       ]),
     );
@@ -88,9 +90,10 @@ describe("smoke: лента в истории", () => {
           call_id: "c-1",
           tool: "firecrawl_search",
           args: '{"query": "x"}',
+          args_truncated: false,
           status: "success",
           result_preview: LONG,
-          truncated: true,
+          result_truncated: true,
         },
       ]),
     );
@@ -103,6 +106,31 @@ describe("smoke: лента в истории", () => {
     ).toBeInTheDocument();
   });
 
+  it("усечение аргументов не метит зону результата", async () => {
+    renderMessage(
+      message([
+        {
+          type: "tool_call",
+          call_id: "c-1",
+          tool: "firecrawl_search",
+          args: '{"query": "очень длинный запр',
+          args_truncated: true,
+          status: "success",
+          result_preview: "нашлось",
+          result_truncated: false,
+        },
+      ]),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Ищу/ }));
+
+    expect(screen.getAllByText("обрезано сервером")).toHaveLength(1);
+    expect(
+      screen.getByText("Аргументы оборваны сервером — не разобраны."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("нашлось")).toBeInTheDocument();
+  });
+
   it("незавершённый вызов виден статусом, а не ошибкой", () => {
     renderMessage(
       message([
@@ -111,9 +139,10 @@ describe("smoke: лента в истории", () => {
           call_id: "c-1",
           tool: "run_subagent",
           args: '{"agent_type": "judge"}',
+          args_truncated: false,
           status: "pending",
           result_preview: "",
-          truncated: false,
+          result_truncated: false,
         },
       ]),
     );
@@ -146,18 +175,20 @@ describe("smoke: лента в истории", () => {
           call_id: "c-1",
           tool: "firecrawl_search",
           args: '{"query": "a"}',
+          args_truncated: false,
           status: "success",
           result_preview: "ok",
-          truncated: false,
+          result_truncated: false,
         },
         {
           type: "tool_call",
           call_id: "c-2",
           tool: "update_section",
           args: '{"section_id": "Субагенты"}',
+          args_truncated: false,
           status: "error",
           result_preview: "не вышло",
-          truncated: false,
+          result_truncated: false,
         },
         { type: "text", content: "Готово." },
       ]),

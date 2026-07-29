@@ -28,7 +28,8 @@ export interface ChatDetail {
  *
  * `status: "pending"` — третье значение, которого нет в SSE-контракте: вызов
  * без парного результата, ход оборвался (отмена, ошибка). `args` — JSON-строка,
- * а не объект, и при `truncated: true` она обрезана посреди JSON и невалидна.
+ * а не объект, и при `args_truncated: true` она обрезана посреди JSON и
+ * невалидна. Аргументы и результат усекаются независимо, поэтому флага два.
  */
 export type MessagePart =
   | { type: "reasoning"; content: string }
@@ -38,9 +39,10 @@ export type MessagePart =
       call_id: string;
       tool: string;
       args: string;
+      args_truncated: boolean;
       status: "success" | "error" | "pending";
       result_preview: string;
-      truncated: boolean;
+      result_truncated: boolean;
     };
 
 export interface Message {

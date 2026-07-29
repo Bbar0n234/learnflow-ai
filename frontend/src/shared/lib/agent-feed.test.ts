@@ -329,9 +329,10 @@ describe("agent-feed: адаптер истории", () => {
         call_id: "c1",
         tool: "run_subagent",
         args: '{"agent_type": "judge"}',
+        args_truncated: false,
         status: "pending",
         result_preview: "",
-        truncated: false,
+        result_truncated: false,
       },
     ]);
 
@@ -345,29 +346,31 @@ describe("agent-feed: адаптер истории", () => {
         call_id: "c1",
         tool: "firecrawl_search",
         args: '{"query": "langgraph"}',
+        args_truncated: false,
         status: "success",
         result_preview: "очень длинный результат",
-        truncated: true,
+        result_truncated: true,
       },
     ]);
 
     expect(item).toMatchObject({ argsTruncated: false, resultTruncated: true });
   });
 
-  it("помечает аргументы усечёнными, когда обрезан их JSON", () => {
+  it("не помечает результат усечённым, когда обрезаны только аргументы", () => {
     const [item] = fromMessageParts([
       {
         type: "tool_call",
         call_id: "c1",
         tool: "firecrawl_search",
         args: '{"query": "очень длинный запр',
+        args_truncated: true,
         status: "success",
         result_preview: "ok",
-        truncated: true,
+        result_truncated: false,
       },
     ]);
 
-    expect(item).toMatchObject({ argsTruncated: true, resultTruncated: true });
+    expect(item).toMatchObject({ argsTruncated: true, resultTruncated: false });
   });
 
   it("даёт пустую ленту на отсутствующих parts", () => {
@@ -420,9 +423,10 @@ describe("agent-feed: live = история", () => {
         call_id: "c1",
         tool: "firecrawl_search",
         args: '{"query": "langgraph"}',
+        args_truncated: false,
         status: "success",
         result_preview: "нашлось",
-        truncated: false,
+        result_truncated: false,
       },
       { type: "text", content: "Вот что нашлось" },
     ];
@@ -442,9 +446,10 @@ describe("agent-feed: блоки", () => {
         call_id: "c1",
         tool: "get_section",
         args: "{}",
+        args_truncated: false,
         status: "success",
         result_preview: "ok",
-        truncated: false,
+        result_truncated: false,
       },
       { type: "text", content: "ответ" },
       {
@@ -452,9 +457,10 @@ describe("agent-feed: блоки", () => {
         call_id: "c2",
         tool: "create_artifact",
         args: "{}",
+        args_truncated: false,
         status: "success",
         result_preview: "ok",
-        truncated: false,
+        result_truncated: false,
       },
     ]);
 

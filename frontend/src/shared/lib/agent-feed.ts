@@ -1,6 +1,5 @@
 import type { MessagePart } from "@/shared/api/chats";
 import type { SSEEvent } from "@/shared/api/sse";
-import { parseToolArgs } from "@/shared/config/agent-tools";
 
 /**
  * Модель ленты активности агента: одна структура, в которую одинаково
@@ -349,17 +348,10 @@ export function fromMessageParts(
           callId: part.call_id,
           tool: part.tool,
           args: part.args,
-          // История схлопывает два флага усечения в один (`args_truncated or
-          // result_truncated`, checkpoint_history.py). Разложить их обратно
-          // можно точно: `args` — JSON-дамп, поэтому обрезанная строка не
-          // парсится, а целая парсится. Иначе длинный результат помечал бы
-          // усечёнными и аргументы, и строка теряла бы подпись, которую та же
-          // строка в live показывала.
-          argsTruncated:
-            part.truncated && parseToolArgs(part.args, false) === null,
+          argsTruncated: part.args_truncated,
           status: part.status,
           result: part.result_preview,
-          resultTruncated: part.truncated,
+          resultTruncated: part.result_truncated,
           startedAt: null,
           durationMs: null,
           children: [],

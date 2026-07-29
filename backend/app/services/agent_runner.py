@@ -47,14 +47,19 @@ class ToolCallPart:
     contract (``tool_result``) only ever carries ``success``/``error`` because
     a live stream always eventually resolves or the run ends; the persisted
     history can freeze in that in-between state.
+
+    ``args`` and ``result_preview`` are truncated independently, so each carries
+    its own flag — same as the live wire, where ``tool_call_args`` and
+    ``tool_result`` are separate events with separate ``truncated``.
     """
 
     call_id: str
     tool: str
     args: str
+    args_truncated: bool
     status: Literal["success", "error", "pending"]
     result_preview: str
-    truncated: bool
+    result_truncated: bool
     type: Literal["tool_call"] = "tool_call"
 
 

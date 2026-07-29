@@ -1,6 +1,8 @@
 import type { Message } from "@/shared/api/chats";
 import { MarkdownRenderer } from "@/shared/ui/MarkdownRenderer";
+import { fromMessageParts, groupFeedBlocks } from "@/shared/lib/agent-feed";
 import { cn } from "@/shared/lib/utils";
+import { ActivityFeed } from "./ActivityFeed";
 import { ArtifactCard } from "./ArtifactCard";
 import { FeedbackButtons } from "./FeedbackButtons";
 
@@ -29,6 +31,12 @@ export function MessageItem({ message, projectId, chatId }: MessageItemProps) {
     );
   }
 
+  // След работы агента из истории (streaming.md § История: typed parts). Пусто —
+  // старый кэш или degraded-ответ: рендерим плоский `content`, как до итерации.
+  // Ход из одного текста тоже даёт единственный текстовый блок и ленты не
+  // получает — ни пустого контейнера, ни строки «Ответил» ради симметрии.
+  const blocks = groupFeedBlocks(fromMessageParts(message.parts));
+
   return (
     <div className={cn("flex justify-start")}>
       <div className="w-full text-foreground">
@@ -36,6 +44,21 @@ export function MessageItem({ message, projectId, chatId }: MessageItemProps) {
           <p className="whitespace-pre-wrap text-sm italic opacity-70">
             [Сообщение скрыто в целях безопасности]
           </p>
+        ) : blocks.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            {blocks.map((block, index) =>
+              block.type === "text" ? (
+                <MarkdownRenderer key={block.item.id}>
+                  {block.item.content}
+                </MarkdownRenderer>
+              ) : (
+                <ActivityFeed
+                  key={block.items[0]?.id ?? `feed-${index}`}
+                  items={block.items}
+                />
+              ),
+            )}
+          </div>
         ) : (
           <MarkdownRenderer>{message.content}</MarkdownRenderer>
         )}

@@ -208,7 +208,7 @@ describe("MessageList — живость ленты", () => {
     expect(screen.queryByText("Рассуждает")).not.toBeInTheDocument();
   });
 
-  it("показывает счётчик времени у действия, идущего дольше порога", async () => {
+  it("показывает счётчик времени только у действия, идущего дольше порога", async () => {
     vi.useFakeTimers();
     try {
       const feed = feedFrom([
@@ -220,10 +220,17 @@ describe("MessageList — живость ленты", () => {
       ]);
       renderFeed(feed);
 
-      expect(screen.queryByText("0:04")).not.toBeInTheDocument();
+      // Порог проверяется с обеих сторон: короткому действию цифры не нужны —
+      // счётчик нужен там, где иначе начинается тишина. Запрос идёт по форме
+      // счётчика (`m:ss`), а не по конкретному значению: ассерт на «0:04» до
+      // сдвига часов истинен при любом пороге и не сторожит ничего.
+      await act(async () => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(screen.queryByText(/^\d+:\d{2}$/)).not.toBeInTheDocument();
 
       await act(async () => {
-        vi.advanceTimersByTime(4000);
+        vi.advanceTimersByTime(2000);
       });
 
       expect(screen.getByText("0:04")).toBeInTheDocument();

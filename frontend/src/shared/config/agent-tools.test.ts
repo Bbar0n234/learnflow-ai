@@ -54,7 +54,12 @@ describe("реестр подписей инструментов", () => {
     // бэкенда добавили, а запись в реестр — нет.
     expect(signature.known, `нет подписи для инструмента ${name}`).toBe(true);
     expect(signature.label.trim()).not.toBe("");
-    expect(AGENT_TOOL_SIGNATURES[name]).toBeDefined();
+    // Запись именно своя, а не унаследованная от `Object.prototype`: обычное
+    // обращение к свойству истинно и на имени `constructor`, то есть сторожило
+    // бы полноту реестра вхолостую.
+    expect(
+      Object.prototype.hasOwnProperty.call(AGENT_TOOL_SIGNATURES, name),
+    ).toBe(true);
   });
 
   it("имя вне реестра резолвится в сырое имя с пометкой источника", () => {

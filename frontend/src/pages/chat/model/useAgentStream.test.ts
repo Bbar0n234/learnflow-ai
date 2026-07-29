@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { setAccessToken } from "@/shared/api/client";
 import { queryKeys } from "@/shared/api/query-keys";
 import type { ChatDetail } from "@/shared/api/chats";
+import { findFeedCall } from "@/shared/lib/agent-feed";
 import { server } from "@/test/msw/server";
 import { createTestQueryClient } from "@/test/test-utils";
 import { fakeJwt, sseFrame, sseResponseStream } from "@/test/sse-stream";
@@ -90,6 +91,17 @@ async function isStreaming(): Promise<boolean> {
 async function streamedFeed() {
   const { useStreamStore } = await import("@/stores/stream-store");
   return useStreamStore.getState().feed;
+}
+
+/** Артефакты, объявленные ходом, — их карточки живут в идущем ходе. */
+async function streamedArtifacts() {
+  const { useStreamStore } = await import("@/stores/stream-store");
+  return useStreamStore.getState().streamingArtifacts;
+}
+
+async function isReviewing(): Promise<boolean> {
+  const { useStreamStore } = await import("@/stores/stream-store");
+  return useStreamStore.getState().isReviewing;
 }
 
 describe("useAgentStream", () => {
@@ -462,21 +474,10 @@ describe("useAgentStream", () => {
     expect(refreshCount).toBeGreaterThanOrEqual(1);
   });
 
-  it("invalidates the artifacts query when an artifact_created event arrives", async () => {
+  it("показывает созданный артефакт в идущем ходе и обновляет их список", async () => {
     setAccessToken(fakeJwt());
-    server.use(
-      http.post(MESSAGES_URL, () =>
-        streamResponse([
-          {
-            type: "artifact_created",
-            id: "a-1",
-            title: "Notes",
-            artifact_type: "markdown",
-          },
-          { type: "done", message_id: "m-art", trace_id: null },
-        ]),
-      ),
-    );
+    const live = liveStream();
+    server.use(http.post(MESSAGES_URL, () => live.response));
     const onDone = vi.fn();
     const { result, queryClient } = renderAgentStream({ onDone });
     queryClient.setQueryData(queryKeys.projects.artifacts(PROJECT_ID), {
@@ -487,12 +488,57 @@ describe("useAgentStream", () => {
     });
 
     result.current.send("hi");
+    live.push({
+      type: "artifact_created",
+      id: "a-1",
+      title: "Notes",
+      artifact_type: "markdown",
+    });
+
+    // Артефакт виден карточкой прямо в идущем ходе — сторонний список чинит
+    // только то, что откроется после. Проверять его можно лишь до
+    // терминального события: `done` сбрасывает стор целиком.
+    await waitFor(async () =>
+      expect(await streamedArtifacts()).toEqual([
+        { id: "a-1", title: "Notes", type: "markdown" },
+      ]),
+    );
+
+    live.push({ type: "done", message_id: "m-art", trace_id: null });
+    live.close();
 
     await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
     expect(
       queryClient.getQueryState(queryKeys.projects.artifacts(PROJECT_ID))
         ?.isInvalidated,
     ).toBe(true);
+  });
+
+  // Пара review-событий — единственный источник индикатора «Проверяем ответ...»:
+  // ставить флаг больше некому, и её отсутствие на ходе не должно оставлять
+  // индикатор висеть.
+  it("поднимает и снимает флаг проверки ответа по паре review-событий", async () => {
+    setAccessToken(fakeJwt());
+    const live = liveStream();
+    server.use(http.post(MESSAGES_URL, () => live.response));
+    const { result } = renderAgentStream();
+
+    result.current.send("hi");
+    live.push({ type: "text_chunk", content: "готовый ответ" });
+    await waitFor(async () =>
+      expect(await streamedText()).toBe("готовый ответ"),
+    );
+    expect(await isReviewing()).toBe(false);
+
+    live.push({ type: "final_output_review_started" });
+    await waitFor(async () => expect(await isReviewing()).toBe(true));
+
+    live.push({ type: "final_output_review_complete" });
+    await waitFor(async () => expect(await isReviewing()).toBe(false));
+
+    live.push({ type: "done", message_id: "m-rev", trace_id: null });
+    live.close();
+    await waitFor(async () => expect(await isStreaming()).toBe(false));
   });
 
   it("reports a broken connection when the stream ends without a terminal event", async () => {
@@ -749,6 +795,25 @@ describe("useAgentStream", () => {
     expect(
       feed.map((item) => (item.type === "tool_call" ? item.status : null)),
     ).toEqual([null, "success", "cancelled", null, null]);
+    // Содержимое каждой ветки, а не только форма ленты. Аргументы дороже
+    // прочего: без них строка теряет дополнение подписи, разворот — зону
+    // «Вызов», а субагент — задание, ради которого его позвали.
+    expect(findFeedCall(feed, "c-1")).toMatchObject({
+      tool: "firecrawl_search",
+      args: '{"query": "langgraph"}',
+      argsTruncated: false,
+      result: "нашлось",
+      resultTruncated: false,
+    });
+    expect(feed[0]).toMatchObject({
+      type: "reasoning",
+      content: "Надо поискать",
+    });
+    expect(feed[3]).toMatchObject({ type: "agent_event", kind: "compaction" });
+    expect(feed[4]).toMatchObject({
+      type: "text",
+      content: "Вот что нашлось.",
+    });
 
     live.push({ type: "done", message_id: "m-1", trace_id: null });
     live.close();

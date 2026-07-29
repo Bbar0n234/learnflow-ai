@@ -15,7 +15,7 @@ export function GeneratingArtifactCard() {
     >
       <div
         aria-hidden="true"
-        className="h-10 w-16 shrink-0 animate-pulse rounded-sm border border-border bg-muted"
+        className="h-10 w-16 shrink-0 animate-pulse rounded-sm border border-border bg-muted motion-reduce:animate-none"
       />
       <div className="min-w-0">
         <p className="truncate text-sm font-medium text-muted-foreground">

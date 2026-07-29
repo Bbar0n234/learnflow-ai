@@ -63,7 +63,9 @@ function ArtifactThumbnail({
       aria-hidden="true"
       className={cn(
         "flex h-10 w-16 shrink-0 items-center justify-center overflow-hidden rounded-sm border border-border",
-        !objectUrl && !isError && "animate-pulse bg-muted",
+        !objectUrl &&
+          !isError &&
+          "animate-pulse bg-muted motion-reduce:animate-none",
         isError && "bg-muted",
       )}
     >

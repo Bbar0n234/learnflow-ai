@@ -336,33 +336,34 @@
 }
 
 /* ───────────────────────────────────────────────────────────────────────────
-   ThinkingIndicator: три точки «агент думает» до первого рендеримого контента
-   стрима. Ступенчатая задержка даёт волну; в tw-animate-css нет staggered-пульса,
-   поэтому кастомный keyframe.
+   Лента активности: бегущие точки живого элемента (`LiveDots`) — у активной
+   строки после подписи, у строки-паузы на месте будущей подписи. Ступенчатая
+   задержка даёт волну; в tw-animate-css нет staggered-подскока, поэтому
+   кастомный keyframe.
    ─────────────────────────────────────────────────────────────────────────── */
-@keyframes thinking-dot-pulse {
+@keyframes feed-dot-bounce {
   0%,
   60%,
   100% {
-    opacity: 0.25;
+    opacity: 0.35;
     transform: translateY(0);
   }
   30% {
-    opacity: 1;
-    transform: translateY(-2px);
+    opacity: 0.9;
+    transform: translateY(-3px);
   }
 }
-.thinking-dot {
-  animation: thinking-dot-pulse 1.2s ease-in-out infinite;
+.feed-dot {
+  animation: feed-dot-bounce 1.2s ease-in-out infinite;
 }
-.thinking-dot:nth-child(2) {
+.feed-dot:nth-child(2) {
   animation-delay: 0.15s;
 }
-.thinking-dot:nth-child(3) {
+.feed-dot:nth-child(3) {
   animation-delay: 0.3s;
 }
 @media (prefers-reduced-motion: reduce) {
-  .thinking-dot {
+  .feed-dot {
     animation: none;
     opacity: 0.6;
   }

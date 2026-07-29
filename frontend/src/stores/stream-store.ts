@@ -67,9 +67,20 @@ export const useStreamStore = create<StreamState>()((set) => ({
   applyEvent: (event) => set((s) => applyStreamEvent(s, event)),
   addArtifact: (artifact) =>
     set((s) => ({ streamingArtifacts: [...s.streamingArtifacts, artifact] })),
-  // Редакция гасит и ревью: индикатор проверки ответа не должен пережить
-  // блокировку хода.
-  redact: (stubText) => set({ ...redactFeed(stubText), isReviewing: false }),
+  // Редакция по `security_block` терминальна: ход на этом закончился, поэтому
+  // она же закрывает стрим — но, в отличие от `endStream`, не стирает ленту, а
+  // оставляет в ней заглушку. Гасить стрим здесь обязательно: пока `isStreaming`
+  // держится, живой регион показывает заглушку рядом с той же заглушкой,
+  // приехавшей из отрефетченной истории, а композер остаётся с кнопкой отмены
+  // хода, которого уже нет. Ревью гасится по той же причине — индикатор
+  // проверки ответа не должен пережить блокировку.
+  redact: (stubText) =>
+    set({
+      ...redactFeed(stubText),
+      isStreaming: false,
+      streamingChatId: null,
+      isReviewing: false,
+    }),
   setReviewing: (value) => set({ isReviewing: value }),
   endStream: () => set(idleState()),
 }));

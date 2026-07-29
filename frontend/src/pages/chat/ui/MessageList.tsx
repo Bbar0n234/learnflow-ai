@@ -1,17 +1,15 @@
-import { Fragment, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { Message } from "@/shared/api/chats";
 import { groupFeedBlocks, type AgentFeedItem } from "@/shared/lib/agent-feed";
 import { useStreamStore, type StreamingArtifact } from "@/stores/stream-store";
 import { MessageItem } from "./MessageItem";
 import { MarkdownRenderer } from "@/shared/ui/MarkdownRenderer";
 import { ActivityFeed } from "./ActivityFeed";
+import { ActivityPauseRow } from "./ActivityPauseRow";
 import { ReviewIndicator } from "./ReviewIndicator";
-import { ThinkingIndicator } from "./ThinkingIndicator";
+import { StreamEndNotice, type StreamEndReason } from "./StreamEndNotice";
 import { ArtifactCard } from "./ArtifactCard";
 import { GeneratingArtifactCard } from "./GeneratingArtifactCard";
-import { SphereWriteCard } from "./SphereWriteCard";
-import { MOCK_SPHERE_WRITES } from "../model/mock-sphere-writes";
-import { SHOW_GROUP_B_STUBS } from "@/shared/config/feature-flags";
 
 interface MessageListProps {
   messages: Message[];
@@ -22,7 +20,8 @@ interface MessageListProps {
   projectId: string;
   chatId: string;
   streamError: string | null;
-  onOpenLens: () => void;
+  /** Чем закончился ход, если он закончился не ответом. */
+  endNotice: StreamEndReason | null;
 }
 
 /** Инструмент, чей вызов показывается плейсхолдер-карточкой артефакта. */
@@ -65,19 +64,28 @@ export function MessageList({
   projectId,
   chatId,
   streamError,
-  onOpenLens,
+  endNotice,
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const isReviewing = useStreamStore((s) => s.isReviewing);
   const liveBlocks = groupFeedBlocks(feed);
   const pendingImages = pendingImageCalls(feed);
   const tailLength = feedTailLength(feed);
+  // Хвост живой ленты — единственный элемент, который поток ещё дописывает.
+  const activeId = feed.at(-1)?.id ?? null;
 
   // Прокрутка следует за ростом ленты, а не за одним текстом: ход из одних
   // tool-событий, без единого `text_chunk`, тоже уезжал бы за нижнюю границу.
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, feed.length, tailLength, isStreaming, isReviewing]);
+  }, [
+    messages.length,
+    feed.length,
+    tailLength,
+    isStreaming,
+    isReviewing,
+    endNotice,
+  ]);
 
   return (
     <div className="flex-1 overflow-auto p-6">
@@ -85,39 +93,23 @@ export function MessageList({
         className="mx-auto flex flex-col gap-4"
         style={{ maxWidth: "var(--content-max-w)" }}
       >
-        {messages.map((msg, i) => (
-          <Fragment key={msg.id}>
-            <MessageItem message={msg} projectId={projectId} chatId={chatId} />
-            {/* Inject mock sphere write peek card after 2nd message (group B stub) */}
-            {SHOW_GROUP_B_STUBS &&
-              i === 1 &&
-              MOCK_SPHERE_WRITES.map((entry) => (
-                <SphereWriteCard
-                  key={entry.id}
-                  entry={entry}
-                  onOpenLens={onOpenLens}
-                />
-              ))}
-          </Fragment>
+        {messages.map((msg) => (
+          <MessageItem
+            key={msg.id}
+            message={msg}
+            projectId={projectId}
+            chatId={chatId}
+          />
         ))}
-
-        {/* When fewer than 2 messages, show demo peek card at end (group B stub) */}
-        {SHOW_GROUP_B_STUBS &&
-          messages.length < 2 &&
-          MOCK_SPHERE_WRITES.map((entry) => (
-            <SphereWriteCard
-              key={`demo-${entry.id}`}
-              entry={entry}
-              onOpenLens={onOpenLens}
-            />
-          ))}
 
         {isStreaming && (
           <div className="flex justify-start">
             <div className="w-full text-foreground">
+              {/* Строка-пауза закрывает окно тишины от отправки сообщения до
+                  первого содержательного события: молчаливого UX не бывает. */}
               {liveBlocks.length === 0 &&
                 !isReviewing &&
-                streamingArtifacts.length === 0 && <ThinkingIndicator />}
+                streamingArtifacts.length === 0 && <ActivityPauseRow />}
               {/* Живой ход рисует тот же компонент ленты, что и история:
                   структура данных общая, поэтому перезагрузка страницы
                   показывает ровно то, что пользователь уже видел. */}
@@ -132,6 +124,7 @@ export function MessageList({
                       <ActivityFeed
                         key={block.items[0]?.id ?? `feed-${index}`}
                         items={block.items}
+                        activeId={activeId}
                       />
                     ),
                   )}
@@ -150,6 +143,10 @@ export function MessageList({
               ))}
             </div>
           </div>
+        )}
+
+        {endNotice !== null && !isStreaming && (
+          <StreamEndNotice reason={endNotice} />
         )}
 
         {streamError && !isStreaming && (

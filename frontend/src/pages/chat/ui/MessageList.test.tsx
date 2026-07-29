@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { act, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import type { ReactElement } from "react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
@@ -12,6 +12,7 @@ import {
 import { renderWithProviders } from "@/test/test-utils";
 
 import { MessageList } from "./MessageList";
+import type { StreamEndReason } from "./StreamEndNotice";
 
 // Integration: the streaming region of the message feed. Live activity is the
 // same feed the history renders (`shared/lib/agent-feed`), and on top of it the
@@ -33,18 +34,23 @@ function feedFrom(events: SSEEvent[]): AgentFeedItem[] {
   ).feed;
 }
 
-function renderFeed(feed: AgentFeedItem[]): void {
+interface RenderOptions {
+  isStreaming?: boolean;
+  endNotice?: StreamEndReason | null;
+}
+
+function renderFeed(feed: AgentFeedItem[], options: RenderOptions = {}): void {
   const ui: ReactElement = (
     <MemoryRouter>
       <MessageList
         messages={[]}
-        isStreaming
+        isStreaming={options.isStreaming ?? true}
         feed={feed}
         streamingArtifacts={[]}
         projectId="p1"
         chatId="c1"
         streamError={null}
-        onOpenLens={vi.fn()}
+        endNotice={options.endNotice ?? null}
       />
     </MemoryRouter>
   );
@@ -129,5 +135,101 @@ describe("MessageList — image generation placeholder", () => {
     expect(
       screen.queryByRole("status", { name: GENERATION_LABEL }),
     ).not.toBeInTheDocument();
+  });
+});
+
+// Смоук фазы T2.5: живость и терминальные состояния. Покрытие снятого
+// индикатора «агент думает» переехало сюда — на строку-паузу, которая приняла
+// его роль.
+describe("MessageList — живость ленты", () => {
+  it("держит строку-паузу, пока в ленте нет ни одного события", () => {
+    renderFeed([]);
+
+    expect(
+      screen.getByRole("status", { name: "Агент думает" }),
+    ).toBeInTheDocument();
+  });
+
+  it("снимает строку-паузу с первым содержательным событием", () => {
+    renderFeed(
+      feedFrom([
+        { type: "tool_call_started", call_id: "call-1", tool: "get_section" },
+      ]),
+    );
+
+    expect(
+      screen.queryByRole("status", { name: "Агент думает" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("подписывает хвостовое рассуждение процессом, а завершённое — следом", () => {
+    renderFeed(
+      feedFrom([{ type: "reasoning_chunk", content: "надо поискать" }]),
+    );
+
+    expect(screen.getByText("Рассуждает")).toBeInTheDocument();
+  });
+
+  it("сворачивает рассуждение, когда поток ушёл в следующее действие", () => {
+    renderFeed(
+      feedFrom([
+        { type: "reasoning_chunk", content: "надо поискать" },
+        {
+          type: "tool_call_started",
+          call_id: "call-1",
+          tool: "firecrawl_search",
+        },
+      ]),
+    );
+
+    expect(screen.getByText("Рассуждения")).toBeInTheDocument();
+    expect(screen.queryByText("Рассуждает")).not.toBeInTheDocument();
+  });
+
+  it("показывает счётчик времени у действия, идущего дольше порога", async () => {
+    vi.useFakeTimers();
+    try {
+      const feed = feedFrom([
+        {
+          type: "tool_call_started",
+          call_id: "call-1",
+          tool: "firecrawl_search",
+        },
+      ]);
+      renderFeed(feed);
+
+      expect(screen.queryByText("0:04")).not.toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(4000);
+      });
+
+      expect(screen.getByText("0:04")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("MessageList — терминальные состояния", () => {
+  it("сообщает об остановке генерации нейтральной строкой, без ошибки", () => {
+    renderFeed([], { isStreaming: false, endNotice: "cancelled" });
+
+    expect(screen.getByText("Генерация остановлена")).toBeInTheDocument();
+  });
+
+  it("ставит generic-карточку блокировки без деталей срабатывания", () => {
+    renderFeed([], { isStreaming: false, endNotice: "blocked" });
+
+    expect(
+      screen.getByText("Ход остановлен системой безопасности"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Генерация остановлена")).not.toBeInTheDocument();
+  });
+
+  it("не показывает терминальное уведомление, пока ход идёт", () => {
+    renderFeed([], { isStreaming: true, endNotice: "cancelled" });
+
+    expect(screen.queryByText("Генерация остановлена")).not.toBeInTheDocument();
   });
 });

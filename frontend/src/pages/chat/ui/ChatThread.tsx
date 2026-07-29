@@ -8,6 +8,7 @@ import { cn } from "@/shared/lib/utils";
 import { ChatHeader } from "./ChatHeader";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
+import type { StreamEndReason } from "./StreamEndNotice";
 import { StudioPanel } from "./StudioPanel";
 import { SphereLens } from "./SphereLens";
 import { SHOW_GROUP_B_STUBS } from "@/shared/config/feature-flags";
@@ -37,6 +38,10 @@ export function ChatThread() {
   });
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [streamError, setStreamError] = useState<string | null>(null);
+  // Чем закончился ход, если он закончился не ответом. В историю причина
+  // остановки не сохраняется — это транзиентное состояние экрана, живущее до
+  // следующей отправки, ровно как `streamError`.
+  const [endNotice, setEndNotice] = useState<StreamEndReason | null>(null);
 
   const studio = useStudio();
 
@@ -49,6 +54,9 @@ export function ChatThread() {
     // and we invalidated the chat query — drop the optimistic local copy
     // to avoid duplicates after refetch.
     setLocalMessages([]);
+    // Заглушку заблокированного хода показывает история; карточка объясняет,
+    // почему ход схлопнулся и почему ввод заблокирован.
+    setEndNotice("blocked");
   }, []);
 
   const handleCancelled = useCallback(() => {
@@ -56,6 +64,7 @@ export function ChatThread() {
     // с незавершёнными вызовами. Оптимистичную копию снимаем по той же причине,
     // что и на `done`, — иначе после рефетча она задвоится.
     setLocalMessages([]);
+    setEndNotice("cancelled");
   }, []);
 
   const { send, cancel } = useAgentStream(id!, cid!, {
@@ -71,6 +80,7 @@ export function ChatThread() {
   const handleSend = useCallback(
     (content: string) => {
       setStreamError(null);
+      setEndNotice(null);
       const message: Message = {
         id: crypto.randomUUID(),
         role: "user",
@@ -150,7 +160,7 @@ export function ChatThread() {
           projectId={id!}
           chatId={cid!}
           streamError={streamError}
-          onOpenLens={() => studio.setLensOpen(true)}
+          endNotice={endNotice}
         />
         <ChatInput
           onSend={handleSend}

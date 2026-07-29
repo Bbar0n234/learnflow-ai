@@ -139,6 +139,23 @@ describe("stream-store", () => {
     expect(s.isReviewing).toBe(false);
   });
 
+  it("redact closes the stream without wiping the redacted feed", () => {
+    const store = useStreamStore.getState();
+    store.startStream("chat-1");
+    store.applyEvent({ type: "text_chunk", content: "secret" });
+
+    store.redact("[hidden]");
+
+    // Блокировка терминальна: ход закончился, поэтому живой регион гаснет — а
+    // заглушку показывает история. Иначе она видна дважды.
+    const s = useStreamStore.getState();
+    expect(s.isStreaming).toBe(false);
+    expect(s.streamingChatId).toBeNull();
+    expect(s.feed).toEqual([
+      { id: "text-0", type: "text", content: "[hidden]" },
+    ]);
+  });
+
   it("toggles the reviewing flag", () => {
     const store = useStreamStore.getState();
 

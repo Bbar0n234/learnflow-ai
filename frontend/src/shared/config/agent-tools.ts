@@ -83,6 +83,15 @@ function section(args: ToolArgs): string | null {
   return id === null ? null : `раздел ${id}`;
 }
 
+/**
+ * Вызов, чьи шаги приезжают вложенной лентой: события субагента отличаются от
+ * событий основного агента только `parent_call_id` = `call_id` этого вызова.
+ */
+export const SUBAGENT_TOOL_NAME = "run_subagent";
+
+/** Аргумент `run_subagent`, несущий задание субагенту, — в развороте он проза. */
+export const SUBAGENT_TASK_ARG = "task";
+
 /** Читаемые имена субагентов из реестра бэкенда (`configs/agent.yaml`). */
 const SUBAGENT_LABELS: Record<string, string> = {
   judge: "Проверяющий субагент",

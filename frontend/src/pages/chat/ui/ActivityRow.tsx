@@ -6,10 +6,17 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
-import { describeToolCall } from "@/shared/config/agent-tools";
+import {
+  describeToolCall,
+  SUBAGENT_TOOL_NAME,
+} from "@/shared/config/agent-tools";
 import type { AgentFeedItem, FeedItemStatus } from "@/shared/lib/agent-feed";
 import { cn } from "@/shared/lib/utils";
-import { ReasoningDetails, ToolCallDetails } from "./ActivityDetails";
+import {
+  ReasoningDetails,
+  SubagentDetails,
+  ToolCallDetails,
+} from "./ActivityDetails";
 import { LiveDots } from "./LiveDots";
 
 /**
@@ -21,6 +28,9 @@ import { LiveDots } from "./LiveDots";
  * Живая строка (`status: "running"`, а у рассуждений — признак `active`)
  * дописывает к этому бегущие точки и счётчик времени: по мокапу
  * `live-timeline-v3.html` (оси «Точки» + «Метки»).
+ *
+ * Строка `run_subagent` — та же грамматика в лавандовом тоне: в развороте, кроме
+ * задания и ответа, живёт вложенная лента шагов субагента (`.act.sub` мокапа).
  */
 
 /** Единственный `agent_event`, дающий строку: у компакции нет своего вызова. */
@@ -41,6 +51,8 @@ interface RowView {
   status: FeedItemStatus | null;
   durationMs: number | null;
   details: ReactNode | null;
+  /** Строка субагента: лавандовая нить и своя лента шагов в развороте. */
+  subagent: boolean;
 }
 
 function rowView(item: AgentFeedItem, active: boolean): RowView | null {
@@ -50,13 +62,21 @@ function rowView(item: AgentFeedItem, active: boolean): RowView | null {
         args: item.args,
         truncated: item.argsTruncated,
       });
+      const subagent = item.tool === SUBAGENT_TOOL_NAME;
       return {
         icon: described.icon,
         label: described.label,
         arg: described.arg,
         status: item.status,
         durationMs: item.durationMs,
-        details: <ToolCallDetails item={item} />,
+        subagent,
+        details: subagent ? (
+          <SubagentDetails item={item}>
+            <SubagentSteps items={item.children} />
+          </SubagentDetails>
+        ) : (
+          <ToolCallDetails item={item} />
+        ),
       };
     }
     case "reasoning":
@@ -67,6 +87,7 @@ function rowView(item: AgentFeedItem, active: boolean): RowView | null {
         arg: null,
         status: null,
         durationMs: null,
+        subagent: false,
         details:
           item.content === "" ? null : (
             <ReasoningDetails content={item.content} />
@@ -79,6 +100,7 @@ function rowView(item: AgentFeedItem, active: boolean): RowView | null {
         arg: null,
         status: null,
         durationMs: null,
+        subagent: false,
         details: null,
       };
     case "text":
@@ -151,9 +173,38 @@ interface ActivityRowProps {
    * пришло что-то ещё.
    */
   active?: boolean;
+  /**
+   * Строка вложенной ленты субагента: своей соединительной нити не рисует —
+   * нить вложенной ленты одна, лавандовая, и её держит подложка разворота.
+   */
+  nested?: boolean;
 }
 
-export function ActivityRow({ item, active = false }: ActivityRowProps) {
+/**
+ * Вложенная лента субагента: его шаги теми же строками, что и у основного
+ * агента. Рендерится рекурсией самой строки — вложенность приезжает единственным
+ * признаком `parent_call_id`, и модель уже разложила её в `children`.
+ *
+ * Синтетической первой строки («получил задание») здесь нет: события под неё в
+ * контракте нет, лента начинается с первого реального шага.
+ */
+function SubagentSteps({ items }: { items: AgentFeedItem[] }) {
+  if (items.length === 0) return null;
+
+  return (
+    <div className="my-1 flex flex-col">
+      {items.map((child) => (
+        <ActivityRow key={child.id} item={child} nested />
+      ))}
+    </div>
+  );
+}
+
+export function ActivityRow({
+  item,
+  active = false,
+  nested = false,
+}: ActivityRowProps) {
   const [manualOpen, setManualOpen] = useState<boolean | null>(null);
 
   const running =
@@ -169,9 +220,12 @@ export function ActivityRow({ item, active = false }: ActivityRowProps) {
   if (view === null) return null;
 
   const expandable = view.details !== null;
-  // Рассуждение развёрнуто, пока идёт, и сворачивается по завершении; решение
-  // пользователя, если оно было, старше автоматики.
-  const open = manualOpen ?? (item.type === "reasoning" && active);
+  // Развёрнуто, пока идёт: у рассуждения — чтобы видеть поток чанков, у
+  // субагента — чтобы его шаги были видны в момент работы, а не по клику.
+  // Решение пользователя, если оно было, старше автоматики.
+  const open =
+    manualOpen ??
+    ((item.type === "reasoning" && active) || (view.subagent && running));
 
   const meta = running
     ? elapsedMs !== null && elapsedMs >= ELAPSED_VISIBLE_AFTER_MS
@@ -185,15 +239,21 @@ export function ActivityRow({ item, active = false }: ActivityRowProps) {
     <>
       <span
         className={cn(
-          "z-10 flex size-[19px] shrink-0 items-center justify-center rounded-full bg-background",
-          running ? "text-primary" : "text-muted-foreground",
+          "z-10 flex size-[19px] shrink-0 items-center justify-center rounded-full",
+          nested ? "bg-transparent" : "bg-background",
+          running
+            ? view.subagent
+              ? "text-brand-lavender"
+              : "text-primary"
+            : "text-muted-foreground",
         )}
       >
         <view.icon aria-hidden="true" className="size-[15px]" />
       </span>
       <span
         className={cn(
-          "min-w-0 truncate text-[13.5px]",
+          "min-w-0 truncate",
+          nested ? "text-[12.5px]" : "text-[13.5px]",
           running ? "text-foreground" : "text-muted-foreground",
         )}
       >
@@ -202,7 +262,7 @@ export function ActivityRow({ item, active = false }: ActivityRowProps) {
           <span className="text-muted-foreground"> · {view.arg}</span>
         )}
       </span>
-      {running && <LiveDots />}
+      {running && <LiveDots tone={view.subagent ? "lavender" : "primary"} />}
       <span className="ml-auto flex shrink-0 items-center gap-[7px] text-xs text-muted-foreground">
         {meta !== null && <span className="font-mono text-[11px]">{meta}</span>}
         {view.status !== null && <StatusMeta status={view.status} />}
@@ -219,24 +279,42 @@ export function ActivityRow({ item, active = false }: ActivityRowProps) {
     </>
   );
 
+  const rowClass = cn(
+    "flex w-full items-center gap-2.5 pr-1.5",
+    nested ? "py-0.5" : "py-1",
+  );
+
   return (
-    <div className="relative before:absolute before:bottom-[-2px] before:left-[9px] before:top-[26px] before:w-px before:bg-border before:content-[''] last:before:hidden">
+    <div
+      className={cn(
+        "relative",
+        // Соединительная нить корневой ленты; у вложенной её роль играет
+        // лавандовая подложка разворота субагента.
+        !nested &&
+          "before:absolute before:bottom-[-2px] before:left-[9px] before:top-[26px] before:w-px before:bg-border before:content-[''] last:before:hidden",
+      )}
+    >
       {expandable ? (
         <button
           type="button"
           aria-expanded={open}
           onClick={() => setManualOpen(!open)}
-          className="flex w-full items-center gap-2.5 rounded-lg py-1 pr-1.5 text-left hover:bg-muted/55"
+          className={cn(rowClass, "rounded-lg text-left hover:bg-muted/55")}
         >
           {row}
         </button>
       ) : (
-        <div className="flex w-full items-center gap-2.5 py-1 pr-1.5">
-          {row}
-        </div>
+        <div className={rowClass}>{row}</div>
       )}
       {expandable && open && (
-        <div className="mb-1.5 ml-[29px] mt-0.5 border-l-2 border-border pl-3 text-xs leading-relaxed text-muted-foreground">
+        <div
+          className={cn(
+            "mb-1.5 ml-[29px] mt-0.5 border-l-2 text-xs leading-relaxed text-muted-foreground",
+            view.subagent
+              ? "rounded-r-lg border-brand-lavender bg-brand-lavender/[0.06] px-3 py-[7px]"
+              : "border-border pl-3",
+          )}
+        >
           {view.details}
         </div>
       )}

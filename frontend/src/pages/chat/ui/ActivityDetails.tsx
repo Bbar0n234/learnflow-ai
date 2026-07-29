@@ -1,5 +1,9 @@
 import { useState, type ReactNode } from "react";
-import { parseToolArgs, type ToolArgs } from "@/shared/config/agent-tools";
+import {
+  parseToolArgs,
+  SUBAGENT_TASK_ARG,
+  type ToolArgs,
+} from "@/shared/config/agent-tools";
 import type { ToolCallFeedItem } from "@/shared/lib/agent-feed";
 import { cn } from "@/shared/lib/utils";
 
@@ -122,6 +126,21 @@ function formatArgs(args: ToolArgs): string {
     .join("\n");
 }
 
+/**
+ * Аргументы разобрать не удалось. Обрезанные сервером на экран не идут вовсе —
+ * оборванный посреди JSON текст читать нечем; аргументы нештатной формы
+ * (обрезки в них нет) показываются сырыми: это всё, что известно о входе.
+ */
+function UnparsedArgs({ item }: { item: ToolCallFeedItem }) {
+  if (item.argsTruncated) {
+    return (
+      <p className="mt-0.5">Аргументы оборваны сервером — не разобраны.</p>
+    );
+  }
+  if (item.args === null) return null;
+  return <BigText mono text={item.args} />;
+}
+
 export function ToolCallDetails({ item }: { item: ToolCallFeedItem }) {
   const args = parseToolArgs(item.args, item.argsTruncated);
   const result = item.result ?? "";
@@ -132,14 +151,10 @@ export function ToolCallDetails({ item }: { item: ToolCallFeedItem }) {
       <Zone>
         <ZoneTitle title="Вызов" truncated={item.argsTruncated} />
         <p className="font-mono text-[11px] opacity-85">{item.tool}</p>
-        {args !== null && <BigText mono text={formatArgs(args)} />}
-        {args === null && item.argsTruncated && (
-          <p className="mt-0.5">Аргументы оборваны сервером — не разобраны.</p>
-        )}
-        {/* Args не разобрались вне усечения — строка не битая обрезкой,
-            показываем её сырой: это всё, что известно о входе вызова. */}
-        {args === null && !item.argsTruncated && item.args !== null && (
-          <BigText mono text={item.args} />
+        {args !== null ? (
+          <BigText mono text={formatArgs(args)} />
+        ) : (
+          <UnparsedArgs item={item} />
         )}
       </Zone>
       {(hasResult || item.status === "pending") && (
@@ -152,6 +167,67 @@ export function ToolCallDetails({ item }: { item: ToolCallFeedItem }) {
             <BigText text={result} truncated={item.resultTruncated} />
           ) : (
             <p>Вызов не завершён — результата нет.</p>
+          )}
+        </Zone>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Разворот строки субагента: задание на входе, вложенная лента его шагов и
+ * ответ на выходе (`.act.sub` мокапа — зоны «вызов» и «ответ субагента» вокруг
+ * вложенного `.feed`).
+ *
+ * Вход и ответ — это args и result самого вызова `run_subagent`, отдельного
+ * канала под них в контракте нет. Шаги приходят событиями с `parent_call_id`,
+ * поэтому в истории их не бывает вовсе: вложенная лента там пуста и не
+ * рисуется, а строка остаётся законченной — задание и вердикт на месте.
+ */
+export function SubagentDetails({
+  item,
+  children,
+}: {
+  item: ToolCallFeedItem;
+  /** Вложенная лента шагов; в истории — пусто. */
+  children?: ReactNode;
+}) {
+  const args = parseToolArgs(item.args, item.argsTruncated);
+  const taskValue = args?.[SUBAGENT_TASK_ARG];
+  const task = typeof taskValue === "string" ? taskValue : null;
+  // Остальные аргументы (`agent_type`, вложенные документы) — моношириной
+  // рядом с сырым именем: задание идёт прозой, а не парой ключ-значение.
+  const rest =
+    args === null
+      ? null
+      : Object.fromEntries(
+          Object.entries(args).filter(([key]) => key !== SUBAGENT_TASK_ARG),
+        );
+  const verdict = item.result ?? "";
+  const hasVerdict = verdict !== "";
+
+  return (
+    <div className="flex flex-col gap-1">
+      <Zone>
+        <ZoneTitle title="Вызов" truncated={item.argsTruncated} />
+        <p className="font-mono text-[11px] opacity-85">{item.tool}</p>
+        {rest !== null && Object.keys(rest).length > 0 && (
+          <BigText mono text={formatArgs(rest)} />
+        )}
+        {task !== null && <BigText text={task} />}
+        {args === null && <UnparsedArgs item={item} />}
+      </Zone>
+      {children}
+      {(hasVerdict || item.status === "pending") && (
+        <Zone>
+          <ZoneTitle
+            title="Ответ субагента"
+            truncated={hasVerdict && item.resultTruncated}
+          />
+          {hasVerdict ? (
+            <BigText text={verdict} truncated={item.resultTruncated} />
+          ) : (
+            <p>Субагент не ответил — вызов не завершён.</p>
           )}
         </Zone>
       )}

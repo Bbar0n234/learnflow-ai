@@ -211,6 +211,74 @@ describe("MessageList — живость ленты", () => {
   });
 });
 
+// Смоук фазы T2.6: вложенность приезжает единственным признаком —
+// `parent_call_id`; шаги субагента видны в live внутри строки его вызова.
+describe("MessageList — вложенная лента субагента", () => {
+  const subagentCall: SSEEvent[] = [
+    { type: "tool_call_started", call_id: "sub-1", tool: "run_subagent" },
+    {
+      type: "tool_call_args",
+      call_id: "sub-1",
+      args: JSON.stringify({ agent_type: "judge", task: "Проверь выводы." }),
+      truncated: false,
+    },
+  ];
+
+  it("показывает шаги субагента строками внутри его вызова", () => {
+    renderFeed(
+      feedFrom([
+        ...subagentCall,
+        {
+          type: "tool_call_started",
+          call_id: "step-1",
+          tool: "firecrawl_scrape",
+          parent_call_id: "sub-1",
+        },
+        {
+          type: "tool_call_args",
+          call_id: "step-1",
+          args: JSON.stringify({ url: "docs.langchain.com/subagents" }),
+          truncated: false,
+          parent_call_id: "sub-1",
+        },
+      ]),
+    );
+
+    // Идущий субагент развёрнут сам — шаги видны без клика.
+    expect(screen.getByText(/Проверяющий субагент/)).toBeInTheDocument();
+    expect(screen.getByText("Проверь выводы.")).toBeInTheDocument();
+    expect(screen.getByText(/Читаю страницу/)).toBeInTheDocument();
+  });
+
+  it("не рисует синтетической первой строки вложенной ленты", () => {
+    renderFeed(feedFrom(subagentCall));
+
+    expect(screen.queryByText(/Получил задание/)).not.toBeInTheDocument();
+  });
+
+  it("закрывает строку субагента вердиктом", () => {
+    renderFeed(
+      feedFrom([
+        ...subagentCall,
+        {
+          type: "tool_result",
+          call_id: "sub-1",
+          tool: "run_subagent",
+          status: "success",
+          content: "Три замечания по формулировкам.",
+          truncated: false,
+        },
+      ]),
+    );
+
+    expect(screen.getByText("успешно")).toBeInTheDocument();
+    // Завершённый субагент сворачивается — вердикт открывается по клику.
+    expect(
+      screen.queryByText("Три замечания по формулировкам."),
+    ).not.toBeInTheDocument();
+  });
+});
+
 describe("MessageList — терминальные состояния", () => {
   it("сообщает об остановке генерации нейтральной строкой, без ошибки", () => {
     renderFeed([], { isStreaming: false, endNotice: "cancelled" });

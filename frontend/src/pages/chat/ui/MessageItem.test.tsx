@@ -166,6 +166,45 @@ describe("smoke: лента в истории", () => {
     expect(screen.getByText("плоский контент")).toBeInTheDocument();
   });
 
+  // Смоук фазы T2.6: в истории субагент живёт одной строкой — заданием и
+  // вердиктом в развороте, без вложенной хронологии (её событий чекпоинтер не
+  // хранит, streaming.md § История: typed parts).
+  it("субагент в истории разворачивается в задание и ответ без вложенных шагов", async () => {
+    renderMessage(
+      message([
+        {
+          type: "tool_call",
+          call_id: "c-sub",
+          tool: "run_subagent",
+          args: JSON.stringify({
+            agent_type: "judge",
+            task: "Проверь черновик выводов по изоляции контекста.",
+          }),
+          args_truncated: false,
+          status: "success",
+          result_preview: "Три замечания по формулировкам.",
+          result_truncated: false,
+        },
+      ]),
+    );
+
+    const row = screen.getByRole("button", {
+      name: /Проверяющий субагент/,
+    });
+    await userEvent.click(row);
+
+    expect(screen.getByText("run_subagent")).toBeInTheDocument();
+    expect(
+      screen.getByText("Проверь черновик выводов по изоляции контекста."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Ответ субагента")).toBeInTheDocument();
+    expect(
+      screen.getByText("Три замечания по формулировкам."),
+    ).toBeInTheDocument();
+    // Вложенных строк в истории нет — единственная кнопка-строка тут своя.
+    expect(screen.getAllByRole("button", { expanded: true })).toHaveLength(1);
+  });
+
   it("несколько вызовов — одна лента строк", () => {
     renderMessage(
       message([

@@ -22,7 +22,7 @@ export function ActivityPauseRow() {
       <span className="flex size-[19px] shrink-0 items-center justify-center rounded-full bg-background text-muted-foreground">
         <Sparkles aria-hidden="true" className="size-[15px]" />
       </span>
-      <LiveDots muted />
+      <LiveDots tone="muted" />
     </div>
   );
 }

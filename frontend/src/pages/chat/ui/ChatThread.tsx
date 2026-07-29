@@ -51,14 +51,21 @@ export function ChatThread() {
     setLocalMessages([]);
   }, []);
 
+  const handleCancelled = useCallback(() => {
+    // Хук уже инвалидировал detail: отменённый ход приезжает из истории вместе
+    // с незавершёнными вызовами. Оптимистичную копию снимаем по той же причине,
+    // что и на `done`, — иначе после рефетча она задвоится.
+    setLocalMessages([]);
+  }, []);
+
   const { send, cancel } = useAgentStream(id!, cid!, {
     onDone: handleDone,
     onError: (detail) => setStreamError(detail),
     onSecurityBlock: handleSecurityBlock,
+    onCancelled: handleCancelled,
   });
 
-  const streamingText = useStreamStore((s) => s.streamingText);
-  const activeTool = useStreamStore((s) => s.activeTool);
+  const feed = useStreamStore((s) => s.feed);
   const streamingArtifacts = useStreamStore((s) => s.streamingArtifacts);
 
   const handleSend = useCallback(
@@ -138,8 +145,7 @@ export function ChatThread() {
         <MessageList
           messages={allMessages}
           isStreaming={isStreaming}
-          streamingText={streamingText}
-          activeTool={activeTool}
+          feed={feed}
           streamingArtifacts={streamingArtifacts}
           projectId={id!}
           chatId={cid!}

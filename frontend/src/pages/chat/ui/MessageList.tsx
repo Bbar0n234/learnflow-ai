@@ -1,9 +1,10 @@
 import { Fragment, useEffect, useRef } from "react";
 import type { Message } from "@/shared/api/chats";
+import { groupFeedBlocks, type AgentFeedItem } from "@/shared/lib/agent-feed";
 import { useStreamStore, type StreamingArtifact } from "@/stores/stream-store";
 import { MessageItem } from "./MessageItem";
 import { MarkdownRenderer } from "@/shared/ui/MarkdownRenderer";
-import { ToolIndicator } from "./ToolIndicator";
+import { ActivityFeed } from "./ActivityFeed";
 import { ReviewIndicator } from "./ReviewIndicator";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 import { ArtifactCard } from "./ArtifactCard";
@@ -15,8 +16,8 @@ import { SHOW_GROUP_B_STUBS } from "@/shared/config/feature-flags";
 interface MessageListProps {
   messages: Message[];
   isStreaming: boolean;
-  streamingText: string;
-  activeTool: string | null;
+  /** Лента активного хода — та же структура, что рендерит история. */
+  feed: AgentFeedItem[];
   streamingArtifacts: StreamingArtifact[];
   projectId: string;
   chatId: string;
@@ -24,11 +25,42 @@ interface MessageListProps {
   onOpenLens: () => void;
 }
 
+/** Инструмент, чей вызов показывается плейсхолдер-карточкой артефакта. */
+const IMAGE_TOOL = "generate_image";
+
+/**
+ * `call_id` идущих прямо сейчас генераций изображений — карточка-плейсхолдер
+ * живёт ровно столько, сколько вызов остаётся незакрытым (`tool_result` /
+ * `artifact_created` того же вызова переводят строку из `running`).
+ */
+function pendingImageCalls(feed: AgentFeedItem[]): string[] {
+  const calls: string[] = [];
+  for (const item of feed) {
+    if (item.type !== "tool_call") continue;
+    if (item.tool === IMAGE_TOOL && item.status === "running") {
+      calls.push(item.callId);
+    }
+    calls.push(...pendingImageCalls(item.children));
+  }
+  return calls;
+}
+
+/**
+ * Объём хвоста ленты — сигнал роста для автопрокрутки: текст и рассуждения
+ * растут внутри одного элемента, не меняя их числа.
+ */
+function feedTailLength(feed: AgentFeedItem[]): number {
+  const last = feed.at(-1);
+  if (last === undefined) return 0;
+  return last.type === "text" || last.type === "reasoning"
+    ? last.content.length
+    : 0;
+}
+
 export function MessageList({
   messages,
   isStreaming,
-  streamingText,
-  activeTool,
+  feed,
   streamingArtifacts,
   projectId,
   chatId,
@@ -37,11 +69,15 @@ export function MessageList({
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const isReviewing = useStreamStore((s) => s.isReviewing);
-  const pendingImages = useStreamStore((s) => s.pendingImages);
+  const liveBlocks = groupFeedBlocks(feed);
+  const pendingImages = pendingImageCalls(feed);
+  const tailLength = feedTailLength(feed);
 
+  // Прокрутка следует за ростом ленты, а не за одним текстом: ход из одних
+  // tool-событий, без единого `text_chunk`, тоже уезжал бы за нижнюю границу.
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, streamingText, isStreaming, isReviewing]);
+  }, [messages.length, feed.length, tailLength, isStreaming, isReviewing]);
 
   return (
     <div className="flex-1 overflow-auto p-6">
@@ -79,18 +115,29 @@ export function MessageList({
         {isStreaming && (
           <div className="flex justify-start">
             <div className="w-full text-foreground">
-              {!streamingText &&
-                !activeTool &&
+              {liveBlocks.length === 0 &&
                 !isReviewing &&
-                pendingImages.length === 0 &&
                 streamingArtifacts.length === 0 && <ThinkingIndicator />}
-              {streamingText && (
-                <MarkdownRenderer isStreaming>{streamingText}</MarkdownRenderer>
+              {/* Живой ход рисует тот же компонент ленты, что и история:
+                  структура данных общая, поэтому перезагрузка страницы
+                  показывает ровно то, что пользователь уже видел. */}
+              {liveBlocks.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  {liveBlocks.map((block, index) =>
+                    block.type === "text" ? (
+                      <MarkdownRenderer key={block.item.id} isStreaming>
+                        {block.item.content}
+                      </MarkdownRenderer>
+                    ) : (
+                      <ActivityFeed
+                        key={block.items[0]?.id ?? `feed-${index}`}
+                        items={block.items}
+                      />
+                    ),
+                  )}
+                </div>
               )}
-              {activeTool && activeTool !== "generate_image" && (
-                <ToolIndicator toolName={activeTool} />
-              )}
-              {isReviewing && !activeTool && <ReviewIndicator />}
+              {isReviewing && <ReviewIndicator />}
               {pendingImages.map((callId) => (
                 <GeneratingArtifactCard key={callId} />
               ))}

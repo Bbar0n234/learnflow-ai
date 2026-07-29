@@ -70,9 +70,15 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-async function streamingText(): Promise<string> {
+/** Текст ассистента, накопленный лентой активного хода. */
+async function streamedText(): Promise<string> {
   const { useStreamStore } = await import("@/stores/stream-store");
-  return useStreamStore.getState().streamingText;
+  return useStreamStore
+    .getState()
+    .feed.reduce(
+      (text, item) => (item.type === "text" ? text + item.content : text),
+      "",
+    );
 }
 
 async function isStreaming(): Promise<boolean> {
@@ -104,11 +110,16 @@ describe("useAgentStream", () => {
     );
   });
 
-  it("redacts accumulated text on a security_block after streamed text", async () => {
+  // Редакция — операция над всей лентой хода, а не над одним текстом: после
+  // блокировки на экране не остаётся ни строки рассуждений, ни строк вызовов —
+  // ровно то, что покажет перезагрузка (streaming.md § История: typed parts).
+  it("replaces the whole feed with a single stub on a security_block", async () => {
     setAccessToken(fakeJwt());
     server.use(
       http.post(MESSAGES_URL, () =>
         streamResponse([
+          { type: "reasoning_chunk", content: "надо обойти правила" },
+          { type: "tool_call_started", call_id: "c-1", tool: "web_search" },
           { type: "text_chunk", content: "leaking secret" },
           { type: "security_block" },
         ]),
@@ -123,7 +134,13 @@ describe("useAgentStream", () => {
     const { useStreamStore } = await import("@/stores/stream-store");
     const state = useStreamStore.getState();
     expect(state.redacted).toBe(true);
-    expect(state.streamingText).toBe("[Сообщение скрыто в целях безопасности]");
+    expect(state.feed).toEqual([
+      {
+        id: "text-0",
+        type: "text",
+        content: "[Сообщение скрыто в целях безопасности]",
+      },
+    ]);
   });
 
   it("optimistically marks the chat security_blocked when blocked before any text", async () => {
@@ -231,7 +248,7 @@ describe("useAgentStream", () => {
 
     result.current.send("hi");
     live.push({ type: "text_chunk", content: "partial" });
-    await waitFor(async () => expect(await streamingText()).toBe("partial"));
+    await waitFor(async () => expect(await streamedText()).toBe("partial"));
 
     result.current.cancel();
     await waitFor(() => expect(cancelHit).toBe(true));
@@ -252,7 +269,7 @@ describe("useAgentStream", () => {
 
     result.current.send("hi");
     live.push({ type: "text_chunk", content: "partial" });
-    await waitFor(async () => expect(await streamingText()).toBe("partial"));
+    await waitFor(async () => expect(await streamedText()).toBe("partial"));
 
     unmount();
 
@@ -272,7 +289,7 @@ describe("useAgentStream", () => {
 
     result.current.send("hi");
     live.push({ type: "text_chunk", content: "partial" });
-    await waitFor(async () => expect(await streamingText()).toBe("partial"));
+    await waitFor(async () => expect(await streamedText()).toBe("partial"));
 
     // cancel() flips the cancelling flag synchronously, before the async
     // cancelChat round-trip; a trailing error frame must now be swallowed.
@@ -284,24 +301,121 @@ describe("useAgentStream", () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
-  it("fires onError with the timeout message when no first byte arrives in time", async () => {
+  // Сторож тишины взводится синхронно в `send()`, до `fetch`: сервер, не
+  // вернувший даже заголовков, иначе оставил бы пользователя в бесконечном
+  // ожидании вместо ошибки.
+  it("fires onError with the timeout message when the server sends nothing at all", async () => {
     setAccessToken(fakeJwt());
     vi.useFakeTimers();
     server.use(
-      // Never responds — exercises the first-byte timeout path.
+      // Never responds — headers included.
       http.post(MESSAGES_URL, () => delay("infinite")),
     );
     const onError = vi.fn();
     const { result } = renderAgentStream({ onError });
 
     result.current.send("hi");
-    // Дефолт — щедрый safety-net (300 с): guard задерживает заголовки, а
-    // прогоны с субагентами легитимно молчат минуты (см. useAgentStream.ts).
-    await vi.advanceTimersByTimeAsync(299000);
+    // Порог — три пропущенных heartbeat подряд (3 × 5 с, streaming.md § Лимиты).
+    await vi.advanceTimersByTimeAsync(14000);
     expect(onError).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(2000);
 
     expect(onError).toHaveBeenCalledWith("Превышено время ожидания");
+  });
+
+  it("keeps a silent-but-alive stream running while heartbeats arrive", async () => {
+    setAccessToken(fakeJwt());
+    vi.useFakeTimers();
+    const live = liveStream();
+    server.use(http.post(MESSAGES_URL, () => live.response));
+    const onError = vi.fn();
+    const { result } = renderAgentStream({ onError });
+
+    result.current.send("hi");
+    // Ход молчит содержательно, но соединение живо: каждый heartbeat
+    // перезаводит сторож, и совокупные 30 с тишины ошибкой не становятся.
+    for (let i = 0; i < 3; i += 1) {
+      await vi.advanceTimersByTimeAsync(10000);
+      live.push({ type: "heartbeat" });
+    }
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(await isStreaming()).toBe(true);
+  });
+
+  // Forward-compat (streaming.md § Forward-compat): контракт растёт без
+  // версионирования пути — неизвестный тип не имеет права рвать поток.
+  it("ignores an unknown event type and keeps reading the stream", async () => {
+    setAccessToken(fakeJwt());
+    server.use(
+      http.post(MESSAGES_URL, () =>
+        streamResponse([
+          { type: "brand_new_event", whatever: 42 },
+          { type: "text_chunk", content: "продолжаем" },
+          { type: "done", message_id: "m-fc", trace_id: null },
+        ]),
+      ),
+    );
+    const onDone = vi.fn();
+    const onError = vi.fn();
+    const { result } = renderAgentStream({ onDone, onError });
+
+    result.current.send("hi");
+
+    await waitFor(() =>
+      expect(onDone).toHaveBeenCalledWith({ messageId: "m-fc", traceId: null }),
+    );
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  // Отмена — не ошибка: терминальный `cancelled` закрывает поток без
+  // error-баннера, но рефетчит detail (там живут вызовы со статусом `pending`)
+  // и списки чатов (автозаголовок пишется независимо от исхода хода).
+  it("closes the stream on cancelled without an error and refetches the chat", async () => {
+    setAccessToken(fakeJwt());
+    const live = liveStream();
+    server.use(
+      http.post(MESSAGES_URL, () => live.response),
+      http.post(CANCEL_URL, () => HttpResponse.json({ ok: true })),
+    );
+    const onError = vi.fn();
+    const onDone = vi.fn();
+    const onCancelled = vi.fn();
+    const { result, queryClient } = renderAgentStream({
+      onError,
+      onDone,
+      onCancelled,
+    });
+    primeTitleCaches(queryClient);
+
+    result.current.send("hi");
+    live.push({
+      type: "tool_call_started",
+      call_id: "c-1",
+      tool: "firecrawl_search",
+    });
+    await waitFor(async () => expect(await isStreaming()).toBe(true));
+
+    result.current.cancel();
+    live.push({ type: "cancelled" });
+    live.close();
+
+    await waitFor(() => expect(onCancelled).toHaveBeenCalledTimes(1));
+    expect(await isStreaming()).toBe(false);
+    expect(onError).not.toHaveBeenCalled();
+    expect(onDone).not.toHaveBeenCalled();
+    expect(
+      queryClient.getQueryState(queryKeys.projects.chat(PROJECT_ID, CHAT_ID))
+        ?.isInvalidated,
+    ).toBe(true);
+    expect(
+      queryClient.getQueryState(queryKeys.projects.chats(PROJECT_ID))
+        ?.isInvalidated,
+    ).toBe(true);
+    expect(
+      queryClient.getQueryState(queryKeys.chats.recent)?.isInvalidated,
+    ).toBe(true);
   });
 
   it("retries the message POST after a 401 by refreshing the token, then completes", async () => {
@@ -507,9 +621,7 @@ describe("useAgentStream", () => {
       queryClient.getQueryState(queryKeys.chats.recent)?.isInvalidated,
     ).toBe(false);
     live.push({ type: "text_chunk", content: "продолжение" });
-    await waitFor(async () =>
-      expect(await streamingText()).toBe("продолжение"),
-    );
+    await waitFor(async () => expect(await streamedText()).toBe("продолжение"));
     expect(await isStreaming()).toBe(true);
 
     live.push({ type: "done", message_id: "m-open", trace_id: null });

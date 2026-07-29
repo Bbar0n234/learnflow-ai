@@ -86,6 +86,12 @@ async function isStreaming(): Promise<boolean> {
   return useStreamStore.getState().isStreaming;
 }
 
+/** Лента активного хода — то, что диспетчер сложил из событий потока. */
+async function streamedFeed() {
+  const { useStreamStore } = await import("@/stores/stream-store");
+  return useStreamStore.getState().feed;
+}
+
 describe("useAgentStream", () => {
   it("invokes onDone with the message and trace ids on a done event", async () => {
     setAccessToken(fakeJwt());
@@ -690,5 +696,184 @@ describe("useAgentStream", () => {
       queryClient.getQueryState(queryKeys.projects.chat(PROJECT_ID, "c2"))
         ?.isInvalidated,
     ).toBe(false);
+  });
+
+  // Диспетчер — единственное место, где словарь v2 превращается в содержимое
+  // экрана. Семь событий ленты обязаны дойти до модели: пропущенная ветка не
+  // роняет поток, а просто стирает часть работы агента из виду.
+  it("доводит до ленты каждое событие хода, включая срез вызова guard'ом", async () => {
+    setAccessToken(fakeJwt());
+    const live = liveStream();
+    server.use(http.post(MESSAGES_URL, () => live.response));
+    const { result } = renderAgentStream();
+
+    result.current.send("hi");
+    live.push({ type: "stream_started" });
+    live.push({ type: "reasoning_chunk", content: "Надо поискать" });
+    live.push({ type: "heartbeat" });
+    live.push({
+      type: "tool_call_started",
+      call_id: "c-1",
+      tool: "firecrawl_search",
+    });
+    live.push({
+      type: "tool_call_args",
+      call_id: "c-1",
+      args: '{"query": "langgraph"}',
+      truncated: false,
+    });
+    live.push({
+      type: "tool_result",
+      call_id: "c-1",
+      tool: "firecrawl_search",
+      status: "success",
+      content: "нашлось",
+      truncated: false,
+    });
+    live.push({
+      type: "tool_call_started",
+      call_id: "c-2",
+      tool: "load_skill",
+    });
+    live.push({ type: "tool_call_cancelled", call_id: "c-2" });
+    live.push({ type: "agent_event", kind: "compaction", payload: {} });
+    live.push({ type: "text_chunk", content: "Вот что нашлось." });
+
+    await waitFor(async () =>
+      expect((await streamedFeed()).length).toBeGreaterThanOrEqual(5),
+    );
+    const feed = await streamedFeed();
+    expect(
+      feed.map((item) => (item.type === "tool_call" ? item.callId : item.type)),
+    ).toEqual(["reasoning", "c-1", "c-2", "agent_event", "text"]);
+    expect(
+      feed.map((item) => (item.type === "tool_call" ? item.status : null)),
+    ).toEqual([null, "success", "cancelled", null, null]);
+
+    live.push({ type: "done", message_id: "m-1", trace_id: null });
+    live.close();
+    await waitFor(async () => expect(await isStreaming()).toBe(false));
+  });
+
+  // Сторож тишины перезаводится **любым** пришедшим фреймом — иначе поток,
+  // где сервер шлёт что-то, чего фронт ещё не знает, оборвётся по таймауту.
+  it("перезаводит сторож тишины и на событии неизвестного типа", async () => {
+    setAccessToken(fakeJwt());
+    vi.useFakeTimers();
+    const live = liveStream();
+    server.use(http.post(MESSAGES_URL, () => live.response));
+    const onError = vi.fn();
+    const { result } = renderAgentStream({ onError });
+
+    result.current.send("hi");
+    await vi.advanceTimersByTimeAsync(10000);
+    live.push({ type: "brand_new_event", whatever: 42 });
+    // Ещё 10 с: без перезавода порог в 15 с был бы уже пройден.
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(onError).not.toHaveBeenCalled();
+
+    // Сторож при этом не разоружён — новая тишина его дожигает.
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(onError).toHaveBeenCalledWith("Превышено время ожидания");
+  });
+
+  // Снятие сторожа на терминальном событии: сервер, придержавший соединение
+  // открытым после `done`, не имеет права превратить успешный ход в ошибку.
+  it("снимает сторож тишины на терминальном событии, а не по концу чтения", async () => {
+    setAccessToken(fakeJwt());
+    vi.useFakeTimers();
+    const live = liveStream();
+    server.use(http.post(MESSAGES_URL, () => live.response));
+    const onError = vi.fn();
+    const onDone = vi.fn();
+    const { result } = renderAgentStream({ onError, onDone });
+
+    result.current.send("hi");
+    live.push({ type: "text_chunk", content: "готово" });
+    live.push({ type: "done", message_id: "m-1", trace_id: null });
+    await vi.waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+
+    // Соединение всё ещё открыто, содержательных событий больше нет.
+    await vi.advanceTimersByTimeAsync(30000);
+
+    expect(onError).not.toHaveBeenCalled();
+    live.close();
+  });
+
+  // Списки чатов инвалидируются на каждом терминальном событии, потому что
+  // автозаголовок пишется в БД fire-and-forget и мог успеть записаться.
+  it("рефетчит списки чатов и на терминальной ошибке", async () => {
+    setAccessToken(fakeJwt());
+    server.use(
+      http.post(MESSAGES_URL, () =>
+        streamResponse([{ type: "error", detail: "модель упала" }]),
+      ),
+    );
+    const onError = vi.fn();
+    const { result, queryClient } = renderAgentStream({ onError });
+    primeTitleCaches(queryClient);
+
+    result.current.send("hi");
+
+    await waitFor(() => expect(onError).toHaveBeenCalledWith("модель упала"));
+    expect(
+      queryClient.getQueryState(queryKeys.projects.chats(PROJECT_ID))
+        ?.isInvalidated,
+    ).toBe(true);
+    expect(
+      queryClient.getQueryState(queryKeys.chats.recent)?.isInvalidated,
+    ).toBe(true);
+  });
+
+  // Исключение из того же правила: на заблокированном вводе генерация
+  // заголовка не запускается вовсе, поэтому список чатов проекта трогать
+  // незачем (streaming.md § Уточнения → `title_updated`).
+  it("не рефетчит список чатов проекта на блокировке, но обновляет сам чат", async () => {
+    setAccessToken(fakeJwt());
+    server.use(
+      http.post(MESSAGES_URL, () =>
+        streamResponse([{ type: "security_block" }]),
+      ),
+    );
+    const onSecurityBlock = vi.fn();
+    const { result, queryClient } = renderAgentStream({ onSecurityBlock });
+    primeTitleCaches(queryClient);
+
+    result.current.send("hi");
+
+    await waitFor(() => expect(onSecurityBlock).toHaveBeenCalledTimes(1));
+    expect(
+      queryClient.getQueryState(queryKeys.projects.chats(PROJECT_ID))
+        ?.isInvalidated,
+    ).toBe(false);
+    expect(
+      queryClient.getQueryState(queryKeys.projects.chat(PROJECT_ID, CHAT_ID))
+        ?.isInvalidated,
+    ).toBe(true);
+    expect(
+      queryClient.getQueryState(queryKeys.chats.recent)?.isInvalidated,
+    ).toBe(true);
+  });
+
+  it("закрывает стрим на блокировке — композер не остаётся с кнопкой отмены", async () => {
+    setAccessToken(fakeJwt());
+    const live = liveStream();
+    server.use(http.post(MESSAGES_URL, () => live.response));
+    const onSecurityBlock = vi.fn();
+    const { result } = renderAgentStream({ onSecurityBlock });
+
+    result.current.send("hi");
+    live.push({ type: "text_chunk", content: "начало ответа" });
+    await waitFor(async () =>
+      expect(await streamedText()).toBe("начало ответа"),
+    );
+
+    live.push({ type: "security_block" });
+
+    await waitFor(() => expect(onSecurityBlock).toHaveBeenCalledTimes(1));
+    // Блокировка терминальна и для стрима: иначе заглушка видна дважды (своя в
+    // живом регионе и приехавшая из истории), а ввод остаётся в режиме отмены.
+    expect(await isStreaming()).toBe(false);
+    live.close();
   });
 });

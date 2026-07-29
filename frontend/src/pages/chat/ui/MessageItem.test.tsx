@@ -8,10 +8,15 @@ import { renderWithProviders } from "@/test/test-utils";
 
 import { MessageItem } from "./MessageItem";
 
-// Смоук-набор фазы T2.3 (реализатор): лента истории рендерится, разворот
-// показывает вызов и результат, усечение маркировано, ход из одного текста
-// ленты не получает. Это проверка механизма, а не покрытия — полноценный
-// поведенческий набор пишет test-author и волен заменить этот файл целиком.
+// Integration: сохранённый ход агента на экране. Сообщение ассистента —
+// последовательность typed parts, и `MessageItem` обязан показать по ней тот же
+// след действий, который пользователь видел живым: подпись из реестра вместо
+// машинного имени, разворот с зонами «Вызов» / «Результат», честный маркер
+// усечения и статус вызова текстом, а не одним цветом.
+//
+// Файл начинался смоук-набором фазы T2.3; test-author оставил кейсы, которые
+// проверяют контракт, и дополнил их поведением, которого не было: три статуса
+// вызова, обрезанные аргументы на экране, незнакомый инструмент, редакция.
 
 function message(parts: MessagePart[], content = "готово"): Message {
   return {
@@ -34,7 +39,23 @@ function renderMessage(msg: Message) {
 
 const LONG = "результат ".repeat(40);
 
-describe("smoke: лента в истории", () => {
+function toolCallPart(
+  overrides: Partial<Extract<MessagePart, { type: "tool_call" }>> = {},
+): MessagePart {
+  return {
+    type: "tool_call",
+    call_id: "c-1",
+    tool: "firecrawl_search",
+    args: '{"query": "langgraph"}',
+    args_truncated: false,
+    status: "success",
+    result_preview: "нашлось",
+    result_truncated: false,
+    ...overrides,
+  };
+}
+
+describe("лента в истории", () => {
   it("рендерит строку действия с подписью из реестра", () => {
     renderMessage(
       message([
@@ -242,5 +263,187 @@ describe("smoke: лента в истории", () => {
     ).toBeVisible();
     expect(screen.getByText("ошибка")).toBeInTheDocument();
     expect(screen.getByText("Готово.")).toBeInTheDocument();
+  });
+});
+
+describe("статусы вызова в истории", () => {
+  it.each([
+    { status: "success" as const, visible: "успешно" },
+    { status: "error" as const, visible: "ошибка" },
+    { status: "pending" as const, visible: "не завершён" },
+  ])(
+    "вызов со статусом $status читается словом «$visible»",
+    ({ status, visible }) => {
+      renderMessage(
+        message([
+          toolCallPart({
+            status,
+            result_preview: status === "pending" ? "" : "результат",
+          }),
+        ]),
+      );
+
+      // Статус выражен текстом, а не одним цветом: цветовая шкала недоступна
+      // скринридеру и не различима при дальтонизме.
+      expect(screen.getByText(visible)).toBeInTheDocument();
+    },
+  );
+
+  it("незавершённый вызов объясняет отсутствие результата в развороте", async () => {
+    renderMessage(
+      message([toolCallPart({ status: "pending", result_preview: "" })]),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Ищу/ }));
+
+    expect(
+      screen.getByText("Вызов не завершён — результата нет."),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("большие и обрезанные данные", () => {
+  const CUT_ARGS = '{"query": "очень длинный запр';
+
+  it("обрезанные аргументы на экран сырой строкой не идут", async () => {
+    renderMessage(
+      message([toolCallPart({ args: CUT_ARGS, args_truncated: true })]),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Ищу/ }));
+
+    // Оборванный посреди JSON текст читать нечем — вместо него сказано, что
+    // аргументы обрезаны. Заодно подпись строки остаётся без дополнения.
+    expect(screen.queryByText(/очень длинный запр/)).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Аргументы оборваны сервером — не разобраны."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("firecrawl_search")).toBeInTheDocument();
+  });
+
+  it("аргументы нештатной формы показываются сырыми — обрезки в них нет", async () => {
+    renderMessage(
+      message([toolCallPart({ args: "не json вовсе", args_truncated: false })]),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Ищу/ }));
+
+    expect(screen.getByText("не json вовсе")).toBeInTheDocument();
+    expect(screen.queryByText("обрезано сервером")).not.toBeInTheDocument();
+  });
+
+  it("короткий результат показан целиком, без обещания раскрытия", async () => {
+    renderMessage(message([toolCallPart({ result_preview: "нашлось" })]));
+
+    await userEvent.click(screen.getByRole("button", { name: /Ищу/ }));
+
+    expect(screen.getByText("нашлось")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Показать/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("длинный неусечённый результат раскрывается полностью и сворачивается", async () => {
+    renderMessage(
+      message([
+        toolCallPart({ result_preview: LONG, result_truncated: false }),
+      ]),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Ищу/ }));
+
+    // Обрезки нет — кнопка обещает ровно то, что покажет.
+    const expand = screen.getByRole("button", {
+      name: /Показать полностью · ~\d/,
+    });
+    expect(screen.queryByText("обрезано сервером")).not.toBeInTheDocument();
+
+    await userEvent.click(expand);
+    expect(
+      screen.getByRole("button", { name: "Свернуть" }),
+    ).toBeInTheDocument();
+  });
+
+  it("оба флага усечения независимы: обрезанный результат не метит вызов", async () => {
+    renderMessage(
+      message([toolCallPart({ result_preview: LONG, result_truncated: true })]),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Ищу/ }));
+
+    // Ровно один маркер — у зоны результата; аргументы целы и разобраны.
+    expect(screen.getAllByText("обрезано сервером")).toHaveLength(1);
+    expect(screen.getByText(/query: langgraph/)).toBeInTheDocument();
+  });
+});
+
+describe("инструмент вне реестра подписей", () => {
+  it("показан сырым именем с нейтральной пометкой источника", () => {
+    renderMessage(
+      message([toolCallPart({ tool: "acme_do_thing", call_id: "c-9" })]),
+    );
+
+    // Пользовательский MCP-инструмент подписи не имеет и иметь не обязан —
+    // строка ленты всё равно читается в той же грамматике.
+    expect(
+      screen.getByRole("button", { name: /acme_do_thing/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/инструмент MCP/)).toBeInTheDocument();
+  });
+});
+
+describe("рассуждения и совместимость", () => {
+  it("рассуждение свёрнуто в строку и раскрывается своим текстом", async () => {
+    renderMessage(
+      message([
+        { type: "reasoning", content: "Сначала проверю память проекта." },
+        { type: "text", content: "Готово." },
+      ]),
+    );
+
+    // В истории ход завершён: рассуждение подписано следом, а не процессом.
+    expect(
+      screen.queryByText("Сначала проверю память проекта."),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /Рассуждения/ }));
+
+    expect(
+      screen.getByText("Сначала проверю память проекта."),
+    ).toBeInTheDocument();
+  });
+
+  it("сообщение без поля parts рендерится плоским content", () => {
+    const legacy: Message = {
+      id: "m-old",
+      role: "assistant",
+      content: "Ответ из старого кэша",
+      created_at: null,
+      artifacts: [],
+    };
+
+    renderMessage(legacy);
+
+    expect(screen.getByText("Ответ из старого кэша")).toBeInTheDocument();
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+  });
+
+  it("заблокированный ход показывает одну заглушку и ни одной строки действий", () => {
+    renderMessage({
+      ...message([
+        toolCallPart(),
+        { type: "text", content: "секретный ответ" },
+      ]),
+      redacted: true,
+    });
+
+    // Редакция вытесняет ход целиком: ни рассуждений, ни строк вызовов
+    // заблокированного хода на экране не остаётся.
+    expect(
+      screen.getByText("[Сообщение скрыто в целях безопасности]"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Ищу в интернете/)).not.toBeInTheDocument();
+    expect(screen.queryByText("секретный ответ")).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
 });

@@ -1,16 +1,19 @@
-import { act, screen } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import type { ReactElement } from "react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
+import type { Message, MessagePart } from "@/shared/api/chats";
 import type { SSEEvent } from "@/shared/api/sse";
 import {
   applyStreamEvent,
   type AgentFeedItem,
   type AgentFeedState,
 } from "@/shared/lib/agent-feed";
+import { useStreamStore } from "@/stores/stream-store";
 import { renderWithProviders } from "@/test/test-utils";
 
+import { MessageItem } from "./MessageItem";
 import { MessageList } from "./MessageList";
 import type { StreamEndReason } from "./StreamEndNotice";
 
@@ -39,7 +42,7 @@ interface RenderOptions {
   endNotice?: StreamEndReason | null;
 }
 
-function renderFeed(feed: AgentFeedItem[], options: RenderOptions = {}): void {
+function listTree(feed: AgentFeedItem[], options: RenderOptions = {}) {
   const ui: ReactElement = (
     <MemoryRouter>
       <MessageList
@@ -54,7 +57,11 @@ function renderFeed(feed: AgentFeedItem[], options: RenderOptions = {}): void {
       />
     </MemoryRouter>
   );
-  renderWithProviders(ui);
+  return ui;
+}
+
+function renderFeed(feed: AgentFeedItem[], options: RenderOptions = {}) {
+  return renderWithProviders(listTree(feed, options));
 }
 
 const GENERATION_LABEL = "Идёт генерация изображения";
@@ -162,12 +169,27 @@ describe("MessageList — живость ленты", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("подписывает хвостовое рассуждение процессом, а завершённое — следом", () => {
+  it("подписывает хвостовое рассуждение процессом и держит его развёрнутым", () => {
     renderFeed(
       feedFrom([{ type: "reasoning_chunk", content: "надо поискать" }]),
     );
 
     expect(screen.getByText("Рассуждает")).toBeInTheDocument();
+    expect(screen.queryByText("Рассуждения")).not.toBeInTheDocument();
+    // Пока поток дописывает рассуждение, оно видно без клика — иначе живой
+    // ход снова становится немым.
+    expect(screen.getByText("надо поискать")).toBeInTheDocument();
+  });
+
+  it("меняет строку-паузу на индикатор проверки ответа", () => {
+    useStreamStore.getState().setReviewing(true);
+
+    renderFeed([]);
+
+    expect(screen.getByText("Проверяем ответ...")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("status", { name: "Агент думает" }),
+    ).not.toBeInTheDocument();
   });
 
   it("сворачивает рассуждение, когда поток ушёл в следующее действие", () => {
@@ -277,6 +299,195 @@ describe("MessageList — вложенная лента субагента", () 
       screen.queryByText("Три замечания по формулировкам."),
     ).not.toBeInTheDocument();
   });
+});
+
+// Требование итерации, ради которого лента вообще сделана одной структурой:
+// ход, увиденный живым, и он же, загруженный из `parts` после перезагрузки,
+// показывают одни и те же строки. Расхождение здесь означает, что F5 меняет
+// картину работы агента у пользователя на глазах.
+describe("живая лента совпадает с историей", () => {
+  const events: SSEEvent[] = [
+    { type: "reasoning_chunk", content: "Надо " },
+    { type: "reasoning_chunk", content: "поискать" },
+    { type: "tool_call_started", call_id: "c1", tool: "firecrawl_search" },
+    {
+      type: "tool_call_args",
+      call_id: "c1",
+      args: JSON.stringify({ query: "изоляция контекста" }),
+      truncated: false,
+    },
+    {
+      type: "tool_result",
+      call_id: "c1",
+      tool: "firecrawl_search",
+      status: "success",
+      content: "нашлось",
+      truncated: false,
+    },
+    { type: "tool_call_started", call_id: "c2", tool: "update_section" },
+    {
+      type: "tool_call_args",
+      call_id: "c2",
+      args: JSON.stringify({ section_id: "Субагенты" }),
+      truncated: false,
+    },
+    {
+      type: "tool_result",
+      call_id: "c2",
+      tool: "update_section",
+      status: "error",
+      content: "раздела нет",
+      truncated: false,
+    },
+    { type: "text_chunk", content: "Вот что нашлось." },
+  ];
+
+  const parts: MessagePart[] = [
+    { type: "reasoning", content: "Надо поискать" },
+    {
+      type: "tool_call",
+      call_id: "c1",
+      tool: "firecrawl_search",
+      args: JSON.stringify({ query: "изоляция контекста" }),
+      args_truncated: false,
+      status: "success",
+      result_preview: "нашлось",
+      result_truncated: false,
+    },
+    {
+      type: "tool_call",
+      call_id: "c2",
+      tool: "update_section",
+      args: JSON.stringify({ section_id: "Субагенты" }),
+      args_truncated: false,
+      status: "error",
+      result_preview: "раздела нет",
+      result_truncated: false,
+    },
+    { type: "text", content: "Вот что нашлось." },
+  ];
+
+  const historyMessage: Message = {
+    id: "m1",
+    role: "assistant",
+    content: "Вот что нашлось.",
+    created_at: null,
+    artifacts: [],
+    parts,
+  };
+
+  /**
+   * Подписи строк ленты в порядке показа. Длительность выполнения вычищается:
+   * её знает только live — в истории временны́х меток нет вовсе
+   * (streaming.md § История: typed parts).
+   */
+  function rowLabels(container: HTMLElement): string[] {
+    return within(container)
+      .getAllByRole("button")
+      .map((row) =>
+        (row.textContent ?? "")
+          .replace(/\d+(?:[.,]\d+)?\s*с/g, "")
+          .replace(/\d+:\d{2}/g, "")
+          .trim(),
+      );
+  }
+
+  it("даёт те же строки на событиях потока и на parts истории", () => {
+    const live = renderWithProviders(listTree(feedFrom(events)));
+    const history = renderWithProviders(
+      <MemoryRouter>
+        <MessageItem message={historyMessage} projectId="p1" chatId="c1" />
+      </MemoryRouter>,
+    );
+
+    expect(rowLabels(live.container)).toEqual(rowLabels(history.container));
+    // Набор не пуст и содержит ровно те строки, ради которых ход показан.
+    expect(rowLabels(live.container)).toEqual([
+      "Рассуждения",
+      "Ищу в интернете · «изоляция контекста»успешно",
+      "Обновляю память проекта · раздел «Субагенты»ошибка",
+    ]);
+  });
+
+  it("показывает текст ответа обоими путями", () => {
+    const live = renderWithProviders(listTree(feedFrom(events)));
+    const history = renderWithProviders(
+      <MemoryRouter>
+        <MessageItem message={historyMessage} projectId="p1" chatId="c1" />
+      </MemoryRouter>,
+    );
+
+    // Текст сравнивается по содержимому контейнера, а не запросом по узлу:
+    // живой markdown-рендер разбивает ответ на слова ради анимации появления,
+    // и это единственное, чем два пути отличаются на экране.
+    expect(live.container.textContent).toContain("Вот что нашлось.");
+    expect(history.container.textContent).toContain("Вот что нашлось.");
+  });
+});
+
+describe("MessageList — автопрокрутка за ростом ленты", () => {
+  function scrollCount(): number {
+    return vi.mocked(Element.prototype.scrollIntoView).mock.calls.length;
+  }
+
+  it("догоняет новую строку действия", () => {
+    const first = feedFrom([
+      { type: "tool_call_started", call_id: "c1", tool: "firecrawl_search" },
+    ]);
+    const { rerender } = renderFeed(first);
+    const before = scrollCount();
+
+    rerender(
+      listTree(
+        feedFrom([
+          {
+            type: "tool_call_started",
+            call_id: "c1",
+            tool: "firecrawl_search",
+          },
+          { type: "tool_call_started", call_id: "c2", tool: "update_section" },
+        ]),
+      ),
+    );
+
+    // Ход из одних tool-событий, без единого `text_chunk`, тоже обязан
+    // держаться нижней границы: сигналом прокрутки был снятый `streamingText`.
+    expect(scrollCount()).toBeGreaterThan(before);
+  });
+
+  it("догоняет растущий текст ответа, не меняющий числа строк", () => {
+    const { rerender } = renderFeed(
+      feedFrom([{ type: "text_chunk", content: "Начало" }]),
+    );
+    const before = scrollCount();
+
+    rerender(
+      listTree(
+        feedFrom([
+          { type: "text_chunk", content: "Начало" },
+          { type: "text_chunk", content: " и продолжение ответа" },
+        ]),
+      ),
+    );
+
+    // Текст копится внутри одного элемента — одной длины массива тут мало.
+    expect(scrollCount()).toBeGreaterThan(before);
+  });
+
+  it("догоняет терминальное уведомление, появившееся под лентой", () => {
+    const feed = feedFrom([{ type: "text_chunk", content: "Начало" }]);
+    const { rerender } = renderFeed(feed);
+    const before = scrollCount();
+
+    rerender(listTree(feed, { isStreaming: false, endNotice: "cancelled" }));
+
+    expect(scrollCount()).toBeGreaterThan(before);
+  });
+
+  // Рост вложенной ленты субагента прокрутку сегодня не двигает — сигнал
+  // считается только по корню (`feed.length` + длина хвостового текста).
+  // Кейс на это здесь не заведён намеренно: он закрепил бы дефект.
+  // Прод-баг П1, см. `tracks/T2/test-cases.md` § Дизайн автотестов.
 });
 
 describe("MessageList — терминальные состояния", () => {

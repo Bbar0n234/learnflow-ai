@@ -193,6 +193,24 @@ describe("agent-feed: жизненный цикл вызова", () => {
     });
   });
 
+  it("не переписывает состояние на месте — прежняя лента остаётся прежней", () => {
+    // Лента живёт в zustand-сторе: мутация на месте не разбудила бы
+    // подписчиков и оставила бы на экране предыдущий кадр.
+    const before = run([
+      { type: "text_chunk", content: "Начало" },
+      { type: "tool_call_started", call_id: "c1", tool: "get_section" },
+    ]);
+    const snapshot = structuredClone(before);
+
+    applyStreamEvent(
+      before,
+      { type: "text_chunk", content: " и конец" },
+      2_000,
+    );
+
+    expect(before).toEqual(snapshot);
+  });
+
   it("игнорирует аргументы и отмену неизвестного вызова, не роняя ленту", () => {
     const state = run([
       {
@@ -252,6 +270,98 @@ describe("agent-feed: вложенность субагента", () => {
     expect(state.feed).toHaveLength(1);
     expect(call(state, "inner").status).toBe("running");
   });
+
+  it("адресует вложенный вызов по call_id на любой глубине", () => {
+    const state = run([
+      { type: "tool_call_started", call_id: "sub", tool: "run_subagent" },
+      {
+        type: "tool_call_started",
+        call_id: "inner",
+        tool: "run_subagent",
+        parent_call_id: "sub",
+      },
+      {
+        type: "tool_call_started",
+        call_id: "deep",
+        tool: "firecrawl_search",
+        parent_call_id: "inner",
+      },
+      {
+        type: "tool_result",
+        call_id: "deep",
+        tool: "firecrawl_search",
+        status: "success",
+        content: "нашлось",
+        truncated: false,
+        parent_call_id: "inner",
+      },
+    ]);
+
+    expect(state.feed).toHaveLength(1);
+    expect(call(state, "deep").status).toBe("success");
+    expect(call(state, "inner").children).toHaveLength(1);
+  });
+
+  it("копит шаги субагента в порядке прихода, не путая их с корневыми", () => {
+    const state = run([
+      { type: "tool_call_started", call_id: "sub", tool: "run_subagent" },
+      {
+        type: "tool_call_started",
+        call_id: "step-1",
+        tool: "firecrawl_search",
+        parent_call_id: "sub",
+      },
+      {
+        type: "tool_call_started",
+        call_id: "step-2",
+        tool: "firecrawl_scrape",
+        parent_call_id: "sub",
+      },
+      { type: "tool_call_started", call_id: "root-1", tool: "get_section" },
+    ]);
+
+    expect(state.feed.map((item) => item.id)).toEqual(["sub", "root-1"]);
+    expect(call(state, "sub").children.map((item) => item.id)).toEqual([
+      "step-1",
+      "step-2",
+    ]);
+  });
+});
+
+describe("agent-feed: события вне ленты", () => {
+  // Контракт растёт без версионирования (streaming.md § Forward-compat):
+  // неизвестный тип обязан пройти мимо, не оставив следа на экране.
+  it("не даёт строки на событии неизвестного типа", () => {
+    const unknown = {
+      type: "brand_new_event",
+      payload: { anything: 1 },
+    } as unknown as SSEEvent;
+
+    const state = applyStreamEvent(EMPTY, unknown, 1_000);
+
+    expect(state.feed).toEqual([]);
+  });
+
+  it.each<SSEEvent>([
+    { type: "stream_started" },
+    { type: "heartbeat" },
+    { type: "final_output_review_started" },
+    { type: "final_output_review_complete" },
+    { type: "title_updated", title: "Производные" },
+    { type: "artifact_created", id: "a1", title: "Notes", artifact_type: "md" },
+    { type: "security_block" },
+    { type: "cancelled" },
+    { type: "error", detail: "модель упала" },
+    { type: "done", message_id: "m1", trace_id: "t1" },
+  ])("$type ленту не трогает", (event) => {
+    // Служебные и терминальные события живут вне ленты: артефакты — своим
+    // списком в сторе, ревью — флагом, причина остановки — состоянием экрана.
+    const before = run([{ type: "text_chunk", content: "ответ" }]);
+
+    const after = applyStreamEvent(before, event, 2_000);
+
+    expect(after.feed).toEqual(before.feed);
+  });
 });
 
 describe("agent-feed: доменные agent_event", () => {
@@ -310,7 +420,17 @@ describe("agent-feed: редакция по security_block", () => {
     const state = run(
       [
         { type: "text_chunk", content: " ещё" },
+        { type: "reasoning_chunk", content: "запоздалая мысль" },
         { type: "tool_call_started", call_id: "c2", tool: "get_section" },
+        {
+          type: "tool_result",
+          call_id: "c2",
+          tool: "get_section",
+          status: "success",
+          content: "содержимое раздела",
+          truncated: false,
+        },
+        { type: "agent_event", kind: "compaction", payload: {} },
       ],
       redactFeed("[Сообщение скрыто]"),
     );
@@ -376,6 +496,51 @@ describe("agent-feed: адаптер истории", () => {
   it("даёт пустую ленту на отсутствующих parts", () => {
     expect(fromMessageParts(undefined)).toEqual([]);
   });
+
+  it.each(["success", "error", "pending"] as const)(
+    "переносит статус вызова %s без подмены",
+    (status) => {
+      // Три состояния вызова в истории; `pending` — вызов оборванного хода, и
+      // подменить его на ошибку значило бы соврать о том, что произошло.
+      const [item] = fromMessageParts([
+        {
+          type: "tool_call",
+          call_id: "c1",
+          tool: "firecrawl_search",
+          args: '{"query": "langgraph"}',
+          args_truncated: false,
+          status,
+          result_preview: status === "pending" ? "" : "результат",
+          result_truncated: false,
+        },
+      ]);
+
+      expect(item).toMatchObject({ status, tool: "firecrawl_search" });
+    },
+  );
+
+  it("сохраняет порядок частей хода", () => {
+    const feed = fromMessageParts([
+      { type: "reasoning", content: "думаю" },
+      {
+        type: "tool_call",
+        call_id: "c1",
+        tool: "get_section",
+        args: "{}",
+        args_truncated: false,
+        status: "success",
+        result_preview: "ok",
+        result_truncated: false,
+      },
+      { type: "text", content: "ответ" },
+    ]);
+
+    expect(feed.map((item) => item.type)).toEqual([
+      "reasoning",
+      "tool_call",
+      "text",
+    ]);
+  });
 });
 
 describe("agent-feed: live = история", () => {
@@ -435,6 +600,121 @@ describe("agent-feed: live = история", () => {
       withoutTiming(fromMessageParts(parts)),
     );
   });
+
+  it("совпадает и на ходе с несколькими вызовами, ошибкой и усечением", () => {
+    // Ход, на котором расхождение стоит дороже всего: два вызова подряд, у
+    // одного оборваны аргументы, у другого — результат, второй вызов упал.
+    // Если хоть один флаг или статус разъедется, перезагрузка страницы покажет
+    // не то, что пользователь видел живым.
+    const live = run([
+      { type: "reasoning_chunk", content: "Сначала поищу" },
+      { type: "tool_call_started", call_id: "c1", tool: "firecrawl_search" },
+      {
+        type: "tool_call_args",
+        call_id: "c1",
+        args: '{"query": "очень длинный запр',
+        truncated: true,
+      },
+      {
+        type: "tool_result",
+        call_id: "c1",
+        tool: "firecrawl_search",
+        status: "success",
+        content: "нашлось",
+        truncated: false,
+      },
+      { type: "tool_call_started", call_id: "c2", tool: "update_section" },
+      {
+        type: "tool_call_args",
+        call_id: "c2",
+        args: '{"section_id": "Субагенты"}',
+        truncated: false,
+      },
+      {
+        type: "tool_result",
+        call_id: "c2",
+        tool: "update_section",
+        status: "error",
+        content: "раздела нет",
+        truncated: true,
+      },
+      { type: "text_chunk", content: "Не вышло." },
+    ]);
+
+    const parts: MessagePart[] = [
+      { type: "reasoning", content: "Сначала поищу" },
+      {
+        type: "tool_call",
+        call_id: "c1",
+        tool: "firecrawl_search",
+        args: '{"query": "очень длинный запр',
+        args_truncated: true,
+        status: "success",
+        result_preview: "нашлось",
+        result_truncated: false,
+      },
+      {
+        type: "tool_call",
+        call_id: "c2",
+        tool: "update_section",
+        args: '{"section_id": "Субагенты"}',
+        args_truncated: false,
+        status: "error",
+        result_preview: "раздела нет",
+        result_truncated: true,
+      },
+      { type: "text", content: "Не вышло." },
+    ];
+
+    expect(withoutTiming(live.feed)).toEqual(
+      withoutTiming(fromMessageParts(parts)),
+    );
+  });
+
+  it("совпадает на ходе, оборванном отменой: вызов без результата", () => {
+    // Отменённый ход приезжает из истории вызовом в статусе `pending` — той же
+    // строкой, что осталась на экране незакрытой.
+    const live = run([
+      { type: "tool_call_started", call_id: "c1", tool: "run_subagent" },
+      {
+        type: "tool_call_args",
+        call_id: "c1",
+        args: '{"agent_type": "judge"}',
+        truncated: false,
+      },
+    ]);
+    const fromHistory = fromMessageParts([
+      {
+        type: "tool_call",
+        call_id: "c1",
+        tool: "run_subagent",
+        args: '{"agent_type": "judge"}',
+        args_truncated: false,
+        status: "pending",
+        result_preview: "",
+        result_truncated: false,
+      },
+    ]);
+
+    // Строка та же самая: тот же вызов, то же имя инструмента, те же
+    // аргументы. Расходится только статус — живая строка ещё шла (`running`),
+    // сохранённая уже знает, что результата не будет (`pending`).
+    const identity = (feed: AgentFeedItem[]) =>
+      feed.map((item) =>
+        item.type === "tool_call"
+          ? {
+              id: item.id,
+              callId: item.callId,
+              tool: item.tool,
+              args: item.args,
+            }
+          : item,
+      );
+
+    expect(identity(live.feed)).toEqual(identity(fromHistory));
+    expect(findFeedCall(live.feed, "c1")?.status).toBe("running");
+    expect(findFeedCall(fromHistory, "c1")?.status).toBe("pending");
+  });
 });
 
 describe("agent-feed: блоки", () => {
@@ -469,5 +749,18 @@ describe("agent-feed: блоки", () => {
     expect(blocks.map((block) => block.type)).toEqual(["feed", "text", "feed"]);
     const first = blocks[0];
     expect(first?.type === "feed" ? first.items : []).toHaveLength(2);
+  });
+
+  it("на пустой ленте блоков не даёт", () => {
+    expect(groupFeedBlocks([])).toEqual([]);
+  });
+
+  it("ход из одного текста даёт единственный текстовый блок без ленты", () => {
+    const blocks = groupFeedBlocks(
+      fromMessageParts([{ type: "text", content: "Просто ответ." }]),
+    );
+
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]?.type).toBe("text");
   });
 });

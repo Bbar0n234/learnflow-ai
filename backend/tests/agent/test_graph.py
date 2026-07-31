@@ -293,14 +293,105 @@ async def test_guard_injection_on_tool_result_redacts_tool_message(
 
 
 @pytest.mark.unit
+async def test_a_tool_result_is_sent_to_the_classifier_exactly_once(
+    build_compiled_graph: Any, agent_context: AgentContext
+) -> None:
+    # Every checkpoint costs an LLM call — latency the user waits through and
+    # money on the bill — so "the result is checked" is only half the contract:
+    # it must be checked *once*. The TOOL_RESULT check lives in the tools node
+    # precisely so that the batch is already clean by the time the agent node
+    # sees it; re-adding a pre-guard there would double the classifier traffic
+    # on every single tool call and duplicate the ``tool_result injection
+    # blocked`` warning that incident readers count. Nothing about that
+    # regression is visible in the messages a turn produces, so the count is
+    # asserted directly, as the exact sequence of checkpoints the turn spends.
+    model = tool_binding_fake(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "echo", "args": {"text": "ok"}, "id": "c1"}],
+            ),
+            AIMessage(content="done"),
+        ]
+    )
+    guard = _SelectiveGuard({})  # everything CLEAN: the full loop runs
+    graph = build_compiled_graph(model, tools=[echo], security_guard=guard)
+
+    await graph.ainvoke(
+        {"messages": [HumanMessage(content="go")]},
+        _thread_config(),
+        context=agent_context,
+    )
+
+    # One turn with one tool call spends exactly two checkpoints: the args of
+    # the response that asked for the call, then the result it produced. The
+    # final answer carries no tool_calls, so it costs no third check.
+    assert guard.checkpoints == [Checkpoint.TOOL_CALL_ARG, Checkpoint.TOOL_RESULT]
+
+
+@pytest.mark.unit
+async def test_an_earlier_batch_is_not_re_checked_on_the_next_tool_iteration(
+    build_compiled_graph: Any, agent_context: AgentContext
+) -> None:
+    # The same "exactly once" contract across a multi-step ReAct turn: the
+    # tools node is handed the whole conversation as classifier context, so a
+    # regression in how the fresh batch is separated from the history (the
+    # anchor search) would silently re-classify every result of every earlier
+    # iteration — quadratic classifier traffic on long tool chains, and a
+    # second security warning for a hit that was already reported.
+    model = tool_binding_fake(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "echo", "args": {"text": "one"}, "id": "c1"}],
+            ),
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "echo", "args": {"text": "two"}, "id": "c2"}],
+            ),
+            AIMessage(content="done"),
+        ]
+    )
+    guard = _SelectiveGuard({})
+    graph = build_compiled_graph(model, tools=[echo], security_guard=guard)
+
+    out = await graph.ainvoke(
+        {"messages": [HumanMessage(content="go")]},
+        _thread_config(),
+        context=agent_context,
+    )
+
+    # Two results produced, two results classified — not three.
+    assert len([m for m in out["messages"] if isinstance(m, ToolMessage)]) == 2
+    assert guard.checkpoints == [
+        Checkpoint.TOOL_CALL_ARG,
+        Checkpoint.TOOL_RESULT,
+        Checkpoint.TOOL_CALL_ARG,
+        Checkpoint.TOOL_RESULT,
+    ]
+
+
+@pytest.mark.unit
 async def test_a_tools_domain_event_still_reaches_the_custom_channel(
     build_compiled_graph: Any, agent_context: AgentContext
 ) -> None:
     # The tools node wraps ``ToolNode`` (the guard runs inside it), so a tool
-    # body now resolves its stream writer one level deeper than before. That
-    # resolution is ambient — ``emit_agent_event`` reads the run config off a
-    # contextvar — and if the nesting broke it, every domain write of every
+    # body now resolves its stream writer one level deeper than before. What
+    # it must resolve is the *run's own* writer: ``emit_agent_event`` reads it
+    # off the runtime carried by the config the wrapper hands ``ToolNode``, and
+    # if the wrapper handed down anything else, every domain write of every
     # tool would vanish from the feed with nothing raising.
+    #
+    # That is the break this case distinguishes, and it distinguishes it
+    # sharply: handing ``ToolNode`` a config whose runtime carries a no-op
+    # writer reddens this case alone (1 red / 17 green in this file), and
+    # emptying ``configurable`` outright reddens 9 of the 18. What no
+    # behavioural case can distinguish — and what this one therefore does not
+    # claim — is the *explicit* ``get_config()`` argument on that call: with
+    # the argument omitted, ``Runnable.ainvoke`` calls ``ensure_config(None)``,
+    # which reads the very same ``var_child_runnable_config`` contextvar that
+    # ``langgraph.config.get_config()`` returns. Inside a node the two are one
+    # object, so passing it explicitly is defensive, not behavioural.
     model = tool_binding_fake(
         [
             AIMessage(
@@ -322,6 +413,53 @@ async def test_a_tools_domain_event_still_reaches_the_custom_channel(
         custom.append(item)
 
     assert custom == [{"type": "memory_write", "payload": {"key": "from a tool"}}]
+
+
+@pytest.mark.unit
+async def test_a_domain_event_survives_a_tools_node_whose_guard_is_armed(
+    build_compiled_graph: Any, agent_context: AgentContext
+) -> None:
+    # The case above runs with the guard switched off, so it never enters the
+    # branch that scans and rewrites the batch. That branch is where the feed
+    # is most plausibly lost: the codebase already isolates a sub-call from the
+    # surrounding run by handing it a detached config (``_reduce_context``
+    # passes ``callbacks: []`` to keep the summarizer out of the token stream),
+    # and repeating that trick around ``ToolNode`` "so the classifier does not
+    # pollute the run" would silently cost every tool its domain writes while
+    # every guard assertion in this file stayed green.
+    #
+    # So: guard armed and actually firing (the result comes back redacted),
+    # and the tool's domain event still on the wire.
+    model = tool_binding_fake(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "writes_memory", "args": {}, "id": "c1"}],
+            ),
+            AIMessage(content="done"),
+        ]
+    )
+    guard = _SelectiveGuard({Checkpoint.TOOL_RESULT: Verdict.INJECTION})
+    graph = build_compiled_graph(model, tools=[writes_memory], security_guard=guard)
+
+    custom: list[Any] = []
+    redacted: list[str] = []
+    async for mode, item in graph.astream(
+        {"messages": [HumanMessage(content="go")]},
+        _thread_config(),
+        context=agent_context,
+        stream_mode=["custom", "updates"],
+    ):
+        if mode == "custom":
+            custom.append(item)
+        else:
+            for payload in item.values():
+                for message in (payload or {}).get("messages", []):
+                    if isinstance(message, ToolMessage):
+                        redacted.append(str(message.content))
+
+    assert custom == [{"type": "memory_write", "payload": {"key": "from a tool"}}]
+    assert redacted == [SecurityMessages().redacted_tool_result]
 
 
 @pytest.mark.unit

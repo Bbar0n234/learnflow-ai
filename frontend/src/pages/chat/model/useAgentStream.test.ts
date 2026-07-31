@@ -1,7 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { render, renderHook, waitFor } from "@testing-library/react";
 import { delay, http, HttpResponse } from "msw";
-import { createElement, type ReactNode } from "react";
+import { createElement, useEffect, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { setAccessToken } from "@/shared/api/client";
@@ -11,6 +11,9 @@ import { findFeedCall } from "@/shared/lib/agent-feed";
 import { server } from "@/test/msw/server";
 import { createTestQueryClient } from "@/test/test-utils";
 import { fakeJwt, sseFrame, sseResponseStream } from "@/test/sse-stream";
+
+import { useStreamStore } from "@/stores/stream-store";
+import { MessageList } from "../ui/MessageList";
 
 import { useAgentStream } from "./useAgentStream";
 
@@ -941,4 +944,75 @@ describe("useAgentStream", () => {
     expect(await isStreaming()).toBe(false);
     live.close();
   });
+
+  // Регрессия живого стенда: поток придерживают, накопленное приезжает разом —
+  // и ход не доходит до `done` вовсе, а превращается в «Ошибка соединения»,
+  // теряя ответ целиком. Причина в темпе чтений, а не в числе фрагментов:
+  // готовые данные резолвят `reader.read()` микрозадачей, чтения идут вплотную,
+  // каждое обновляет стор по sync-lane, и сторож вложенных обновлений React
+  // (`NESTED_UPDATE_LIMIT = 50`) не обнуляется ни разу. Кейс подаёт бэклог
+  // ровно так — каждый кадр отдельным куском тела — и требует, чтобы ход дошёл
+  // до конца. Экран здесь обязателен: без подписчика ленты обновлений стора
+  // никто не коммитит и цепочке не из чего собраться.
+  it("доводит до конца ход, чей бэклог приехал одной пачкой", async () => {
+    setAccessToken(fakeJwt());
+    Element.prototype.scrollIntoView = vi.fn();
+    // Порог сторожа — 50; 80 кадров дают запас против машины, а на коде без
+    // уступки событийному циклу этого хватает с избытком (граница — 53-54).
+    const backlog: unknown[] = [{ type: "stream_started" }];
+    for (let i = 0; i < 80; i += 1) {
+      backlog.push({ type: "text_chunk", content: `фрагмент ${i} ` });
+    }
+    backlog.push({ type: "done", message_id: "m1", trace_id: "t1" });
+    server.use(http.post(MESSAGES_URL, () => streamResponse(backlog)));
+
+    const onDone = vi.fn();
+    const onError = vi.fn();
+    const queryClient = createTestQueryClient();
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+
+    // Экран хода целиком: диспетчер плюс лента, подписанная на стор, — то же
+    // сочетание, что живёт в `ChatThread`. Текст снимается по ходу: `done`
+    // гасит стрим и стирает ленту раньше, чем колбэк доходит до теста.
+    let streamedOnScreen = "";
+    function Turn() {
+      const feed = useStreamStore((s) => s.feed);
+      const { send } = useAgentStream(PROJECT_ID, CHAT_ID, { onDone, onError });
+      useEffect(() => {
+        send("привет");
+      }, [send]);
+      useEffect(() => {
+        const text = feed.reduce(
+          (acc, item) => (item.type === "text" ? acc + item.content : acc),
+          "",
+        );
+        if (text.length > streamedOnScreen.length) streamedOnScreen = text;
+      }, [feed]);
+      return createElement(MessageList, {
+        messages: [],
+        isStreaming: true,
+        feed,
+        streamingArtifacts: [],
+        projectId: PROJECT_ID,
+        chatId: CHAT_ID,
+        streamError: null,
+        endNotice: null,
+      });
+    }
+
+    render(createElement(Turn), { wrapper });
+
+    // Ждём любого исхода хода, а не только успешного: иначе сломанный транспорт
+    // краснит кейс молчанием по таймауту вместо своей настоящей причины.
+    await waitFor(
+      () =>
+        expect(onDone.mock.calls.length + onError.mock.calls.length).toBe(1),
+      { timeout: 10000 },
+    );
+    expect(onError).not.toHaveBeenCalled();
+    expect(onDone).toHaveBeenCalledTimes(1);
+    // Пачка доехала до ленты целиком, а не оборвалась на пороге сторожа.
+    expect(streamedOnScreen).toContain("фрагмент 79");
+  }, 15000);
 });

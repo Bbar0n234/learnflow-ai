@@ -54,7 +54,7 @@ def build_subagent_graph(
     security_guard: SecurityGuard | None = None,
     canary_token: str = "",
     tool_result_stub: str = "",
-    report_tool_results: Callable[[list[ToolMessage]], None] | None = None,
+    report_tool_result: Callable[[ToolMessage], None] | None = None,
 ) -> StateGraph[Any, Any, Any, Any]:
     """Build the subagent ReAct ``StateGraph``.
 
@@ -67,8 +67,8 @@ def build_subagent_graph(
     ``security_guard`` is ``None`` — consistent with the main graph, which
     also skips both in that case (guard disabled globally).
 
-    ``report_tool_results`` is called with the checked batch every time the
-    tools node runs — the hook ``SubagentRunner`` uses to put nested
+    ``report_tool_result`` is called with each checked result the moment its
+    own call finishes — the hook ``SubagentRunner`` uses to put nested
     ``tool_result`` events on the parent stream. It hangs off this node rather
     than off the tool proxy so that what reaches the user is the same text the
     guard cleared, never the raw one (streaming.md § «Вложенность субагента»).
@@ -108,7 +108,7 @@ def build_subagent_graph(
             guard=security_guard,
             canary_token=canary_token,
             tool_result_stub=tool_result_stub,
-            on_results=report_tool_results,
+            on_result=report_tool_result,
         )
 
     builder = StateGraph(MessagesState)

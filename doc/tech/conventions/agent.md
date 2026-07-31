@@ -16,7 +16,7 @@
 | `AgentRunTracer` / `AgentRunSpan` | Langfuse-спан рана: score, finalize-on-block, output, mid-stream observation. Fail-safe (ошибки Langfuse подавляются). |
 | `CheckpointHistory` | Единственное место, знающее форму `channel_values["messages"]`: чтение, маппинг в typed-parts `Message`, поиск редакций. |
 | `TokenChunkMapper` | `stream_mode="messages"` chunk → `text_chunk` / `reasoning_chunk` / `tool_call_started` / `tool_call_args`. Per-run (фабрика в конструкторе раннера, не shared-инстанс) — накапливает состояние сборки tool-call args по `call_id`. |
-| `StreamEventMapper` | `stream_mode="updates"` → `tool_result` / `artifact_created` / `tool_call_cancelled`. Тоже per-run — ведёт список анонсированных, но ещё не разрешённых `call_id`. |
+| `StreamEventMapper` | `stream_mode="updates"` → `tool_call_cancelled`. Тоже per-run — ведёт список анонсированных, но ещё не разрешённых `call_id` (`tool_result` / `artifact_created` эмитит сам узел `tools`, повызовно, в custom-канал). |
 | `HeartbeatPacer` | `heartbeat {}` на 5 с тишины в любой точке рана + проверка `cancel_event` на том же таймере (отмена остаётся отзывчивой во время долгого tool-вызова, не только между итерациями `astream`). |
 
 Полный контракт SSE-событий, lifecycle и security-чекпоинты — [streaming.md](../streaming.md).

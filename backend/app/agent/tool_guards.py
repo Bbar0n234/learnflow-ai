@@ -16,8 +16,9 @@ a stub, cycle continues; tool-call-arg injection -> ``tool_calls`` stripped,
 cycle ends). Both graphs reuse the same building blocks: the TOOL_CALL_ARG
 check runs in the model node (``app.agent.graph.agent_node`` / the subagent's
 ``llm`` node) on the response it just produced, the TOOL_RESULT check runs in
-the tools node via :func:`execute_tools_guarded` — see its docstring for why
-that node and not the next one.
+the tools node via :func:`execute_tools_guarded`, once per tool call — see its
+docstring for why that node and not the next one, and why per call and not per
+batch.
 
 Layering: this is an *enforcement adapter* over the security engine
 (``app.agent.security`` — detectors, classifier, ``SecurityGuard``), not part
@@ -28,8 +29,10 @@ it protects is deliberate — same placement as ``runtime_security.py``
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Callable, Sequence
+from functools import partial
 from typing import Any
 
 import structlog
@@ -108,114 +111,148 @@ def _state_messages(state: Any) -> list[Any] | None:
     return None
 
 
-async def guard_tool_results(
-    messages: list[Any],
+async def guard_tool_result(
+    message: ToolMessage,
     guard: SecurityGuard,
     canary_token: str,
     tool_result_stub: str,
-) -> list[ToolMessage]:
-    """Scan the current batch of ToolMessages; return replace-by-id updates for injections.
+    history: list[Any],
+) -> ToolMessage:
+    """Check one tool result; return it, or its redacted replacement.
 
-    ``messages`` is the conversation with the fresh, not-yet-checked batch
-    appended to it. The last ``AIMessage`` carrying ``tool_calls`` is the
-    anchor that splits the two: everything up to and including it is context
-    for the classifier, every ``ToolMessage`` after it is checked. When there
-    is no anchor — a caller that could not read the conversation out of its
-    state and handed over the bare batch — the split degenerates to "no
-    context, check everything" rather than to "check nothing": the classifier
-    loses history, the check itself never lapses. Skipping on a missing
-    anchor would be a silent fail-open inside the very function that exists
-    to prevent one.
+    One result, one classifier call — the unit of the check is a single tool
+    call, so a result can neither be skipped (there is no batch to fall out of)
+    nor judged twice (nothing re-enters this function once it carries
+    ``security_redacted``). ``history`` is the conversation as the calling node
+    received it, offered to the classifier as context; an empty one is a
+    degraded check, never a skipped one.
     """
-    if not messages:
-        return []
-    anchor = -1
-    for i, m in enumerate(messages):
-        if isinstance(m, AIMessage) and getattr(m, "tool_calls", None):
-            anchor = i
-    batch = [
-        m
-        for m in messages[anchor + 1 :]
-        if isinstance(m, ToolMessage)
-        and not m.additional_kwargs.get("security_redacted")
+    if message.additional_kwargs.get("security_redacted"):
+        return message
+
+    content = (
+        message.content if isinstance(message.content, str) else str(message.content)
+    )
+    result = await guard.check(
+        content,
+        Checkpoint.TOOL_RESULT,
+        history=history,
+        canary_token=canary_token,
+    )
+    if result.verdict != Verdict.INJECTION:
+        return message
+
+    logger.warning(
+        "tool_result injection blocked",
+        security_event=True,
+        checkpoint=Checkpoint.TOOL_RESULT.value,
+        verdict=Verdict.INJECTION.value,
+        metadata={
+            "detection_layer": (
+                result.detection_layer.value if result.detection_layer else None
+            ),
+            "tool": message.name,
+        },
+    )
+    # The redacted message *replaces* the raw one rather than being appended
+    # next to it — the poisoned text never enters the state at all. ``id`` is
+    # carried over as-is: the message has not passed through ``add_messages``
+    # yet, so it may still be unset, and the replacement must not invent one.
+    return ToolMessage(
+        id=message.id,
+        tool_call_id=message.tool_call_id,
+        name=message.name,
+        content=tool_result_stub,
+        additional_kwargs={
+            **message.additional_kwargs,
+            "security_redacted": True,
+            "original_detection_layer": (
+                result.detection_layer.value
+                if result.detection_layer
+                else Checkpoint.TOOL_RESULT.value
+            ),
+        },
+    )
+
+
+def _split_per_call(state: Any, history: list[Any]) -> list[Any] | None:
+    """Split a multi-call batch into one node input per tool call.
+
+    Mirrors ``ToolNode._parse_input``: the calls it would execute are those of
+    the *last* ``AIMessage``, so that is the message replaced — by a copy
+    carrying a single call — in an otherwise untouched state, keeping whatever
+    a tool reads off it (``ToolRuntime.state``) the same as in a batch run.
+
+    ``None`` means "not splittable, run the node once": a state that is not a
+    mapping (nothing to rebuild), a conversation that cannot be read, or a
+    batch of one — where a split would be a copy of the original.
+    """
+    if not isinstance(state, dict) or not history:
+        return None
+    anchor_index = -1
+    for i, message in enumerate(history):
+        if isinstance(message, AIMessage):
+            anchor_index = i
+    if anchor_index == -1:
+        return None
+    anchor = history[anchor_index]
+    calls = list(getattr(anchor, "tool_calls", None) or [])
+    if len(calls) < 2:
+        return None
+    return [
+        {
+            **state,
+            "messages": [
+                *history[:anchor_index],
+                anchor.model_copy(update={"tool_calls": [call]}),
+                *history[anchor_index + 1 :],
+            ],
+        }
+        for call in calls
     ]
-    if not batch:
-        return []
-
-    updates: list[ToolMessage] = []
-    for tm in batch:
-        content = tm.content if isinstance(tm.content, str) else str(tm.content)
-        result = await guard.check(
-            content,
-            Checkpoint.TOOL_RESULT,
-            history=messages[: anchor + 1],
-            canary_token=canary_token,
-        )
-        if result.verdict == Verdict.INJECTION:
-            updates.append(
-                ToolMessage(
-                    id=tm.id,
-                    tool_call_id=tm.tool_call_id,
-                    name=tm.name,
-                    content=tool_result_stub,
-                    additional_kwargs={
-                        **tm.additional_kwargs,
-                        "security_redacted": True,
-                        "original_detection_layer": (
-                            result.detection_layer.value
-                            if result.detection_layer
-                            else Checkpoint.TOOL_RESULT.value
-                        ),
-                    },
-                )
-            )
-            logger.warning(
-                "tool_result injection blocked",
-                security_event=True,
-                checkpoint=Checkpoint.TOOL_RESULT.value,
-                verdict=Verdict.INJECTION.value,
-                metadata={
-                    "detection_layer": (
-                        result.detection_layer.value if result.detection_layer else None
-                    ),
-                    "tool": tm.name,
-                },
-            )
-    return updates
 
 
-async def execute_tools_guarded(
+def _merge_outputs(outputs: list[Any]) -> Any:
+    """Recombine per-call node outputs into one node return value.
+
+    Ordinary case — every call answered with a messages dict: one dict, the
+    results in the order the model asked for them (not the order they
+    finished), so the conversation written to the checkpoint reads the same as
+    it did when the whole batch ran at once. The other case exists only
+    because ``ToolNode`` answers with a list once a tool returns a ``Command``:
+    those outputs are passed through side by side, the shape LangGraph already
+    accepts from a node.
+    """
+    if all(isinstance(output, dict) for output in outputs):
+        merged: dict[str, Any] = {}
+        for output in outputs:
+            merged.update({k: v for k, v in output.items() if k != "messages"})
+        merged["messages"] = [
+            m for output in outputs for m in output.get("messages", [])
+        ]
+        return merged
+    flattened: list[Any] = []
+    for output in outputs:
+        if isinstance(output, list):
+            flattened.extend(output)
+        else:
+            flattened.append(output)
+    return flattened
+
+
+async def _run_and_check(
     tool_node: Runnable[Any, Any],
-    state: Any,
+    node_input: Any,
+    config: Any,
     *,
     guard: SecurityGuard | None,
+    history: list[Any],
     canary_token: str,
     tool_result_stub: str,
-    on_results: Callable[[list[ToolMessage]], None] | None = None,
+    on_result: Callable[[ToolMessage], None] | None,
 ) -> Any:
-    """Run the tools node and let only guard-checked ``ToolMessage``s out of it.
-
-    The TOOL_RESULT check lives *inside* the tools node rather than on
-    re-entry into the calling node, because the node's own output is what
-    reaches the wire: ``StreamEventMapper`` turns the ``tools`` update into
-    ``tool_result`` (content included), and the subagent reports its nested
-    results off the same batch. A check that ran one super-step later would
-    always run *after* the poisoned text had already been shown to the user
-    and written to the checkpoint — the redaction would only ever reach the
-    model. Checking here costs the classifier's latency before the result
-    appears in the feed; that is the price of never streaming unchecked tool
-    output (streaming.md § «tool_result / artifact_created»).
-
-    ``on_results`` receives the final, checked batch — the subagent's hook for
-    reporting nested ``tool_result``s onto the parent stream, which is why the
-    reporting cannot live in the tool proxy itself (``subagents/runner.py``).
-
-    Neither way this function can end up not checking a batch in full — a
-    node output that carries no ``ToolMessage`` batch, a state whose
-    conversation cannot be read — passes in silence: both report through
-    ``_log_guard_degraded`` before the cycle continues.
-    """
-    result = await tool_node.ainvoke(state, get_config())
+    """Run the tools node over one input and check+report each result it yields."""
+    result = await tool_node.ainvoke(node_input, config)
 
     messages = result.get("messages") if isinstance(result, dict) else None
     if not isinstance(messages, list):
@@ -236,39 +273,111 @@ async def execute_tools_guarded(
             )
         return result
 
-    if guard is not None:
-        history = _state_messages(state)
-        if history is None:
-            # A state the conversation cannot be read out of (a Pydantic or
-            # dataclass state schema without ``messages``). The batch is still
-            # checked — ``guard_tool_results`` runs anchor-less — but the
-            # classifier works without context, which is a degradation and is
-            # reported as one.
+    checked: list[Any] = []
+    for message in messages:
+        if not isinstance(message, ToolMessage):
+            checked.append(message)
+            continue
+        if guard is not None:
+            message = await guard_tool_result(
+                message, guard, canary_token, tool_result_stub, history
+            )
+        checked.append(message)
+        if on_result is not None:
+            # Reported only here, after the check and before this coroutine
+            # returns: what goes on the wire is what the guard cleared, and it
+            # goes there the moment *this* call is done, not when its
+            # neighbours are.
+            on_result(message)
+
+    return {**result, "messages": checked}
+
+
+async def execute_tools_guarded(
+    tool_node: Runnable[Any, Any],
+    state: Any,
+    *,
+    guard: SecurityGuard | None,
+    canary_token: str,
+    tool_result_stub: str,
+    on_result: Callable[[ToolMessage], None] | None = None,
+) -> Any:
+    """Run the tools node per tool call, checking and reporting each result on its own.
+
+    Two properties, and the second is why this function exists at all:
+
+    *The TOOL_RESULT check lives inside the tools node*, not on re-entry into
+    the calling node, because the node's own output is what reaches the wire
+    and the checkpoint. A check that ran one super-step later would always run
+    *after* the poisoned text had been shown to the user — the redaction would
+    only ever reach the model.
+
+    *Each call is its own unit of work.* ``ToolNode`` executes a batch and
+    answers when the slowest member of it finishes, so a batch-shaped node
+    reports a search that took ten seconds as still running until a subagent
+    sharing its turn finishes three minutes later — the feed shows finished
+    work as unfinished and hangs someone else's duration on it. So a
+    multi-call batch is split into one node input per call
+    (``_split_per_call``), the calls run concurrently as before, and each
+    result is checked and handed to ``on_result`` the moment its own call is
+    done. The price is deliberate and was weighed: one classifier call per
+    result instead of one per batch — more tokens and more money on parallel
+    turns, in exchange for a feed that tells the truth about what has and has
+    not finished. Do not "optimise" it back into a batch.
+
+    ``on_result`` receives one final, checked ``ToolMessage`` at a time — the
+    hook both graphs report their ``tool_result`` through, which is why the
+    reporting cannot live in the subagent's tool proxy (``subagents/runner.py``):
+    there, the text has been through neither the guard nor ``ToolNode``'s error
+    sanitizer.
+
+    Neither way this function can end up not checking a result — a node output
+    that carries no ``ToolMessage`` batch, a state whose conversation cannot be
+    read — passes in silence: both report through ``_log_guard_degraded``
+    before the cycle continues.
+    """
+    config = get_config()
+    history = _state_messages(state)
+    if history is None:
+        # A state the conversation cannot be read out of (a Pydantic or
+        # dataclass state schema without ``messages``). Every result is still
+        # checked — one by one, as always — but the classifier works without
+        # context, which is a degradation and is reported as one.
+        if guard is not None:
             _log_guard_degraded(
                 "tool_result guard degraded: state history unreadable",
                 reason="state_history_unreadable",
                 state_type=type(state).__name__,
             )
-            history = []
-        updates = await guard_tool_results(
-            [*history, *messages], guard, canary_token, tool_result_stub
-        )
-        if updates:
-            # Matched by ``tool_call_id``, not by ``id``: these messages have
-            # not passed through ``add_messages`` yet, so ``id`` may still be
-            # unset. The redacted message *replaces* the raw one instead of
-            # being appended next to it — the poisoned text never enters the
-            # state at all.
-            by_call_id = {u.tool_call_id: u for u in updates}
-            messages = [
-                by_call_id.get(m.tool_call_id, m) if isinstance(m, ToolMessage) else m
-                for m in messages
-            ]
+        history = []
 
-    if on_results is not None:
-        on_results([m for m in messages if isinstance(m, ToolMessage)])
+    run = partial(
+        _run_and_check,
+        tool_node,
+        config=config,
+        guard=guard,
+        history=history,
+        canary_token=canary_token,
+        tool_result_stub=tool_result_stub,
+        on_result=on_result,
+    )
 
-    return {**result, "messages": messages}
+    per_call_inputs = _split_per_call(state, history)
+    if per_call_inputs is None:
+        return await run(state)
+
+    outputs = await asyncio.gather(
+        *(run(node_input) for node_input in per_call_inputs),
+        return_exceptions=True,
+    )
+    # Gathered with ``return_exceptions`` so a failing call cannot leave its
+    # siblings running unawaited past this node; the first failure is then
+    # re-raised, exactly as it would have propagated out of a single
+    # ``ToolNode`` invocation.
+    for output in outputs:
+        if isinstance(output, BaseException):
+            raise output
+    return _merge_outputs(list(outputs))
 
 
 async def guard_tool_call_args(
@@ -283,7 +392,7 @@ async def guard_tool_call_args(
     check or the guard clears the payload. On ``Verdict.INJECTION`` the
     tool_calls are stripped — a redacted ``AIMessage`` with no tool_calls is
     returned (routes to END via ``tools_condition`` instead of the tools
-    node) rather than blocking the thread, mirroring ``guard_tool_results``'s
+    node) rather than blocking the thread, mirroring ``guard_tool_result``'s
     fail-safe-not-fail-closed semantics.
     """
     if not getattr(response, "tool_calls", None):

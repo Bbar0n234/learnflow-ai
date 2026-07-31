@@ -376,9 +376,15 @@ def test_subagent_wrapper_emits_only_the_agreed_wire_vocabulary() -> None:
 
 
 def test_runner_emits_only_the_agreed_wire_vocabulary() -> None:
+    # Both roads to the wire are scanned as one set. ``tool_result`` and
+    # ``artifact_created`` are no longer built as ``StreamEvent``s at all: the
+    # tools node writes them itself, per finished call, as custom-channel
+    # envelopes in ``stream_events``. Scanning only the ``StreamEvent`` sites
+    # would leave that half of the vocabulary unguarded while the assertion
+    # below still looked exhaustive.
     emitted = _stream_event_type_literals(
         runner_module, stream_events_module, heartbeat_module
-    )
+    ) | _custom_channel_type_literals(stream_events_module)
 
     # trace_id is emitted by the runner but consumed inside ChatService; every
     # other emitted type is forwarded to the wire. Nothing the runner emits may

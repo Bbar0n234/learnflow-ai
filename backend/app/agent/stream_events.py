@@ -1,26 +1,101 @@
 """Maps LangGraph stream payloads to domain ``StreamEvent``s.
 
-``StreamEventMapper`` translates ``stream_mode="updates"`` node outputs (agent
-tool calls, tool results, created artifacts) into the SSE-facing event
-vocabulary; ``TokenChunkMapper`` does the same for ``stream_mode="messages"``
-chunks (text, reasoning, tool-call assembly). Either way the runner stays free
-of graph payload shape knowledge.
+``StreamEventMapper`` translates ``stream_mode="updates"`` node outputs (a
+guard cut of the turn's tool calls) into the SSE-facing event vocabulary;
+``TokenChunkMapper`` does the same for ``stream_mode="messages"`` chunks (text,
+reasoning, tool-call assembly). Either way the runner stays free of graph
+payload shape knowledge.
+
+The third road to the wire does not pass through the runner's mappers at all:
+:func:`tool_result_envelope`/:func:`artifact_created_envelope` build the
+``custom``-channel envelopes the tools node writes itself, one per finished
+tool call (``tool_guards.execute_tools_guarded``). They live here, next to the
+mappers, because this module is the one place that knows what a wire event
+looks like — the node picks the moment, this module picks the shape.
 """
 
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from typing import Any
 
 from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
 from langchain_core.messages.tool import ToolCallChunk
+from langgraph.types import StreamWriter
 
 from app.agent.text_limits import truncate
 from app.services.agent_runner import StreamEvent
 
 
+def tool_result_envelope(
+    message: ToolMessage, *, parent_call_id: str | None = None
+) -> dict[str, Any]:
+    """Build the ``custom``-channel envelope for one finished tool call.
+
+    Shaped exactly as the runner's custom-channel passthrough expects
+    (``app.agent.runner``: a known ``type`` plus its wire ``data``), so what
+    reaches the client is indistinguishable from an event the mappers built.
+    ``parent_call_id`` is set only for a subagent's nested call.
+    """
+    content = (
+        message.content if isinstance(message.content, str) else str(message.content)
+    )
+    content_text, content_truncated = truncate(content)
+    data: dict[str, Any] = {
+        "call_id": message.tool_call_id,
+        "tool": message.name or "",
+        "status": message.status,
+        "content": content_text,
+        "truncated": content_truncated,
+    }
+    if parent_call_id is not None:
+        data["parent_call_id"] = parent_call_id
+    return {"type": "tool_result", "data": data}
+
+
+def artifact_created_envelope(message: ToolMessage) -> dict[str, Any] | None:
+    """Build the ``artifact_created`` envelope, or ``None`` when there is none.
+
+    Emitted by attribute (``response_format="content_and_artifact"``), never by
+    tool name, and always right after the ``tool_result`` of the same call —
+    which is why it is written by the same reporter rather than by a channel of
+    its own (streaming.md § «tool_result / artifact_created»).
+    """
+    if message.artifact is None:
+        return None
+    artifact = dict(message.artifact)
+    artifact["artifact_type"] = artifact.pop("type", "")
+    return {"type": "artifact_created", "data": artifact}
+
+
+def make_tool_result_reporter(
+    writer: StreamWriter, *, parent_call_id: str | None = None
+) -> Callable[[ToolMessage], None]:
+    """Reporter for ``execute_tools_guarded``: one checked result -> the wire.
+
+    Called the moment a single tool call's result clears the TOOL_RESULT
+    guard — not when the batch does — so a fast call never inherits a slow
+    neighbour's duration in the activity feed.
+    """
+
+    def report(message: ToolMessage) -> None:
+        writer(tool_result_envelope(message, parent_call_id=parent_call_id))
+        artifact = artifact_created_envelope(message)
+        if artifact is not None:
+            writer(artifact)
+
+    return report
+
+
 class StreamEventMapper:
     """Per-run ``stream_mode="updates"`` node payload -> updates-channel ``StreamEvent``s.
+
+    The one event born here is ``tool_call_cancelled``. ``tool_result`` and
+    ``artifact_created`` are not: they are written by the tools node itself,
+    per finished call, because a node update only ever arrives once the *whole*
+    batch is done — which is precisely the wait that made a fast call inherit a
+    slow neighbour's duration in the feed.
 
     **Must be instantiated fresh per run**, same reasoning as ``TokenChunkMapper``
     (see below): it tracks which tool-call ``call_id``s the token channel has
@@ -52,7 +127,7 @@ class StreamEventMapper:
         if "agent" in data:
             for msg in data["agent"].get("messages", []):
                 # Recognizing a guard cut: an ``AIMessage`` (never a
-                # ``ToolMessage`` — ``guard_tool_results`` stamps the same
+                # ``ToolMessage`` — ``guard_tool_result`` stamps the same
                 # ``security_redacted`` flag on those, for an unrelated
                 # TOOL_RESULT redaction) with tool_calls stripped to empty by
                 # ``guard_tool_call_args`` (``tool_guards.py``). Comparing
@@ -73,35 +148,17 @@ class StreamEventMapper:
                     self._pending_call_ids = []
 
         if "tools" in data:
+            # Bookkeeping only, no emission: the node has already reported each
+            # of these results on the custom channel, one by one, as it checked
+            # them (``make_tool_result_reporter``). What the node payload is
+            # still needed for is the other half of the same ledger — a call
+            # that produced a result is resolved and must never be reported as
+            # cancelled afterwards.
             for msg in data["tools"].get("messages", []):
                 if isinstance(msg, ToolMessage):
                     call_id = msg.tool_call_id
                     if call_id in self._pending_call_ids:
                         self._pending_call_ids.remove(call_id)
-                    content = (
-                        msg.content
-                        if isinstance(msg.content, str)
-                        else str(msg.content)
-                    )
-                    content_text, truncated = truncate(content)
-                    events.append(
-                        StreamEvent(
-                            type="tool_result",
-                            data={
-                                "call_id": call_id,
-                                "tool": msg.name or "",
-                                "status": msg.status,
-                                "content": content_text,
-                                "truncated": truncated,
-                            },
-                        )
-                    )
-                    if msg.artifact is not None:
-                        artifact = dict(msg.artifact)
-                        artifact["artifact_type"] = artifact.pop("type", "")
-                        events.append(
-                            StreamEvent(type="artifact_created", data=artifact)
-                        )
 
         return events
 

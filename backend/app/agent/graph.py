@@ -24,6 +24,7 @@ from app.agent.config import AgentConfig, PromptFragmentsConfig
 from app.agent.prompt_builder import build_system_message, compose_for_llm
 from app.agent.security.guard import SecurityGuard
 from app.agent.security.types import SecurityMessages
+from app.agent.stream_events import make_tool_result_reporter
 from app.agent.tool_guards import (
     execute_tools_guarded,
     guard_tool_call_args,
@@ -274,12 +275,18 @@ def build_graph(
     tool_node = ToolNode(tools, handle_tool_errors=handle_tool_error)
 
     async def tools_node(state: MessagesState, runtime: Runtime[AgentContext]) -> Any:
-        """``ToolNode`` + the TOOL_RESULT guard, as one node named ``tools``.
+        """``ToolNode`` + the TOOL_RESULT guard + the report, as one node named ``tools``.
 
-        The node keeps its name because both ``tools_condition`` (routing) and
-        ``StreamEventMapper`` (``"tools" in data`` -> ``tool_result``) address
-        it by that name — and the mapper reading this node's *output* is
-        exactly why the guard has to run before the node returns.
+        The node keeps its name because ``tools_condition`` (routing) and
+        ``StreamEventMapper``'s pending-call ledger (``"tools" in data``)
+        address it by that name.
+
+        It also *reports* every result it checks, on this run's own writer —
+        the same mechanism the subagent uses for its nested calls. That is not
+        a detour around the updates channel but the only way to be timely: a
+        node update reaches the runner when the node returns, i.e. when the
+        slowest call of the turn is done, whereas the writer carries each
+        result the instant its own call clears the guard.
         """
         return await execute_tools_guarded(
             tool_node,
@@ -287,6 +294,7 @@ def build_graph(
             guard=security_guard,
             canary_token=runtime.context.canary_token,
             tool_result_stub=tool_result_stub,
+            on_result=make_tool_result_reporter(runtime.stream_writer),
         )
 
     builder = StateGraph(MessagesState, context_schema=AgentContext)

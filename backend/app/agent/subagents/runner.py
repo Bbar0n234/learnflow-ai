@@ -12,9 +12,9 @@ T1.6 adds the nested-lifecycle reporting: when the caller (the
 stream writer and ``call_id``, the subagent's tool calls report the same four
 events the main agent's own tool calls report — the announcement half from
 ``_LifecycleEmittingTool``, wrapped around every resolved tool, and the
-result half from ``_make_tool_result_reporter``, hung off the subagent
-graph's tools node so the reported text is the guard-checked one. See both
-docstrings and design-brief § "Вложенность субагента".
+result half from the shared ``stream_events.make_tool_result_reporter``, hung
+off the subagent graph's tools node so the reported text is the guard-checked
+one. See both docstrings and design-brief § "Вложенность субагента".
 """
 
 from __future__ import annotations
@@ -39,6 +39,7 @@ from app.agent.config import (
 )
 from app.agent.security.guard import SecurityGuard
 from app.agent.security.types import SecurityMessages
+from app.agent.stream_events import make_tool_result_reporter
 from app.agent.subagents.graph import build_subagent_graph, compile_subagent_graph
 from app.agent.text_limits import truncate
 from app.config import Settings
@@ -119,9 +120,9 @@ class _LifecycleEmittingTool(BaseTool):
     The matching ``tool_result`` is *not* emitted here: what the tool returns
     (or raises) has been through neither the TOOL_RESULT guard nor
     ``ToolNode``'s error sanitizer at this point, and this proxy sits inside
-    both. It is reported one level up, by the subagent's tools node once the
-    batch is checked (``subagents/graph.py``, ``_make_tool_result_reporter``
-    below).
+    both. It is reported one level up, by the subagent's tools node once that
+    call's own result is checked (``subagents/graph.py``, and the shared
+    ``stream_events.make_tool_result_reporter``).
 
     Around the call, ``SUBAGENT_STREAM_WRITER``/``SUBAGENT_PARENT_CALL_ID``
     are set so a nested domain tool (``sphere_write``/``memory_write``/
@@ -185,39 +186,6 @@ class _LifecycleEmittingTool(BaseTool):
         finally:
             SUBAGENT_STREAM_WRITER.reset(writer_token)
             SUBAGENT_PARENT_CALL_ID.reset(parent_token)
-
-
-def _make_tool_result_reporter(
-    stream_writer: StreamWriter, parent_call_id: str
-) -> Callable[[list[ToolMessage]], None]:
-    """Report a checked batch of subagent tool results on the parent stream.
-
-    Handed to ``build_subagent_graph`` as its ``report_tool_results`` hook, so
-    every ``tool_result`` on the wire carries the text that survived both
-    ``ToolNode``'s error sanitizer (``handle_tool_error`` — a failing tool
-    reports the same non-leaking message the model gets, never ``str(exc)``)
-    and the TOOL_RESULT guard.
-    """
-
-    def report(messages: list[ToolMessage]) -> None:
-        for msg in messages:
-            content = msg.content if isinstance(msg.content, str) else str(msg.content)
-            content_text, content_truncated = truncate(content)
-            stream_writer(
-                {
-                    "type": "tool_result",
-                    "data": {
-                        "call_id": msg.tool_call_id,
-                        "tool": msg.name or "",
-                        "status": msg.status,
-                        "content": content_text,
-                        "truncated": content_truncated,
-                        "parent_call_id": parent_call_id,
-                    },
-                }
-            )
-
-    return report
 
 
 def _wrap_tools_for_lifecycle_events(
@@ -347,13 +315,13 @@ class SubagentRunner:
         # the reporting split by *what has already been checked*: the proxy
         # announces the call, the graph's tools node reports its guard-checked
         # result.
-        report_tool_results: Callable[[list[ToolMessage]], None] | None = None
+        report_tool_result: Callable[[ToolMessage], None] | None = None
         if stream_writer is not None and parent_call_id is not None:
             resolved_tools = _wrap_tools_for_lifecycle_events(
                 resolved_tools, stream_writer, parent_call_id
             )
-            report_tool_results = _make_tool_result_reporter(
-                stream_writer, parent_call_id
+            report_tool_result = make_tool_result_reporter(
+                stream_writer, parent_call_id=parent_call_id
             )
 
         builder = build_subagent_graph(
@@ -364,7 +332,7 @@ class SubagentRunner:
             security_guard=self._security_guard,
             canary_token=canary_token,
             tool_result_stub=self._security_messages.redacted_tool_result,
-            report_tool_results=report_tool_results,
+            report_tool_result=report_tool_result,
         )
         checkpointer = False if spec.persistence == "none" else None
         graph = compile_subagent_graph(builder, checkpointer=checkpointer)

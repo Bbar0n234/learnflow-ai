@@ -80,8 +80,8 @@ graph LR
 graph.astream(input_msg, config, stream_mode=["messages", "updates", "custom"], context=context)
 ```
 - `stream_mode=["messages"]` — сырые чанки LLM → `text_chunk` / `reasoning_chunk` / ранние `tool_call_started` / `tool_call_args` (`TokenChunkMapper`)
-- `stream_mode=["updates"]` — результаты узлов → `tool_result` / `artifact_created` / `tool_call_cancelled` (`StreamEventMapper`)
-- `stream_mode=["custom"]` — `get_stream_writer()` из tools/графа → `agent_event` (доменные записи, факт компакции) и, для инструментов субагента, те же lifecycle-события с `parent_call_id`
+- `stream_mode=["updates"]` — результаты узлов → `tool_call_cancelled` (`StreamEventMapper`); `tool_result` / `artifact_created` идут повызовно в custom-канал прямо из узла `tools`
+- `stream_mode=["custom"]` — writer рана из tools/узлов графа → `agent_event` (доменные записи, факт компакции), повызовные `tool_result` / `artifact_created` узла `tools` и, для инструментов субагента, те же lifecycle-события с `parent_call_id`
 
 Полный контракт событий и их payload'ы — [streaming.md](streaming.md).
 

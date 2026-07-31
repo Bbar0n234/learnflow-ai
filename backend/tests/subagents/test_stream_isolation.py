@@ -5,10 +5,11 @@ produced *inside* a subagent run carry the ``subagent`` tag and must be dropped
 by ``LangGraphAgentRunner``'s ``stream_mode="messages"`` branch — before they
 reach ``full_response`` or the chat — while the main agent's own tokens stream
 normally and the ``tool_result`` indication for ``run_subagent``
-(from ``stream_mode="updates"``) still flows.
+(written by the tools node onto ``stream_mode="custom"``) still flows.
 
 We drive the *real* ``LangGraphAgentRunner`` with a fake graph that scripts a
-mixed chunk sequence (tagged + untagged messages, plus updates). The guard is
+mixed chunk sequence (tagged + untagged messages, plus the node's own custom
+writes — the channel the token filter must not swallow along with them). The guard is
 off (real enforcer, ``guard=None`` -> every checkpoint no-ops), so the observable
 contract is just the emitted ``StreamEvent`` sequence. This exercises the filter
 code directly, independent of whether LangGraph's own ``subgraphs=False`` default
@@ -27,6 +28,7 @@ from app.agent.config import ResolvedModelConfig, load_error_messages
 from app.agent.runner import LangGraphAgentRunner
 from app.agent.runtime_security import RuntimeSecurityEnforcer
 from app.agent.security.types import SecurityMessages
+from app.agent.stream_events import tool_result_envelope
 from app.agent.subagents import SUBAGENT_TAG
 from app.agent.tracing import AgentRunTracer
 from app.services.agent_runner import StreamEvent
@@ -137,18 +139,14 @@ async def test_tool_result_still_flows_while_tokens_are_filtered() -> None:
         [
             _chunk("LEAKED", tags=[SUBAGENT_TAG]),
             (
-                "updates",
-                {
-                    "tools": {
-                        "messages": [
-                            ToolMessage(
-                                content="verdict",
-                                name="run_subagent",
-                                tool_call_id="c1",
-                            )
-                        ]
-                    }
-                },
+                "custom",
+                tool_result_envelope(
+                    ToolMessage(
+                        content="verdict",
+                        name="run_subagent",
+                        tool_call_id="c1",
+                    )
+                ),
             ),
             _chunk("final answer", tags=[]),
         ]

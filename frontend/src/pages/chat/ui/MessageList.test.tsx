@@ -272,6 +272,131 @@ describe("MessageList — живость ленты", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Регрессия финального интеграционного прогона (r2 на `aed0a10`): экран
+  // простоял немым 27,75 с (+75,62…+103,37) — хвостом ленты был текст, в
+  // который перестали дописывать (последний `text_chunk` +75,35, следующее
+  // событие +103,32), а признак живости выводился из позиции: раз элемент
+  // последний, значит поток пишет в него. На проводе в это окно уложились пять
+  // `heartbeat`. Кейс отличает замолчавший хвост от отсутствия элементов:
+  // лента непуста и её состав не меняется — паузу зажигает только время.
+  it("возвращает строку-паузу, когда в хвостовой текст перестали дописывать", async () => {
+    vi.useFakeTimers();
+    try {
+      renderFeed(
+        feedFrom([{ type: "text_chunk", content: "Вот что нашлось" }]),
+      );
+
+      // Только что приехавший чанк — это живой хвост, паузе места нет.
+      expect(
+        screen.queryByRole("status", { name: "Агент думает" }),
+      ).not.toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(2500);
+      });
+
+      expect(
+        screen.getByRole("status", { name: "Агент думает" }),
+      ).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("не зажигает паузу, пока чанки продолжают приходить", async () => {
+    vi.useFakeTimers();
+    try {
+      const { rerender } = renderFeed(
+        feedFrom([{ type: "text_chunk", content: "Вот " }]),
+      );
+
+      // Порог сторожится с обеих сторон: до него паузы нет...
+      await act(async () => {
+        vi.advanceTimersByTime(1500);
+      });
+      expect(
+        screen.queryByRole("status", { name: "Агент думает" }),
+      ).not.toBeInTheDocument();
+
+      // ...а пришедший чанк отсчёт начинает заново — иначе пауза мигала бы
+      // посреди нормальной генерации, что хуже её отсутствия.
+      rerender(
+        listTree(
+          feedFrom([
+            { type: "text_chunk", content: "Вот " },
+            { type: "text_chunk", content: "что нашлось" },
+          ]),
+        ),
+      );
+      await act(async () => {
+        vi.advanceTimersByTime(1500);
+      });
+
+      expect(
+        screen.queryByRole("status", { name: "Агент думает" }),
+      ).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("снимает паузу тем же кадром, которым поток заговорил снова", async () => {
+    vi.useFakeTimers();
+    try {
+      const { rerender } = renderFeed(
+        feedFrom([{ type: "text_chunk", content: "Вот " }]),
+      );
+      await act(async () => {
+        vi.advanceTimersByTime(2500);
+      });
+      expect(
+        screen.getByRole("status", { name: "Агент думает" }),
+      ).toBeInTheDocument();
+
+      // Часы не двигаются: паузу снимает факт прихода данных, а не таймер.
+      rerender(
+        listTree(
+          feedFrom([
+            { type: "text_chunk", content: "Вот " },
+            { type: "text_chunk", content: "что нашлось" },
+          ]),
+        ),
+      );
+
+      expect(
+        screen.queryByRole("status", { name: "Агент думает" }),
+      ).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("снимает подпись процесса с замолчавшего рассуждения, не пряча его текст", async () => {
+    vi.useFakeTimers();
+    try {
+      renderFeed(
+        feedFrom([{ type: "reasoning_chunk", content: "надо поискать" }]),
+      );
+      expect(screen.getByText("Рассуждает")).toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(2500);
+      });
+
+      // Подпись и пауза отвечают на один вопрос и обязаны отвечать одинаково:
+      // строка «Рассуждает» рядом со строкой-паузой была бы враньём.
+      expect(screen.getByText("Рассуждения")).toBeInTheDocument();
+      expect(screen.queryByText("Рассуждает")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("status", { name: "Агент думает" }),
+      ).toBeInTheDocument();
+      // Уже показанный текст рассуждения на паузе не прячется.
+      expect(screen.getByText("надо поискать")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("подписывает хвостовое рассуждение процессом и держит его развёрнутым", () => {
     renderFeed(
       feedFrom([{ type: "reasoning_chunk", content: "надо поискать" }]),

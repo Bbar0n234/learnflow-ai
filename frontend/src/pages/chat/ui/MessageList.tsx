@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Message } from "@/shared/api/chats";
 import { groupFeedBlocks, type AgentFeedItem } from "@/shared/lib/agent-feed";
 import { useStreamStore, type StreamingArtifact } from "@/stores/stream-store";
@@ -26,6 +26,20 @@ interface MessageListProps {
 
 /** Инструмент, чей вызов показывается плейсхолдер-карточкой артефакта. */
 const IMAGE_TOOL = "generate_image";
+
+/**
+ * Порог тишины ленты: столько миллисекунд без единого прибывшего данного — и
+ * хвостовой элемент, который поток дописывал чанками, перестаёт считаться
+ * идущим.
+ *
+ * Порог зажат между двумя измеренными величинами. Сверху — heartbeat сервера,
+ * 5,00 с: окно, которое сервер сам считает достаточно долгим, чтобы напомнить о
+ * себе, экран не должен проживать немым, поэтому порог заметно меньше шага
+ * биения. Снизу — темп чанков живого потока, десятки миллисекунд: порог на два
+ * порядка выше, поэтому нормальная генерация паузу не зажигает и мигания не
+ * даёт. Обе границы наблюдались на живом ходе (кейсы Layer 3, `test-cases.md`).
+ */
+const FEED_SILENCE_MS = 2000;
 
 /**
  * `call_id` идущих прямо сейчас генераций изображений — карточка-плейсхолдер
@@ -71,24 +85,15 @@ function hasRunningCall(feed: AgentFeedItem[]): boolean {
 }
 
 /**
- * Есть ли в ленте строка, которая прямо сейчас идёт, — признак того, что
- * пользователю уже видно работу агента (бегущие точки, счётчик времени,
- * прибывающий текст).
- *
- * У вызова живость лежит в модели (`status: "running"`), у рассуждения и текста
- * статуса нет вовсе: поток дописывает ровно хвостовой элемент ленты — то же
- * правило, по которому строка рассуждений подписывается «Рассуждает»
- * (`activeId` ниже).
+ * Хвост ленты, если это текст или рассуждение, — единственный элемент, в
+ * который поток дописывает чанки. Позиция отвечает только на вопрос «куда
+ * придёт следующий чанк»; идут ли данные прямо сейчас, она не знает — это
+ * отдельный наблюдаемый признак (`useFeedSilence`).
  */
-function hasLiveRow(feed: AgentFeedItem[]): boolean {
+function chunkTail(feed: AgentFeedItem[]): AgentFeedItem | null {
   const tail = feed.at(-1);
-  if (
-    tail !== undefined &&
-    (tail.type === "reasoning" || tail.type === "text")
-  ) {
-    return true;
-  }
-  return hasRunningCall(feed);
+  if (tail === undefined) return null;
+  return tail.type === "reasoning" || tail.type === "text" ? tail : null;
 }
 
 /**
@@ -108,6 +113,46 @@ function feedTextLength(feed: AgentFeedItem[]): number {
   return length;
 }
 
+/**
+ * Молчит ли лента дольше порога. `growth` — величина, меняющаяся ровно тогда,
+ * когда в ленту что-то приехало; хук запоминает момент последнего изменения и
+ * отсчитывает от него.
+ *
+ * Признак наблюдаемый, а не выводимый: «поток дописывает хвост» — это факт
+ * прихода данных, и другого носителя у него нет. Статуса у рассуждения и текста
+ * в контракте нет (streaming.md § События), а позиция элемента в ленте о
+ * поступлении данных не говорит ничего — хвост остаётся хвостом и после того,
+ * как в него перестали писать.
+ *
+ * Тик — не интервал раз в секунду, а единственный таймер ровно на момент
+ * истечения порога: между приходом чанков перерисовывать нечего.
+ */
+function useFeedSilence(growth: string, silenceMs: number): boolean {
+  // Момент последнего роста нужен на рендере, поэтому он живёт состоянием:
+  // писать в ref во время рендера React запрещает.
+  const [grown, setGrown] = useState(() => ({ growth, at: Date.now() }));
+  const [now, setNow] = useState(grown.at);
+
+  if (grown.growth !== growth) {
+    // Правка состояния прямо на рендере: React отбросит этот проход и
+    // пересчитает компонент с новым моментом — тишина снимается тем же кадром,
+    // которым приехали данные, без промежуточного кадра с паузой.
+    setGrown({ growth, at: Date.now() });
+  }
+
+  useEffect(() => {
+    const left = grown.at + silenceMs - Date.now();
+    if (left <= 0) {
+      setNow(Date.now());
+      return;
+    }
+    const timer = setTimeout(() => setNow(Date.now()), left);
+    return () => clearTimeout(timer);
+  }, [grown, silenceMs]);
+
+  return now - grown.at >= silenceMs;
+}
+
 export function MessageList({
   messages,
   isStreaming,
@@ -124,15 +169,23 @@ export function MessageList({
   const pendingImages = pendingImageCalls(feed);
   const size = feedSize(feed);
   const textLength = feedTextLength(feed);
-  // Хвост живой ленты — единственный элемент, который поток ещё дописывает.
-  const activeId = feed.at(-1)?.id ?? null;
+  // Признак поступления данных — та же пара величин, которой меряется рост
+  // ленты для автопрокрутки: изменилась хоть одна, значит в ленту что-то
+  // приехало и на экране движение.
+  const silent = useFeedSilence(`${size}:${textLength}`, FEED_SILENCE_MS);
+  // Хвост живой ленты — элемент, куда поток дописывает чанки; дописывает ли он
+  // в него прямо сейчас, говорит `silent`, а не позиция элемента.
+  const activeId = chunkTail(feed)?.id ?? null;
+  const writingTail = activeId !== null && !silent;
   // Пауза закрывает любой промежуток живого хода, в котором на экране нет ни
-  // одной идущей строки, — не только окно до первого события. Между шагами
-  // агент может думать десятки секунд (на проводе в это время идёт heartbeat),
-  // и признак «лента пуста» такой промежуток не ловил вовсе: строки были, но
-  // все завершённые, то есть неподвижные. Ревью — собственный живой элемент,
-  // рядом с ним пауза не нужна.
-  const showPause = !hasLiveRow(feed) && !isReviewing;
+  // одной идущей строки, — не только окно до первого события и не только
+  // промежуток между вызовами. Между шагами агент может думать десятки секунд
+  // (на проводе в это время идёт heartbeat), и замолчать может как лента
+  // целиком, так и её хвостовой текст: строка есть, но в неё уже не пишут.
+  // Живость вызова лежит в модели (`status: "running"`), живость хвоста —
+  // в факте прихода данных. Ревью — собственный живой элемент, рядом с ним
+  // пауза не нужна.
+  const showPause = !writingTail && !hasRunningCall(feed) && !isReviewing;
   const lastBlock = liveBlocks.at(-1);
   // Пауза встаёт последней строкой ленты, когда лента заканчивается блоком
   // действий: тогда она висит на той же соединительной нити, что и шаги до неё.
@@ -187,6 +240,7 @@ export function MessageList({
                         key={block.items[0]?.id ?? `feed-${index}`}
                         items={block.items}
                         activeId={activeId}
+                        activeLive={!silent}
                         pause={pauseInFeed && index === liveBlocks.length - 1}
                       />
                     ),

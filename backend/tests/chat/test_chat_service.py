@@ -397,6 +397,28 @@ def test_chat_service_emits_only_the_agreed_synthesised_wire_types() -> None:
     assert emitted == SERVICE_SYNTHESISED_TYPES
 
 
+def test_title_trigger_classifies_every_runner_event_type() -> None:
+    # The auto-title trigger splits the runner's vocabulary in two: events that
+    # prove the USER_INPUT guard cleared the input, and the rest — the prologue
+    # (``stream_started``, ``heartbeat``, and ``cancelled``, which the pacer can
+    # answer with from any point of the run, including before a verdict exists)
+    # plus ``security_block``, the negative verdict itself. A type that belongs
+    # to neither half is a type nobody classified: adding one to the wire and
+    # forgetting this decision costs either a chat its generated name or, on the
+    # side that matters, sends unchecked input to the title model. Only the
+    # union is pinned, so the drift surfaces here rather than in production.
+    cleared = chat_service_module._TITLE_GUARD_CLEARED_TYPES
+    prologue_and_verdict = {
+        "stream_started",
+        "heartbeat",
+        "cancelled",
+        "security_block",
+    }
+
+    assert not cleared & prologue_and_verdict
+    assert cleared | prologue_and_verdict == RUNNER_FORWARDED_TYPES
+
+
 async def test_chat_service_forwards_each_runner_type_and_consumes_trace_id() -> None:
     thread = _thread()
     repo = FakeThreadViewRepo()

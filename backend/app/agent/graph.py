@@ -25,8 +25,8 @@ from app.agent.prompt_builder import build_system_message, compose_for_llm
 from app.agent.security.guard import SecurityGuard
 from app.agent.security.types import SecurityMessages
 from app.agent.tool_guards import (
+    execute_tools_guarded,
     guard_tool_call_args,
-    guard_tool_results,
     handle_tool_error,
 )
 from app.agent.tools.ks_helpers import build_namespace, format_index
@@ -180,26 +180,12 @@ def build_graph(
         tools_by_name[name] = getattr(t, "description", "") or ""
 
     async def agent_node(state: MessagesState, runtime: Runtime[AgentContext]) -> dict:
+        # No TOOL_RESULT pre-guard here: that check belongs to the ``tools``
+        # node, whose output is what both the wire and the checkpoint see
+        # (``execute_tools_guarded``). By the time a batch reaches this node it
+        # is already checked.
         messages = state["messages"]
         result_prefix: list[Any] = []
-
-        # 0. Pre-guard: TOOL_RESULT on any ToolMessage from the current batch
-        #    (after the last HumanMessage / last AIMessage that issued tool_calls).
-        if security_guard is not None:
-            tool_result_updates = await guard_tool_results(
-                messages,
-                security_guard,
-                runtime.context.canary_token,
-                tool_result_stub,
-            )
-            if tool_result_updates:
-                result_prefix.extend(tool_result_updates)
-                by_id: dict[str, Any] = {
-                    m.id: m for m in tool_result_updates if m.id is not None
-                }
-                messages = [
-                    by_id.get(m.id, m) if m.id is not None else m for m in messages
-                ]
 
         # 1. Compaction
         if summarization_model is not None and prompt_provider is not None:
@@ -287,9 +273,25 @@ def build_graph(
 
     tool_node = ToolNode(tools, handle_tool_errors=handle_tool_error)
 
+    async def tools_node(state: MessagesState, runtime: Runtime[AgentContext]) -> Any:
+        """``ToolNode`` + the TOOL_RESULT guard, as one node named ``tools``.
+
+        The node keeps its name because both ``tools_condition`` (routing) and
+        ``StreamEventMapper`` (``"tools" in data`` -> ``tool_result``) address
+        it by that name — and the mapper reading this node's *output* is
+        exactly why the guard has to run before the node returns.
+        """
+        return await execute_tools_guarded(
+            tool_node,
+            state,
+            guard=security_guard,
+            canary_token=runtime.context.canary_token,
+            tool_result_stub=tool_result_stub,
+        )
+
     builder = StateGraph(MessagesState, context_schema=AgentContext)
     builder.add_node("agent", agent_node)
-    builder.add_node("tools", tool_node)
+    builder.add_node("tools", tools_node)
     builder.add_edge(START, "agent")
     builder.add_conditional_edges("agent", tools_condition)
     builder.add_edge("tools", "agent")

@@ -10,12 +10,14 @@ which imports ``app.agent.subagents`` (package) -> ``subagents.runner`` ->
 module. This module has no dependency on ``app.agent.tools``/
 ``app.agent.subagents``, so both graph builders can import it safely.
 
-Behavior is unchanged from the original ``app.agent.graph`` functions —
-same checkpoints, same log events/severity, same fail-safe redact semantics
+Same checkpoints, same log events/severity, same fail-safe redact semantics
 (design-brief § "Безопасность": tool-result injection -> content swapped for
 a stub, cycle continues; tool-call-arg injection -> ``tool_calls`` stripped,
-cycle ends). Reused verbatim by ``app.agent.graph.agent_node`` and the
-subagent ReAct-cycle node (``app.agent.subagents.graph``).
+cycle ends). Both graphs reuse the same building blocks: the TOOL_CALL_ARG
+check runs in the model node (``app.agent.graph.agent_node`` / the subagent's
+``llm`` node) on the response it just produced, the TOOL_RESULT check runs in
+the tools node via :func:`execute_tools_guarded` — see its docstring for why
+that node and not the next one.
 
 Layering: this is an *enforcement adapter* over the security engine
 (``app.agent.security`` — detectors, classifier, ``SecurityGuard``), not part
@@ -27,10 +29,13 @@ it protects is deliberate — same placement as ``runtime_security.py``
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from typing import Any
 
 import structlog
 from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.runnables import Runnable
+from langgraph.config import get_config
 
 from app.agent.security.guard import SecurityGuard
 from app.agent.security.types import Checkpoint, Verdict
@@ -122,6 +127,63 @@ async def guard_tool_results(
                 },
             )
     return updates
+
+
+async def execute_tools_guarded(
+    tool_node: Runnable[Any, Any],
+    state: Any,
+    *,
+    guard: SecurityGuard | None,
+    canary_token: str,
+    tool_result_stub: str,
+    on_results: Callable[[list[ToolMessage]], None] | None = None,
+) -> Any:
+    """Run the tools node and let only guard-checked ``ToolMessage``s out of it.
+
+    The TOOL_RESULT check lives *inside* the tools node rather than on
+    re-entry into the calling node, because the node's own output is what
+    reaches the wire: ``StreamEventMapper`` turns the ``tools`` update into
+    ``tool_result`` (content included), and the subagent reports its nested
+    results off the same batch. A check that ran one super-step later would
+    always run *after* the poisoned text had already been shown to the user
+    and written to the checkpoint — the redaction would only ever reach the
+    model. Checking here costs the classifier's latency before the result
+    appears in the feed; that is the price of never streaming unchecked tool
+    output (streaming.md § «tool_result / artifact_created»).
+
+    ``on_results`` receives the final, checked batch — the subagent's hook for
+    reporting nested ``tool_result``s onto the parent stream, which is why the
+    reporting cannot live in the tool proxy itself (``subagents/runner.py``).
+    """
+    result = await tool_node.ainvoke(state, get_config())
+
+    messages = result.get("messages") if isinstance(result, dict) else None
+    if not isinstance(messages, list) or not messages:
+        # A tool returned a ``Command`` (ToolNode then answers with a list of
+        # them, not a messages dict) or produced nothing — no batch to check.
+        return result
+
+    if guard is not None:
+        history = list(state["messages"]) if isinstance(state, dict) else []
+        updates = await guard_tool_results(
+            [*history, *messages], guard, canary_token, tool_result_stub
+        )
+        if updates:
+            # Matched by ``tool_call_id``, not by ``id``: these messages have
+            # not passed through ``add_messages`` yet, so ``id`` may still be
+            # unset. The redacted message *replaces* the raw one instead of
+            # being appended next to it — the poisoned text never enters the
+            # state at all.
+            by_call_id = {u.tool_call_id: u for u in updates}
+            messages = [
+                by_call_id.get(m.tool_call_id, m) if isinstance(m, ToolMessage) else m
+                for m in messages
+            ]
+
+    if on_results is not None:
+        on_results([m for m in messages if isinstance(m, ToolMessage)])
+
+    return {**result, "messages": messages}
 
 
 async def guard_tool_call_args(

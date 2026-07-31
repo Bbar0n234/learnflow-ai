@@ -7,17 +7,20 @@ is a thin wrapper around this class: fetching artifacts by
 ``input_artifact_ids`` and mapping errors into tool-visible strings both live
 there, not here — this module raises plain exceptions.
 
-T1.6 adds ``_LifecycleEmittingTool``: when the caller (the ``run_subagent``
-tool, executing inside the main graph) hands over its own stream writer and
-``call_id``, every tool resolved for the subagent's ``ToolNode`` is wrapped
-so its execution reports the same four events the main agent's own tool
-calls report — see the class docstring and design-brief § "Вложенность
-субагента".
+T1.6 adds the nested-lifecycle reporting: when the caller (the
+``run_subagent`` tool, executing inside the main graph) hands over its own
+stream writer and ``call_id``, the subagent's tool calls report the same four
+events the main agent's own tool calls report — the announcement half from
+``_LifecycleEmittingTool``, wrapped around every resolved tool, and the
+result half from ``_make_tool_result_reporter``, hung off the subagent
+graph's tools node so the reported text is the guard-checked one. See both
+docstrings and design-brief § "Вложенность субагента".
 """
 
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Final
 
@@ -94,7 +97,7 @@ def _escape_attr(value: str) -> str:
 
 
 class _LifecycleEmittingTool(BaseTool):
-    """Proxies a subagent tool, reporting its execution as four wire events.
+    """Proxies a subagent tool, announcing the start of its execution.
 
     A thin ``BaseTool`` proxy, not a reimplementation: ``name``/
     ``description``/``args_schema`` are copied from ``wrapped_tool`` so
@@ -108,12 +111,17 @@ class _LifecycleEmittingTool(BaseTool):
     ``tool_call_started``/``tool_call_args`` fire before the call: unlike the
     main agent (whose args are assembled fragment-by-fragment from
     ``tool_call_chunks``), the subagent's ``ToolNode`` hands over the already
-    fully-parsed args dict up front, so both are known immediately.
-    ``tool_result`` fires after, success or failure — ``status``/``content``
-    reflect whichever happened. All three go straight to ``stream_writer``
-    tagged with ``parent_call_id``, wire-shaped exactly like the runner's
-    ``custom``-channel passthrough expects (``app.agent.runner``, "Lifecycle
-    types ... passed through unchanged").
+    fully-parsed args dict up front, so both are known immediately. Both go
+    straight to ``stream_writer`` tagged with ``parent_call_id``, wire-shaped
+    exactly like the runner's ``custom``-channel passthrough expects
+    (``app.agent.runner``, "Lifecycle types ... passed through unchanged").
+
+    The matching ``tool_result`` is *not* emitted here: what the tool returns
+    (or raises) has been through neither the TOOL_RESULT guard nor
+    ``ToolNode``'s error sanitizer at this point, and this proxy sits inside
+    both. It is reported one level up, by the subagent's tools node once the
+    batch is checked (``subagents/graph.py``, ``_make_tool_result_reporter``
+    below).
 
     Around the call, ``SUBAGENT_STREAM_WRITER``/``SUBAGENT_PARENT_CALL_ID``
     are set so a nested domain tool (``sphere_write``/``memory_write``/
@@ -170,43 +178,46 @@ class _LifecycleEmittingTool(BaseTool):
             }
         )
 
-        status = "error"
-        content = ""
         writer_token = SUBAGENT_STREAM_WRITER.set(self.stream_writer)
         parent_token = SUBAGENT_PARENT_CALL_ID.set(self.parent_call_id)
         try:
-            result = await self.wrapped_tool.ainvoke(input, config, **kwargs)
-            if isinstance(result, ToolMessage):
-                status = result.status
-                content = (
-                    result.content
-                    if isinstance(result.content, str)
-                    else str(result.content)
-                )
-            else:
-                status = "success"
-                content = "" if result is None else str(result)
-            return result
-        except Exception as exc:
-            content = str(exc)
-            raise
+            return await self.wrapped_tool.ainvoke(input, config, **kwargs)
         finally:
             SUBAGENT_STREAM_WRITER.reset(writer_token)
             SUBAGENT_PARENT_CALL_ID.reset(parent_token)
+
+
+def _make_tool_result_reporter(
+    stream_writer: StreamWriter, parent_call_id: str
+) -> Callable[[list[ToolMessage]], None]:
+    """Report a checked batch of subagent tool results on the parent stream.
+
+    Handed to ``build_subagent_graph`` as its ``report_tool_results`` hook, so
+    every ``tool_result`` on the wire carries the text that survived both
+    ``ToolNode``'s error sanitizer (``handle_tool_error`` — a failing tool
+    reports the same non-leaking message the model gets, never ``str(exc)``)
+    and the TOOL_RESULT guard.
+    """
+
+    def report(messages: list[ToolMessage]) -> None:
+        for msg in messages:
+            content = msg.content if isinstance(msg.content, str) else str(msg.content)
             content_text, content_truncated = truncate(content)
-            self.stream_writer(
+            stream_writer(
                 {
                     "type": "tool_result",
                     "data": {
-                        "call_id": call_id,
-                        "tool": self.wrapped_tool.name,
-                        "status": status,
+                        "call_id": msg.tool_call_id,
+                        "tool": msg.name or "",
+                        "status": msg.status,
                         "content": content_text,
                         "truncated": content_truncated,
-                        "parent_call_id": self.parent_call_id,
+                        "parent_call_id": parent_call_id,
                     },
                 }
             )
+
+    return report
 
 
 def _wrap_tools_for_lifecycle_events(
@@ -332,10 +343,17 @@ class SubagentRunner:
         # `parent_call_id` are only known in the `run_subagent` tool's own
         # scope (the main graph's), passed down explicitly by the caller —
         # skipped when either is absent (e.g. `SubagentRunner.run` exercised
-        # directly in a test, with no stream to report to).
+        # directly in a test, with no stream to report to). The two halves of
+        # the reporting split by *what has already been checked*: the proxy
+        # announces the call, the graph's tools node reports its guard-checked
+        # result.
+        report_tool_results: Callable[[list[ToolMessage]], None] | None = None
         if stream_writer is not None and parent_call_id is not None:
             resolved_tools = _wrap_tools_for_lifecycle_events(
                 resolved_tools, stream_writer, parent_call_id
+            )
+            report_tool_results = _make_tool_result_reporter(
+                stream_writer, parent_call_id
             )
 
         builder = build_subagent_graph(
@@ -346,6 +364,7 @@ class SubagentRunner:
             security_guard=self._security_guard,
             canary_token=canary_token,
             tool_result_stub=self._security_messages.redacted_tool_result,
+            report_tool_results=report_tool_results,
         )
         checkpointer = False if spec.persistence == "none" else None
         graph = compile_subagent_graph(builder, checkpointer=checkpointer)

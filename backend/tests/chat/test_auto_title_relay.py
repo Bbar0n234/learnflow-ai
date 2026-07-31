@@ -31,11 +31,13 @@ from tests.chat.conftest import (
     FakeArtifactRepo,
     FakeThreadViewRepo,
     FakeTitleGenerator,
+    cancelled_event,
     error_event,
     heartbeat_event,
     security_block_event,
     stream_started_event,
     text_chunk_event,
+    tool_call_started_event,
     trace_id_event,
 )
 
@@ -133,8 +135,8 @@ async def test_send_message_starts_generation_for_placeholder_title() -> None:
     ("first_event", "expected_types"),
     [
         (
-            StreamEvent(type="tool_start", data={"tool": "search", "call_id": "c1"}),
-            ["tool_start", "title_updated", "done"],
+            tool_call_started_event("c1", "search"),
+            ["tool_call_started", "title_updated", "done"],
         ),
         (error_event("graph failed"), ["error"]),
     ],
@@ -203,9 +205,50 @@ async def test_send_message_skips_generation_when_guard_blocks_first_event(
     # internally consumed trace_id event must not be mistaken for "the guard let
     # something through" — nor may the SSE v2 prologue (``stream_started`` is
     # unconditionally first, ``heartbeat`` fills the silence while the guard is
-    # still running), which is why the trigger skips
-    # ``_TITLE_GUARD_NEUTRAL_TYPES`` instead of reading the literal first event.
+    # still running), which is why the trigger waits for an event in
+    # ``_TITLE_GUARD_CLEARED_TYPES`` instead of reading the literal first event.
     assert generator.calls == []
+
+
+@pytest.mark.parametrize(
+    "events",
+    [
+        [cancelled_event()],
+        [stream_started_event(), cancelled_event()],
+        [stream_started_event(), heartbeat_event(), cancelled_event()],
+    ],
+    ids=["cancel_first", "cancel_after_stream_started", "cancel_after_heartbeat"],
+)
+async def test_send_message_skips_generation_when_cancelled_before_the_verdict(
+    events: list[StreamEvent],
+) -> None:
+    # ``cancelled`` belongs to the prologue just as much as ``heartbeat`` does:
+    # the pacer checks the cancel flag on its own timer and answers from any
+    # point of the run (agent/heartbeat.py), while the USER_INPUT guard is only
+    # reached after model resolution, tool resolution and graph assembly
+    # (agent/runner.py) — i.e. never before the first tick. Hitting stop while
+    # the classifier is still thinking must not send that unchecked text to the
+    # title model.
+    generator = FakeTitleGenerator()
+
+    await _run(_thread(), events, title_generator=generator)
+
+    assert generator.calls == []
+
+
+async def test_send_message_keeps_generation_when_cancelled_after_the_verdict() -> None:
+    # The mirror case, so the fix above cannot be satisfied by never generating
+    # on a cancelled run: once an event proves the guard cleared the input, a
+    # later cancellation does not retract the generation.
+    generator = FakeTitleGenerator()
+
+    await _run(
+        _thread(),
+        [stream_started_event(), text_chunk_event("Привет"), cancelled_event()],
+        title_generator=generator,
+    )
+
+    assert len(generator.calls) == 1
 
 
 async def test_send_message_keeps_generation_when_block_arrives_later() -> None:

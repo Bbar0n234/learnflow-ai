@@ -36,7 +36,7 @@ flowchart LR
 | Checkpoint | Где срабатывает | Направление | Действие при INJECTION |
 |------------|-----------------|-------------|------------------------|
 | `user_input` | Runner, до запуска графа | inbound | Reject, `security_block` SSE, thread blocked |
-| `tool_result` | `agent_node`, до вызова LLM | inbound | Заглушка-`ToolMessage`, thread blocked |
+| `tool_result` | Узел `tools`, до возврата результатов из узла | inbound | Заглушка-`ToolMessage`, thread blocked |
 | `tool_call_arg` | `agent_node`, после ответа LLM | outbound | `tool_calls=[]` + redacted `AIMessage`, thread blocked, граф уходит в END |
 | `final_output` | Runner, mid-stream и end-of-stream | outbound | Redacted `AIMessage`, thread blocked, `security_block` SSE |
 | `mcp_metadata` | Service, регистрация user MCP + built-in startup | add-time | HTTP 422 (для built-in — disable конкретного сервера) |
@@ -135,7 +135,7 @@ Guard вызывается первым в service-методе, до endpoint-�
 Субагент — тот же trust-контур, что основной агент; отдельный периметр не строится (полное обоснование — [ADR-028](../tech/adr/ADR-028-product-subagents.md), исполняющее ядро — [agent-runtime.md § Субагенты](../tech/agent-runtime.md#субагенты)).
 
 - **На границе вызова** переиспользуются существующие checkpoint'ы: `task` + `input_artifact_ids` — аргументы tool-вызова `run_subagent`, проверяемые `tool_call_arg`; результат субагента становится `ToolMessage`, проверяемым `tool_result` до следующего вызова LLM.
-- **Внутри цикла субагента** переиспользуется тот же guard-код (`backend/app/agent/tool_guards.py`), что `agent_node` основного графа — та же fail-safe redact-семантика, не блокировка. Каждый субагент — ReAct-агент с инструментами, проверки встроены в его llm-узел; в прогоне без tool-вызовов они структурно бездействуют — untrusted-источников внутри цикла тогда нет, единственный вход уже проверен на границе.
+- **Внутри цикла субагента** переиспользуется тот же guard-код (`backend/app/agent/tool_guards.py`), что в основном графе — та же fail-safe redact-семантика, не блокировка. Каждый субагент — ReAct-агент с инструментами, проверки стоят в тех же узлах: `tool_call_arg` — в llm-узле, `tool_result` — в узле `tools`; в прогоне без tool-вызовов они структурно бездействуют — untrusted-источников внутри цикла тогда нет, единственный вход уже проверен на границе.
 - **Toolset субагента** строится только из `internal_tools` + built-in MCP — user-installed MCP не резолвится в него ни при каких обстоятельствах, что сохраняет trust-границу между продуктовыми и пользовательскими интеграциями.
 
 ## Observability

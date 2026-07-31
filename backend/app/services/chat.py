@@ -20,14 +20,35 @@ from app.storage.trace_store import TraceStore
 
 logger = structlog.get_logger()
 
-# Events that carry no verdict about the pre-graph USER_INPUT security check,
-# and so must not be read as "the guard let this run through" by the auto-title
-# trigger below. ``stream_started`` is unconditionally the first event of every
-# run (agent/runner.py) and ``heartbeat`` fills any silence — both are emitted
-# *before* the check can have produced ``security_block``. Deciding on the
-# literal first event, as the pre-v2 contract allowed, would hand blocked input
-# straight to the title LLM.
-_TITLE_GUARD_NEUTRAL_TYPES = frozenset({"stream_started", "heartbeat"})
+# Events the runner can only produce *after* the pre-graph USER_INPUT check
+# cleared the input — every one of them originates in the graph run itself or
+# in a later stage of ``_run_turn`` (agent/runner.py), all downstream of
+# ``check_user_input``. Only these may start auto-title generation below.
+#
+# The predicate is positive on purpose. Listing the events that prove nothing
+# instead — the run prologue — is a denylist over a set nobody controls: it
+# already leaked once, because besides ``stream_started`` (unconditionally
+# first) and ``heartbeat`` (fills the silence while the guard works), the pacer
+# can emit ``cancelled`` from any point of the run, including before the
+# verdict exists (agent/heartbeat.py). Missing an entry here costs a chat its
+# generated name; missing one there would hand blocked input to the title LLM.
+# ``test_chat_service.py`` pins this set against the runner's full vocabulary
+# so a new event type cannot be silently forgotten in either direction.
+_TITLE_GUARD_CLEARED_TYPES = frozenset(
+    {
+        "text_chunk",
+        "reasoning_chunk",
+        "tool_call_started",
+        "tool_call_args",
+        "tool_call_cancelled",
+        "tool_result",
+        "artifact_created",
+        "agent_event",
+        "final_output_review_started",
+        "final_output_review_complete",
+        "error",
+    }
+)
 
 
 @dataclass
@@ -250,17 +271,18 @@ class ChatService:
         # the placeholder". Binding the generator to a local (None when this
         # run must not generate) is what makes the trigger and the call site
         # one and the same condition. The generation task is started on the
-        # first agent event that clears the security guard — that is, the first
-        # event outside ``_TITLE_GUARD_NEUTRAL_TYPES``, and never when that
-        # event is itself security_block (blocked input never reaches the title
-        # LLM). ``title_task`` is polled between agent events below; a
-        # ready, non-empty result is forwarded as a title_updated event exactly
-        # once per run, then the handle is dropped — never after a terminal
-        # event (see the poll site).
+        # first agent event that proves the security guard cleared the input —
+        # that is, the first event in ``_TITLE_GUARD_CLEARED_TYPES``; blocked
+        # input never reaches the title LLM, and neither does input whose
+        # verdict never arrived (a run cancelled while the guard is still
+        # working ends without generating a name). ``title_task`` is polled
+        # between agent events below; a ready, non-empty result is forwarded as
+        # a title_updated event exactly once per run, then the handle is
+        # dropped — never after a terminal event (see the poll site).
         title_generator = (
             self._title_generator if thread_view.title == DEFAULT_CHAT_TITLE else None
         )
-        guard_checked = False
+        title_requested = False
         title_task: asyncio.Task[str | None] | None = None
 
         async for event in self._agent_runner.stream(
@@ -280,12 +302,11 @@ class ChatService:
 
             if (
                 title_generator is not None
-                and not guard_checked
-                and event.type not in _TITLE_GUARD_NEUTRAL_TYPES
+                and not title_requested
+                and event.type in _TITLE_GUARD_CLEARED_TYPES
             ):
-                guard_checked = True
-                if event.type != "security_block":
-                    title_task = title_generator.generate_title(thread_id, content)
+                title_requested = True
+                title_task = title_generator.generate_title(thread_id, content)
 
             yield event
 

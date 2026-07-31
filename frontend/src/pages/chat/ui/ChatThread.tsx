@@ -36,40 +36,59 @@ export function ChatThread() {
   const { data, isLoading, isError } = useChat(id, cid, {
     refetchOnWindowFocus: !isStreaming,
   });
-  const [localMessages, setLocalMessages] = useState<Message[]>([]);
-  const [streamError, setStreamError] = useState<string | null>(null);
-  // Чем закончился ход, если он закончился не ответом. В историю причина
-  // остановки не сохраняется — это транзиентное состояние экрана, живущее до
-  // следующей отправки, ровно как `streamError`.
-  const [endNotice, setEndNotice] = useState<StreamEndReason | null>(null);
+  // Три транзиентных состояния экрана — оптимистичная копия отправленного
+  // сообщения, ошибка потока и причина остановки хода — живут до следующей
+  // отправки и все скоуплены чатом, как `isStreaming` выше. Причина одна:
+  // переключение чата этот компонент не перемонтирует (`chats/:cid` рендерит
+  // один и тот же `ChatThread` без `key`), поэтому нескоупленное состояние
+  // уезжает в соседний чат — там всплывали бы чужое сообщение, чужая красная
+  // плашка и сообщение об остановке чужого хода, висящие до первой отправки.
+  const [localMessages, setLocalMessages] = useState<{
+    chatId: string;
+    messages: Message[];
+  } | null>(null);
+  const [streamError, setStreamError] = useState<{
+    chatId: string;
+    detail: string;
+  } | null>(null);
+  // В историю причина остановки не сохраняется — она транзиентна ровно как
+  // `streamError`.
+  const [endNotice, setEndNotice] = useState<{
+    chatId: string;
+    reason: StreamEndReason;
+  } | null>(null);
 
   const studio = useStudio();
 
+  // Терминальные колбэки снимают оптимистичную копию безусловно, без сверки с
+  // текущим `cid`: копия принадлежит закончившемуся ходу, и его сообщение уже
+  // приехало с сервера — держать её дальше значило бы задваивать сообщение в
+  // том чате, где ход шёл, независимо от того, на каком экране пользователь.
   const handleDone = useCallback(() => {
-    setLocalMessages([]);
+    setLocalMessages(null);
   }, []);
 
   const handleSecurityBlock = useCallback(() => {
     // Server-side already persisted the user message + redacted placeholder
     // and we invalidated the chat query — drop the optimistic local copy
     // to avoid duplicates after refetch.
-    setLocalMessages([]);
+    setLocalMessages(null);
     // Заглушку заблокированного хода показывает история; карточка объясняет,
     // почему ход схлопнулся и почему ввод заблокирован.
-    setEndNotice("blocked");
-  }, []);
+    setEndNotice({ chatId: cid!, reason: "blocked" });
+  }, [cid]);
 
   const handleCancelled = useCallback(() => {
     // Хук уже инвалидировал detail: отменённый ход приезжает из истории вместе
     // с незавершёнными вызовами. Оптимистичную копию снимаем по той же причине,
     // что и на `done`, — иначе после рефетча она задвоится.
-    setLocalMessages([]);
-    setEndNotice("cancelled");
-  }, []);
+    setLocalMessages(null);
+    setEndNotice({ chatId: cid!, reason: "cancelled" });
+  }, [cid]);
 
   const { send, cancel } = useAgentStream(id!, cid!, {
     onDone: handleDone,
-    onError: (detail) => setStreamError(detail),
+    onError: (detail) => setStreamError({ chatId: cid!, detail }),
     onSecurityBlock: handleSecurityBlock,
     onCancelled: handleCancelled,
   });
@@ -79,6 +98,7 @@ export function ChatThread() {
 
   const handleSend = useCallback(
     (content: string) => {
+      const chatId = cid!;
       setStreamError(null);
       setEndNotice(null);
       const message: Message = {
@@ -88,10 +108,18 @@ export function ChatThread() {
         created_at: new Date().toISOString(),
         artifacts: [],
       };
-      setLocalMessages((prev) => [...prev, message]);
+      // Копия принадлежит чату, в который её отправили. Копится она только в
+      // пределах одного чата: отправка в другой начинает список заново — двух
+      // чатов с неотвеченными сообщениями это состояние не держит, и делать вид,
+      // что держит, не надо.
+      setLocalMessages((prev) =>
+        prev !== null && prev.chatId === chatId
+          ? { chatId, messages: [...prev.messages, message] }
+          : { chatId, messages: [message] },
+      );
       send(content);
     },
-    [send],
+    [cid, send],
   );
 
   // One-shot auto-send of the message queued by the entry path (project page
@@ -145,7 +173,19 @@ export function ChatThread() {
     );
   }
 
-  const allMessages = [...(data?.messages ?? []), ...localMessages];
+  // Всё транзиентное принадлежит тому чату, в котором ход шёл: в соседнем не
+  // показываем ничего из этого, даже пока состояние ещё не сменилось.
+  const ownLocalMessages =
+    localMessages !== null && localMessages.chatId === cid
+      ? localMessages.messages
+      : [];
+  const ownStreamError =
+    streamError !== null && streamError.chatId === cid
+      ? streamError.detail
+      : null;
+  const ownEndNotice =
+    endNotice !== null && endNotice.chatId === cid ? endNotice.reason : null;
+  const allMessages = [...(data?.messages ?? []), ...ownLocalMessages];
 
   return (
     <div className={cn("flex h-full", studio.open && "studio-open")}>
@@ -159,8 +199,8 @@ export function ChatThread() {
           streamingArtifacts={streamingArtifacts}
           projectId={id!}
           chatId={cid!}
-          streamError={streamError}
-          endNotice={endNotice}
+          streamError={ownStreamError}
+          endNotice={ownEndNotice}
         />
         <ChatInput
           onSend={handleSend}

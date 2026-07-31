@@ -169,6 +169,109 @@ describe("MessageList — живость ленты", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Регрессия финального интеграционного прогона: на живом ходе экран замер на
+  // 10,65 с (с +135,95 с до +146,60 с) — все строки ленты к этому моменту
+  // завершились, идущей строки не было, а пауза показывалась только пока лента
+  // пуста. На проводе в это время шли `heartbeat` с шагом 5 с: молчал не
+  // сервер, а интерфейс. Признак показа — «в ленте нет идущей строки», и он
+  // обязан закрывать любой промежуток хода, а не только окно до первого события.
+  it("возвращает строку-паузу в промежутке между завершённым и следующим действием", () => {
+    renderFeed(
+      feedFrom([
+        {
+          type: "tool_call_started",
+          call_id: "call-1",
+          tool: "firecrawl_search",
+        },
+        {
+          type: "tool_result",
+          call_id: "call-1",
+          tool: "firecrawl_search",
+          status: "success",
+          content: "нашлось",
+          truncated: false,
+        },
+      ]),
+    );
+
+    expect(
+      screen.getByRole("status", { name: "Агент думает" }),
+    ).toBeInTheDocument();
+  });
+
+  it("возвращает паузу, когда отработал и субагент, и его вложенные шаги", () => {
+    const started: SSEEvent[] = [
+      { type: "tool_call_started", call_id: "sub-1", tool: "run_subagent" },
+      {
+        type: "tool_call_started",
+        call_id: "step-1",
+        tool: "firecrawl_scrape",
+        parent_call_id: "sub-1",
+      },
+    ];
+    // Пока субагент работает, на экране есть идущие строки — паузе места нет.
+    const { rerender } = renderFeed(feedFrom(started));
+    expect(
+      screen.queryByRole("status", { name: "Агент думает" }),
+    ).not.toBeInTheDocument();
+
+    rerender(
+      listTree(
+        feedFrom([
+          ...started,
+          {
+            type: "tool_result",
+            call_id: "step-1",
+            tool: "firecrawl_scrape",
+            status: "success",
+            content: "страница",
+            truncated: false,
+            parent_call_id: "sub-1",
+          },
+          {
+            type: "tool_result",
+            call_id: "sub-1",
+            tool: "run_subagent",
+            status: "success",
+            content: "вердикт",
+            truncated: false,
+          },
+        ]),
+      ),
+    );
+
+    expect(
+      screen.getByRole("status", { name: "Агент думает" }),
+    ).toBeInTheDocument();
+  });
+
+  it("не подменяет паузой растущий текст ответа", () => {
+    renderFeed(
+      feedFrom([
+        {
+          type: "tool_call_started",
+          call_id: "call-1",
+          tool: "firecrawl_search",
+        },
+        {
+          type: "tool_result",
+          call_id: "call-1",
+          tool: "firecrawl_search",
+          status: "success",
+          content: "нашлось",
+          truncated: false,
+        },
+        { type: "text_chunk", content: "Вот что нашлось" },
+      ]),
+    );
+
+    // Хвостовой текст поток дописывает прямо сейчас — это и есть живая строка,
+    // паузе рядом с ней места нет.
+    expect(
+      screen.queryByRole("status", { name: "Агент думает" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("подписывает хвостовое рассуждение процессом и держит его развёрнутым", () => {
     renderFeed(
       feedFrom([{ type: "reasoning_chunk", content: "надо поискать" }]),

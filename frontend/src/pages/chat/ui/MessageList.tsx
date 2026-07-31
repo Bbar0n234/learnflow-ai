@@ -59,6 +59,39 @@ function feedSize(feed: AgentFeedItem[]): number {
 }
 
 /**
+ * Идёт ли прямо сейчас хоть один вызов — по всей ленте, включая шаги субагента
+ * внутри его строки.
+ */
+function hasRunningCall(feed: AgentFeedItem[]): boolean {
+  return feed.some(
+    (item) =>
+      item.type === "tool_call" &&
+      (item.status === "running" || hasRunningCall(item.children)),
+  );
+}
+
+/**
+ * Есть ли в ленте строка, которая прямо сейчас идёт, — признак того, что
+ * пользователю уже видно работу агента (бегущие точки, счётчик времени,
+ * прибывающий текст).
+ *
+ * У вызова живость лежит в модели (`status: "running"`), у рассуждения и текста
+ * статуса нет вовсе: поток дописывает ровно хвостовой элемент ленты — то же
+ * правило, по которому строка рассуждений подписывается «Рассуждает»
+ * (`activeId` ниже).
+ */
+function hasLiveRow(feed: AgentFeedItem[]): boolean {
+  const tail = feed.at(-1);
+  if (
+    tail !== undefined &&
+    (tail.type === "reasoning" || tail.type === "text")
+  ) {
+    return true;
+  }
+  return hasRunningCall(feed);
+}
+
+/**
  * Объём текста ленты — вторая половина сигнала роста: текст и рассуждения
  * растут внутри одного элемента, не меняя их числа. Считается по всей ленте,
  * включая рассуждения субагента внутри его вызова.
@@ -93,13 +126,33 @@ export function MessageList({
   const textLength = feedTextLength(feed);
   // Хвост живой ленты — единственный элемент, который поток ещё дописывает.
   const activeId = feed.at(-1)?.id ?? null;
+  // Пауза закрывает любой промежуток живого хода, в котором на экране нет ни
+  // одной идущей строки, — не только окно до первого события. Между шагами
+  // агент может думать десятки секунд (на проводе в это время идёт heartbeat),
+  // и признак «лента пуста» такой промежуток не ловил вовсе: строки были, но
+  // все завершённые, то есть неподвижные. Ревью — собственный живой элемент,
+  // рядом с ним пауза не нужна.
+  const showPause = !hasLiveRow(feed) && !isReviewing;
+  const lastBlock = liveBlocks.at(-1);
+  // Пауза встаёт последней строкой ленты, когда лента заканчивается блоком
+  // действий: тогда она висит на той же соединительной нити, что и шаги до неё.
+  // Иначе (лента пуста или заканчивается прозой ответа) — отдельной строкой.
+  const pauseInFeed = showPause && lastBlock?.type === "feed";
 
   // Прокрутка следует за ростом всей ленты, а не за одним текстом и не за одним
   // её корнем: ход из одних tool-событий, без единого `text_chunk`, уезжал бы за
   // нижнюю границу, а работающий субагент растит только свою вложенную ленту.
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, size, textLength, isStreaming, isReviewing, endNotice]);
+  }, [
+    messages.length,
+    size,
+    textLength,
+    isStreaming,
+    isReviewing,
+    showPause,
+    endNotice,
+  ]);
 
   return (
     <div className="flex-1 overflow-auto p-6">
@@ -119,11 +172,6 @@ export function MessageList({
         {isStreaming && (
           <div className="flex justify-start">
             <div className="w-full text-foreground">
-              {/* Строка-пауза закрывает окно тишины от отправки сообщения до
-                  первого содержательного события: молчаливого UX не бывает. */}
-              {liveBlocks.length === 0 &&
-                !isReviewing &&
-                streamingArtifacts.length === 0 && <ActivityPauseRow />}
               {/* Живой ход рисует тот же компонент ленты, что и история:
                   структура данных общая, поэтому перезагрузка страницы
                   показывает ровно то, что пользователь уже видел. */}
@@ -139,11 +187,15 @@ export function MessageList({
                         key={block.items[0]?.id ?? `feed-${index}`}
                         items={block.items}
                         activeId={activeId}
+                        pause={pauseInFeed && index === liveBlocks.length - 1}
                       />
                     ),
                   )}
                 </div>
               )}
+              {/* Строка-пауза вне ленты: до первого события её ещё не к чему
+                  прицепить, после прозы ответа — нити тоже нет. */}
+              {showPause && !pauseInFeed && <ActivityPauseRow />}
               {isReviewing && <ReviewIndicator />}
               {pendingImages.map((callId) => (
                 <GeneratingArtifactCard key={callId} />

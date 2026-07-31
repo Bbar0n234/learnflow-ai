@@ -1,8 +1,15 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { StrictMode, useEffect } from "react";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router";
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { setAccessToken } from "@/shared/api/client";
@@ -24,11 +31,37 @@ const CHAT_ID = "c1";
 const CHAT_URL = `/api/projects/${PROJECT_ID}/chats/${CHAT_ID}`;
 const MESSAGES_URL = `${CHAT_URL}/messages`;
 const PROJECT_URL = `/api/projects/${PROJECT_ID}`;
+/** Соседний чат того же проекта — цель переключения в кейсе скоупинга ниже. */
+const OTHER_CHAT_ID = "c2";
+const OTHER_CHAT_URL = `/api/projects/${PROJECT_ID}/chats/${OTHER_CHAT_ID}`;
+const OTHER_CHAT_MESSAGE = "Сообщение соседнего чата";
+/** Текст, с которым поток падает в кейсе скоупинга красной плашки. */
+const STREAM_ERROR = "Модель не ответила";
 /** What the server stores as the agent's reply — never streamed verbatim. */
 const STORED_ANSWER = "Ответ агента, сохранённый на сервере";
 
 function streamResponse(events: unknown[]): Response {
   return new HttpResponse(sseResponseStream(events.map((e) => sseFrame(e))), {
+    headers: { "Content-Type": "text/event-stream" },
+  }) as unknown as Response;
+}
+
+/**
+ * Поток, который отдал кадры и **не закрылся**, — ход идёт прямо сейчас. Нужен
+ * там, где проверяется состояние живого хода: терминальное событие и даже конец
+ * тела потока это состояние снимают. Разрывает его размонтирование экрана
+ * (`useAgentStream` зовёт `abort()` в cleanup).
+ */
+function heldStream(frames: string[]): Response {
+  const encoder = new TextEncoder();
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const frame of frames) {
+        controller.enqueue(encoder.encode(frame));
+      }
+    },
+  });
+  return new HttpResponse(body, {
     headers: { "Content-Type": "text/event-stream" },
   }) as unknown as Response;
 }
@@ -39,6 +72,30 @@ function emptyChat() {
     title: "Новый чат",
     security_blocked: false,
     messages: [],
+  });
+}
+
+/**
+ * Соседний чат с собственным сообщением: его появление на экране — признак
+ * того, что переключение состоялось и чат **загрузился**. Без этого признака
+ * кейсы скоупинга ниже были бы зелёными и с багом — пока идёт запрос истории,
+ * экран занят «Loading chat...» и не показывает ничего чужого просто потому,
+ * что не показывает ничего.
+ */
+function otherChat() {
+  return HttpResponse.json({
+    thread_id: OTHER_CHAT_ID,
+    title: "Соседний чат",
+    security_blocked: false,
+    messages: [
+      {
+        id: "m-other",
+        role: "user",
+        content: OTHER_CHAT_MESSAGE,
+        created_at: "2026-07-01T10:00:00Z",
+        artifacts: [],
+      },
+    ],
   });
 }
 
@@ -165,6 +222,37 @@ function renderChatThread(
   };
 }
 
+/**
+ * Переключение на соседний чат тем же маршрутом — то есть без перемонтирования
+ * `ChatThread`, ровно как в приложении (боковая панель ведёт на `chats/:cid`).
+ */
+function ChatSwitch() {
+  const navigate = useNavigate();
+  return (
+    <button
+      type="button"
+      onClick={() => navigate(`/projects/${PROJECT_ID}/chats/${OTHER_CHAT_ID}`)}
+    >
+      Открыть соседний чат
+    </button>
+  );
+}
+
+function renderChatWithSwitch(state: { initialMessage?: string } | null) {
+  return renderWithProviders(
+    <MemoryRouter
+      initialEntries={[
+        { pathname: `/projects/${PROJECT_ID}/chats/${CHAT_ID}`, state },
+      ]}
+    >
+      <Routes>
+        <Route path="/projects/:id/chats/:cid" element={<ChatThread />} />
+      </Routes>
+      <ChatSwitch />
+    </MemoryRouter>,
+  );
+}
+
 // jsdom has no layout — the message feed auto-scrolls a ref into view.
 beforeAll(() => {
   Element.prototype.scrollIntoView = vi.fn();
@@ -283,6 +371,89 @@ describe("ChatThread — first message handed over by the entry path", () => {
 
     expect(await screen.findByText("Старое сообщение")).toBeInTheDocument();
     expect(screen.getByText("Очередь входа: пусто")).toBeInTheDocument();
+  });
+
+  // Регрессия ревью: `ChatThread` при смене чата не перемонтируется — маршрут
+  // `chats/:cid` рендерит один и тот же компонент без `key`. Нескоупленное
+  // состояние экрана уезжало вместе с ним, и пользователь видел в соседнем чате
+  // сообщение об остановке чужого хода. `isStreaming` рядом скоуплен по чату
+  // намеренно — причина остановки обязана жить по тому же правилу.
+  it("не переносит уведомление об остановке хода в соседний чат", async () => {
+    setAccessToken(fakeJwt());
+    server.use(
+      projectHandler(),
+      http.get(CHAT_URL, () => emptyChat()),
+      http.get(OTHER_CHAT_URL, () => otherChat()),
+      // Ход первого чата обрывается отменой — экран показывает «Генерация
+      // остановлена» рядом со `streamError`.
+      http.post(MESSAGES_URL, () => streamResponse([{ type: "cancelled" }])),
+    );
+
+    renderChatWithSwitch({ initialMessage: "Объясни производные" });
+
+    expect(
+      await screen.findByText("Генерация остановлена"),
+    ).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Открыть соседний чат" }),
+    );
+
+    // Ждём именно загруженного соседнего чата: пока он грузится, экран занят
+    // «Loading chat...» и уведомления не показал бы даже с багом.
+    expect(await screen.findByText(OTHER_CHAT_MESSAGE)).toBeInTheDocument();
+    expect(screen.queryByText("Генерация остановлена")).not.toBeInTheDocument();
+  });
+
+  // Тот же дефект, что и у причины остановки, на двух соседних состояниях
+  // экрана: красная плашка ошибки и оптимистичная копия отправленного
+  // сообщения тоже переезжали в соседний чат и висели там до первой отправки.
+  it("не переносит красную плашку ошибки в соседний чат", async () => {
+    setAccessToken(fakeJwt());
+    server.use(
+      projectHandler(),
+      http.get(CHAT_URL, () => emptyChat()),
+      http.get(OTHER_CHAT_URL, () => otherChat()),
+      http.post(MESSAGES_URL, () =>
+        streamResponse([{ type: "error", detail: STREAM_ERROR }]),
+      ),
+    );
+
+    renderChatWithSwitch({ initialMessage: "Объясни производные" });
+
+    expect(await screen.findByText(STREAM_ERROR)).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Открыть соседний чат" }),
+    );
+
+    expect(await screen.findByText(OTHER_CHAT_MESSAGE)).toBeInTheDocument();
+    expect(screen.queryByText(STREAM_ERROR)).not.toBeInTheDocument();
+  });
+
+  it("не переносит оптимистичную копию отправленного сообщения в соседний чат", async () => {
+    setAccessToken(fakeJwt());
+    server.use(
+      projectHandler(),
+      http.get(CHAT_URL, () => emptyChat()),
+      http.get(OTHER_CHAT_URL, () => otherChat()),
+      // Ход не заканчивается вовсе: копия снимается терминальным событием,
+      // поэтому проверять её переезд можно только пока ход идёт.
+      http.post(MESSAGES_URL, () =>
+        heldStream([sseFrame({ type: "text_chunk", content: "Производная" })]),
+      ),
+    );
+
+    renderChatWithSwitch({ initialMessage: "Объясни производные" });
+
+    expect(await screen.findByText("Объясни производные")).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Открыть соседний чат" }),
+    );
+
+    expect(await screen.findByText(OTHER_CHAT_MESSAGE)).toBeInTheDocument();
+    expect(screen.queryByText("Объясни производные")).not.toBeInTheDocument();
   });
 
   it("does not wait for the chat history to load before sending", async () => {

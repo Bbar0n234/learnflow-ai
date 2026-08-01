@@ -84,11 +84,13 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 **chat** — ядро приложения.
 - ChatHeader — название чата (посимвольная печать через `TypedTitle` при замене плейсхолдера сгенерированным title), ссылка на проект, model selector (dropdown per-thread), tools dialog; в draft-режиме (`chats/new`) — заголовок всегда «Новый чат», model selector и tools dialog не рендерятся
 - Список сообщений (scroll, auto-scroll при стриминге)
-- Сообщение — user и assistant рендерятся по-разному (assistant → Markdown через Streamdown)
+- Сообщение — user и assistant рендерятся по-разному: ассистентское собирается из `parts` хода (текстовые блоки — Markdown через Streamdown, блоки действий — лента активности), при пустых `parts` остаётся плоский рендер по `content`
 - Input с отправкой (Enter / кнопка); в draft-режиме — тот же компонент, отправка создаёт чат и однократно переигрывает сообщение на новом маршруте
-- Индикаторы: стриминг текста, tool use (`tool_start`/`tool_end`)
+- Лента активности (`ActivityFeed` / `ActivityRow` / `ActivityDetails`) — след работы агента: строки рассуждений, вызовов инструментов и доменных записей с человекочитаемой подписью из реестра `shared/config/agent-tools.ts`, статусом, длительностью и разворотом в зоны «Вызов» / «Результат»; шаги субагента идут вложенной лентой внутри строки его вызова. Один и тот же компонент рисует живой ход и сохранённый — данные у них одной формы (см. [streaming.md](streaming.md#frontend-потребление-стрима))
+- Живые элементы ленты: бегущие точки и счётчик времени у идущего действия (`LiveDots`), строка-пауза в любом промежутке хода без движения (`ActivityPauseRow`), индикатор ревью ответа (`ReviewIndicator`)
+- Чем закончился ход, если он закончился не ответом (`StreamEndNotice`): нейтральная «Генерация остановлена» на отмене и generic-карточка на security-блокировке (деталей блокировки контракт не отдаёт). Единственная красная плашка в чате — ошибка соединения
 - Карточка артефакта (инлайн в чате, по событию `artifact_created`); `type === "image"` показывает превью-миниатюру с media-endpoint вместо иконки
-- Плейсхолдер генерации изображения — на `tool_start` с `tool === "generate_image"` встаёт pending-карточка по `call_id` (шиммер, indeterminate-прогресс), снимается на `tool_end`
+- Плейсхолдер генерации изображения — выводится из ленты, а не из отдельного состояния: незакрытый вызов `generate_image` даёт pending-карточку (шиммер, indeterminate-прогресс), результат того же вызова её снимает
 - Кнопка cancel
 - Tools dialog — просмотр и управление MCP серверами per-thread (inherited + собственные, toggle)
 
@@ -225,26 +227,27 @@ uiStore
 └── toggleSidebar()
 ```
 
-**Stream Store** — эфемерный, существует только во время SSE-стрима:
+**Stream Store** — эфемерный, существует только во время SSE-стрима. Ленту активности держит не он сам: её форма и правила сборки живут чистой моделью `shared/lib/agent-feed.ts` (`AgentFeedState` = `feed` + `redacted`), стор эту модель хранит и отдаёт подписчикам.
 
 ```
 streamStore
 ├── isStreaming: boolean
-├── streamingText: string
-├── activeTool: string | null
 ├── streamingChatId: string | null
+├── feed: AgentFeedItem[]          — лента хода: рассуждения, текст, вызовы, доменные события
+├── redacted: boolean              — ход схлопнут в заглушку security-блокировкой
 ├── streamingArtifacts: StreamingArtifact[]
-├── pendingImages: string[]        — call_id активных generate_image
+├── isReviewing: boolean
 ├── startStream(chatId)
-├── appendText(chunk)
-├── setTool(name | null)
+├── applyEvent(event)              — единственная точка мутации ленты: событие уходит редьюсеру модели
 ├── addArtifact(artifact)
-├── addPendingImage(callId)        — идемпотентно, по tool_start
-├── removePendingImage(callId)     — no-op на отсутствующем id, по tool_end
+├── redact(stubText)               — терминальная редакция: закрывает стрим, ленту не стирает
+├── setReviewing(value)
 └── endStream()
 ```
 
-После `endStream()` — сброс в initial state. Полное сообщение приходит с сервера через инвалидацию chat query.
+Скаляров «текущий текст» / «текущий инструмент» в сторе нет — параллельные вызовы адресуются по `call_id` внутри самой ленты и закрываются независимо; всё производное (pending-карточка генерации, активная строка, сигнал автопрокрутки) считается из ленты на рендере. Причины и границы этой раскладки — [conventions/frontend.md § Состояние стрима](conventions/frontend.md#состояние-стрима-модель-ленты-чистая-стор--её-держатель).
+
+После `endStream()` — сброс в initial state. Полное сообщение приходит с сервера через инвалидацию chat query: сохранённый ход отдаёт `parts`, из которых собирается та же лента.
 
 ## API-интеграция
 
@@ -297,13 +300,15 @@ shared/api/
 
 Кастомный хук `useAgentStream` поверх native `fetch`. Полная спецификация протокола, event types, lifecycle, cancellation — [streaming.md](streaming.md).
 
-Связь с frontend state: Zustand stream store обновляется на каждое событие, TanStack Query инвалидируется после `done` и `artifact_created` (таблица в секции State Management выше). `security_block` — terminal event ([architecture.md](../security/architecture.md)): см. Security UX ниже.
+Связь с frontend state: событие целиком уходит в модель ленты, Zustand stream store держит результат, TanStack Query инвалидируется после `done` и `artifact_created` (таблица в секции State Management выше). `security_block` — terminal event ([architecture.md](../security/architecture.md)): см. Security UX ниже.
+
+Хук отвечает и за живучесть транспорта: между чтениями тела потока он уступает событийному циклу, иначе накопленный сервером бэклог, приехавший разом, упирается в сторож вложенных обновлений React и рвёт ход целиком — механизм и замеры в [conventions/frontend.md § Состояние стрима](conventions/frontend.md#состояние-стрима-модель-ленты-чистая-стор--её-держатель).
 
 ## Security UX
 
 Frontend различает две точки взаимодействия с системой защиты — runtime (чат) и add-time (формы записи).
 
-**Runtime block (чат).** На SSE `security_block` хук агент-стрима делает оптимистичный patch `chat.security_blocked=true` и инвалидирует кеш чата. ChatInput блокируется кастомным placeholder'ом «Чат заблокирован системой безопасности»; заглушка `Message.redacted` остаётся в истории при reload — единый источник правды, без транзиентного error-баннера. Generic-текст в UI; `checkpoint` / `detection_layer` доступны только в developer console.
+**Runtime block (чат).** На SSE `security_block` хук агент-стрима делает оптимистичный patch `chat.security_blocked=true` и инвалидирует кеш чата. ChatInput блокируется кастомным placeholder'ом «Чат заблокирован системой безопасности»; ход закрывается generic-карточкой «остановлен системой безопасности» (не красной — красная плашка остаётся за ошибкой соединения), а заглушка `Message.redacted` приезжает из истории и переживает reload — единый источник правды, без транзиентного error-баннера. Причины блокировки в UI нет и быть не может: payload события пустой, `checkpoint` / `detection_layer` не покидают сервер.
 
 **Add-time block (формы записи).** Custom Instructions, Knowledge Sphere editor, MCP server form: при HTTP 422 с маркером security violation (helper `isSecurityViolation(error)`) форма показывает inline-сообщение под кнопкой Save. Текст в форме не сбрасывается — пользователь редактирует и пробует ещё раз. Конкретная причина детекции в UI не раскрывается.
 
@@ -381,7 +386,8 @@ graph TD
     subgraph SHRD["shared/"]
         APIX["api/ — client, query-keys,<br>домены: типы+fn+хуки"]
         UIX["ui/ — shadcn + MarkdownRenderer"]
-        LIBX["lib/ — logger, utils"]
+        LIBX["lib/ — agent-feed, logger, utils"]
+        CFGX["config/ — agent-tools,<br>feature-flags"]
     end
 
     MAINX --> APPX
@@ -393,6 +399,7 @@ graph TD
     FEATSL --> SHRD
     ACOMP --> SHRD
     CHATP --> STST
+    STST --> SHRD
     APIX -->|HTTP| BE
     APIX -->|HTTP| SIEMS
     CHATP -->|"SSE fetch"| BE
@@ -435,9 +442,10 @@ frontend/
 │   │   │   │                        (обычный режим) | ChatDraft (композер, без useChat/
 │   │   │   │                        useAgentStream/useStudio); ChatHeader (проп `draft`),
 │   │   │   │                        ChatInput (опциональный контролируемый режим value/
-│   │   │   │                        onValueChange), MessageList, MessageItem, ToolIndicator,
-│   │   │   │                        ReviewIndicator, ArtifactCard, GeneratingArtifactCard,
-│   │   │   │                        FeedbackButtons
+│   │   │   │                        onValueChange), MessageList, MessageItem,
+│   │   │   │                        ActivityFeed/ActivityRow/ActivityDetails (лента активности),
+│   │   │   │                        ActivityPauseRow, LiveDots, StreamEndNotice, ReviewIndicator,
+│   │   │   │                        ArtifactCard, GeneratingArtifactCard, FeedbackButtons
 │   │   │   └── model/             — useAgentStream (SSE-оркестрация)
 │   │   ├── sphere/                — /projects/:id/sphere (SphereView/Viewer/Editor)
 │   │   ├── artifacts/             — /projects/:id/artifacts (ArtifactList)
@@ -464,7 +472,10 @@ frontend/
 │   │   │   └── security.ts        — SIEM типы + siemClient + хуки (siem-service API)
 │   │   ├── ui/                    — shadcn/ui примитивы + MarkdownRenderer + TypedTitle
 │   │   │                            (посимвольная печать auto-title, домен-нейтральный)
-│   │   └── lib/                   — утилиты (logger, utils, security-error)
+│   │   ├── config/                — agent-tools (реестр подписей инструментов),
+│   │   │                            feature-flags (гейт незрелых фич)
+│   │   └── lib/                   — утилиты (logger, utils, security-error) + agent-feed
+│   │                                (модель ленты активности: редьюсер SSE, адаптер parts)
 │   │
 │   └── stores/                    — Zustand stores (ui-store, stream-store)
 ```

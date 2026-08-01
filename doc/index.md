@@ -72,6 +72,7 @@ doc/
   - [ADR-020: Security Event Contract](tech/adr/ADR-020-security-event-contract.md) — Pydantic SecurityEvent, vocabulary, identifiers, forward compatibility
   - [ADR-021: SIEM Correlation Engine](tech/adr/ADR-021-siem-correlation-engine.md) — polling-based engine, three strategies, open-alert deduplication, 24h age limit
   - [ADR-025: Conventions per Domain](tech/adr/ADR-025-conventions-per-domain.md) — дробление conventions.md: ядро + доменные файлы, progressive disclosure
+  - [ADR-029: Per-Call Tool Result Guard](tech/adr/ADR-029-per-call-tool-result-guard.md) — проверка и отчёт о результате инструмента повызовно, внутри узла `tools`: правдивость ленты против стоимости классификатора
 
 **Setup manuals:**
 - [tech/setup/codex-cloud.md](tech/setup/codex-cloud.md) — настройка ChatGPT Codex Environment для cloud-сессий

@@ -79,7 +79,8 @@ class StreamingToolCallFakeChatModel(ToolBindingFakeChatModel):
     *no* chunks → ``ValueError``). This override emits a terminal
     ``tool_call_chunks`` chunk so the reconstructed message keeps its tool calls
     and the ReAct loop routes to the tools node — letting runner tests exercise
-    ``tool_start``/``tool_end`` through the real ``astream``.
+    ``tool_call_started``/``tool_call_args``/``tool_result`` through the real
+    ``astream``.
     """
 
     async def _astream(
@@ -129,6 +130,70 @@ def streaming_tool_fake(
         m if isinstance(m, AIMessage) else AIMessage(content=m) for m in responses
     ]
     return StreamingToolCallFakeChatModel(messages=iter(messages))
+
+
+class StreamingReasoningFakeChatModel(ToolBindingFakeChatModel):
+    """Tool-binding fake that streams a ``reasoning`` delta per chunk.
+
+    Mirrors ``ReasoningChatOpenAI._convert_chunk_to_generation_chunk``
+    (``app/infra/llm.py``): on the wire, each streamed chunk that carries a
+    reasoning fragment stamps it onto that chunk's own
+    ``additional_kwargs["reasoning"]`` — a fresh per-chunk delta, not the
+    whole-so-far text. Stock ``GenericFakeChatModel`` only streams
+    ``content``, so a programmed ``AIMessage(additional_kwargs={"reasoning":
+    ...})`` would lose that key during reconstruction. This override splits
+    the programmed reasoning text into several chunks (each carrying only its
+    own fragment, arriving before the content chunks — reasoning models finish
+    their reasoning delta before the answer) so a test exercises the real
+    ``AIMessageChunk`` merge (string concatenation, see
+    ``langchain_core.utils._merge.merge_dicts``) and ``message_chunk_to_message``
+    conversion, instead of asserting against an already-merged chunk.
+    """
+
+    async def _astream(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: AsyncCallbackManagerForLLMRun | None = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[ChatGenerationChunk]:
+        message = next(self.messages)
+        if not isinstance(message, AIMessage):
+            message = AIMessage(content=str(message))
+        reasoning = message.additional_kwargs.get("reasoning", "")
+        content = message.content if isinstance(message.content, str) else ""
+
+        for frag in (f for f in re.split(r"(\s)", reasoning) if f):
+            chunk = ChatGenerationChunk(
+                message=AIMessageChunk(
+                    content="",
+                    id=message.id,
+                    additional_kwargs={"reasoning": frag},
+                )
+            )
+            if run_manager:
+                await run_manager.on_llm_new_token("", chunk=chunk)
+            yield chunk
+        for token in (t for t in re.split(r"(\s)", content) if t):
+            chunk = ChatGenerationChunk(
+                message=AIMessageChunk(content=token, id=message.id)
+            )
+            if run_manager:
+                await run_manager.on_llm_new_token(token, chunk=chunk)
+            yield chunk
+        if not reasoning and not content:
+            # Terminal empty chunk so ``generate_from_stream`` has a generation.
+            yield ChatGenerationChunk(message=AIMessageChunk(content="", id=message.id))
+
+
+def reasoning_streaming_fake(
+    responses: Iterable[AIMessage | str],
+) -> StreamingReasoningFakeChatModel:
+    """Replay fake that streams reasoning deltas (for the T1.1 checkpoint probe)."""
+    messages: list[AIMessage] = [
+        m if isinstance(m, AIMessage) else AIMessage(content=m) for m in responses
+    ]
+    return StreamingReasoningFakeChatModel(messages=iter(messages))
 
 
 class RecordingPromptProvider(PromptProvider):

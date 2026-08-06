@@ -18,26 +18,26 @@ import { clearAccessToken, getAccessToken } from "@/shared/api/client";
 import { Button } from "@/shared/ui/button";
 import { Wordmark } from "@/shared/ui/Wordmark";
 import { Illustration } from "@/shared/ui/Illustration";
+import { TypedTitle } from "@/shared/ui/TypedTitle";
 import { useUIStore } from "@/stores/ui-store";
 import { useThemeStore } from "@/stores/theme-store";
-import { useRecentChats } from "@/shared/api/chats";
-import { useCreateChat } from "@/shared/api/chats";
+import { DEFAULT_CHAT_TITLE, useRecentChats } from "@/shared/api/chats";
 import { SIEM_ENABLED } from "@/shared/config/feature-flags";
+import { ChatActions } from "@/features/chat-actions";
 import { ProjectList } from "./ProjectList";
 import { CreateProjectModal } from "./CreateProjectModal";
+import { NewChatModal } from "./NewChatModal";
 
 export function Sidebar() {
   const [createOpen, setCreateOpen] = useState(false);
+  const [newChatOpen, setNewChatOpen] = useState(false);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const theme = useThemeStore((s) => s.theme);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
   const navigate = useNavigate();
-  const projectMatch = useMatch("/projects/:id/*");
-  const projectId = projectMatch?.params.id;
   const isSettings = !!useMatch("/settings");
 
   const { data: recentChats } = useRecentChats();
-  const createChat = useCreateChat();
   const { data: user } = useQuery({
     queryKey: queryKeys.auth.me,
     queryFn: getMe,
@@ -70,18 +70,7 @@ export function Sidebar() {
           variant="default"
           size="sm"
           className="w-full justify-start"
-          disabled={!projectId || createChat.isPending}
-          onClick={() => {
-            if (!projectId) return;
-            createChat.mutate(
-              { projectId, data: {} },
-              {
-                onSuccess: (created) => {
-                  navigate(`/projects/${projectId}/chats/${created.thread_id}`);
-                },
-              },
-            );
-          }}
+          onClick={() => setNewChatOpen(true)}
         >
           <Plus className="mr-2 h-4 w-4" />+ Новый чат
         </Button>
@@ -122,19 +111,35 @@ export function Sidebar() {
             </p>
             <div className="flex flex-col gap-0.5">
               {recentChats.items.map((chat) => (
-                <Link
+                <div
                   key={chat.thread_id}
-                  to={`/projects/${chat.project_id}/chats/${chat.thread_id}`}
-                  className="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent"
+                  className="group/card relative flex items-center"
                 >
-                  <MessageSquare className="h-4 w-4 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate">{chat.title}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {chat.project_name}
-                    </p>
+                  <Link
+                    to={`/projects/${chat.project_id}/chats/${chat.thread_id}`}
+                    className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-3 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent"
+                  >
+                    <MessageSquare className="h-4 w-4 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <TypedTitle
+                        as="p"
+                        text={chat.title}
+                        animateFrom={DEFAULT_CHAT_TITLE}
+                        className="truncate"
+                      />
+                      <p className="truncate text-xs text-muted-foreground">
+                        {chat.project_name}
+                      </p>
+                    </div>
+                  </Link>
+                  <div className="absolute right-1">
+                    <ChatActions
+                      projectId={chat.project_id}
+                      chatId={chat.thread_id}
+                      title={chat.title}
+                    />
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           </div>
@@ -195,6 +200,7 @@ export function Sidebar() {
       )}
 
       <CreateProjectModal open={createOpen} onOpenChange={setCreateOpen} />
+      <NewChatModal open={newChatOpen} onOpenChange={setNewChatOpen} />
     </div>
   );
 }

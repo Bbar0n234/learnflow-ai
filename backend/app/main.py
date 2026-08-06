@@ -50,7 +50,6 @@ from app.agent.security.types import Checkpoint, Verdict
 from app.agent.stream_events import StreamEventMapper
 from app.agent.subagents import SubagentRunner
 from app.agent.tools import (
-    ks_tools,
     make_create_artifact_tool,
     make_generate_image_tool,
     make_load_skill_tool,
@@ -58,8 +57,8 @@ from app.agent.tools import (
     make_skill_context_tools,
     scan_skill_names,
     scan_skills_index,
-    user_memory_tools,
 )
+from app.agent.tools.registry import assemble_internal_tools
 from app.agent.tracing import AgentRunTracer
 from app.api.problem import TYPE_PREFIX, problem_response, register_problem_handlers
 from app.api.routes import (
@@ -97,6 +96,7 @@ from app.security_pipeline.transport import (
     EventTransportHolder,
     RedisEventTransport,
 )
+from app.services.chat_title import ChatTitleGenerator
 from app.services.encryption import EncryptionService
 from app.services.mcp_server import (
     fetch_remote_metadata,
@@ -360,6 +360,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             settings.langfuse_prompt_label,
         )
 
+    # Chat auto-title generator (fire-and-forget, design-brief § Auto-title
+    # модуль). Built here — after session_factory + PromptProvider, before
+    # the LangGraph persistence block below — and stored on app.state so its
+    # in-flight task registry survives across requests.
+    app.state.chat_title_generator = ChatTitleGenerator(
+        session_factory=app.state.session_factory,
+        settings=settings,
+        title_config=agent_config.title,
+        prompt_provider=prompt_provider,
+        prompt_fragments=prompt_fragments,
+        langfuse_enabled=langfuse_enabled,
+    )
+
     # Encryption service
     encryption_service = EncryptionService(settings.mcp_encryption_key)
     app.state.encryption_service = encryption_service
@@ -391,11 +404,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             langfuse_enabled=langfuse_enabled,
         )
 
-        internal_tools: list[BaseTool] = (
-            ks_tools
-            + user_memory_tools
-            + skill_context_tools
-            + [load_skill, create_artifact, generate_image]
+        internal_tools: list[BaseTool] = assemble_internal_tools(
+            skill_context_tools=skill_context_tools,
+            load_skill=load_skill,
+            create_artifact=create_artifact,
+            generate_image=generate_image,
         )
 
         # Security guard — gated by LLM_DEFENSE_ENABLED (kill-switch, T3).
@@ -558,7 +571,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 subagent_runner,
                 agent_config.subagents.registry,
             )
-            internal_tools = [*internal_tools, run_subagent]
+            internal_tools = assemble_internal_tools(
+                skill_context_tools=skill_context_tools,
+                load_skill=load_skill,
+                create_artifact=create_artifact,
+                generate_image=generate_image,
+                run_subagent=run_subagent,
+            )
             # Rebuild the guard so PairedToolIdentifierDetector/
             # FragmentDetector cover `run_subagent`'s identifier/description
             # too — see the comment on the first `_build_security_guard`
@@ -623,11 +642,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             enforcer=runtime_security,
             history=checkpoint_history,
             error_messages=error_messages,
-            event_mapper=StreamEventMapper(),
+            event_mapper_factory=StreamEventMapper,
             tool_resolver=tool_resolver,
             canary_secret=settings.canary_secret
             if settings.llm_defense_enabled
             else "",
+            checkpointer=checkpointer,
         )
         app.state.agent_config = agent_config
         app.state.security_config = security_config
@@ -648,6 +668,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         with suppress(asyncio.CancelledError):
             await app.state.security_publisher_task
         logger.info("security event publisher stopped")
+
+    # In-flight auto-title tasks hold sessions from the same engine and can be
+    # parked in the title LLM call for LLM_TITLE_TIMEOUT_SECONDS, so they are
+    # unwound here — before engine.dispose() below, same pattern as the
+    # publisher task above (conventions/api.md § Владение состоянием).
+    await app.state.chat_title_generator.shutdown()
 
     shutdown_langfuse()
     if app.state.redis:

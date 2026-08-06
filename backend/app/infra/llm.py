@@ -11,7 +11,7 @@ from langchain_openai import ChatOpenAI
 if TYPE_CHECKING:
     # Annotation-only: runtime import of app.agent.* here closes the
     # app.infra.llm ↔ app.agent import cycle (classifier imports extract_usage).
-    from app.agent.config import ResolvedModelConfig, SummarizationConfig
+    from app.agent.config import ResolvedModelConfig, SummarizationConfig, TitleConfig
     from app.agent.security.types import SecurityConfig
     from app.config import Settings
 
@@ -117,6 +117,17 @@ def create_summarization_llm(
         config.extra_body or None,
         max_tokens=config.max_summary_tokens,
         timeout=settings.llm_summarizer_timeout_seconds,
+        max_retries=settings.llm_max_retries,
+    )
+
+
+def create_title_llm(settings: Settings, config: TitleConfig) -> BaseChatModel:
+    """Create LLM for the fire-and-forget chat auto-title generation."""
+    return _build_chat_model(
+        settings,
+        config.model,
+        config.extra_body or None,
+        timeout=settings.llm_title_timeout_seconds,
         max_retries=settings.llm_max_retries,
     )
 

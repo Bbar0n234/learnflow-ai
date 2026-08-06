@@ -1,21 +1,21 @@
 import { describe, expect, it } from "vitest";
 
+import { findFeedCall } from "@/shared/lib/agent-feed";
 import { useStreamStore } from "./stream-store";
 
-// Unit: the streaming store is the SSE accumulator — text chunks, active tool,
-// artifacts, redaction and review flags. Pure state transitions, exercised
-// through the public actions. Zustand store auto-resets between tests
-// (src/test/setup.ts + __mocks__/zustand.ts).
+// Unit: стор активного стрима — аккумулятор ленты активности и флагов
+// редакции/ревью. Чистые переходы состояния через публичные экшены.
+// Семантику самой ленты сторожит shared/lib/agent-feed.test.ts; здесь — что
+// стор её держит и что сброс между стримами полный. Zustand-стор
+// автосбрасывается между тестами (src/test/setup.ts + __mocks__/zustand.ts).
 
 describe("stream-store", () => {
   it("starts in an idle, empty state", () => {
     const s = useStreamStore.getState();
 
     expect(s.isStreaming).toBe(false);
-    expect(s.streamingText).toBe("");
-    expect(s.activeTool).toBeNull();
+    expect(s.feed).toEqual([]);
     expect(s.streamingChatId).toBeNull();
-    expect(s.streamingArtifacts).toEqual([]);
     expect(s.redacted).toBe(false);
     expect(s.isReviewing).toBe(false);
   });
@@ -31,74 +31,114 @@ describe("stream-store", () => {
   it("clears leftover state from a prior stream on startStream", () => {
     const store = useStreamStore.getState();
     store.startStream("chat-1");
-    store.appendText("stale");
+    store.applyEvent({ type: "text_chunk", content: "stale" });
+    store.applyEvent({
+      type: "tool_call_started",
+      call_id: "call-1",
+      tool: "get_section",
+    });
     store.setReviewing(true);
+    store.redact("[hidden]");
 
     useStreamStore.getState().startStream("chat-2");
 
     const s = useStreamStore.getState();
-    expect(s.streamingText).toBe("");
+    expect(s.feed).toEqual([]);
     expect(s.streamingChatId).toBe("chat-2");
+    expect(s.redacted).toBe(false);
     expect(s.isReviewing).toBe(false);
   });
 
-  it("concatenates text chunks in arrival order via appendText", () => {
+  it("accumulates text chunks into a single feed item in arrival order", () => {
     const store = useStreamStore.getState();
     store.startStream("chat-1");
 
-    store.appendText("Hello");
-    store.appendText(", ");
-    store.appendText("world");
+    store.applyEvent({ type: "text_chunk", content: "Hello" });
+    store.applyEvent({ type: "text_chunk", content: ", " });
+    store.applyEvent({ type: "text_chunk", content: "world" });
 
-    expect(useStreamStore.getState().streamingText).toBe("Hello, world");
-  });
-
-  it("ignores appendText once the message has been redacted", () => {
-    const store = useStreamStore.getState();
-    store.startStream("chat-1");
-    store.appendText("secret");
-    store.replaceWithRedacted("[hidden]");
-
-    store.appendText(" more text");
-
-    expect(useStreamStore.getState().streamingText).toBe("[hidden]");
-  });
-
-  it("tracks the active tool and clears it on null", () => {
-    const store = useStreamStore.getState();
-
-    store.setTool("web_search");
-    expect(useStreamStore.getState().activeTool).toBe("web_search");
-
-    store.setTool(null);
-    expect(useStreamStore.getState().activeTool).toBeNull();
-  });
-
-  it("appends streaming artifacts preserving order", () => {
-    const store = useStreamStore.getState();
-
-    store.addArtifact({ id: "a1", title: "First", type: "doc" });
-    store.addArtifact({ id: "a2", title: "Second", type: "code" });
-
-    expect(useStreamStore.getState().streamingArtifacts).toEqual([
-      { id: "a1", title: "First", type: "doc" },
-      { id: "a2", title: "Second", type: "code" },
+    expect(useStreamStore.getState().feed).toEqual([
+      { id: "text-0", type: "text", content: "Hello, world" },
     ]);
   });
 
-  it("replaceWithRedacted swaps text and clears tool and review flags", () => {
+  it("tracks parallel tool calls by call_id and closes them independently", () => {
     const store = useStreamStore.getState();
     store.startStream("chat-1");
-    store.setTool("web_search");
+
+    store.applyEvent({
+      type: "tool_call_started",
+      call_id: "call-1",
+      tool: "firecrawl_search",
+    });
+    store.applyEvent({
+      type: "tool_call_started",
+      call_id: "call-2",
+      tool: "get_section",
+    });
+    store.applyEvent({
+      type: "tool_result",
+      call_id: "call-1",
+      tool: "firecrawl_search",
+      status: "success",
+      content: "found",
+      truncated: false,
+    });
+
+    const { feed } = useStreamStore.getState();
+    expect(findFeedCall(feed, "call-1")?.status).toBe("success");
+    expect(findFeedCall(feed, "call-2")?.status).toBe("running");
+  });
+
+  it("ignores feed events once the turn has been redacted", () => {
+    const store = useStreamStore.getState();
+    store.startStream("chat-1");
+    store.applyEvent({ type: "text_chunk", content: "secret" });
+    store.redact("[hidden]");
+
+    store.applyEvent({ type: "text_chunk", content: " more text" });
+
+    expect(useStreamStore.getState().feed).toEqual([
+      { id: "text-0", type: "text", content: "[hidden]" },
+    ]);
+  });
+
+  it("redact replaces the whole feed with a single stub and clears review", () => {
+    const store = useStreamStore.getState();
+    store.startStream("chat-1");
+    store.applyEvent({ type: "reasoning_chunk", content: "secret thoughts" });
+    store.applyEvent({
+      type: "tool_call_started",
+      call_id: "call-1",
+      tool: "firecrawl_search",
+    });
     store.setReviewing(true);
 
-    store.replaceWithRedacted("[hidden]");
+    store.redact("[hidden]");
 
     const s = useStreamStore.getState();
-    expect(s.streamingText).toBe("[hidden]");
+    expect(s.feed).toEqual([
+      { id: "text-0", type: "text", content: "[hidden]" },
+    ]);
     expect(s.redacted).toBe(true);
-    expect(s.activeTool).toBeNull();
     expect(s.isReviewing).toBe(false);
+  });
+
+  it("redact closes the stream without wiping the redacted feed", () => {
+    const store = useStreamStore.getState();
+    store.startStream("chat-1");
+    store.applyEvent({ type: "text_chunk", content: "secret" });
+
+    store.redact("[hidden]");
+
+    // Блокировка терминальна: ход закончился, поэтому живой регион гаснет — а
+    // заглушку показывает история. Иначе она видна дважды.
+    const s = useStreamStore.getState();
+    expect(s.isStreaming).toBe(false);
+    expect(s.streamingChatId).toBeNull();
+    expect(s.feed).toEqual([
+      { id: "text-0", type: "text", content: "[hidden]" },
+    ]);
   });
 
   it("toggles the reviewing flag", () => {
@@ -114,79 +154,21 @@ describe("stream-store", () => {
   it("resets to the idle state on endStream", () => {
     const store = useStreamStore.getState();
     store.startStream("chat-1");
-    store.appendText("partial");
-    store.setTool("web_search");
-    store.addArtifact({ id: "a1", title: "First", type: "doc" });
+    store.applyEvent({ type: "text_chunk", content: "partial" });
+    store.applyEvent({
+      type: "tool_call_started",
+      call_id: "call-1",
+      tool: "get_section",
+    });
+    store.setReviewing(true);
 
     store.endStream();
 
     const s = useStreamStore.getState();
     expect(s.isStreaming).toBe(false);
-    expect(s.streamingText).toBe("");
-    expect(s.activeTool).toBeNull();
+    expect(s.feed).toEqual([]);
     expect(s.streamingChatId).toBeNull();
-    expect(s.streamingArtifacts).toEqual([]);
     expect(s.redacted).toBe(false);
-  });
-
-  // feat-010: pending image generations tracked by call_id.
-  it("tracks a pending image generation by call_id", () => {
-    const store = useStreamStore.getState();
-
-    store.addPendingImage("call-1");
-    store.addPendingImage("call-2");
-
-    expect(useStreamStore.getState().pendingImages).toEqual([
-      "call-1",
-      "call-2",
-    ]);
-  });
-
-  it("does not duplicate a call_id added twice", () => {
-    const store = useStreamStore.getState();
-
-    store.addPendingImage("call-1");
-    store.addPendingImage("call-1");
-
-    expect(useStreamStore.getState().pendingImages).toEqual(["call-1"]);
-  });
-
-  it("removes a pending image by call_id", () => {
-    const store = useStreamStore.getState();
-    store.addPendingImage("call-1");
-    store.addPendingImage("call-2");
-
-    store.removePendingImage("call-1");
-
-    expect(useStreamStore.getState().pendingImages).toEqual(["call-2"]);
-  });
-
-  it("removePendingImage is a no-op for an unknown call_id", () => {
-    const store = useStreamStore.getState();
-    store.addPendingImage("call-1");
-
-    store.removePendingImage("nope");
-
-    expect(useStreamStore.getState().pendingImages).toEqual(["call-1"]);
-  });
-
-  it("clears pending images on startStream", () => {
-    const store = useStreamStore.getState();
-    store.startStream("chat-1");
-    store.addPendingImage("call-1");
-
-    store.startStream("chat-2");
-
-    expect(useStreamStore.getState().pendingImages).toEqual([]);
-  });
-
-  it("clears pending images on endStream", () => {
-    const store = useStreamStore.getState();
-    store.startStream("chat-1");
-    store.addPendingImage("call-1");
-
-    store.endStream();
-
-    expect(useStreamStore.getState().pendingImages).toEqual([]);
+    expect(s.isReviewing).toBe(false);
   });
 });

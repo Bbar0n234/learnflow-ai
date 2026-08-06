@@ -33,3 +33,9 @@ __all__ = [
     "scan_skill_names",
     "scan_skills_index",
 ]
+
+# `registry` is imported lazily by consumers (`app.main`,
+# `scripts/generate_tool_names_fixture.py`, the T1.8 drift-gate test) via
+# `app.agent.tools.registry` directly rather than re-exported here: it
+# imports `ks_tools`/`user_memory_tools` back from this module, and adding it
+# to `__all__` would buy no ergonomics beyond one extra import line.

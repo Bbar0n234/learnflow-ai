@@ -8,6 +8,13 @@ interface ChatInputProps {
   isStreaming?: boolean;
   onCancel?: () => void;
   placeholder?: string;
+  // Controlled value pair — optional. Uncontrolled callers (default: existing
+  // chat) keep the previous behaviour (internal state, cleared on send).
+  // The draft composer (T2.6) passes these to keep the typed text on a
+  // failed `POST /chats`: clearing happens only via internal state, so a
+  // controlled parent decides when (or whether) to reset it.
+  value?: string;
+  onValueChange?: (value: string) => void;
 }
 
 export function ChatInput({
@@ -16,15 +23,30 @@ export function ChatInput({
   isStreaming,
   onCancel,
   placeholder,
+  value: controlledValue,
+  onValueChange,
 }: ChatInputProps) {
-  const [value, setValue] = useState("");
+  const [internalValue, setInternalValue] = useState("");
+  const isControlled = controlledValue !== undefined;
+  const value = isControlled ? controlledValue : internalValue;
 
   const trimmed = value.trim();
+
+  function setValue(next: string) {
+    if (isControlled) {
+      onValueChange?.(next);
+    } else {
+      setInternalValue(next);
+    }
+  }
 
   function handleSend() {
     if (!trimmed) return;
     onSend(trimmed);
-    setValue("");
+    // Uncontrolled: always clear after dispatch (existing chat behaviour).
+    // Controlled: leave clearing to the parent — the draft composer never
+    // clears on error, so the message isn't lost.
+    if (!isControlled) setInternalValue("");
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {

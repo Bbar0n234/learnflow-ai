@@ -310,60 +310,63 @@
   font-style: italic;
 }
 
-/* ─── Generating image-artifact placeholder (T2.4): indeterminate progress bar ──
-   Плейсхолдер на время генерации изображения (`GeneratingArtifactCard`, tool_start →
-   tool_end/artifact_created). Псевдозагрузка — реального прогресса генерация не отдаёт.
-   Shimmer миниатюры покрыт встроенным `animate-pulse` (tw-animate-css); для бегущей
-   полосы аналога в tw-animate-css нет, поэтому кастомный keyframe.
+/* ───────────────────────────────────────────────────────────────────────────
+   Лента активности: бегущие точки живого элемента (`LiveDots`) — у активной
+   строки после подписи, у строки-паузы на месте будущей подписи. Ступенчатая
+   задержка даёт волну; в tw-animate-css нет staggered-подскока, поэтому
+   кастомный keyframe.
    ─────────────────────────────────────────────────────────────────────────── */
-@keyframes gen-progress-indeterminate {
-  from {
-    transform: translateX(-110%);
+@keyframes feed-dot-bounce {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
   }
-  to {
-    transform: translateX(280%);
+  30% {
+    opacity: 0.9;
+    transform: translateY(-3px);
   }
 }
-.gen-progress-run {
-  animation: gen-progress-indeterminate 1.3s ease-in-out infinite;
+.feed-dot {
+  animation: feed-dot-bounce 1.2s ease-in-out infinite;
+}
+.feed-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.feed-dot:nth-child(3) {
+  animation-delay: 0.3s;
 }
 @media (prefers-reduced-motion: reduce) {
-  .gen-progress-run {
+  .feed-dot {
     animation: none;
-    opacity: 0.35;
-    width: 100%;
+    opacity: 0.6;
   }
 }
 
 /* ───────────────────────────────────────────────────────────────────────────
-   ThinkingIndicator: три точки «агент думает» до первого рендеримого контента
-   стрима. Ступенчатая задержка даёт волну; в tw-animate-css нет staggered-пульса,
-   поэтому кастомный keyframe.
+   TypedTitle: каретка посимвольной печати auto-title (замена плейсхолдера
+   «Новый чат» на название, сгенерированное моделью, событие `title_updated`).
+   Цветовой переход держит `transition-colors` (Tailwind); только мигание
+   каретки требует кастомного keyframe — аналога нет в tw-animate-css.
    ─────────────────────────────────────────────────────────────────────────── */
-@keyframes thinking-dot-pulse {
-  0%,
-  60%,
-  100% {
-    opacity: 0.25;
-    transform: translateY(0);
-  }
-  30% {
-    opacity: 1;
-    transform: translateY(-2px);
+@keyframes typed-title-caret-blink {
+  50% {
+    opacity: 0;
   }
 }
-.thinking-dot {
-  animation: thinking-dot-pulse 1.2s ease-in-out infinite;
-}
-.thinking-dot:nth-child(2) {
-  animation-delay: 0.15s;
-}
-.thinking-dot:nth-child(3) {
-  animation-delay: 0.3s;
+.typed-title-caret::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 0.9em;
+  margin-left: 1px;
+  vertical-align: -0.08em;
+  background: var(--primary);
+  animation: typed-title-caret-blink 0.7s step-end infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .thinking-dot {
+  .typed-title-caret::after {
     animation: none;
-    opacity: 0.6;
   }
 }

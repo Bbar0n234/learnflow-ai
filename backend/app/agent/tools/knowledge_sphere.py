@@ -3,6 +3,7 @@ from __future__ import annotations
 from langchain_core.tools import tool
 from langgraph.prebuilt import ToolRuntime
 
+from app.agent.agent_events import emit_agent_event
 from app.agent.tools.ks_helpers import (
     build_namespace,
     fuzzy_find_and_replace,
@@ -55,6 +56,7 @@ async def create_section(
     if existing is not None:
         return f"Error: section '{section_id}' already exists. Use update_section."
     await store.aput(ns, key, {"description": description, "content": content})
+    emit_agent_event("sphere_write", {"section_id": section_id})
     return f"Created section '{section_id}'."
 
 
@@ -100,6 +102,7 @@ async def update_section(
         value["description"] = description
 
     await store.aput(ns, key, value)
+    emit_agent_event("sphere_write", {"section_id": section_id})
     return f"Updated section '{section_id}'."
 
 
@@ -113,4 +116,5 @@ async def delete_section(section_id: str, runtime: ToolRuntime) -> str:
     if item is None:
         return f"Error: section '{section_id}' not found."
     await store.adelete(ns, key)
+    emit_agent_event("sphere_write", {"section_id": section_id})
     return f"Deleted section '{section_id}'."

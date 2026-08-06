@@ -29,6 +29,7 @@ from app.agent.config import (
     ResolvedModelConfig,
     SubagentsConfig,
     SubagentSpec,
+    TitleConfig,
 )
 from app.agent.subagents.runner import (
     SUBAGENT_TAG,
@@ -254,6 +255,7 @@ async def test_run_uses_per_spec_model_override_when_present(
         llm=LLMConfig(model="main-model"),
         context=_min_context(),
         image=_min_image(),
+        title=_min_title(),
         subagents=SubagentsConfig(
             llm=LLMConfig(model="default-subagent-model"),
             registry=[
@@ -409,6 +411,7 @@ async def test_run_subagent_is_excluded_from_the_tool_pool(
         llm=LLMConfig(model="m"),
         context=_min_context(),
         image=_min_image(),
+        title=_min_title(),
         subagents=SubagentsConfig(
             llm=LLMConfig(model="sub"),
             registry=[
@@ -448,3 +451,7 @@ def _min_context() -> ContextConfig:
 
 def _min_image() -> ImageConfig:
     return ImageConfig(model="img")
+
+
+def _min_title() -> TitleConfig:
+    return TitleConfig(model="deepseek/deepseek-v4-flash")

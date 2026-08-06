@@ -31,7 +31,7 @@ graph TD
 | Метод | Назначение |
 |-------|------------|
 | `stream(thread_id, content, project_id, user_id, session?, model_config?)` | Генерация ответа, поток `StreamEvent` |
-| `get_history(thread_id)` | История сообщений (HumanMessage + AIMessage без tool_calls) |
+| `get_history(thread_id)` | История чата: один `Message` на ход (user или assistant), ассистентский `Message` несёт `parts` — typed-разбор хода (`reasoning`/`text`/`tool_call`), собранный из чекпоинта, → [streaming.md § История: typed parts](streaming.md#история-typed-parts) |
 | `get_last_ai_message_id(thread_id)` | ID последнего ответа агента (для привязки артефактов) |
 | `cancel(thread_id)` | Отмена генерации через `asyncio.Event` |
 
@@ -60,13 +60,13 @@ ChatService
 graph LR
     START(("START")) --> AGENT["agent node"]
     AGENT --> COND{tool_calls?}
-    COND -->|Да| TOOLS["tools (ToolNode)"]
+    COND -->|Да| TOOLS["tools (ToolNode<br>под guard-обёрткой)"]
     TOOLS --> AGENT
     COND -->|Нет| END_(("END"))
 ```
 
 - **agent node** — основной узел: compaction → system message assembly → trimming → LLM call
-- **tools** — встроенный `ToolNode`, выполнение tool calls
+- **tools** — встроенный `ToolNode` под обёрткой `execute_tools_guarded`: исполняет вызовы хода по одному (параллельно), на каждом результате отрабатывает чекпоинт `TOOL_RESULT` и сам отчитывается о завершённом вызове в custom-канал — выход узла читают и провод, и чекпоинтер, поэтому непроверенный результат не покидает узел (→ [ADR-030](adr/ADR-030-per-call-tool-result-guard.md))
 - **tools_condition** — встроенный router: AIMessage с tool_calls → tools node, иначе → END
 
 **Context schema:** `AgentContext(project_id, user_id, canary_token, user_installed_tool_names)` — передаётся через параметр `context=` в `astream()`, доступен в nodes и tools через `runtime.context`. `canary_token` вычисляется для каждого запроса; `user_installed_tool_names` нужен prompt-builder'у для дифференциации built-in / user-installed MCP-инструментов (→ [architecture.md](../security/architecture.md)).
@@ -77,10 +77,13 @@ graph LR
 
 **Invocation:**
 ```
-graph.astream(input_msg, config, stream_mode=["messages", "updates"], context=context)
+graph.astream(input_msg, config, stream_mode=["messages", "updates", "custom"], context=context)
 ```
-- `stream_mode=["messages"]` — потоковые токены от LLM → `text_chunk` SSE events
-- `stream_mode=["updates"]` — результаты узлов → `tool_start`, `tool_end`, `artifact_created` events
+- `stream_mode=["messages"]` — сырые чанки LLM → `text_chunk` / `reasoning_chunk` / ранние `tool_call_started` / `tool_call_args` (`TokenChunkMapper`)
+- `stream_mode=["updates"]` — результаты узлов → `tool_call_cancelled` (`StreamEventMapper`); `tool_result` / `artifact_created` идут повызовно в custom-канал прямо из узла `tools`
+- `stream_mode=["custom"]` — writer рана из tools/узлов графа → `agent_event` (доменные записи, факт компакции), повызовные `tool_result` / `artifact_created` узла `tools` и, для инструментов субагента, те же lifecycle-события с `parent_call_id`
+
+Полный контракт событий и их payload'ы — [streaming.md](streaming.md).
 
 ## System Message
 
@@ -330,13 +333,13 @@ flowchart LR
 - **`SubagentRunner`** — резолвит спеку по `agent_type`, строит модель (`spec.model` или `subagents.llm`), берёт промпт через `PromptProvider`, собирает вход, компилирует граф per-invoke и вызывает `ainvoke`. Неизвестный `agent_type` → ошибка со списком доступных типов. Инвариант: `run_subagent` исключается из собственного toolset субагента безусловно, независимо от содержимого спеки — рекурсия исключена на уровне Runner'а.
 - **tool `run_subagent`** — единственная точка, которую видит основной граф; description собирается на старте из реестра (паттерн Skills Index — `тип: описание` на строку). Опциональный `input_artifact_ids` резолвится кодом, не моделью: артефакты подтягиваются через `ArtifactRepository` (скоуп по `project_id` из контекста вызова), каждый — в `HumanMessage` в XML-обёртке `document` (`configs/prompt_fragments.yaml`) с атрибуцией `id`/`title`. Разрешение — всё или ничего: любой чужой/несуществующий id обрывает вызов целиком (error-строка с перечнем именно проблемных id), частичный вход не собирается никогда.
 
-**Граф субагента** (`build_subagent_graph`) — всегда один и тот же ReAct-граф `START → llm → (tools_condition) → tools → llm/END`; любой субагент — ReAct-агент, single-turn как отдельная форма не существует. Прогон без tool-вызовов — вырожденный случай того же графа: один super-step, `tools_condition` уводит в END. Строительные блоки — те же, что в основном графе: `ToolNode(tools, handle_tool_errors=...)` + `tools_condition`. System message — только промпт спеки (без KS/memory/skills/compaction, без trust-boundary обёрток). Guard-проверки `TOOL_RESULT`/`TOOL_CALL_ARG` встроены в llm-узел и переиспользуются из общего модуля-коллаборатора `backend/app/agent/tool_guards.py` — та же fail-safe redact-семантика, что в `agent_node` основного графа (заражённый результат → заглушка, цикл продолжает; инъекция в аргументах → `tool_calls` срезаются, граф уходит в END); пока в диалоге нет tool-вызовов, проверки структурно бездействуют. `recursion_limit` ограничивает цикл (invoke-time ключ `RunnableConfig`, не compile-time параметр графа); значение — операционный knob `subagents.recursion_limit` в `configs/agent.yaml` (дефолт 10, общий для реестра).
+**Граф субагента** (`build_subagent_graph`) — всегда один и тот же ReAct-граф `START → llm → (tools_condition) → tools → llm/END`; любой субагент — ReAct-агент, single-turn как отдельная форма не существует. Прогон без tool-вызовов — вырожденный случай того же графа: один super-step, `tools_condition` уводит в END. Строительные блоки — те же, что в основном графе: `ToolNode(tools, handle_tool_errors=...)` + `tools_condition`. System message — только промпт спеки (без KS/memory/skills/compaction, без trust-boundary обёрток). Guard-проверки переиспользуются из общего модуля-коллаборатора `backend/app/agent/tool_guards.py` и стоят там же, где в основном графе: `TOOL_CALL_ARG` — в llm-узле, на только что полученном ответе модели; `TOOL_RESULT` — в узле `tools`, повызовно, до отчёта о вызове и до возврата результатов (`execute_tools_guarded`), потому что выход узла идёт и в чекпоинтер, и на провод (→ [ADR-030](adr/ADR-030-per-call-tool-result-guard.md)). Семантика та же fail-safe redact, что в основном графе (заражённый результат → заглушка, цикл продолжает; инъекция в аргументах → `tool_calls` срезаются, граф уходит в END); пока в диалоге нет tool-вызовов, проверки структурно бездействуют. `recursion_limit` ограничивает цикл (invoke-time ключ `RunnableConfig`, не compile-time параметр графа); значение — операционный knob `subagents.recursion_limit` в `configs/agent.yaml` (дефолт 10, общий для реестра).
 
 **Пул tools субагента** — `internal_tools + built-in MCP` (собирается в `main.py` при старте), **без** user-installed MCP — trust-граница между продуктовыми и пользовательскими интеграциями (→ [security/architecture.md](../security/architecture.md)). Имена в `spec.tools` резолвятся против этого пула fail-fast при старте приложения: неизвестное имя — как и пустой `tools` (субагент обязан объявить непустой toolset) — валит boot, как и любая другая опечатка в `configs/*.yaml`.
 
 **Persistence** — `none` (v1, все три типа): `compile(checkpointer=False)`, субагент полностью stateless между вызовами. `inherit` — субграф наследует PG checkpointer родителя под отдельным `checkpoint_ns`; свойство архитектуры, доступное сменой одного поля спеки, не задействовано ни одним v1-типом.
 
-**Наблюдаемость** — запуски видны в Langfuse вложенными span'ами независимо от режима `persistence` (callbacks пробрасываются во вложенный граф автоматически через contextvars, → [observability.md](observability.md)). Токены субагента в чат не рисуются: чанки `stream_mode="messages"`, помеченные тегом `subagent` в metadata, отфильтровываются в стрим-цикле до аккумуляции `full_response` и до canary/mid-stream проверок — → [streaming.md](streaming.md). Промпты трёх типов — в том же Langfuse-контуре, что остальные системные промпты (`prompts.yaml` + seed + file fallback) — → [prompt-management.md](prompt-management.md).
+**Наблюдаемость** — запуски видны в Langfuse вложенными span'ами независимо от режима `persistence` (callbacks пробрасываются во вложенный граф автоматически через contextvars, → [observability.md](observability.md)). Токены субагента (сырой LLM-текст) в чат не рисуются: чанки `stream_mode="messages"`, помеченные тегом `subagent` в metadata, отфильтровываются в стрим-цикле до аккумуляции `full_response` и до canary/mid-stream проверок. Шаги субагента при этом не немы: его вызов инструмента даёт те же `tool_call_started`/`tool_call_args`/`tool_result`/`agent_event`, что и вызов инструмента основным агентом, с `parent_call_id` = `call_id` вызова `run_subagent`. Отчётность разнесена по границе «что уже проверено»: анонс вызова эмитит прокси вокруг инструмента (`SubagentRunner`, `_LifecycleEmittingTool`), результат — узел `tools` субагентского графа, после guard'а и санитайзера ошибок `ToolNode` — механизм и лимиты этой live-ленты → [streaming.md § Вложенность субагента](streaming.md#вложенность-субагента). Промпты трёх типов — в том же Langfuse-контуре, что остальные системные промпты (`prompts.yaml` + seed + file fallback) — → [prompt-management.md](prompt-management.md).
 
 ## Security
 
@@ -399,6 +402,7 @@ Langfuse выполняет две роли: tracing (observability) + prompt ma
 | `subagents` | Реестр субагентов: LLM-дефолт (`llm`) + `registry` спек (`name`, `description`, `prompt`, `model?`, `tools`, `persistence`) — → [Субагенты](#субагенты) |
 | `mcp_servers` | Built-in MCP-серверы: transport, URL, API keys, whitelist инструментов |
 | `image` | Модель генерации изображений (`model`) + произвольные дефолт-параметры вызова (`params`, прокидываются в запрос as-is) — обязательная секция, без дефолта |
+| `title` | Модель генерации auto-title чата (`model`) + `extra_body` — обязательная секция, без дефолта, по той же форме, что `llm`/`summarization`. Reasoning выключен (`reasoning.enabled: false`): на однострочном заголовке он не улучшает результат, но вчетверо увеличивает латентность, из-за чего название не успевает доехать в стрим |
 
 Security-конфиги, model pricing и реестр промптов вынесены отдельными файлами — детали в соответствующих документах ([security/architecture.md](../security/architecture.md), [observability.md](observability.md), [prompt-management.md](prompt-management.md)).
 

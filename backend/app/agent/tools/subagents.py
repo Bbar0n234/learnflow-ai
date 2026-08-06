@@ -10,6 +10,13 @@ Description is assembled once at startup from the subagent registry, same
 pattern as the Skills Index (`app.agent.tools.skills.scan_skills_index`):
 the model sees the available subagent types (`name: description`) at the
 point it picks this tool, not by inference or a separate lookup call.
+
+T1.6: this tool executes inside the main graph's own `ToolNode`, the one
+place where a real stream writer and this call's own `call_id` are both
+available (`ToolRuntime.stream_writer`/`.tool_call_id`) — both are passed
+down to `SubagentRunner.run` so it can wrap the subagent's own tools and
+report their execution on the main stream, tagged with `parent_call_id`
+(design-brief § "Вложенность субагента").
 """
 
 from __future__ import annotations
@@ -144,6 +151,8 @@ def make_run_subagent_tool(
                 documents,
                 config=runtime.config,
                 canary_token=runtime.context.canary_token,
+                stream_writer=runtime.stream_writer,
+                parent_call_id=runtime.tool_call_id,
             )
         except UnknownSubagentTypeError as exc:
             logger.info(

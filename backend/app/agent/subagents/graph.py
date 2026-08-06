@@ -26,10 +26,11 @@ user-installed-MCP section) — the model sees them the ordinary way, through
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import BaseMessage, SystemMessage
+from langchain_core.messages import BaseMessage, SystemMessage, ToolMessage
 from langchain_core.messages.utils import count_tokens_approximately, trim_messages
 from langchain_core.tools import BaseTool
 from langgraph.graph import START, MessagesState, StateGraph
@@ -38,8 +39,8 @@ from langgraph.prebuilt import ToolNode, tools_condition
 
 from app.agent.security.guard import SecurityGuard
 from app.agent.tool_guards import (
+    execute_tools_guarded,
     guard_tool_call_args,
-    guard_tool_results,
     handle_tool_error,
 )
 
@@ -53,36 +54,29 @@ def build_subagent_graph(
     security_guard: SecurityGuard | None = None,
     canary_token: str = "",
     tool_result_stub: str = "",
+    report_tool_result: Callable[[ToolMessage], None] | None = None,
 ) -> StateGraph[Any, Any, Any, Any]:
     """Build the subagent ReAct ``StateGraph``.
 
     In-cycle guard checks reuse the main graph's fail-safe redact semantics
-    (``app.agent.graph.agent_node``): a poisoned tool result is swapped for
-    ``tool_result_stub`` and the cycle continues (``guard_tool_results``); an
-    injected tool-call arg strips ``tool_calls`` from the response so the
-    next ``tools_condition`` routes to END instead of the tools node
-    (``guard_tool_call_args``). Both checks are skipped when
+    (``app.agent.tool_guards``): a poisoned tool result is swapped for
+    ``tool_result_stub`` and the cycle continues (``execute_tools_guarded``,
+    inside the tools node); an injected tool-call arg strips ``tool_calls``
+    from the response so the next ``tools_condition`` routes to END instead of
+    the tools node (``guard_tool_call_args``). Both checks are skipped when
     ``security_guard`` is ``None`` — consistent with the main graph, which
     also skips both in that case (guard disabled globally).
+
+    ``report_tool_result`` is called with each checked result the moment its
+    own call finishes — the hook ``SubagentRunner`` uses to put nested
+    ``tool_result`` events on the parent stream. It hangs off this node rather
+    than off the tool proxy so that what reaches the user is the same text the
+    guard cleared, never the raw one (streaming.md § «Вложенность субагента»).
     """
     bound_model = model.bind_tools(tools)
 
     async def llm_node(state: MessagesState) -> dict[str, list[BaseMessage]]:
         messages = state["messages"]
-        result_prefix: list[Any] = []
-
-        if security_guard is not None:
-            tool_result_updates = await guard_tool_results(
-                messages, security_guard, canary_token, tool_result_stub
-            )
-            if tool_result_updates:
-                result_prefix.extend(tool_result_updates)
-                by_id: dict[str, Any] = {
-                    m.id: m for m in tool_result_updates if m.id is not None
-                }
-                messages = [
-                    by_id.get(m.id, m) if m.id is not None else m for m in messages
-                ]
 
         # Safety net for oversized inputs (a large injected document, a large
         # scraped page) — not a compaction step: subagents get no
@@ -103,13 +97,23 @@ def build_subagent_graph(
                 response, security_guard, canary_token, list(messages)
             )
 
-        return {"messages": [*result_prefix, response]}
+        return {"messages": [response]}
 
     tool_node = ToolNode(tools, handle_tool_errors=handle_tool_error)
 
+    async def tools_node(state: MessagesState) -> Any:
+        return await execute_tools_guarded(
+            tool_node,
+            state,
+            guard=security_guard,
+            canary_token=canary_token,
+            tool_result_stub=tool_result_stub,
+            on_result=report_tool_result,
+        )
+
     builder = StateGraph(MessagesState)
     builder.add_node("llm", llm_node)
-    builder.add_node("tools", tool_node)
+    builder.add_node("tools", tools_node)
     builder.add_edge(START, "llm")
     builder.add_conditional_edges("llm", tools_condition)
     builder.add_edge("tools", "llm")

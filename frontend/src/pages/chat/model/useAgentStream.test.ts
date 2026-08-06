@@ -1,15 +1,19 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { render, renderHook, waitFor } from "@testing-library/react";
 import { delay, http, HttpResponse } from "msw";
-import { createElement, type ReactNode } from "react";
+import { createElement, useEffect, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { setAccessToken } from "@/shared/api/client";
 import { queryKeys } from "@/shared/api/query-keys";
 import type { ChatDetail } from "@/shared/api/chats";
+import { findFeedCall } from "@/shared/lib/agent-feed";
 import { server } from "@/test/msw/server";
 import { createTestQueryClient } from "@/test/test-utils";
 import { fakeJwt, sseFrame, sseResponseStream } from "@/test/sse-stream";
+
+import { useStreamStore } from "@/stores/stream-store";
+import { MessageList } from "../ui/MessageList";
 
 import { useAgentStream } from "./useAgentStream";
 
@@ -70,9 +74,15 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-async function streamingText(): Promise<string> {
+/** Текст ассистента, накопленный лентой активного хода. */
+async function streamedText(): Promise<string> {
   const { useStreamStore } = await import("@/stores/stream-store");
-  return useStreamStore.getState().streamingText;
+  return useStreamStore
+    .getState()
+    .feed.reduce(
+      (text, item) => (item.type === "text" ? text + item.content : text),
+      "",
+    );
 }
 
 async function isStreaming(): Promise<boolean> {
@@ -80,14 +90,15 @@ async function isStreaming(): Promise<boolean> {
   return useStreamStore.getState().isStreaming;
 }
 
-async function pendingImages(): Promise<string[]> {
+/** Лента активного хода — то, что диспетчер сложил из событий потока. */
+async function streamedFeed() {
   const { useStreamStore } = await import("@/stores/stream-store");
-  return useStreamStore.getState().pendingImages;
+  return useStreamStore.getState().feed;
 }
 
-async function activeTool(): Promise<string | null> {
+async function isReviewing(): Promise<boolean> {
   const { useStreamStore } = await import("@/stores/stream-store");
-  return useStreamStore.getState().activeTool;
+  return useStreamStore.getState().isReviewing;
 }
 
 describe("useAgentStream", () => {
@@ -114,13 +125,18 @@ describe("useAgentStream", () => {
     );
   });
 
-  it("redacts accumulated text on a security_block after streamed text", async () => {
+  // Редакция — операция над всей лентой хода, а не над одним текстом: после
+  // блокировки на экране не остаётся ни строки рассуждений, ни строк вызовов —
+  // ровно то, что покажет перезагрузка (streaming.md § История: typed parts).
+  it("replaces the whole feed with a single stub on a security_block", async () => {
     setAccessToken(fakeJwt());
     server.use(
       http.post(MESSAGES_URL, () =>
         streamResponse([
+          { type: "reasoning_chunk", content: "надо обойти правила" },
+          { type: "tool_call_started", call_id: "c-1", tool: "web_search" },
           { type: "text_chunk", content: "leaking secret" },
-          { type: "security_block", reason: "injection" },
+          { type: "security_block" },
         ]),
       ),
     );
@@ -133,14 +149,20 @@ describe("useAgentStream", () => {
     const { useStreamStore } = await import("@/stores/stream-store");
     const state = useStreamStore.getState();
     expect(state.redacted).toBe(true);
-    expect(state.streamingText).toBe("[Сообщение скрыто в целях безопасности]");
+    expect(state.feed).toEqual([
+      {
+        id: "text-0",
+        type: "text",
+        content: "[Сообщение скрыто в целях безопасности]",
+      },
+    ]);
   });
 
   it("optimistically marks the chat security_blocked when blocked before any text", async () => {
     setAccessToken(fakeJwt());
     server.use(
       http.post(MESSAGES_URL, () =>
-        streamResponse([{ type: "security_block", reason: "injection" }]),
+        streamResponse([{ type: "security_block" }]),
       ),
     );
     const onSecurityBlock = vi.fn();
@@ -241,7 +263,7 @@ describe("useAgentStream", () => {
 
     result.current.send("hi");
     live.push({ type: "text_chunk", content: "partial" });
-    await waitFor(async () => expect(await streamingText()).toBe("partial"));
+    await waitFor(async () => expect(await streamedText()).toBe("partial"));
 
     result.current.cancel();
     await waitFor(() => expect(cancelHit).toBe(true));
@@ -262,7 +284,7 @@ describe("useAgentStream", () => {
 
     result.current.send("hi");
     live.push({ type: "text_chunk", content: "partial" });
-    await waitFor(async () => expect(await streamingText()).toBe("partial"));
+    await waitFor(async () => expect(await streamedText()).toBe("partial"));
 
     unmount();
 
@@ -282,7 +304,7 @@ describe("useAgentStream", () => {
 
     result.current.send("hi");
     live.push({ type: "text_chunk", content: "partial" });
-    await waitFor(async () => expect(await streamingText()).toBe("partial"));
+    await waitFor(async () => expect(await streamedText()).toBe("partial"));
 
     // cancel() flips the cancelling flag synchronously, before the async
     // cancelChat round-trip; a trailing error frame must now be swallowed.
@@ -294,24 +316,121 @@ describe("useAgentStream", () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
-  it("fires onError with the timeout message when no first byte arrives in time", async () => {
+  // Сторож тишины взводится синхронно в `send()`, до `fetch`: сервер, не
+  // вернувший даже заголовков, иначе оставил бы пользователя в бесконечном
+  // ожидании вместо ошибки.
+  it("fires onError with the timeout message when the server sends nothing at all", async () => {
     setAccessToken(fakeJwt());
     vi.useFakeTimers();
     server.use(
-      // Never responds — exercises the first-byte timeout path.
+      // Never responds — headers included.
       http.post(MESSAGES_URL, () => delay("infinite")),
     );
     const onError = vi.fn();
     const { result } = renderAgentStream({ onError });
 
     result.current.send("hi");
-    // Дефолт — щедрый safety-net (300 с): guard задерживает заголовки, а
-    // прогоны с субагентами легитимно молчат минуты (см. useAgentStream.ts).
-    await vi.advanceTimersByTimeAsync(299000);
+    // Порог — три пропущенных heartbeat подряд (3 × 5 с, streaming.md § Лимиты).
+    await vi.advanceTimersByTimeAsync(14000);
     expect(onError).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(2000);
 
     expect(onError).toHaveBeenCalledWith("Превышено время ожидания");
+  });
+
+  it("keeps a silent-but-alive stream running while heartbeats arrive", async () => {
+    setAccessToken(fakeJwt());
+    vi.useFakeTimers();
+    const live = liveStream();
+    server.use(http.post(MESSAGES_URL, () => live.response));
+    const onError = vi.fn();
+    const { result } = renderAgentStream({ onError });
+
+    result.current.send("hi");
+    // Ход молчит содержательно, но соединение живо: каждый heartbeat
+    // перезаводит сторож, и совокупные 30 с тишины ошибкой не становятся.
+    for (let i = 0; i < 3; i += 1) {
+      await vi.advanceTimersByTimeAsync(10000);
+      live.push({ type: "heartbeat" });
+    }
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(await isStreaming()).toBe(true);
+  });
+
+  // Forward-compat (streaming.md § Forward-compat): контракт растёт без
+  // версионирования пути — неизвестный тип не имеет права рвать поток.
+  it("ignores an unknown event type and keeps reading the stream", async () => {
+    setAccessToken(fakeJwt());
+    server.use(
+      http.post(MESSAGES_URL, () =>
+        streamResponse([
+          { type: "brand_new_event", whatever: 42 },
+          { type: "text_chunk", content: "продолжаем" },
+          { type: "done", message_id: "m-fc", trace_id: null },
+        ]),
+      ),
+    );
+    const onDone = vi.fn();
+    const onError = vi.fn();
+    const { result } = renderAgentStream({ onDone, onError });
+
+    result.current.send("hi");
+
+    await waitFor(() =>
+      expect(onDone).toHaveBeenCalledWith({ messageId: "m-fc", traceId: null }),
+    );
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  // Отмена — не ошибка: терминальный `cancelled` закрывает поток без
+  // error-баннера, но рефетчит detail (там живут вызовы со статусом `pending`)
+  // и списки чатов (автозаголовок пишется независимо от исхода хода).
+  it("closes the stream on cancelled without an error and refetches the chat", async () => {
+    setAccessToken(fakeJwt());
+    const live = liveStream();
+    server.use(
+      http.post(MESSAGES_URL, () => live.response),
+      http.post(CANCEL_URL, () => HttpResponse.json({ ok: true })),
+    );
+    const onError = vi.fn();
+    const onDone = vi.fn();
+    const onCancelled = vi.fn();
+    const { result, queryClient } = renderAgentStream({
+      onError,
+      onDone,
+      onCancelled,
+    });
+    primeTitleCaches(queryClient);
+
+    result.current.send("hi");
+    live.push({
+      type: "tool_call_started",
+      call_id: "c-1",
+      tool: "firecrawl_search",
+    });
+    await waitFor(async () => expect(await isStreaming()).toBe(true));
+
+    result.current.cancel();
+    live.push({ type: "cancelled" });
+    live.close();
+
+    await waitFor(() => expect(onCancelled).toHaveBeenCalledTimes(1));
+    expect(await isStreaming()).toBe(false);
+    expect(onError).not.toHaveBeenCalled();
+    expect(onDone).not.toHaveBeenCalled();
+    expect(
+      queryClient.getQueryState(queryKeys.projects.chat(PROJECT_ID, CHAT_ID))
+        ?.isInvalidated,
+    ).toBe(true);
+    expect(
+      queryClient.getQueryState(queryKeys.projects.chats(PROJECT_ID))
+        ?.isInvalidated,
+    ).toBe(true);
+    expect(
+      queryClient.getQueryState(queryKeys.chats.recent)?.isInvalidated,
+    ).toBe(true);
   });
 
   it("retries the message POST after a 401 by refreshing the token, then completes", async () => {
@@ -352,21 +471,14 @@ describe("useAgentStream", () => {
     expect(refreshCount).toBeGreaterThanOrEqual(1);
   });
 
-  it("invalidates the artifacts query when an artifact_created event arrives", async () => {
+  it("инвалидирует список артефактов проекта на artifact_created", async () => {
+    // Карточку в живом ходе `artifact_created` больше не рисует: факт создания
+    // виден строкой ленты, полная карточка приезжает из истории после
+    // завершения хода. За событием остаётся его побочный эффект — инвалидация
+    // списка артефактов проекта.
     setAccessToken(fakeJwt());
-    server.use(
-      http.post(MESSAGES_URL, () =>
-        streamResponse([
-          {
-            type: "artifact_created",
-            id: "a-1",
-            title: "Notes",
-            artifact_type: "markdown",
-          },
-          { type: "done", message_id: "m-art", trace_id: null },
-        ]),
-      ),
-    );
+    const live = liveStream();
+    server.use(http.post(MESSAGES_URL, () => live.response));
     const onDone = vi.fn();
     const { result, queryClient } = renderAgentStream({ onDone });
     queryClient.setQueryData(queryKeys.projects.artifacts(PROJECT_ID), {
@@ -377,12 +489,48 @@ describe("useAgentStream", () => {
     });
 
     result.current.send("hi");
+    live.push({
+      type: "artifact_created",
+      id: "a-1",
+      title: "Notes",
+      artifact_type: "markdown",
+    });
+
+    live.push({ type: "done", message_id: "m-art", trace_id: null });
+    live.close();
 
     await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
     expect(
       queryClient.getQueryState(queryKeys.projects.artifacts(PROJECT_ID))
         ?.isInvalidated,
     ).toBe(true);
+  });
+
+  // Пара review-событий — единственный источник индикатора «Проверяем ответ...»:
+  // ставить флаг больше некому, и её отсутствие на ходе не должно оставлять
+  // индикатор висеть.
+  it("поднимает и снимает флаг проверки ответа по паре review-событий", async () => {
+    setAccessToken(fakeJwt());
+    const live = liveStream();
+    server.use(http.post(MESSAGES_URL, () => live.response));
+    const { result } = renderAgentStream();
+
+    result.current.send("hi");
+    live.push({ type: "text_chunk", content: "готовый ответ" });
+    await waitFor(async () =>
+      expect(await streamedText()).toBe("готовый ответ"),
+    );
+    expect(await isReviewing()).toBe(false);
+
+    live.push({ type: "final_output_review_started" });
+    await waitFor(async () => expect(await isReviewing()).toBe(true));
+
+    live.push({ type: "final_output_review_complete" });
+    await waitFor(async () => expect(await isReviewing()).toBe(false));
+
+    live.push({ type: "done", message_id: "m-rev", trace_id: null });
+    live.close();
+    await waitFor(async () => expect(await isStreaming()).toBe(false));
   });
 
   it("reports a broken connection when the stream ends without a terminal event", async () => {
@@ -417,44 +565,442 @@ describe("useAgentStream", () => {
     );
   });
 
-  // feat-010 (T2.4): generate_image tool_start/tool_end drive the pending-image
-  // placeholder set, keyed by call_id.
-  it("adds a pending image on generate_image tool_start and clears it on tool_end", async () => {
+  // feat-002 (T2.2): the non-terminal `title_updated` event carries the
+  // generated chat name mid-stream. It may only patch caches in place — a
+  // refetch of the open chat would duplicate the optimistic user message that
+  // still lives in `localMessages` (design-brief § Доставка title на фронт).
+  const GENERATED_TITLE = "Производные функции";
+
+  function primeTitleCaches(
+    queryClient: ReturnType<typeof renderAgentStream>["queryClient"],
+  ) {
+    queryClient.setQueryData(queryKeys.projects.chats(PROJECT_ID), {
+      items: [{ thread_id: CHAT_ID, title: "Новый чат" }],
+      total: 1,
+      limit: 200,
+      offset: 0,
+    });
+    queryClient.setQueryData(queryKeys.chats.recent, {
+      items: [{ thread_id: CHAT_ID, title: "Новый чат" }],
+      total: 1,
+      limit: 10,
+      offset: 0,
+    });
+    queryClient.setQueryData<ChatDetail>(
+      queryKeys.projects.chat(PROJECT_ID, CHAT_ID),
+      {
+        thread_id: CHAT_ID,
+        title: "Новый чат",
+        security_blocked: false,
+        messages: [],
+      },
+    );
+  }
+
+  function titleIn(
+    queryClient: ReturnType<typeof renderAgentStream>["queryClient"],
+    key: readonly unknown[],
+  ): string | undefined {
+    const data = queryClient.getQueryData<{
+      items: { thread_id: string; title: string }[];
+    }>(key);
+    return data?.items.find((c) => c.thread_id === CHAT_ID)?.title;
+  }
+
+  it("patches the generated title into the chat list, recents and the open chat", async () => {
+    setAccessToken(fakeJwt());
+    server.use(
+      http.post(MESSAGES_URL, () =>
+        streamResponse([
+          { type: "text_chunk", content: "Начнём" },
+          { type: "title_updated", title: GENERATED_TITLE },
+          { type: "done", message_id: "m-t", trace_id: null },
+        ]),
+      ),
+    );
+    const onDone = vi.fn();
+    const { result, queryClient } = renderAgentStream({ onDone });
+    primeTitleCaches(queryClient);
+
+    result.current.send("расскажи про производные");
+
+    await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+    expect(titleIn(queryClient, queryKeys.projects.chats(PROJECT_ID))).toBe(
+      GENERATED_TITLE,
+    );
+    expect(titleIn(queryClient, queryKeys.chats.recent)).toBe(GENERATED_TITLE);
+    expect(
+      queryClient.getQueryData<ChatDetail>(
+        queryKeys.projects.chat(PROJECT_ID, CHAT_ID),
+      )?.title,
+    ).toBe(GENERATED_TITLE);
+  });
+
+  it("keeps the stream running after a title_updated and refetches nothing", async () => {
+    setAccessToken(fakeJwt());
+    const live = liveStream();
+    server.use(http.post(MESSAGES_URL, () => live.response));
+    const { result, queryClient } = renderAgentStream();
+    primeTitleCaches(queryClient);
+
+    result.current.send("привет");
+    live.push({ type: "title_updated", title: GENERATED_TITLE });
+    await waitFor(() =>
+      expect(titleIn(queryClient, queryKeys.chats.recent)).toBe(
+        GENERATED_TITLE,
+      ),
+    );
+
+    // Non-terminal: text keeps arriving and the stream is still open, and no
+    // query was invalidated by the event itself.
+    expect(
+      queryClient.getQueryState(queryKeys.projects.chat(PROJECT_ID, CHAT_ID))
+        ?.isInvalidated,
+    ).toBe(false);
+    expect(
+      queryClient.getQueryState(queryKeys.projects.chats(PROJECT_ID))
+        ?.isInvalidated,
+    ).toBe(false);
+    expect(
+      queryClient.getQueryState(queryKeys.chats.recent)?.isInvalidated,
+    ).toBe(false);
+    live.push({ type: "text_chunk", content: "продолжение" });
+    await waitFor(async () => expect(await streamedText()).toBe("продолжение"));
+    expect(await isStreaming()).toBe(true);
+
+    live.push({ type: "done", message_id: "m-open", trace_id: null });
+    live.close();
+    await waitFor(async () => expect(await isStreaming()).toBe(false));
+  });
+
+  it("ignores a title_updated for caches that are not mounted", async () => {
+    setAccessToken(fakeJwt());
+    server.use(
+      http.post(MESSAGES_URL, () =>
+        streamResponse([
+          { type: "title_updated", title: GENERATED_TITLE },
+          { type: "done", message_id: "m-nocache", trace_id: null },
+        ]),
+      ),
+    );
+    const onDone = vi.fn();
+    const onError = vi.fn();
+    // No caches primed: lists may simply not be mounted in this session.
+    const { result, queryClient } = renderAgentStream({ onDone, onError });
+
+    result.current.send("привет");
+
+    await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+    expect(onError).not.toHaveBeenCalled();
+    expect(
+      queryClient.getQueryData(queryKeys.projects.chats(PROJECT_ID)),
+    ).toBeUndefined();
+  });
+
+  it("falls back to refetching the project chat list on done, exactly that key", async () => {
+    setAccessToken(fakeJwt());
+    server.use(
+      http.post(MESSAGES_URL, () =>
+        // No title_updated at all — the generation did not finish in time.
+        streamResponse([{ type: "done", message_id: "m-fb", trace_id: null }]),
+      ),
+    );
+    const onDone = vi.fn();
+    const { result, queryClient } = renderAgentStream({ onDone });
+    primeTitleCaches(queryClient);
+    // A sibling chat's detail shares the list key as a prefix — `exact: true`
+    // must leave it alone even on the terminal event.
+    queryClient.setQueryData<ChatDetail>(
+      queryKeys.projects.chat(PROJECT_ID, "c2"),
+      {
+        thread_id: "c2",
+        title: "Другой чат",
+        security_blocked: false,
+        messages: [],
+      },
+    );
+
+    result.current.send("привет");
+
+    await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+    expect(
+      queryClient.getQueryState(queryKeys.projects.chats(PROJECT_ID))
+        ?.isInvalidated,
+    ).toBe(true);
+    expect(
+      queryClient.getQueryState(queryKeys.chats.recent)?.isInvalidated,
+    ).toBe(true);
+    expect(
+      queryClient.getQueryState(queryKeys.projects.chat(PROJECT_ID, "c2"))
+        ?.isInvalidated,
+    ).toBe(false);
+  });
+
+  // Диспетчер — единственное место, где словарь v2 превращается в содержимое
+  // экрана. Семь событий ленты обязаны дойти до модели: пропущенная ветка не
+  // роняет поток, а просто стирает часть работы агента из виду.
+  it("доводит до ленты каждое событие хода, включая срез вызова guard'ом", async () => {
     setAccessToken(fakeJwt());
     const live = liveStream();
     server.use(http.post(MESSAGES_URL, () => live.response));
     const { result } = renderAgentStream();
 
-    result.current.send("draw me a cover");
+    result.current.send("hi");
+    live.push({ type: "stream_started" });
+    live.push({ type: "reasoning_chunk", content: "Надо поискать" });
+    live.push({ type: "heartbeat" });
+    live.push({
+      type: "tool_call_started",
+      call_id: "c-1",
+      tool: "firecrawl_search",
+    });
+    live.push({
+      type: "tool_call_args",
+      call_id: "c-1",
+      args: '{"query": "langgraph"}',
+      truncated: false,
+    });
+    live.push({
+      type: "tool_result",
+      call_id: "c-1",
+      tool: "firecrawl_search",
+      status: "success",
+      content: "нашлось",
+      truncated: false,
+    });
+    live.push({
+      type: "tool_call_started",
+      call_id: "c-2",
+      tool: "load_skill",
+    });
+    live.push({ type: "tool_call_cancelled", call_id: "c-2" });
+    live.push({ type: "agent_event", kind: "compaction", payload: {} });
+    live.push({ type: "text_chunk", content: "Вот что нашлось." });
 
-    live.push({ type: "tool_start", tool: "generate_image", call_id: "gi-1" });
-    await waitFor(async () => expect(await pendingImages()).toEqual(["gi-1"]));
+    await waitFor(async () =>
+      expect((await streamedFeed()).length).toBeGreaterThanOrEqual(5),
+    );
+    const feed = await streamedFeed();
+    expect(
+      feed.map((item) => (item.type === "tool_call" ? item.callId : item.type)),
+    ).toEqual(["reasoning", "c-1", "c-2", "agent_event", "text"]);
+    expect(
+      feed.map((item) => (item.type === "tool_call" ? item.status : null)),
+    ).toEqual([null, "success", "cancelled", null, null]);
+    // Содержимое каждой ветки, а не только форма ленты. Аргументы дороже
+    // прочего: без них строка теряет дополнение подписи, разворот — зону
+    // «Вызов», а субагент — задание, ради которого его позвали.
+    expect(findFeedCall(feed, "c-1")).toMatchObject({
+      tool: "firecrawl_search",
+      args: '{"query": "langgraph"}',
+      argsTruncated: false,
+      result: "нашлось",
+      resultTruncated: false,
+    });
+    expect(feed[0]).toMatchObject({
+      type: "reasoning",
+      content: "Надо поискать",
+    });
+    expect(feed[3]).toMatchObject({ type: "agent_event", kind: "compaction" });
+    expect(feed[4]).toMatchObject({
+      type: "text",
+      content: "Вот что нашлось.",
+    });
 
-    // tool_end arrives regardless of tool success/failure — placeholder clears.
-    live.push({ type: "tool_end", tool: "generate_image", call_id: "gi-1" });
-    await waitFor(async () => expect(await pendingImages()).toEqual([]));
-
-    live.push({ type: "done", message_id: "m-gi", trace_id: null });
+    live.push({ type: "done", message_id: "m-1", trace_id: null });
     live.close();
     await waitFor(async () => expect(await isStreaming()).toBe(false));
   });
 
-  it("does not touch pending images for a non-image tool", async () => {
+  // Сторож тишины перезаводится **любым** пришедшим фреймом — иначе поток,
+  // где сервер шлёт что-то, чего фронт ещё не знает, оборвётся по таймауту.
+  it("перезаводит сторож тишины и на событии неизвестного типа", async () => {
+    setAccessToken(fakeJwt());
+    vi.useFakeTimers();
+    const live = liveStream();
+    server.use(http.post(MESSAGES_URL, () => live.response));
+    const onError = vi.fn();
+    const { result } = renderAgentStream({ onError });
+
+    result.current.send("hi");
+    await vi.advanceTimersByTimeAsync(10000);
+    live.push({ type: "brand_new_event", whatever: 42 });
+    // Ещё 10 с: без перезавода порог в 15 с был бы уже пройден.
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(onError).not.toHaveBeenCalled();
+
+    // Сторож при этом не разоружён — новая тишина его дожигает.
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(onError).toHaveBeenCalledWith("Превышено время ожидания");
+  });
+
+  // Снятие сторожа на терминальном событии: сервер, придержавший соединение
+  // открытым после `done`, не имеет права превратить успешный ход в ошибку.
+  it("снимает сторож тишины на терминальном событии, а не по концу чтения", async () => {
+    setAccessToken(fakeJwt());
+    vi.useFakeTimers();
+    const live = liveStream();
+    server.use(http.post(MESSAGES_URL, () => live.response));
+    const onError = vi.fn();
+    const onDone = vi.fn();
+    const { result } = renderAgentStream({ onError, onDone });
+
+    result.current.send("hi");
+    live.push({ type: "text_chunk", content: "готово" });
+    live.push({ type: "done", message_id: "m-1", trace_id: null });
+    await vi.waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+
+    // Соединение всё ещё открыто, содержательных событий больше нет.
+    await vi.advanceTimersByTimeAsync(30000);
+
+    expect(onError).not.toHaveBeenCalled();
+    live.close();
+  });
+
+  // Списки чатов инвалидируются на каждом терминальном событии, потому что
+  // автозаголовок пишется в БД fire-and-forget и мог успеть записаться.
+  it("рефетчит списки чатов и на терминальной ошибке", async () => {
+    setAccessToken(fakeJwt());
+    server.use(
+      http.post(MESSAGES_URL, () =>
+        streamResponse([{ type: "error", detail: "модель упала" }]),
+      ),
+    );
+    const onError = vi.fn();
+    const { result, queryClient } = renderAgentStream({ onError });
+    primeTitleCaches(queryClient);
+
+    result.current.send("hi");
+
+    await waitFor(() => expect(onError).toHaveBeenCalledWith("модель упала"));
+    expect(
+      queryClient.getQueryState(queryKeys.projects.chats(PROJECT_ID))
+        ?.isInvalidated,
+    ).toBe(true);
+    expect(
+      queryClient.getQueryState(queryKeys.chats.recent)?.isInvalidated,
+    ).toBe(true);
+  });
+
+  // Исключение из того же правила: на заблокированном вводе генерация
+  // заголовка не запускается вовсе, поэтому список чатов проекта трогать
+  // незачем (streaming.md § Уточнения → `title_updated`).
+  it("не рефетчит список чатов проекта на блокировке, но обновляет сам чат", async () => {
+    setAccessToken(fakeJwt());
+    server.use(
+      http.post(MESSAGES_URL, () =>
+        streamResponse([{ type: "security_block" }]),
+      ),
+    );
+    const onSecurityBlock = vi.fn();
+    const { result, queryClient } = renderAgentStream({ onSecurityBlock });
+    primeTitleCaches(queryClient);
+
+    result.current.send("hi");
+
+    await waitFor(() => expect(onSecurityBlock).toHaveBeenCalledTimes(1));
+    expect(
+      queryClient.getQueryState(queryKeys.projects.chats(PROJECT_ID))
+        ?.isInvalidated,
+    ).toBe(false);
+    expect(
+      queryClient.getQueryState(queryKeys.projects.chat(PROJECT_ID, CHAT_ID))
+        ?.isInvalidated,
+    ).toBe(true);
+    expect(
+      queryClient.getQueryState(queryKeys.chats.recent)?.isInvalidated,
+    ).toBe(true);
+  });
+
+  it("закрывает стрим на блокировке — композер не остаётся с кнопкой отмены", async () => {
     setAccessToken(fakeJwt());
     const live = liveStream();
     server.use(http.post(MESSAGES_URL, () => live.response));
-    const { result } = renderAgentStream();
+    const onSecurityBlock = vi.fn();
+    const { result } = renderAgentStream({ onSecurityBlock });
 
-    result.current.send("search the web");
+    result.current.send("hi");
+    live.push({ type: "text_chunk", content: "начало ответа" });
+    await waitFor(async () =>
+      expect(await streamedText()).toBe("начало ответа"),
+    );
 
-    live.push({ type: "tool_start", tool: "web_search", call_id: "ws-1" });
-    // The active tool is set (existing behavior) but no pending image appears.
-    await waitFor(async () => expect(await activeTool()).toBe("web_search"));
-    expect(await pendingImages()).toEqual([]);
+    live.push({ type: "security_block" });
 
-    live.push({ type: "tool_end", tool: "web_search", call_id: "ws-1" });
-    live.push({ type: "done", message_id: "m-ws", trace_id: null });
+    await waitFor(() => expect(onSecurityBlock).toHaveBeenCalledTimes(1));
+    // Блокировка терминальна и для стрима: иначе заглушка видна дважды (своя в
+    // живом регионе и приехавшая из истории), а ввод остаётся в режиме отмены.
+    expect(await isStreaming()).toBe(false);
     live.close();
-    await waitFor(async () => expect(await isStreaming()).toBe(false));
   });
+
+  // Регрессия живого стенда: поток придерживают, накопленное приезжает разом —
+  // и ход не доходит до `done` вовсе, а превращается в «Ошибка соединения»,
+  // теряя ответ целиком. Причина в темпе чтений, а не в числе фрагментов:
+  // готовые данные резолвят `reader.read()` микрозадачей, чтения идут вплотную,
+  // каждое обновляет стор по sync-lane, и сторож вложенных обновлений React
+  // (`NESTED_UPDATE_LIMIT = 50`) не обнуляется ни разу. Кейс подаёт бэклог
+  // ровно так — каждый кадр отдельным куском тела — и требует, чтобы ход дошёл
+  // до конца. Экран здесь обязателен: без подписчика ленты обновлений стора
+  // никто не коммитит и цепочке не из чего собраться.
+  it("доводит до конца ход, чей бэклог приехал одной пачкой", async () => {
+    setAccessToken(fakeJwt());
+    Element.prototype.scrollIntoView = vi.fn();
+    // Порог сторожа — 50; 80 кадров дают запас против машины, а на коде без
+    // уступки событийному циклу этого хватает с избытком (граница — 53-54).
+    const backlog: unknown[] = [{ type: "stream_started" }];
+    for (let i = 0; i < 80; i += 1) {
+      backlog.push({ type: "text_chunk", content: `фрагмент ${i} ` });
+    }
+    backlog.push({ type: "done", message_id: "m1", trace_id: "t1" });
+    server.use(http.post(MESSAGES_URL, () => streamResponse(backlog)));
+
+    const onDone = vi.fn();
+    const onError = vi.fn();
+    const queryClient = createTestQueryClient();
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+
+    // Экран хода целиком: диспетчер плюс лента, подписанная на стор, — то же
+    // сочетание, что живёт в `ChatThread`. Текст снимается по ходу: `done`
+    // гасит стрим и стирает ленту раньше, чем колбэк доходит до теста.
+    let streamedOnScreen = "";
+    function Turn() {
+      const feed = useStreamStore((s) => s.feed);
+      const { send } = useAgentStream(PROJECT_ID, CHAT_ID, { onDone, onError });
+      useEffect(() => {
+        send("привет");
+      }, [send]);
+      useEffect(() => {
+        const text = feed.reduce(
+          (acc, item) => (item.type === "text" ? acc + item.content : acc),
+          "",
+        );
+        if (text.length > streamedOnScreen.length) streamedOnScreen = text;
+      }, [feed]);
+      return createElement(MessageList, {
+        messages: [],
+        isStreaming: true,
+        feed,
+        projectId: PROJECT_ID,
+        chatId: CHAT_ID,
+        streamError: null,
+        endNotice: null,
+      });
+    }
+
+    render(createElement(Turn), { wrapper });
+
+    // Ждём любого исхода хода, а не только успешного: иначе сломанный транспорт
+    // краснит кейс молчанием по таймауту вместо своей настоящей причины.
+    await waitFor(
+      () =>
+        expect(onDone.mock.calls.length + onError.mock.calls.length).toBe(1),
+      { timeout: 10000 },
+    );
+    expect(onError).not.toHaveBeenCalled();
+    expect(onDone).toHaveBeenCalledTimes(1);
+    // Пачка доехала до ленты целиком, а не оборвалась на пороге сторожа.
+    expect(streamedOnScreen).toContain("фрагмент 79");
+  }, 15000);
 });

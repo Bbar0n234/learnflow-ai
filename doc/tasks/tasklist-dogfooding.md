@@ -21,9 +21,9 @@
 
 | Итерация | Алиас | Статус | Scope | Закрывает |
 |----------|-------|--------|-------|-----------|
-| feat-001 | A | 🚧 In Progress | cross-cutting | Видимость работы агента: карта событий, live-фазы, reasoning-стрим, след tool-вызовов, security_block в UI |
+| feat-001 | A | ✅ Done | cross-cutting | Видимость работы агента: карта событий, live-фазы, reasoning-стрим, след tool-вызовов, security_block в UI |
 | chore-001 | B | ✅ Done | cross-cutting | Prod-closing: kill-switch LLM-защиты + SIEM kill-switch, X-Forwarded-For, прод-образы без dev-deps; merge develop → main + деплой |
-| feat-002 | C | 🚧 In Progress | cross-cutting | Chat UX: первое сообщение вместо title, auto-title отдельным модулем, удаление и переименование чатов |
+| feat-002 | C | ✅ Done | cross-cutting | Chat UX: первое сообщение вместо title, auto-title отдельным модулем, удаление и переименование чатов |
 | feat-003 | D | ✅ Done | agent | Модели: cost-optimal подбор по внешним бенчмаркам, whitelist 5+, pricing seed в Langfuse |
 | feat-004 | E | 📋 Planned | cross-cutting | File attachments: вход файлов агенту (критический путь догфудинга) |
 | feat-005 | F | 📋 Planned | backend | PDF-экспорт: замена wkhtmltopdf, рендер формул, фирменный стиль |
@@ -60,7 +60,7 @@
 
 **Цель:** комплексная переработка трансляции работы агента в чат — не точечные фиксы, а один системный дизайн-заход: что агент делает сейчас, на какой фазе, что уже сделал — видно, красиво и динамично, уровнем дизайн-системы.
 
-**Статус:** 🚧 In Progress
+**Статус:** ✅ Done
 **Scope:** cross-cutting (Frontend + Backend + Agent)
 
 #### Структура итерации
@@ -76,9 +76,23 @@
 - **P3** Системная проработка интерактивности вывода агента (зонт) — трансляция работы агента сделана примитивно: единственная плашка с сырым именем инструмента (`run_subagent`) на время выполнения — не видно, что это инструмент, не видно тип субагента, после завершения не остаётся следа в истории. Сюда: персистентный рендер tool-вызовов в истории сообщений, различимость субагентов (`agent_type` в payload + рендер), человекочитаемые названия инструментов *(Frontend, cross: Backend, Agent, Design-branding)*
 - **P2** `security_block` SSE — тройной дрейф контракта (вскрыт усилением S5 feat-009): `streaming.md:30,34` документирует payload `{checkpoint, detection_layer}`; прод (`runner.py` + `block_reason`) эмитит `{reason}`; фронт `useAgentStream` не читает ни одного поля `security_block`. Возможный реальный UX/security-пробел: блокировка не доходит до пользователя. Согласовать контракт (док↔прод↔фронт) и довести событие до UI *(Frontend, Agent, cross: docs)*
 
+#### Документация
+
+- [event-map.md](iterations/dogfooding/feat-001-agent-visibility/event-map.md) — аудит пути LangGraph → SSE → UI, карта событий, решения Гейтов 1–2
+- [design-brief.md](iterations/dogfooding/feat-001-agent-visibility/design-brief.md) — контракт SSE v2, typed parts, лента активности, партиция треков T1/T2
+- [mockups/live-timeline-v3.html](iterations/dogfooding/feat-001-agent-visibility/mockups/live-timeline-v3.html) — утверждённый визуальный язык (лента · точки · метки); v1/v2 рядом — история вариантов
+- [tracks/T1/plan.md](iterations/dogfooding/feat-001-agent-visibility/tracks/T1/plan.md) / [tracks/T2/plan.md](iterations/dogfooding/feat-001-agent-visibility/tracks/T2/plan.md) — implementation plans (backend: контракт SSE v2, typed parts, фикстур имён инструментов; frontend: модель ленты, реестр подписей, live-стрим и история одним компонентом)
+- [tracks/T1/summary.md](iterations/dogfooding/feat-001-agent-visibility/tracks/T1/summary.md) — post-implementation summary T1: девять фаз контракта, повызовная проверка и отчёт результата инструмента, компенсирующая телеметрия компакции, слияние feat-002 и триггер auto-title
+- [tracks/T2/summary.md](iterations/dogfooding/feat-001-agent-visibility/tracks/T2/summary.md) — post-implementation summary T2: словарь v2 на фронте, чистая модель ленты, вложенная лента субагента, живость и терминальные состояния, девять прод-багов набора и прогонов
+- [tracks/T1/test-cases.md](iterations/dogfooding/feat-001-agent-visibility/tracks/T1/test-cases.md) / [tracks/T2/test-cases.md](iterations/dogfooding/feat-001-agent-visibility/tracks/T2/test-cases.md) — тестовые кейсы и результаты прогонов
+- [review-a.md](iterations/dogfooding/feat-001-agent-visibility/review-a.md) / [review-b.md](iterations/dogfooding/feat-001-agent-visibility/review-b.md) — code review (независимый + соответствие контракту)
+- [harvest-proposals.md](iterations/dogfooding/feat-001-agent-visibility/harvest-proposals.md) — кандидаты в backlog/конвенции, собранные по ходу итерации
+- Создан: [ADR-030](../tech/adr/ADR-030-per-call-tool-result-guard.md) — проверка и отчёт результата инструмента повызовно, внутри узла `tools`: размен стоимости классификатора на правдивость ленты
+- Обновлены по итогам: [streaming.md](../tech/streaming.md) (контракт SSE v2 целиком, typed parts истории, лимиты, вложенность субагента, security-чекпоинты), [agent-runtime.md](../tech/agent-runtime.md) (узел `tools`, три канала стрима, `get_history`, видимость шагов субагента), [frontend.md](../tech/frontend.md) (лента активности, stream store, дерево модулей, Security UX), [conventions/agent.md](../tech/conventions/agent.md) и [conventions/frontend.md](../tech/conventions/frontend.md) (чек-лист «добавляешь инструмент агенту», раскладка состояния стрима, живость строки), [observability.md](../tech/observability.md) (ручной cost-учёт компакции), [security/architecture.md](../security/architecture.md) (место чекпоинта `tool_result`, наблюдаемость деградации), [design-system.md](../tech/design-system.md) (снятая заглушка записи в Сферу)
+
 #### Сознательно вне scope
 
-- Rich-показ *результатов* инструментов (выборочный рендер результатов tool-вызовов) — отдельный дизайн-вопрос, отложен до потребности из догфудинга.
+- Rich-показ *результатов* инструментов (выборочный рендер результатов tool-вызовов) — отдельный дизайн-вопрос, отложен до потребности из догфудинга. Уточнение Гейта 2: raw-разворот результата с усечением — в scope, «rich» = спец-рендер по типам — вне.
 - SSE-дисконнект отменяет LangGraph-ран (потеря ответа) — стрим-ядро, но другая проблема (персистентность, не видимость); остаётся в backlog, кандидат на соло-итерацию в августе — для длинных субагентных ранов при догфудинге станет важной.
 
 ---
@@ -119,7 +133,7 @@
 
 **Цель:** переработка входа в чат: поле ввода — для первого сообщения, а не title; title генерирует модель; чаты можно удалять и переименовывать.
 
-**Статус:** 🚧 In Progress
+**Статус:** ✅ Done
 **Scope:** cross-cutting (Frontend + Backend)
 **After:** feat-001 (наследует переработанный стрим-контракт)
 
@@ -134,6 +148,19 @@
 
 - **Title-модуль:** генерация title — не основной агент, а отдельный лёгкий модуль в сервисном слое (fire-and-forget после первого сообщения, дешёвая модель); кандидат на конфиг — секция в `agent.yaml` по образцу секции `image` (feat-010 post-mvp). Точная архитектура — на design-brief.
 - **Доставка title на фронт:** рефетч списка чатов после `done` vs отдельное SSE-событие `title_updated` (второе — аргумент делать итерацию после feat-001, контракт уже будет переработан).
+
+#### Документация
+
+- [design-brief.md](iterations/dogfooding/feat-002-chat-ux/design-brief.md) — целевой UX (два пути входа), архитектура auto-title модуля, доставка `title_updated` (+ отвергнутые альтернативы), каскад удаления чата, партиция треков T1/T2
+- [mockups/chat-ux.html](iterations/dogfooding/feat-002-chat-ux/mockups/chat-ux.html) — интерактивный мокап, утверждён архитектором как референс реализации фронта
+- [tracks/T1/plan.md](iterations/dogfooding/feat-002-chat-ux/tracks/T1/plan.md) / [tracks/T2/plan.md](iterations/dogfooding/feat-002-chat-ux/tracks/T2/plan.md) — implementation plans (backend: контракты чатов + auto-title; frontend: вход через первое сообщение + `title_updated` + ChatActions)
+- [tracks/T1/summary.md](iterations/dogfooding/feat-002-chat-ux/tracks/T1/summary.md) — post-implementation summary T1: bodyless `POST /chats`, rename/delete с каскадом, `ChatTitleGenerator`, фиксы находок F1 (row-lock) и CODE_REVIEW (teardown, atomic-write guard и др.)
+- [tracks/T2/summary.md](iterations/dogfooding/feat-002-chat-ux/tracks/T2/summary.md) — post-implementation summary T2: оба пути входа, `title_updated` → `setQueryData`-патч, `TypedTitle`, `features/chat-actions`, фиксы прод-багов ручного прогона (F2, F3)
+- [tracks/T1/test-cases.md](iterations/dogfooding/feat-002-chat-ux/tracks/T1/test-cases.md) / [tracks/T2/test-cases.md](iterations/dogfooding/feat-002-chat-ux/tracks/T2/test-cases.md) — тестовые кейсы
+- [review-a.md](iterations/dogfooding/feat-002-chat-ux/review-a.md) / [review-b.md](iterations/dogfooding/feat-002-chat-ux/review-b.md) — code review (независимый + соответствие контракту)
+- [harvest-proposals.md](iterations/dogfooding/feat-002-chat-ux/harvest-proposals.md) — кандидаты в backlog/конвенции, собранные по ходу итерации
+- [sofa-proposals.md](iterations/dogfooding/feat-002-chat-ux/sofa-proposals.md) — SOFA-кандидаты (3 TIL + 1 Blueprint, доведены до финала, не опубликованы)
+- Обновлены по итогам: [streaming.md](../tech/streaming.md) (`title_updated`), [backend.md](../tech/backend.md) (эндпоинты чатов, `ChatService`, `ChatTitleGenerator`), [frontend.md](../tech/frontend.md) (экраны, mutations-таблица, дерево модулей), [agent-runtime.md](../tech/agent-runtime.md) (секция `title` в `agent.yaml`), [prompt-management.md](../tech/prompt-management.md) (реестр промптов)
 
 ---
 

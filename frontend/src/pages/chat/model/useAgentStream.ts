@@ -3,23 +3,62 @@ import { useQueryClient } from "@tanstack/react-query";
 import { cancelChat } from "@/shared/api/chats";
 import { ensureFreshToken } from "@/shared/api/client";
 import { queryKeys } from "@/shared/api/query-keys";
-import type { ChatDetail } from "@/shared/api/chats";
-import type { SSEEvent } from "@/shared/api/sse";
+import type { Chat, ChatDetail, RecentChat } from "@/shared/api/chats";
+import type { ListResponse } from "@/shared/api/pagination";
+import type { SSEFrame } from "@/shared/api/sse";
+import { isKnownSSEEvent } from "@/shared/api/sse";
 import { logger } from "@/shared/lib/logger";
 import { getProblemMessageFromBody } from "@/shared/lib/api-error";
 import { useStreamStore } from "@/stores/stream-store";
 
 /**
- * Таймаут первого байта SSE-стрима (мс) — страховка от мёртвого соединения,
- * не лимит на ответ агента: заголовки ответа приходят только после
- * pre-stream guard-проверки, а прогоны с субагентами легитимно молчат
- * минуты до первого события. Пользовательский контроль над долгим прогоном —
- * мгновенный ThinkingIndicator и кнопка отмены, не этот таймаут.
- * Fallback на VITE_API_TIMEOUT_MS убран: это лимит обычного REST-запроса,
- * для SSE он давал ложные «Превышено время ожидания» на легитимных прогонах.
+ * Сторож тишины на проводе: соединение считается потерянным после трёх
+ * пропущенных heartbeat подряд (streaming.md § Лимиты — сервер шлёт `heartbeat`
+ * на каждые 5 с молчания в любой точке рана, включая исполнение инструмента и
+ * ревью ответа). Это не лимит на длительность хода: пока heartbeat идёт,
+ * сторож перезаводится и молчаливый час работы агента законен.
  */
-const FIRST_BYTE_TIMEOUT_MS =
-  Number(import.meta.env.VITE_SSE_FIRST_BYTE_TIMEOUT_MS) || 300000;
+const SILENCE_TIMEOUT_MS = 15000;
+
+/**
+ * Заглушка вместо содержимого хода, заблокированного защитой: тот же текст, что
+ * `MessageItem` рисует у redacted-сообщения истории, — на экране пользователь
+ * читает именно её, историческую (`shared/lib/agent-feed` → `redactFeed`).
+ */
+const REDACTED_STUB = "[Сообщение скрыто в целях безопасности]";
+
+/**
+ * Уступка макрозадаче между чтениями тела потока.
+ *
+ * Кадры одного чтения диспетчер разбирает синхронно, и React сводит их в одну
+ * перерисовку. Но когда сервер отдаёт накопленное разом, `reader.read()`
+ * резолвится уже готовыми данными — то есть микрозадачей, а не задачей
+ * ввода-вывода, — и чтения идут вплотную. Каждое из них обновляет стор по
+ * sync-lane (`useSyncExternalStore`), поэтому у React после каждого коммита
+ * остаётся незакрытая работа: сторож вложенных обновлений (`react-dom`,
+ * `NESTED_UPDATE_LIMIT = 50`) не обнуляется ни разу и на пятом десятке чтений
+ * подряд бросает исключение. Оно вылетает из применения события, диспетчер
+ * принимает его за обрыв соединения — и ход теряется целиком вместе с ответом.
+ *
+ * Уступка размыкает цепочку: React успевает закоммитить кадр до следующего
+ * чтения, счётчик обнуляется. При нормальном стриминге чтения и так упираются в
+ * ввод-вывод, и цена уступки — те же миллисекунды, что и без неё.
+ *
+ * Носитель — `MessageChannel`, а не `setTimeout`: это макрозадача, которую не
+ * подменяют фейковые таймеры, поэтому транспорт остаётся независим от того, чем
+ * тест двигает время (сторож тишины меряется именно так). Тем же приёмом
+ * уступает планировщик самого React.
+ */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => {
+      channel.port1.close();
+      resolve();
+    };
+    channel.port2.postMessage(null);
+  });
+}
 
 interface DoneInfo {
   messageId: string | null;
@@ -30,6 +69,7 @@ interface UseAgentStreamOptions {
   onDone?: (info: DoneInfo) => void;
   onError?: (detail: string) => void;
   onSecurityBlock?: () => void;
+  onCancelled?: () => void;
 }
 
 export function useAgentStream(
@@ -53,40 +93,37 @@ export function useAgentStream(
 
   const send = useCallback(
     (content: string) => {
-      const {
-        startStream,
-        appendText,
-        setTool,
-        addArtifact,
-        addPendingImage,
-        removePendingImage,
-        replaceWithRedacted,
-        setReviewing,
-        endStream,
-      } = useStreamStore.getState();
+      const { startStream, applyEvent, redact, setReviewing, endStream } =
+        useStreamStore.getState();
 
       startStream(chatId);
       isCancellingRef.current = false;
-      let hasText = false;
 
       const controller = new AbortController();
       abortRef.current = controller;
 
-      (async () => {
-        // First-byte timeout: fires if server doesn't respond within the limit.
-        // Cleared immediately after a valid (ok) response is received.
-        let timedOut = false;
-        const firstByteTimer = setTimeout(() => {
+      // Сторож тишины взводится здесь, синхронно и до `fetch`: если ставить его
+      // на первое пришедшее событие, сценарий «сервер не вернул даже
+      // заголовков» останется без таймаута вовсе — бесконечным ожиданием
+      // вместо ошибки. Дальше его перезаводит любое событие потока.
+      let timedOut = false;
+      let silenceTimer: ReturnType<typeof setTimeout> | undefined;
+      const armSilenceWatch = () => {
+        clearTimeout(silenceTimer);
+        silenceTimer = setTimeout(() => {
           timedOut = true;
           controller.abort();
           endStream();
           optionsRef.current?.onError?.("Превышено время ожидания");
-        }, FIRST_BYTE_TIMEOUT_MS);
+        }, SILENCE_TIMEOUT_MS);
+      };
+      armSilenceWatch();
 
+      (async () => {
         try {
           const token = await ensureFreshToken();
           if (!token) {
-            clearTimeout(firstByteTimer);
+            clearTimeout(silenceTimer);
             endStream();
             return;
           }
@@ -108,7 +145,7 @@ export function useAgentStream(
           if (response.status === 401) {
             const freshToken = await ensureFreshToken();
             if (!freshToken) {
-              clearTimeout(firstByteTimer);
+              clearTimeout(silenceTimer);
               endStream();
               return;
             }
@@ -127,7 +164,7 @@ export function useAgentStream(
           }
 
           if (!response.ok) {
-            clearTimeout(firstByteTimer);
+            clearTimeout(silenceTimer);
             endStream();
             let body: unknown = null;
             try {
@@ -140,9 +177,6 @@ export function useAgentStream(
             );
             return;
           }
-
-          // Got valid SSE response — first byte received, cancel timeout.
-          clearTimeout(firstByteTimer);
 
           const reader = response.body!.getReader();
           const decoder = new TextDecoder();
@@ -162,37 +196,49 @@ export function useAgentStream(
               if (!line.startsWith("data: ")) continue;
 
               // Protect against malformed SSE frames — skip bad frame, keep stream alive.
-              let event: SSEEvent;
+              let frame: SSEFrame;
               try {
-                event = JSON.parse(line.slice(6)) as SSEEvent;
+                frame = JSON.parse(line.slice(6)) as SSEFrame;
               } catch {
                 logger.warn("[SSE] Malformed frame, skipping");
                 continue;
               }
 
+              // Любое событие — свидетельство живого соединения, включая
+              // `heartbeat` и событие неизвестного типа.
+              armSilenceWatch();
+
+              // Forward-compat (streaming.md § Forward-compat): контракт растёт
+              // без версионирования пути — неизвестный тип логируется и
+              // пропускается, поток продолжает читаться.
+              if (!isKnownSSEEvent(frame)) {
+                logger.warn("[SSE] Неизвестный тип события", frame.type);
+                continue;
+              }
+              const event = frame;
+
               switch (event.type) {
+                case "stream_started":
+                case "heartbeat":
+                  // Содержимого не несут — их работа в том, что они пришли:
+                  // сторож тишины уже перезаведён выше.
+                  break;
+                case "reasoning_chunk":
                 case "text_chunk":
-                  hasText = true;
-                  appendText(event.content);
-                  break;
-                case "tool_start":
-                  setTool(event.tool);
-                  if (event.tool === "generate_image") {
-                    addPendingImage(event.call_id);
-                  }
-                  break;
-                case "tool_end":
-                  setTool(null);
-                  if (event.tool === "generate_image") {
-                    removePendingImage(event.call_id);
-                  }
+                case "tool_call_started":
+                case "tool_call_args":
+                case "tool_call_cancelled":
+                case "tool_result":
+                case "agent_event":
+                  // Нормализация контракта в ленту — знание модели
+                  // (`shared/lib/agent-feed`), а не диспетчера.
+                  applyEvent(event);
                   break;
                 case "artifact_created":
-                  addArtifact({
-                    id: event.id,
-                    title: event.title,
-                    type: event.artifact_type,
-                  });
+                  // В живом ходе карточка не рисуется: факт создания виден
+                  // строкой ленты, а полную карточку рисует история после
+                  // завершения хода. Здесь — только инвалидация списка
+                  // артефактов проекта, чтобы он открылся уже с новым.
                   queryClient.invalidateQueries({
                     queryKey: queryKeys.projects.artifacts(projectId),
                   });
@@ -203,6 +249,45 @@ export function useAgentStream(
                 case "final_output_review_complete":
                   setReviewing(false);
                   break;
+                case "title_updated": {
+                  // Только точечный патч кэша — без invalidateQueries, чтобы не
+                  // задеть detail открытого чата посреди активного стрима
+                  // (оптимистичная копия user-сообщения в localMessages задвоилась бы).
+                  const title = event.title;
+                  queryClient.setQueryData<ListResponse<Chat> | undefined>(
+                    queryKeys.projects.chats(projectId),
+                    (prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            items: prev.items.map((chat) =>
+                              chat.thread_id === chatId
+                                ? { ...chat, title }
+                                : chat,
+                            ),
+                          }
+                        : prev,
+                  );
+                  queryClient.setQueryData<
+                    ListResponse<RecentChat> | undefined
+                  >(queryKeys.chats.recent, (prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          items: prev.items.map((chat) =>
+                            chat.thread_id === chatId
+                              ? { ...chat, title }
+                              : chat,
+                          ),
+                        }
+                      : prev,
+                  );
+                  queryClient.setQueryData<ChatDetail | undefined>(
+                    queryKeys.projects.chat(projectId, chatId),
+                    (prev) => (prev ? { ...prev, title } : prev),
+                  );
+                  break;
+                }
                 case "done": {
                   terminated = true;
                   const traceId = event.trace_id ?? null;
@@ -212,9 +297,37 @@ export function useAgentStream(
                     queryKey: queryKeys.projects.chat(projectId, chatId),
                   });
                   queryClient.invalidateQueries({
+                    queryKey: queryKeys.projects.chats(projectId),
+                    exact: true,
+                  });
+                  queryClient.invalidateQueries({
                     queryKey: queryKeys.chats.recent,
                   });
                   optionsRef.current?.onDone?.({ messageId, traceId });
+                  break;
+                }
+                case "cancelled": {
+                  terminated = true;
+                  endStream();
+                  // Отмена во время исполнения инструмента — основной поставщик
+                  // вызовов со статусом `pending`: без рефетча detail
+                  // незавершённый вызов виден только после перезагрузки
+                  // страницы. Оптимистичную копию user-сообщения снимает
+                  // `onCancelled` — иначе после рефетча она задвоится.
+                  queryClient.invalidateQueries({
+                    queryKey: queryKeys.projects.chat(projectId, chatId),
+                  });
+                  // Автозаголовок пишется в БД fire-and-forget, независимо от
+                  // того, чем закончился ход, — та же страховка, что на `done`.
+                  queryClient.invalidateQueries({
+                    queryKey: queryKeys.projects.chats(projectId),
+                    exact: true,
+                  });
+                  queryClient.invalidateQueries({
+                    queryKey: queryKeys.chats.recent,
+                  });
+                  // Отмена — не ошибка: error-баннера здесь нет.
+                  optionsRef.current?.onCancelled?.();
                   break;
                 }
                 case "security_block": {
@@ -232,38 +345,58 @@ export function useAgentStream(
                   queryClient.invalidateQueries({
                     queryKey: queryKeys.chats.recent,
                   });
-                  if (hasText) {
-                    replaceWithRedacted(
-                      "[Сообщение скрыто в целях безопасности]",
-                    );
-                  } else {
-                    // No transient error banner — persisted placeholder + disabled input
-                    // are the single source of truth, identical before and after reload.
-                    endStream();
-                  }
+                  // Списки чатов не инвалидируются: на заблокированном вводе
+                  // генерация заголовка не запускается вовсе
+                  // (streaming.md § Уточнения → `title_updated`).
+                  //
+                  // Редакция терминальна: лента хода схлопывается в заглушку и
+                  // запирается, живой регион гаснет вместе со стримом. На экране
+                  // не остаётся ни строки рассуждений, ни строк вызовов
+                  // заблокированного хода, а саму заглушку показывает
+                  // отрефетченная история — одну и ту же и сразу, и после
+                  // перезагрузки. Транзиентного error-баннера нет: источник
+                  // правды — сохранённая заглушка и заблокированный ввод.
+                  redact(REDACTED_STUB);
                   optionsRef.current?.onSecurityBlock?.();
                   break;
                 }
                 case "error":
                   terminated = true;
                   endStream();
+                  // Та же fallback-инвалидация списков, что на `done`: title мог
+                  // успеть записаться до исключения.
+                  queryClient.invalidateQueries({
+                    queryKey: queryKeys.projects.chats(projectId),
+                    exact: true,
+                  });
+                  queryClient.invalidateQueries({
+                    queryKey: queryKeys.chats.recent,
+                  });
                   if (!isCancellingRef.current) {
                     optionsRef.current?.onError?.(event.detail);
                   }
                   break;
               }
+
+              if (terminated) clearTimeout(silenceTimer);
             }
+
+            // Кадры прочитанного куска разобраны — уступаем событийному циклу,
+            // прежде чем читать следующий (см. `yieldToEventLoop`).
+            if (!terminated) await yieldToEventLoop();
           }
+
+          clearTimeout(silenceTimer);
 
           if (!terminated) {
             endStream();
             optionsRef.current?.onError?.("Соединение прервано");
           }
         } catch (err) {
-          clearTimeout(firstByteTimer);
+          clearTimeout(silenceTimer);
           if (err instanceof DOMException && err.name === "AbortError") {
             if (timedOut) {
-              // Таймаут уже обработан в колбэке firstByteTimer
+              // Таймаут уже обработан в колбэке сторожа тишины
             } else if (isCancellingRef.current) {
               endStream();
             }

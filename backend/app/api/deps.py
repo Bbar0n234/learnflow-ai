@@ -102,12 +102,17 @@ def get_artifact_service(session: DBSession) -> ArtifactService:
 def get_chat_service(session: DBSession, request: Request) -> ChatService:
     redis = getattr(request.app.state, "redis", None)
     trace_store = TraceStore(redis) if redis else None
+    # Optional with a None default: ASGI tests build ChatService without
+    # running the app lifespan, so `chat_title_generator` never exists on
+    # `app.state` there.
+    title_generator = getattr(request.app.state, "chat_title_generator", None)
     return ChatService(
         thread_view_repo=ThreadViewRepository(session),
         agent_runner=request.app.state.agent_runner,
         artifact_repo=ArtifactRepository(session),
         trace_store=trace_store,
         session=session,
+        title_generator=title_generator,
     )
 
 

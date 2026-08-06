@@ -26,7 +26,7 @@ from app.agent.security.types import SecurityConfig
 
 def _active_model_slugs(agent: AgentConfig, security: SecurityConfig) -> set[str]:
     """Every model slug actually referenced by the shipped configs."""
-    slugs = {agent.llm.model, security.llm_classifier.model}
+    slugs = {agent.llm.model, agent.title.model, security.llm_classifier.model}
     if agent.summarization is not None:
         slugs.add(agent.summarization.model)
     if agent.subagents is not None:

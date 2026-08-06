@@ -1,84 +1,75 @@
 import { create } from "zustand";
 
-export interface StreamingArtifact {
-  id: string;
-  title: string;
-  type: string;
-}
+import type { SSEEvent } from "@/shared/api/sse";
+import {
+  applyStreamEvent,
+  redactFeed,
+  type AgentFeedState,
+} from "@/shared/lib/agent-feed";
 
-interface StreamState {
+/**
+ * Эфемерное состояние активного стрима. Лента активности живёт моделью
+ * `shared/lib/agent-feed` (`feed` + `redacted` приходят из неё) — плоского
+ * `activeTool` больше нет: параллельные вызовы адресуются по `call_id` и
+ * закрываются независимо друг от друга.
+ *
+ * Стор — не source of truth: после `done` данные рефетчатся с сервера, и ту же
+ * ленту рисует история.
+ */
+interface StreamState extends AgentFeedState {
   isStreaming: boolean;
-  streamingText: string;
-  activeTool: string | null;
   streamingChatId: string | null;
-  streamingArtifacts: StreamingArtifact[];
-  /** call_id генераций изображений, активных прямо сейчас (tool_start пришёл, tool_end/artifact_created ещё нет). */
-  pendingImages: string[];
-  redacted: boolean;
   isReviewing: boolean;
   startStream: (chatId: string) => void;
-  appendText: (chunk: string) => void;
-  setTool: (name: string | null) => void;
-  addArtifact: (artifact: StreamingArtifact) => void;
-  addPendingImage: (callId: string) => void;
-  removePendingImage: (callId: string) => void;
-  replaceWithRedacted: (text: string) => void;
+  /** Единственная точка мутации ленты: событие уходит в редьюсер модели. */
+  applyEvent: (event: SSEEvent) => void;
+  redact: (stubText: string) => void;
   setReviewing: (value: boolean) => void;
   endStream: () => void;
 }
 
+type StreamData = Omit<
+  StreamState,
+  "startStream" | "applyEvent" | "redact" | "setReviewing" | "endStream"
+>;
+
+/** Пустое состояние — фабрика, а не константа: массивы не разделяются сбросами. */
+function idleState(): StreamData {
+  return {
+    isStreaming: false,
+    streamingChatId: null,
+    feed: [],
+    redacted: false,
+    isReviewing: false,
+  };
+}
+
 export const useStreamStore = create<StreamState>()((set) => ({
-  isStreaming: false,
-  streamingText: "",
-  activeTool: null,
-  streamingChatId: null,
-  streamingArtifacts: [],
-  pendingImages: [],
-  redacted: false,
-  isReviewing: false,
+  ...idleState(),
+  // Старт нового стрима сбрасывает остатки предыдущего целиком — иначе лента
+  // прошлого хода дописывалась бы событиями нового.
   startStream: (chatId) =>
+    set({ ...idleState(), isStreaming: true, streamingChatId: chatId }),
+  applyEvent: (event) => set((s) => applyStreamEvent(s, event)),
+  // Редакция по `security_block` терминальна: ход на этом закончился, поэтому
+  // она же закрывает стрим — но, в отличие от `endStream`, не стирает ленту, а
+  // схлопывает её в заглушку и запирает флагом `redacted`. Гасить стрим здесь
+  // обязательно: пока `isStreaming` держится, живой регион показывает заглушку
+  // рядом с той же заглушкой, приехавшей из отрефетченной истории, а композер
+  // остаётся с кнопкой отмены хода, которого уже нет. Из-за этого заглушку из
+  // ленты пользователь и не читает — её показывает история; лента же остаётся
+  // запертой на случай событий, пришедших после терминального.
+  //
+  // Ревью гасится по той же причине, что и стрим: от схлопнутого хода на
+  // экране не должно остаться индикатора проверки ответа — иначе `redact`
+  // оставляет живые остатки там, где `endStream` чистит всё.
+  redact: (stubText) =>
     set({
-      isStreaming: true,
-      streamingText: "",
-      activeTool: null,
-      streamingChatId: chatId,
-      streamingArtifacts: [],
-      pendingImages: [],
-      redacted: false,
-      isReviewing: false,
-    }),
-  appendText: (chunk) =>
-    set((s) => (s.redacted ? s : { streamingText: s.streamingText + chunk })),
-  setTool: (name) => set({ activeTool: name }),
-  addArtifact: (artifact) =>
-    set((s) => ({ streamingArtifacts: [...s.streamingArtifacts, artifact] })),
-  addPendingImage: (callId) =>
-    set((s) =>
-      s.pendingImages.includes(callId)
-        ? s
-        : { pendingImages: [...s.pendingImages, callId] },
-    ),
-  removePendingImage: (callId) =>
-    set((s) => ({
-      pendingImages: s.pendingImages.filter((id) => id !== callId),
-    })),
-  replaceWithRedacted: (text) =>
-    set({
-      streamingText: text,
-      redacted: true,
-      activeTool: null,
+      ...redactFeed(stubText),
+      isStreaming: false,
+      streamingChatId: null,
       isReviewing: false,
     }),
   setReviewing: (value) => set({ isReviewing: value }),
-  endStream: () =>
-    set({
-      isStreaming: false,
-      streamingText: "",
-      activeTool: null,
-      streamingChatId: null,
-      streamingArtifacts: [],
-      pendingImages: [],
-      redacted: false,
-      isReviewing: false,
-    }),
+  endStream: () => set(idleState()),
 }));

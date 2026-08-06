@@ -1,0 +1,74 @@
+[
+  {
+    "name": "create_artifact",
+    "origin": "internal"
+  },
+  {
+    "name": "create_section",
+    "origin": "internal"
+  },
+  {
+    "name": "delete_section",
+    "origin": "internal"
+  },
+  {
+    "name": "delete_skill_context",
+    "origin": "internal"
+  },
+  {
+    "name": "delete_user_memory",
+    "origin": "internal"
+  },
+  {
+    "name": "firecrawl_extract",
+    "origin": "builtin_mcp"
+  },
+  {
+    "name": "firecrawl_scrape",
+    "origin": "builtin_mcp"
+  },
+  {
+    "name": "firecrawl_search",
+    "origin": "builtin_mcp"
+  },
+  {
+    "name": "generate_image",
+    "origin": "internal"
+  },
+  {
+    "name": "get_section",
+    "origin": "internal"
+  },
+  {
+    "name": "get_skill_context",
+    "origin": "internal"
+  },
+  {
+    "name": "load_skill",
+    "origin": "internal"
+  },
+  {
+    "name": "run_subagent",
+    "origin": "internal"
+  },
+  {
+    "name": "save_skill_context",
+    "origin": "internal"
+  },
+  {
+    "name": "save_user_memory",
+    "origin": "internal"
+  },
+  {
+    "name": "tavily_extract",
+    "origin": "builtin_mcp"
+  },
+  {
+    "name": "tavily_search",
+    "origin": "builtin_mcp"
+  },
+  {
+    "name": "update_section",
+    "origin": "internal"
+  }
+]

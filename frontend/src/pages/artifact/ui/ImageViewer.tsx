@@ -108,7 +108,7 @@ export function ImageViewer({
             </div>
           ) : (
             <div
-              className="h-full w-full animate-pulse bg-muted"
+              className="h-full w-full animate-pulse bg-muted motion-reduce:animate-none"
               aria-label="Изображение загружается"
             />
           )}

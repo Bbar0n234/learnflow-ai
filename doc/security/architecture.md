@@ -38,7 +38,7 @@ flowchart LR
 | Checkpoint | Где срабатывает | Направление | Действие при INJECTION |
 |------------|-----------------|-------------|------------------------|
 | `user_input` | Runner, до запуска графа | inbound | Reject, `security_block` SSE, thread blocked |
-| `tool_result` | `agent_node`, до вызова LLM | inbound | Заглушка-`ToolMessage`, thread blocked |
+| `tool_result` | Узел `tools`, на каждом результате отдельно — до отчёта о вызове и до возврата из узла | inbound | Заглушка-`ToolMessage`, thread blocked |
 | `tool_call_arg` | `agent_node`, после ответа LLM | outbound | `tool_calls=[]` + redacted `AIMessage`, thread blocked, граф уходит в END |
 | `final_output` | Runner, mid-stream и end-of-stream | outbound | Redacted `AIMessage`, thread blocked, `security_block` SSE |
 | `mcp_metadata` | Service, регистрация user MCP + built-in startup | add-time | HTTP 422 (для built-in — disable конкретного сервера) |
@@ -82,7 +82,7 @@ Two-list match: имя internal non-MCP tool **И** ≥1 параметр из �
 
 Один composite-промпт `security-classifier` в Langfuse. Per-checkpoint специфика подставляется через переменные `checkpoint_description` и `checkpoint_specifics_section` из `configs/security.yaml`. Промпт работает как security boundary classifier: оценивает факт пересечения границы, не «попытку атаки» — legitimate-looking запрос с PROTECTED-материалом на выход всё равно даёт INJECTION.
 
-Verdict: CLEAN / SUSPICIOUS / INJECTION. SUSPICIOUS пока только логируется; graduated response — feat-007. Невалидный ответ → retry до `max_retries`, исчерпаны → CLEAN + WARNING (graceful degradation).
+Verdict: CLEAN / SUSPICIOUS / INJECTION. SUSPICIOUS только логируется (уровень WARNING) — отдельной реакции на него в контуре нет. Невалидный ответ → retry до `max_retries`, исчерпаны → CLEAN + WARNING (graceful degradation).
 
 Все substring-детекторы нормализуют content одинаково: lowercase, схлопывание `_-` → `_`, схлопывание whitespace.
 
@@ -118,7 +118,7 @@ System prompt собирается секционно (Python, не Jinja-templa
 Два уровня блокировки:
 
 - **Thread-level.** Поле `security_blocked` в `thread_views`. Маркируется при первом INJECTION на любом из четырёх runtime-checkpoint'ов. FastAPI-зависимость `require_unblocked_thread` на POST `/messages` отдаёт 403, пока флаг стоит.
-- **Message-level.** Маркер `additional_kwargs.security_redacted` на `AIMessage` / `ToolMessage`. Checkpointer хранит оригинал; при чтении истории DTO-mapper подставляет заглушку и выставляет `redacted: true` для UI.
+- **Message-level.** Маркер `additional_kwargs.security_redacted` на `AIMessage` / `ToolMessage`: по нему DTO-mapper при чтении истории отдаёт заглушку и выставляет `redacted: true` для UI. Где именно исчезает отравленный текст, зависит от checkpoint'а: `tool_result` заменяет сообщение прямо в узле `tools`, до его выхода, поэтому сырой результат не доезжает ни до провода, ни до чекпоинтера (→ [ADR-030](../tech/adr/ADR-030-per-call-tool-result-guard.md)); `final_output` подменяет ассистентское сообщение по `id`; `tool_call_arg` оставляет текст ответа модели в состоянии, срезая `tool_calls`, — там заглушку подставляет только маппер истории.
 
 Подмена сообщения работает через reducer `add_messages` и synthetic-сообщение с тем же `id`. Отдельная нода-interceptor не вводится — это сохраняет встроенный `tools_condition`.
 
@@ -137,7 +137,7 @@ Guard вызывается первым в service-методе, до endpoint-�
 Субагент — тот же trust-контур, что основной агент; отдельный периметр не строится (полное обоснование — [ADR-028](../tech/adr/ADR-028-product-subagents.md), исполняющее ядро — [agent-runtime.md § Субагенты](../tech/agent-runtime.md#субагенты)).
 
 - **На границе вызова** переиспользуются существующие checkpoint'ы: `task` + `input_artifact_ids` — аргументы tool-вызова `run_subagent`, проверяемые `tool_call_arg`; результат субагента становится `ToolMessage`, проверяемым `tool_result` до следующего вызова LLM.
-- **Внутри цикла субагента** переиспользуется тот же guard-код (`backend/app/agent/tool_guards.py`), что `agent_node` основного графа — та же fail-safe redact-семантика, не блокировка. Каждый субагент — ReAct-агент с инструментами, проверки встроены в его llm-узел; в прогоне без tool-вызовов они структурно бездействуют — untrusted-источников внутри цикла тогда нет, единственный вход уже проверен на границе.
+- **Внутри цикла субагента** переиспользуется тот же guard-код (`backend/app/agent/tool_guards.py`), что в основном графе — та же fail-safe redact-семантика, не блокировка. Каждый субагент — ReAct-агент с инструментами, проверки стоят в тех же узлах: `tool_call_arg` — в llm-узле, `tool_result` — в узле `tools`; в прогоне без tool-вызовов они структурно бездействуют — untrusted-источников внутри цикла тогда нет, единственный вход уже проверен на границе.
 - **Toolset субагента** строится только из `internal_tools` + built-in MCP — user-installed MCP не резолвится в него ни при каких обстоятельствах, что сохраняет trust-границу между продуктовыми и пользовательскими интеграциями.
 
 ## Observability
@@ -149,7 +149,9 @@ Guard вызывается первым в service-методе, до endpoint-�
 
 На уровне trace — score `security_verdict` (CLEAN / SUSPICIOUS / INJECTION) и metadata (`blocked`, `checkpoint`, `detection_layer`). На guardrail observation — модель classifier'а, raw verdict, reasoning, детали детекторов. Подробнее — [observability.md](../tech/observability.md).
 
-structlog-processor помечает security-логи стабильным shape (`identifiers`, `metadata`) для SIEM-pipeline (feat-005). SIEM потребляет events через Redis Streams, коррелирует и отображает в admin UI — [ADR-018](../tech/adr/ADR-018-siem-service-topology.md).
+Деградация guard наблюдаема на всех дорогах — не только внутри движка, но и в enforcement-адаптерах. Узел `tools`, который не смог прочитать историю диалога из состояния (проверка идёт, но без контекста для классификатора) или получил от `ToolNode` выход без батча `ToolMessage` (проверять нечего — форма ответа `Command`), пишет тот же `agent.guard.degraded` с `severity=critical` и `detection_layer=graceful_degradation`, что и деградация самого классификатора. Молчаливого fail-open в контуре нет — [conventions.md § Восстановление](../tech/conventions.md).
+
+structlog-processor помечает security-логи стабильным shape (`identifiers`, `metadata`) для SIEM-pipeline. SIEM потребляет events через Redis Streams, коррелирует и отображает в admin UI — [ADR-018](../tech/adr/ADR-018-siem-service-topology.md).
 
 ## Security Observability: SIEM Pipeline
 
@@ -250,6 +252,7 @@ graph LR
 - [ADR-018](../tech/adr/ADR-018-siem-service-topology.md) — SIEM topology: separate service, identity, data isolation
 - [ADR-020](../tech/adr/ADR-020-security-event-contract.md) — event contract: vocabulary, identifiers, strictness
 - [ADR-028](../tech/adr/ADR-028-product-subagents.md) — субагенты: subagent-as-tool, переиспользование границы вместо нового периметра
+- [ADR-030](../tech/adr/ADR-030-per-call-tool-result-guard.md) — `TOOL_RESULT` внутри узла `tools`, повызовно: размен стоимости классификатора на непроверенный текст в ленте
 - [agent-runtime.md](../tech/agent-runtime.md) — ReAct-граф, system message, MCP integration
 - [observability.md](../tech/observability.md) — Langfuse traces и scores
 - [streaming.md](../tech/streaming.md) — SSE-протокол, terminal events

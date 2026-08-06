@@ -119,6 +119,7 @@ sync: make sync-prompts → commit updated seed files
 |------|-----------|---------------|------------|
 | `system` | `configs/prompts/system.txt` | `agent.yaml` → `llm` (model, extra_body) | Base system prompt агента |
 | `summarization` | `configs/prompts/summarization.txt` | `agent.yaml` → `summarization` (model, max_tokens) | Суммаризация при message compaction |
+| `title` | `configs/prompts/title.txt` | `agent.yaml` → `title` (model, extra_body) | Auto-title чата по первому сообщению пользователя |
 | `security-classifier` | `configs/prompts/security-classifier.txt` | `security.yaml` → `llm_classifier` | Composite classifier для всех security checkpoints (→ [architecture.md](../security/architecture.md)) |
 | `subagent-judge` | `configs/prompts/subagent-judge.txt` | `agent.yaml` → `subagents.llm` (model, extra_body) | System prompt субагента-судьи — вердикт с evidence, без переписывания текста (→ [agent-runtime.md § Субагенты](agent-runtime.md#субагенты)) |
 | `subagent-web-research` | `configs/prompts/subagent-web-research.txt` | `agent.yaml` → `subagents.llm` (model, extra_body) | System prompt субагента-ресёрчера — выжимка с источниками |
@@ -144,7 +145,7 @@ Prompt config хранится в Langfuse metadata вместе с тексто
 
 **Файлы:**
 - `configs/prompts/*.txt` — seed-файлы (source для initial load + fallback)
-- `configs/agent.yaml` → секции `llm`, `summarization`, `subagents.llm` — config для prompt metadata
+- `configs/agent.yaml` → секции `llm`, `summarization`, `subagents.llm`, `title` — config для prompt metadata
 
 **Makefile:**
 - `make sync-prompts` — обратная синхронизация Langfuse → файлы

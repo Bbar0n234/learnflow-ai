@@ -52,6 +52,8 @@ class SpyRunner:
         *,
         config: Any = None,
         canary_token: str = "",
+        stream_writer: Any = None,
+        parent_call_id: str | None = None,
     ) -> str:
         self.calls.append(
             {
@@ -60,6 +62,8 @@ class SpyRunner:
                 "documents": documents,
                 "config": config,
                 "canary_token": canary_token,
+                "stream_writer": stream_writer,
+                "parent_call_id": parent_call_id,
             }
         )
         if self._raises is not None:

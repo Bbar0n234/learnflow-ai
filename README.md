@@ -7,7 +7,9 @@
   <a href="#what-is-learnflowai">About</a> ·
   <a href="#screenshots">Screenshots</a> ·
   <a href="#features">Features</a> ·
+  <a href="#how-the-agent-works">Agent</a> ·
   <a href="#architecture">Architecture</a> ·
+  <a href="#roadmap">Roadmap</a> ·
   <a href="#quick-start">Quick Start</a> ·
   <a href="#documentation">Docs</a>
 </p>
@@ -22,23 +24,18 @@ On top of that memory sits a **general LangGraph agent with pluggable skills** �
 
 ## Screenshots
 
-<table>
-  <tr>
-    <td width="50%">
-      <img src="doc/assets/readme/screen-welcome-light.png" alt="Welcome screen with project list">
-    </td>
-    <td width="50%">
-      <img src="doc/assets/readme/screen-chat-dark.png" alt="Chat with an agent writing to the Knowledge Sphere (dark theme)">
-    </td>
-  </tr>
-  <tr>
-    <td align="center"><em>Projects workspace</em></td>
-    <td align="center"><em>Agent writes to the Knowledge Sphere right from the chat</em></td>
-  </tr>
-</table>
+<p align="center">
+  <img src="doc/assets/readme/screen-welcome-light.png" alt="Welcome screen with project list">
+  <br><em>Projects workspace</em>
+</p>
 
 <p align="center">
-  <img src="doc/assets/readme/screen-sphere-light.png" width="85%" alt="Knowledge Sphere: versioned project memory with chronicle and version history">
+  <img src="doc/assets/readme/screen-chat-dark.png" alt="Chat with an agent writing to the Knowledge Sphere (dark theme)">
+  <br><em>Agent writes to the Knowledge Sphere right from the chat — every write is a versioned, reviewable patch</em>
+</p>
+
+<p align="center">
+  <img src="doc/assets/readme/screen-sphere-light.png" alt="Knowledge Sphere: versioned project memory with chronicle and version history">
   <br><em>Knowledge Sphere — versioned project memory with chronicle and version history</em>
 </p>
 
@@ -50,6 +47,17 @@ On top of that memory sits a **general LangGraph agent with pluggable skills** �
 - **Artifacts** — structured outputs (summaries, study plans, slide decks) live alongside chats inside the project, not buried in the transcript.
 - **Security built in** — prompt-injection defense pipeline plus a dedicated SIEM service that consumes security events through Redis Streams, correlates them, and raises alerts.
 - **Observability** — full Langfuse tracing with per-request cost accounting and prompt management (dev/prod prompt lifecycles).
+
+## How the agent works
+
+The product requirement behind the runtime is flexibility: preparing a talk, a course, and an article series are different workflows, and every expert brings their own. So instead of hardcoded pipelines there is **one general agent** (plain LangGraph ReAct loop, no LangChain wrappers) whose behavior is extended through configuration, not code:
+
+- **Skills** — pluggable methodology packages ("how to structure a lecture", "how to write a tech article") loaded on demand. Human-authored knowledge, open for contribution — this is how the product stays specialized without freezing into one workflow.
+- **Tools** — reading and patching the Knowledge Sphere, generating artifacts, web research via MCP, image generation.
+- **Sub-agents** — heavy work (judging output quality, deep web research) runs in isolated contexts so the main agent's context stays lean.
+- **Context engineering** — the agent starts with a minimal slice of project memory and drills deeper only when the task needs it; long threads are compacted automatically.
+- **Guarded execution** — every tool result passes a security checkpoint before re-entering the loop; prompt-injection defenses are layered, not bolted on.
+- **Persistence** — conversation state lives in PostgreSQL checkpoints: any thread resumes exactly where it stopped, which is the whole point of the product.
 
 ## Architecture
 
@@ -80,11 +88,34 @@ graph TD
     SecPipe --> Redis
     Redis --> SIEM
     Correlation --> SiemDB
+
+    style Backend fill:#3fb9501a,stroke:#3fb950,color:#3fb950
+    style SIEM fill:#f851491a,stroke:#f85149,color:#f85149
+    style Frontend stroke:#58a6ff
+    style API stroke:#58a6ff
+    style Runtime stroke:#bc8cff
+    style SecPipe stroke:#f85149
+    style Correlation stroke:#f85149
+    style MainDB stroke:#d29922
+    style SiemDB stroke:#d29922
+    style Redis stroke:#39c5cf
+    style External stroke:#8b949e
 ```
 
 **Stack:** Python 3.12 · FastAPI · LangGraph (plain, no LangChain wrappers) · PostgreSQL · Redis · React + TypeScript (Feature-Sliced Design) · uv workspace monorepo · Langfuse.
 
 The project is developed with **AIDD (AI-Driven Development)**: the architect defines contracts and architecture in `doc/`, and LLM agents implement against that documented context. The full decision trail lives in [ADRs](doc/tech/adr/) and iteration artifacts — the repository doubles as a working example of the methodology.
+
+## Roadmap
+
+The core product is built — agent runtime, Knowledge Sphere, artifacts, security, observability. What's ahead:
+
+- **Now · dogfooding on real content.** An author's mini-course on defending LLM applications (lectures, slide decks, summaries) is being prepared entirely through the product. Exit criterion: the author relies on the product by habit instead of escaping to generic tools.
+- **Next · first external users.** OAuth sign-in, cost-optimal model selection, affordable web search, per-user spending caps.
+- **Then · educators channel.** Ready-made teaching materials (lecture notes, slides, practice tasks) built from expert context — for university teachers who have the expertise but not the time to package it.
+- **Ongoing tracks.** Agent evaluation (LLM-as-judge + deterministic checks on real-case datasets), model portability (any OpenAI-compatible endpoint, including on-prem vLLM), Telegram bot as a second delivery channel.
+
+The full picture with phases and exit conditions lives in [doc/product/roadmap.md](doc/product/roadmap.md).
 
 ## Quick Start
 

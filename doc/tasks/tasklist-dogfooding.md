@@ -21,7 +21,7 @@
 
 | Итерация | Алиас | Статус | Scope | Закрывает |
 |----------|-------|--------|-------|-----------|
-| feat-001 | A | 🚧 In Progress | cross-cutting | Видимость работы агента: карта событий, live-фазы, reasoning-стрим, след tool-вызовов, security_block в UI |
+| feat-001 | A | ✅ Done | cross-cutting | Видимость работы агента: карта событий, live-фазы, reasoning-стрим, след tool-вызовов, security_block в UI |
 | chore-001 | B | 🚧 In Progress | cross-cutting | Prod-closing: kill-switch LLM-защиты + SIEM kill-switch, X-Forwarded-For, прод-образы без dev-deps; merge develop → main + деплой |
 | feat-002 | C | ✅ Done | cross-cutting | Chat UX: первое сообщение вместо title, auto-title отдельным модулем, удаление и переименование чатов |
 | feat-003 | D | ✅ Done | agent | Модели: cost-optimal подбор по внешним бенчмаркам, whitelist 5+, pricing seed в Langfuse |
@@ -57,7 +57,7 @@
 
 **Цель:** комплексная переработка трансляции работы агента в чат — не точечные фиксы, а один системный дизайн-заход: что агент делает сейчас, на какой фазе, что уже сделал — видно, красиво и динамично, уровнем дизайн-системы.
 
-**Статус:** 🚧 In Progress
+**Статус:** ✅ Done
 **Scope:** cross-cutting (Frontend + Backend + Agent)
 
 #### Структура итерации

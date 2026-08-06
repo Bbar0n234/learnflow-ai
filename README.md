@@ -54,16 +54,30 @@ The product requirement behind the runtime is flexibility: preparing a talk, a c
 
 ```mermaid
 graph LR
-    START(("START")) --> AGENT["agent node<br/>context assembly · compaction · LLM call"]
-    AGENT --> COND{"tool calls?"}
-    COND -->|yes| TOOLS["guarded tools<br/>sphere · artifacts · skills · sub-agents<br/>web research (MCP) · image generation"]
-    TOOLS --> AGENT
-    COND -->|no| END_(("END"))
+    EXPERT(["Expert<br/>ideas · context · drafts"])
+    AGENT["General Agent"]
+    SPHERE[("Knowledge Sphere<br/>versioned project memory")]
+    SKILLS["Skills<br/>methodology: how to structure<br/>a lecture, a talk, an article"]
+    WEB["Web research<br/>fresh sources for niche topics"]
+    OUT["Artifacts<br/>outlines · slides · summaries"]
+
+    EXPERT -->|"raw thoughts in chat"| AGENT
+    AGENT -->|"drafts to review"| EXPERT
+    SPHERE -->|"only the context<br/>the current task needs"| AGENT
+    AGENT -->|"new facts and decisions,<br/>written back as versioned patches"| SPHERE
+    SKILLS -->|"loaded on demand"| AGENT
+    WEB --> AGENT
+    AGENT -->|"structured materials"| OUT
 
     style AGENT stroke:#bc8cff
-    style TOOLS stroke:#bc8cff
-    style COND stroke:#8b949e
+    style SPHERE stroke:#d29922
+    style SKILLS stroke:#3fb950
+    style OUT stroke:#58a6ff
+    style WEB stroke:#8b949e
+    style EXPERT stroke:#8b949e
 ```
+
+The loop between the agent and the sphere is the core of the product: every session both *draws on* accumulated project memory and *grows* it — so the context never resets to zero.
 
 - **Skills** — pluggable methodology packages ("how to structure a lecture", "how to write a tech article") loaded on demand. Human-authored knowledge, open for contribution — this is how the product stays specialized without freezing into one workflow.
 - **Tools** — reading and patching the Knowledge Sphere, generating artifacts, web research via MCP, image generation.
@@ -192,4 +206,4 @@ All project documentation lives in [`doc/`](doc/index.md) (in Russian):
 
 ## License
 
-MIT
+[Apache 2.0](LICENSE)

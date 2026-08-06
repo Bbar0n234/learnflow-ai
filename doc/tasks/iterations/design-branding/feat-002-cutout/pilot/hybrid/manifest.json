@@ -1,0 +1,20 @@
+[
+  {
+    "source": "/home/bbaron/dev/my_pet_projects/learnflow-ai/doc/tasks/iterations/design-branding/feat-001-poc/refs/illustrations/final/light/empty-artifacts.png",
+    "birefnet": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-002-cutout/doc/tasks/iterations/design-branding/feat-002-cutout/pilot/cutouts/light/empty-artifacts.png",
+    "output": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-002-cutout/doc/tasks/iterations/design-branding/feat-002-cutout/pilot/hybrid/light/empty-artifacts.png",
+    "restored_pixels": 21140
+  },
+  {
+    "source": "/home/bbaron/dev/my_pet_projects/learnflow-ai/doc/tasks/iterations/design-branding/feat-001-poc/refs/illustrations/final/dark/welcome-hero.png",
+    "birefnet": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-002-cutout/doc/tasks/iterations/design-branding/feat-002-cutout/pilot/cutouts/dark/welcome-hero.png",
+    "output": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-002-cutout/doc/tasks/iterations/design-branding/feat-002-cutout/pilot/hybrid/dark/welcome-hero.png",
+    "restored_pixels": 17813
+  },
+  {
+    "source": "/home/bbaron/dev/my_pet_projects/learnflow-ai/doc/tasks/iterations/design-branding/feat-001-poc/refs/illustrations/final/light/sidebar-vignette.png",
+    "birefnet": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-002-cutout/doc/tasks/iterations/design-branding/feat-002-cutout/pilot/cutouts/light/sidebar-vignette.png",
+    "output": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-002-cutout/doc/tasks/iterations/design-branding/feat-002-cutout/pilot/hybrid/light/sidebar-vignette.png",
+    "restored_pixels": 2905
+  }
+]

@@ -1,0 +1,137 @@
+[
+  {
+    "image": "empty-artifacts",
+    "theme": "light",
+    "estimated_bg": [
+      252,
+      238,
+      224
+    ],
+    "alpha_zero": 0.6093,
+    "alpha_partial": 0.1105,
+    "alpha_full": 0.2802,
+    "bg_leak": 0.00166,
+    "object_eaten": 0.02859,
+    "halo_bg_similarity": 205.0,
+    "suspicious_blobs": [
+      {
+        "area_px": 5361,
+        "bbox": [
+          594,
+          364,
+          769,
+          593
+        ],
+        "mean_alpha": 121.2
+      }
+    ],
+    "edge_crop_centers": [
+      [
+        629,
+        441
+      ],
+      [
+        931,
+        489
+      ],
+      [
+        922,
+        878
+      ],
+      [
+        1207,
+        739
+      ]
+    ]
+  },
+  {
+    "image": "welcome-hero",
+    "theme": "dark",
+    "estimated_bg": [
+      252,
+      236,
+      222
+    ],
+    "alpha_zero": 0.7953,
+    "alpha_partial": 0.0676,
+    "alpha_full": 0.1371,
+    "bg_leak": 0.00085,
+    "object_eaten": 0.00829,
+    "halo_bg_similarity": 185.2,
+    "suspicious_blobs": [
+      {
+        "area_px": 5849,
+        "bbox": [
+          1094,
+          660,
+          1418,
+          854
+        ],
+        "mean_alpha": 139.9
+      }
+    ],
+    "edge_crop_centers": [
+      [
+        1214,
+        795
+      ],
+      [
+        1474,
+        773
+      ],
+      [
+        1143,
+        534
+      ],
+      [
+        1424,
+        297
+      ]
+    ]
+  },
+  {
+    "image": "sidebar-vignette",
+    "theme": "light",
+    "estimated_bg": [
+      253,
+      244,
+      234
+    ],
+    "alpha_zero": 0.795,
+    "alpha_partial": 0.055,
+    "alpha_full": 0.15,
+    "bg_leak": 0.00078,
+    "object_eaten": 0.03775,
+    "halo_bg_similarity": 216.8,
+    "suspicious_blobs": [
+      {
+        "area_px": 2795,
+        "bbox": [
+          1225,
+          627,
+          1394,
+          701
+        ],
+        "mean_alpha": 98.4
+      }
+    ],
+    "edge_crop_centers": [
+      [
+        1335,
+        624
+      ],
+      [
+        415,
+        625
+      ],
+      [
+        695,
+        625
+      ],
+      [
+        1099,
+        331
+      ]
+    ]
+  }
+]

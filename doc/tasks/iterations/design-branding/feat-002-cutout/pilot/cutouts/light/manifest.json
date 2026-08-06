@@ -1,0 +1,15 @@
+[
+  {
+    "source": "/home/bbaron/dev/my_pet_projects/learnflow-ai/doc/tasks/iterations/design-branding/feat-001-poc/refs/illustrations/final/light/sidebar-vignette.png",
+    "output": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-002-cutout/doc/tasks/iterations/design-branding/feat-002-cutout/pilot/cutouts/light/sidebar-vignette.png",
+    "source_size": [
+      1983,
+      793
+    ],
+    "inference_resolution": "2048x832",
+    "weights": "General-HR",
+    "space": "ZhengPeng7/BiRefNet_demo",
+    "seconds": 6.1,
+    "finished_at": "2026-08-06T12:57:54+0300"
+  }
+]

@@ -235,11 +235,9 @@ streamStore
 ├── streamingChatId: string | null
 ├── feed: AgentFeedItem[]          — лента хода: рассуждения, текст, вызовы, доменные события
 ├── redacted: boolean              — ход схлопнут в заглушку security-блокировкой
-├── streamingArtifacts: StreamingArtifact[]
 ├── isReviewing: boolean
 ├── startStream(chatId)
 ├── applyEvent(event)              — единственная точка мутации ленты: событие уходит редьюсеру модели
-├── addArtifact(artifact)
 ├── redact(stubText)               — терминальная редакция: закрывает стрим, ленту не стирает
 ├── setReviewing(value)
 └── endStream()
@@ -445,7 +443,7 @@ frontend/
 │   │   │   │                        onValueChange), MessageList, MessageItem,
 │   │   │   │                        ActivityFeed/ActivityRow/ActivityDetails (лента активности),
 │   │   │   │                        ActivityPauseRow, LiveDots, StreamEndNotice, ReviewIndicator,
-│   │   │   │                        ArtifactCard, GeneratingArtifactCard, FeedbackButtons
+│   │   │   │                        ArtifactCard, FeedbackButtons
 │   │   │   └── model/             — useAgentStream (SSE-оркестрация)
 │   │   ├── sphere/                — /projects/:id/sphere (SphereView/Viewer/Editor)
 │   │   ├── artifacts/             — /projects/:id/artifacts (ArtifactList)

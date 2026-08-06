@@ -1,0 +1,15 @@
+[
+  {
+    "source": "/home/bbaron/dev/my_pet_projects/learnflow-ai/doc/tasks/iterations/design-branding/feat-001-poc/refs/illustrations/final/dark/welcome-hero.png",
+    "output": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-002-cutout/doc/tasks/iterations/design-branding/feat-002-cutout/pilot/cutouts/dark/welcome-hero.png",
+    "source_size": [
+      1672,
+      941
+    ],
+    "inference_resolution": "2048x1152",
+    "weights": "General-HR",
+    "space": "ZhengPeng7/BiRefNet_demo",
+    "seconds": 8.2,
+    "finished_at": "2026-08-06T12:57:46+0300"
+  }
+]

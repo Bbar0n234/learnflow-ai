@@ -1,0 +1,507 @@
+[
+  {
+    "image": "empty-artifacts",
+    "theme": "light",
+    "estimated_bg": [
+      252,
+      238,
+      224
+    ],
+    "alpha_zero": 0.6093,
+    "alpha_partial": 0.1105,
+    "alpha_full": 0.2802,
+    "bg_leak": 0.00166,
+    "object_eaten": 0.02859,
+    "halo_bg_similarity": 205.0,
+    "suspicious_blobs": [
+      {
+        "area_px": 5361,
+        "bbox": [
+          594,
+          364,
+          769,
+          593
+        ],
+        "mean_alpha": 121.2
+      }
+    ],
+    "edge_crop_centers": [
+      [
+        629,
+        441
+      ],
+      [
+        931,
+        489
+      ],
+      [
+        922,
+        878
+      ],
+      [
+        1207,
+        739
+      ]
+    ]
+  },
+  {
+    "image": "empty-chats",
+    "theme": "light",
+    "estimated_bg": [
+      253,
+      239,
+      223
+    ],
+    "alpha_zero": 0.6734,
+    "alpha_partial": 0.0659,
+    "alpha_full": 0.2607,
+    "bg_leak": 0.00123,
+    "object_eaten": 0.00303,
+    "halo_bg_similarity": 198.1,
+    "suspicious_blobs": [],
+    "edge_crop_centers": [
+      [
+        1103,
+        502
+      ],
+      [
+        241,
+        683
+      ],
+      [
+        605,
+        383
+      ],
+      [
+        777,
+        868
+      ]
+    ]
+  },
+  {
+    "image": "empty-sphere",
+    "theme": "light",
+    "estimated_bg": [
+      253,
+      241,
+      228
+    ],
+    "alpha_zero": 0.5901,
+    "alpha_partial": 0.1056,
+    "alpha_full": 0.3044,
+    "bg_leak": 0.00133,
+    "object_eaten": 0.00583,
+    "halo_bg_similarity": 188.6,
+    "suspicious_blobs": [
+      {
+        "area_px": 10244,
+        "bbox": [
+          249,
+          650,
+          442,
+          743
+        ],
+        "mean_alpha": 203.0
+      }
+    ],
+    "edge_crop_centers": [
+      [
+        350,
+        710
+      ],
+      [
+        765,
+        973
+      ],
+      [
+        827,
+        279
+      ],
+      [
+        410,
+        331
+      ]
+    ]
+  },
+  {
+    "image": "error-state",
+    "theme": "light",
+    "estimated_bg": [
+      253,
+      239,
+      225
+    ],
+    "alpha_zero": 0.708,
+    "alpha_partial": 0.0594,
+    "alpha_full": 0.2326,
+    "bg_leak": 0.00028,
+    "object_eaten": 0.03918,
+    "halo_bg_similarity": 232.2,
+    "suspicious_blobs": [],
+    "edge_crop_centers": [
+      [
+        1142,
+        916
+      ],
+      [
+        598,
+        914
+      ],
+      [
+        1220,
+        616
+      ],
+      [
+        397,
+        265
+      ]
+    ]
+  },
+  {
+    "image": "sidebar-vignette",
+    "theme": "light",
+    "estimated_bg": [
+      253,
+      244,
+      234
+    ],
+    "alpha_zero": 0.795,
+    "alpha_partial": 0.055,
+    "alpha_full": 0.15,
+    "bg_leak": 0.00078,
+    "object_eaten": 0.03775,
+    "halo_bg_similarity": 216.8,
+    "suspicious_blobs": [
+      {
+        "area_px": 2795,
+        "bbox": [
+          1225,
+          627,
+          1394,
+          701
+        ],
+        "mean_alpha": 98.4
+      }
+    ],
+    "edge_crop_centers": [
+      [
+        1335,
+        624
+      ],
+      [
+        415,
+        625
+      ],
+      [
+        695,
+        625
+      ],
+      [
+        1099,
+        331
+      ]
+    ]
+  },
+  {
+    "image": "welcome-hero",
+    "theme": "light",
+    "estimated_bg": [
+      252,
+      240,
+      228
+    ],
+    "alpha_zero": 0.7916,
+    "alpha_partial": 0.0884,
+    "alpha_full": 0.12,
+    "bg_leak": 0.00089,
+    "object_eaten": 0.00928,
+    "halo_bg_similarity": 139.6,
+    "suspicious_blobs": [
+      {
+        "area_px": 12085,
+        "bbox": [
+          1078,
+          659,
+          1484,
+          853
+        ],
+        "mean_alpha": 187.8
+      },
+      {
+        "area_px": 4416,
+        "bbox": [
+          1021,
+          528,
+          1153,
+          602
+        ],
+        "mean_alpha": 180.3
+      }
+    ],
+    "edge_crop_centers": [
+      [
+        1301,
+        795
+      ],
+      [
+        1094,
+        534
+      ],
+      [
+        1147,
+        247
+      ],
+      [
+        1424,
+        296
+      ]
+    ]
+  },
+  {
+    "image": "empty-artifacts",
+    "theme": "dark",
+    "estimated_bg": [
+      252,
+      236,
+      222
+    ],
+    "alpha_zero": 0.5957,
+    "alpha_partial": 0.0948,
+    "alpha_full": 0.3094,
+    "bg_leak": 0.00151,
+    "object_eaten": 0.02803,
+    "halo_bg_similarity": 209.1,
+    "suspicious_blobs": [],
+    "edge_crop_centers": [
+      [
+        930,
+        528
+      ],
+      [
+        974,
+        840
+      ],
+      [
+        1234,
+        928
+      ],
+      [
+        782,
+        262
+      ]
+    ]
+  },
+  {
+    "image": "empty-chats",
+    "theme": "dark",
+    "estimated_bg": [
+      253,
+      237,
+      222
+    ],
+    "alpha_zero": 0.6258,
+    "alpha_partial": 0.0665,
+    "alpha_full": 0.3077,
+    "bg_leak": 0.00101,
+    "object_eaten": 0.00325,
+    "halo_bg_similarity": 181.0,
+    "suspicious_blobs": [],
+    "edge_crop_centers": [
+      [
+        208,
+        825
+      ],
+      [
+        515,
+        818
+      ],
+      [
+        1129,
+        194
+      ],
+      [
+        775,
+        922
+      ]
+    ]
+  },
+  {
+    "image": "empty-sphere",
+    "theme": "dark",
+    "estimated_bg": [
+      251,
+      236,
+      223
+    ],
+    "alpha_zero": 0.5851,
+    "alpha_partial": 0.1039,
+    "alpha_full": 0.311,
+    "bg_leak": 0.0007,
+    "object_eaten": 0.03962,
+    "halo_bg_similarity": 185.6,
+    "suspicious_blobs": [
+      {
+        "area_px": 6647,
+        "bbox": [
+          245,
+          654,
+          400,
+          743
+        ],
+        "mean_alpha": 193.5
+      },
+      {
+        "area_px": 5336,
+        "bbox": [
+          470,
+          691,
+          617,
+          840
+        ],
+        "mean_alpha": 160.7
+      }
+    ],
+    "edge_crop_centers": [
+      [
+        317,
+        715
+      ],
+      [
+        577,
+        755
+      ],
+      [
+        837,
+        974
+      ],
+      [
+        844,
+        270
+      ]
+    ]
+  },
+  {
+    "image": "error-state",
+    "theme": "dark",
+    "estimated_bg": [
+      251,
+      235,
+      224
+    ],
+    "alpha_zero": 0.6635,
+    "alpha_partial": 0.0752,
+    "alpha_full": 0.2613,
+    "bg_leak": 0.00063,
+    "object_eaten": 0.04571,
+    "halo_bg_similarity": 241.4,
+    "suspicious_blobs": [],
+    "edge_crop_centers": [
+      [
+        1065,
+        965
+      ],
+      [
+        354,
+        871
+      ],
+      [
+        614,
+        934
+      ],
+      [
+        373,
+        252
+      ]
+    ]
+  },
+  {
+    "image": "sidebar-vignette",
+    "theme": "dark",
+    "estimated_bg": [
+      252,
+      238,
+      227
+    ],
+    "alpha_zero": 0.7559,
+    "alpha_partial": 0.0639,
+    "alpha_full": 0.1802,
+    "bg_leak": 0.00043,
+    "object_eaten": 0.04,
+    "halo_bg_similarity": 186.1,
+    "suspicious_blobs": [
+      {
+        "area_px": 6840,
+        "bbox": [
+          685,
+          378,
+          858,
+          465
+        ],
+        "mean_alpha": 156.8
+      }
+    ],
+    "edge_crop_centers": [
+      [
+        783,
+        441
+      ],
+      [
+        463,
+        592
+      ],
+      [
+        1558,
+        599
+      ],
+      [
+        1192,
+        272
+      ]
+    ]
+  },
+  {
+    "image": "welcome-hero",
+    "theme": "dark",
+    "estimated_bg": [
+      252,
+      236,
+      222
+    ],
+    "alpha_zero": 0.7953,
+    "alpha_partial": 0.0676,
+    "alpha_full": 0.1371,
+    "bg_leak": 0.00085,
+    "object_eaten": 0.00829,
+    "halo_bg_similarity": 185.2,
+    "suspicious_blobs": [
+      {
+        "area_px": 5849,
+        "bbox": [
+          1094,
+          660,
+          1418,
+          854
+        ],
+        "mean_alpha": 139.9
+      }
+    ],
+    "edge_crop_centers": [
+      [
+        1214,
+        795
+      ],
+      [
+        1474,
+        773
+      ],
+      [
+        1143,
+        534
+      ],
+      [
+        1424,
+        297
+      ]
+    ]
+  }
+]

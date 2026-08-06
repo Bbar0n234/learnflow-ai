@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 
 from gradio_client import Client, handle_file
+from huggingface_hub import get_token
 from PIL import Image
 
 SPACE = "ZhengPeng7/BiRefNet_demo"
@@ -50,12 +51,18 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("sources", nargs="+", type=Path)
     ap.add_argument("--out-dir", required=True, type=Path)
-    ap.add_argument("--hf-token", default=None, help="HF-токен (Pro-квота ZeroGPU)")
+    ap.add_argument(
+        "--hf-token",
+        default=None,
+        help="HF-токен (Pro-квота ZeroGPU); по умолчанию — HF_TOKEN или ~/.cache/huggingface/token",
+    )
     ap.add_argument("--retries", type=int, default=3)
     args = ap.parse_args()
 
+    token = args.hf_token or get_token()
+    print(f"HF-токен: {'есть' if token else 'нет (анонимная квота)'}")
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    client = Client(SPACE, token=args.hf_token)
+    client = Client(SPACE, token=token)
 
     manifest_path = args.out_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else []

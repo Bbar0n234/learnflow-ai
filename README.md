@@ -52,6 +52,19 @@ On top of that memory sits a **general LangGraph agent with pluggable skills** �
 
 The product requirement behind the runtime is flexibility: preparing a talk, a course, and an article series are different workflows, and every expert brings their own. So instead of hardcoded pipelines there is **one general agent** (plain LangGraph ReAct loop, no LangChain wrappers) whose behavior is extended through configuration, not code:
 
+```mermaid
+graph LR
+    START(("START")) --> AGENT["agent node<br/>context assembly · compaction · LLM call"]
+    AGENT --> COND{"tool calls?"}
+    COND -->|yes| TOOLS["guarded tools<br/>sphere · artifacts · skills · sub-agents<br/>web research (MCP) · image generation"]
+    TOOLS --> AGENT
+    COND -->|no| END_(("END"))
+
+    style AGENT stroke:#bc8cff
+    style TOOLS stroke:#bc8cff
+    style COND stroke:#8b949e
+```
+
 - **Skills** — pluggable methodology packages ("how to structure a lecture", "how to write a tech article") loaded on demand. Human-authored knowledge, open for contribution — this is how the product stays specialized without freezing into one workflow.
 - **Tools** — reading and patching the Knowledge Sphere, generating artifacts, web research via MCP, image generation.
 - **Sub-agents** — heavy work (judging output quality, deep web research) runs in isolated contexts so the main agent's context stays lean.
@@ -72,7 +85,8 @@ graph TD
     end
 
     subgraph SIEM["SIEM Service — FastAPI · services/siem-service/"]
-        Correlation["Correlation Engine + REST API"]
+        SiemAPI["REST API"]
+        Correlation["Correlation Engine"]
     end
 
     MainDB[("PostgreSQL<br/>checkpoints · sphere · chats")]
@@ -81,13 +95,17 @@ graph TD
     External["LLM APIs · MCP · Langfuse"]
 
     Frontend -->|HTTP + SSE| API
+    Frontend -->|"HTTP, admin-only (/security)"| SiemAPI
     API --> Runtime
     API --> MainDB
     Runtime --> MainDB
     Runtime --> External
-    SecPipe --> Redis
-    Redis --> SIEM
+    API -->|security events| SecPipe
+    Runtime -->|security events| SecPipe
+    SecPipe -->|XADD| Redis
+    Redis -->|XREADGROUP| Correlation
     Correlation --> SiemDB
+    SiemAPI --> SiemDB
 
     style Backend fill:#3fb9501a,stroke:#3fb950,color:#3fb950
     style SIEM fill:#f851491a,stroke:#f85149,color:#f85149
@@ -95,6 +113,7 @@ graph TD
     style API stroke:#58a6ff
     style Runtime stroke:#bc8cff
     style SecPipe stroke:#f85149
+    style SiemAPI stroke:#f85149
     style Correlation stroke:#f85149
     style MainDB stroke:#d29922
     style SiemDB stroke:#d29922

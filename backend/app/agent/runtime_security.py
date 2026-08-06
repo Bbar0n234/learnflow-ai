@@ -57,6 +57,17 @@ class RuntimeSecurityEnforcer:
         self._history = history
         self._session_factory = session_factory
 
+    @property
+    def active(self) -> bool:
+        """Whether inline LLM defense is active (a guard was built).
+
+        The sole public signal callers may use to decide on observability
+        (e.g. whether to emit review SSE events) — ``check_*`` methods stay
+        safe no-ops on their own when defense is inactive, so callers never
+        need to inspect the guard directly.
+        """
+        return self._guard is not None
+
     @staticmethod
     def tail_window_len(canary_token: str) -> int:
         return max(len(canary_token) if canary_token else 0, 64)

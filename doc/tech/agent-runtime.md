@@ -66,7 +66,7 @@ graph LR
 ```
 
 - **agent node** — основной узел: compaction → system message assembly → trimming → LLM call
-- **tools** — встроенный `ToolNode` под обёрткой `execute_tools_guarded`: исполняет вызовы хода по одному (параллельно), на каждом результате отрабатывает чекпоинт `TOOL_RESULT` и сам отчитывается о завершённом вызове в custom-канал — выход узла читают и провод, и чекпоинтер, поэтому непроверенный результат не покидает узел (→ [ADR-029](adr/ADR-029-per-call-tool-result-guard.md))
+- **tools** — встроенный `ToolNode` под обёрткой `execute_tools_guarded`: исполняет вызовы хода по одному (параллельно), на каждом результате отрабатывает чекпоинт `TOOL_RESULT` и сам отчитывается о завершённом вызове в custom-канал — выход узла читают и провод, и чекпоинтер, поэтому непроверенный результат не покидает узел (→ [ADR-030](adr/ADR-030-per-call-tool-result-guard.md))
 - **tools_condition** — встроенный router: AIMessage с tool_calls → tools node, иначе → END
 
 **Context schema:** `AgentContext(project_id, user_id, canary_token, user_installed_tool_names)` — передаётся через параметр `context=` в `astream()`, доступен в nodes и tools через `runtime.context`. `canary_token` вычисляется для каждого запроса; `user_installed_tool_names` нужен prompt-builder'у для дифференциации built-in / user-installed MCP-инструментов (→ [architecture.md](../security/architecture.md)).
@@ -90,7 +90,9 @@ graph.astream(input_msg, config, stream_mode=["messages", "updates", "custom"], 
 Собирается секционно (Python, не Jinja-template) на каждый вызов agent node. Структура отражает trust- и disclosure-границы; маркировка обёртками — вход в [Security](#security):
 
 ```
-<system_instructions>           ← hardening preamble + canary token
+<system_instructions>           ← слот {{ security_preamble_section }}: hardening preamble
+                                   (prompt_fragments.yaml) + canary token; пусто при
+                                   LLM_DEFENSE_ENABLED=false
 [base prose]                    ← PromptProvider (→ prompt-management.md)
 <tools>
   <internal_tools>              ← capability-only описания internal non-MCP tools
@@ -105,7 +107,7 @@ graph.astream(input_msg, config, stream_mode=["messages", "updates", "custom"], 
 
 | Раздел | Источник | Область | Обновление |
 |--------|----------|--------|-----------|
-| System instructions | hardening preamble + base prose из Langfuse | Global | Canary token per-request |
+| System instructions | hardening preamble (`configs/prompt_fragments.yaml`) + base prose из Langfuse | Global | Canary token per-request; гасится целиком при `LLM_DEFENSE_ENABLED=false` |
 | Base prose | PromptProvider (Langfuse → file fallback) | Global | При изменении в Langfuse (SDK cache TTL) |
 | Tools (3 подсекции) | static + agent.yaml + DB (per-user MCP) | Mixed | На сборку prompt'а |
 | Custom instructions | LangGraph Store | Per-user | При сохранении через REST API |
@@ -331,7 +333,7 @@ flowchart LR
 - **`SubagentRunner`** — резолвит спеку по `agent_type`, строит модель (`spec.model` или `subagents.llm`), берёт промпт через `PromptProvider`, собирает вход, компилирует граф per-invoke и вызывает `ainvoke`. Неизвестный `agent_type` → ошибка со списком доступных типов. Инвариант: `run_subagent` исключается из собственного toolset субагента безусловно, независимо от содержимого спеки — рекурсия исключена на уровне Runner'а.
 - **tool `run_subagent`** — единственная точка, которую видит основной граф; description собирается на старте из реестра (паттерн Skills Index — `тип: описание` на строку). Опциональный `input_artifact_ids` резолвится кодом, не моделью: артефакты подтягиваются через `ArtifactRepository` (скоуп по `project_id` из контекста вызова), каждый — в `HumanMessage` в XML-обёртке `document` (`configs/prompt_fragments.yaml`) с атрибуцией `id`/`title`. Разрешение — всё или ничего: любой чужой/несуществующий id обрывает вызов целиком (error-строка с перечнем именно проблемных id), частичный вход не собирается никогда.
 
-**Граф субагента** (`build_subagent_graph`) — всегда один и тот же ReAct-граф `START → llm → (tools_condition) → tools → llm/END`; любой субагент — ReAct-агент, single-turn как отдельная форма не существует. Прогон без tool-вызовов — вырожденный случай того же графа: один super-step, `tools_condition` уводит в END. Строительные блоки — те же, что в основном графе: `ToolNode(tools, handle_tool_errors=...)` + `tools_condition`. System message — только промпт спеки (без KS/memory/skills/compaction, без trust-boundary обёрток). Guard-проверки переиспользуются из общего модуля-коллаборатора `backend/app/agent/tool_guards.py` и стоят там же, где в основном графе: `TOOL_CALL_ARG` — в llm-узле, на только что полученном ответе модели; `TOOL_RESULT` — в узле `tools`, повызовно, до отчёта о вызове и до возврата результатов (`execute_tools_guarded`), потому что выход узла идёт и в чекпоинтер, и на провод (→ [ADR-029](adr/ADR-029-per-call-tool-result-guard.md)). Семантика та же fail-safe redact, что в основном графе (заражённый результат → заглушка, цикл продолжает; инъекция в аргументах → `tool_calls` срезаются, граф уходит в END); пока в диалоге нет tool-вызовов, проверки структурно бездействуют. `recursion_limit` ограничивает цикл (invoke-time ключ `RunnableConfig`, не compile-time параметр графа); значение — операционный knob `subagents.recursion_limit` в `configs/agent.yaml` (дефолт 10, общий для реестра).
+**Граф субагента** (`build_subagent_graph`) — всегда один и тот же ReAct-граф `START → llm → (tools_condition) → tools → llm/END`; любой субагент — ReAct-агент, single-turn как отдельная форма не существует. Прогон без tool-вызовов — вырожденный случай того же графа: один super-step, `tools_condition` уводит в END. Строительные блоки — те же, что в основном графе: `ToolNode(tools, handle_tool_errors=...)` + `tools_condition`. System message — только промпт спеки (без KS/memory/skills/compaction, без trust-boundary обёрток). Guard-проверки переиспользуются из общего модуля-коллаборатора `backend/app/agent/tool_guards.py` и стоят там же, где в основном графе: `TOOL_CALL_ARG` — в llm-узле, на только что полученном ответе модели; `TOOL_RESULT` — в узле `tools`, повызовно, до отчёта о вызове и до возврата результатов (`execute_tools_guarded`), потому что выход узла идёт и в чекпоинтер, и на провод (→ [ADR-030](adr/ADR-030-per-call-tool-result-guard.md)). Семантика та же fail-safe redact, что в основном графе (заражённый результат → заглушка, цикл продолжает; инъекция в аргументах → `tool_calls` срезаются, граф уходит в END); пока в диалоге нет tool-вызовов, проверки структурно бездействуют. `recursion_limit` ограничивает цикл (invoke-time ключ `RunnableConfig`, не compile-time параметр графа); значение — операционный knob `subagents.recursion_limit` в `configs/agent.yaml` (дефолт 10, общий для реестра).
 
 **Пул tools субагента** — `internal_tools + built-in MCP` (собирается в `main.py` при старте), **без** user-installed MCP — trust-граница между продуктовыми и пользовательскими интеграциями (→ [security/architecture.md](../security/architecture.md)). Имена в `spec.tools` резолвятся против этого пула fail-fast при старте приложения: неизвестное имя — как и пустой `tools` (субагент обязан объявить непустой toolset) — валит boot, как и любая другая опечатка в `configs/*.yaml`.
 
@@ -383,7 +385,7 @@ Langfuse выполняет две роли: tracing (observability) + prompt ma
 | `configs/security.yaml` | Guard model, детекторы, per-checkpoint config, user-facing messages | Base defaults для security |
 | `configs/pricing.yaml` | Model pricing для cost tracking в Langfuse (shared agent + guard) | — |
 | `configs/prompts.yaml` | Реестр промптов (`name → source файл`) | — |
-| `configs/prompt_fragments.yaml` | XML-обёртки и заголовки секций system message | — |
+| `configs/prompt_fragments.yaml` | Hardening-преамбула, XML-обёртки и заголовки секций system message; security-ключи гасятся при `LLM_DEFENSE_ENABLED=false` | — |
 | `configs/error_messages.yaml` | Нормализованные сообщения SSE error events и заглушки | — |
 | `configs/prompts/*.txt` | Seed-файлы промптов | Seed → Langfuse |
 | Langfuse | Runtime промпты, model config в prompt metadata | Runtime override |
@@ -409,4 +411,5 @@ Security-конфиги, model pricing и реестр промптов выне
 Application-level настройки — `backend/app/config.py` через Pydantic Settings. Ключевые env vars:
 - `MCP_ENCRYPTION_KEY` — Fernet-ключ для шифрования API-ключей пользовательских MCP-серверов
 - `LANGFUSE_PROMPT_LABEL` — label для получения промптов (по умолчанию: `development`)
-- `CANARY_SECRET` — HMAC secret для canary token (пустой = canary отключён + warning)
+- `LLM_DEFENSE_ENABLED` — операционный тумблер inline LLM-защиты: `SecurityGuard` (детекторы + классификатор) и security-часть промпта (canary, hardening-преамбула, обёртки границы доверия). Дефолт `true`, в проде `false`; читается один раз в lifespan → рестарт контейнера для переключения. Подробнее — [security/architecture.md](../security/architecture.md)
+- `CANARY_SECRET` — HMAC secret для canary token; при включённой защите пустой = canary отключён + warning, при `LLM_DEFENSE_ENABLED=false` секрет не используется вовсе

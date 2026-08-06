@@ -134,6 +134,7 @@ Makefile — канонический интерфейс к проекту. Пр
 | `frontend-design` | Только визуальная полировка UI, по явному запросу — режимная политика в skill-map |
 | `langfuse` | Observability, трейсинг, API и документация Langfuse |
 | `langgraph-patterns` | API LangGraph, StateGraph, Command, HITL, streaming |
+| `operational-audit` | Периодический аудит операционных свойств системы: прод-готовность, топология процессов, shutdown, предпосылки ADR — запуск архитектором вне конвейера |
 | `postgresql` | Проектирование схемы, типы колонок, индексы, constraints, ревью миграций |
 | `prompt-engineering` | Написание и ревью системных промптов для LLM |
 | `schema-guided-reasoning` | Structured output, Pydantic-модели, JSON schema |

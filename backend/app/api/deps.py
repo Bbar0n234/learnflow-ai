@@ -39,10 +39,6 @@ def get_settings(request: Request) -> Settings:
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 
-def get_security_guard(request: Request) -> Any:
-    return request.app.state.security_guard
-
-
 def get_security_config(request: Request) -> Any:
     return request.app.state.security_config
 

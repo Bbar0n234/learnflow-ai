@@ -1,7 +1,7 @@
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import quote, urlencode
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode
 
 
@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 30
     secure_cookies: bool = True
 
+    # Client IP
+    client_ip_source: Literal["socket", "x-real-ip", "x-forwarded-for"] = "socket"
+    client_ip_xff_hops: int = Field(1, ge=1)
+
     # Langfuse Observability
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""
@@ -33,12 +37,23 @@ class Settings(BaseSettings):
 
     # Security (prompt injection protection)
     canary_secret: str = ""
+    # Операционный тумблер: выключает inline LLM-defense целиком (детекторы,
+    # LLM-классификатор, security-часть промпта); гранулярность для
+    # исследовательских прогонов — в configs/security.yaml, не здесь.
+    llm_defense_enabled: bool = True
 
     # MCP encryption
     mcp_encryption_key: str = ""
 
     # Redis (trace storage for feedback persistence)
     redis_url: str = "redis://localhost:6379/0"
+
+    # SIEM (security event emission)
+    # Операционный тумблер: гасит только эмиссию security-событий в Redis
+    # Stream из этого процесса. Не гасит контейнеры siem-service/siem-db
+    # (COMPOSE_PROFILES) и не гасит UI (VITE_SIEM_ENABLED). Читается один раз
+    # в lifespan — переключение требует рестарта контейнера.
+    siem_enabled: bool = True
 
     # Operational knobs — tune without rebuild (D-ERR-9, D-ERR-11)
     redis_socket_timeout: float = 5.0

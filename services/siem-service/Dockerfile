@@ -8,7 +8,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install Python dependencies (cached layer)
+# Install Python dependencies (cached layer).
+# Production image: runtime deps of this service only. CI deliberately differs
+# (`uv sync --all-packages` with the dev group — see .github/workflows/ci.yml):
+# there the dev toolchain is the point, here it is dead weight and attack
+# surface. Both `uv sync` invocations below must carry --no-dev --package:
+# what this layer installs stays in the image even if the final sync prunes it.
+# --package also keeps the backend's LangChain/LangGraph/Langfuse stack out —
+# this image never runs that code.
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
@@ -18,7 +25,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=services/siem-service/pyproject.toml,target=services/siem-service/pyproject.toml \
     --mount=type=bind,source=tools/security-scan/pyproject.toml,target=tools/security-scan/pyproject.toml \
     --mount=type=bind,source=tools/arch-checker/pyproject.toml,target=tools/arch-checker/pyproject.toml \
-    uv sync --locked --no-install-workspace --all-packages
+    uv sync --locked --no-dev --no-install-workspace --package siem-service
 
 # Copy project source
 COPY packages/ /app/packages/
@@ -33,7 +40,7 @@ COPY backend/pyproject.toml /app/backend/pyproject.toml
 
 # Install project
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --all-packages
+    uv sync --locked --no-dev --package siem-service
 
 ENV PYTHONUNBUFFERED=1
 ENV PATH="/app/.venv/bin:$PATH"

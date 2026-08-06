@@ -1,0 +1,104 @@
+[
+  {
+    "image": "empty-artifacts",
+    "theme": "light",
+    "estimated_bg": [
+      252,
+      238,
+      224
+    ],
+    "alpha_zero": 0.6027,
+    "alpha_partial": 0.1065,
+    "alpha_full": 0.2908,
+    "bg_leak": 0.00166,
+    "object_eaten": 0.02844,
+    "halo_bg_similarity": 94.1,
+    "suspicious_blobs": [],
+    "edge_crop_centers": [
+      [
+        931,
+        489
+      ],
+      [
+        922,
+        878
+      ],
+      [
+        1207,
+        739
+      ],
+      [
+        488,
+        787
+      ]
+    ]
+  },
+  {
+    "image": "welcome-hero",
+    "theme": "dark",
+    "estimated_bg": [
+      252,
+      236,
+      222
+    ],
+    "alpha_zero": 0.7928,
+    "alpha_partial": 0.062,
+    "alpha_full": 0.1453,
+    "bg_leak": 0.00085,
+    "object_eaten": 0.00579,
+    "halo_bg_similarity": 81.6,
+    "suspicious_blobs": [],
+    "edge_crop_centers": [
+      [
+        1142,
+        555
+      ],
+      [
+        1424,
+        778
+      ],
+      [
+        1424,
+        297
+      ],
+      [
+        1148,
+        278
+      ]
+    ]
+  },
+  {
+    "image": "sidebar-vignette",
+    "theme": "light",
+    "estimated_bg": [
+      253,
+      244,
+      234
+    ],
+    "alpha_zero": 0.795,
+    "alpha_partial": 0.0543,
+    "alpha_full": 0.1507,
+    "bg_leak": 0.00078,
+    "object_eaten": 0.02988,
+    "halo_bg_similarity": 92.2,
+    "suspicious_blobs": [],
+    "edge_crop_centers": [
+      [
+        415,
+        625
+      ],
+      [
+        695,
+        625
+      ],
+      [
+        1099,
+        331
+      ],
+      [
+        1393,
+        623
+      ]
+    ]
+  }
+]

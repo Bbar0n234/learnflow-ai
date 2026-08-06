@@ -43,6 +43,8 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        VITE_SIEM_ENABLED: ${SIEM_ENABLED:-true}
     restart: unless-stopped
     ports:
       - "127.0.0.1:${APP_PORT:-8000}:8000"
@@ -56,6 +58,8 @@ services:
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-30}
       SECURE_COOKIES: ${SECURE_COOKIES:-true}
+      CLIENT_IP_SOURCE: ${CLIENT_IP_SOURCE:-socket}
+      CLIENT_IP_XFF_HOPS: ${CLIENT_IP_XFF_HOPS:-1}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
@@ -65,8 +69,10 @@ services:
       LANGFUSE_PROMPT_LABEL: ${LANGFUSE_PROMPT_LABEL:-development}
       LANGFUSE_PROMPT_CACHE_TTL: ${LANGFUSE_PROMPT_CACHE_TTL:-60}
       CANARY_SECRET: ${CANARY_SECRET:-}
+      LLM_DEFENSE_ENABLED: ${LLM_DEFENSE_ENABLED:-true}
       MCP_ENCRYPTION_KEY: ${MCP_ENCRYPTION_KEY:-}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      SIEM_ENABLED: ${SIEM_ENABLED:-true}
       REDIS_SOCKET_TIMEOUT: ${REDIS_SOCKET_TIMEOUT:-5}
       REDIS_SOCKET_CONNECT_TIMEOUT: ${REDIS_SOCKET_CONNECT_TIMEOUT:-5}
       DB_STATEMENT_TIMEOUT_SECONDS: ${DB_STATEMENT_TIMEOUT_SECONDS:-120}
@@ -102,6 +108,7 @@ services:
       start_period: 30s
 
   siem-db:
+    profiles: ["siem"]
     image: postgres:17
     restart: unless-stopped
     environment:
@@ -125,6 +132,7 @@ services:
       retries: 5
 
   siem-service:
+    profiles: ["siem"]
     build:
       context: .
       dockerfile: services/siem-service/Dockerfile

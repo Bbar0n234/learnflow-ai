@@ -369,7 +369,12 @@ class LangGraphAgentRunner:
 
                 # --- End-of-stream FINAL_OUTPUT classifier ---
                 if not stream_error and not injection_emitted and full_response:
-                    yield StreamEvent(type="final_output_review_started", data={})
+                    # review_events: при выключенной LLM-защите (enforcer без
+                    # guard) проверка — no-op, и пара review-событий не эмитится
+                    # вовсе — индикатор «проверяю ответ» не врёт пользователю.
+                    review_events = self._enforcer.active
+                    if review_events:
+                        yield StreamEvent(type="final_output_review_started", data={})
                     final_outcome = await self._enforcer.check_final_output(
                         thread_id=thread_id,
                         full_response=full_response,
@@ -386,7 +391,8 @@ class LangGraphAgentRunner:
                         for _ev in self._trace_id_event(span):
                             yield _ev
                         return
-                    yield StreamEvent(type="final_output_review_complete", data={})
+                    if review_events:
+                        yield StreamEvent(type="final_output_review_complete", data={})
 
                 # --- Post-stream in-graph INJECTION inspection ---
                 if not injection_emitted and not stream_error:

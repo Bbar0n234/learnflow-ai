@@ -24,6 +24,7 @@ from app.api.schemas.auth import (
     UserResponse,
 )
 from app.config import Settings
+from app.infra.client_ip import get_client_ip
 from app.infra.rate_limit import RateLimiter
 from app.services.auth import AuthService
 from app.services.exceptions import (
@@ -73,13 +74,6 @@ def _check_rate_limit(
         )
 
 
-def _get_client_ip(request: Request) -> str:
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
-
-
 def _set_refresh_cookie(response: Response, token: str, settings: Settings) -> None:
     response.set_cookie(
         key=_COOKIE_NAME,
@@ -125,7 +119,7 @@ async def register(
 ) -> TokenResponse:
     _check_rate_limit(
         rate_limiter,
-        f"register:{_get_client_ip(request)}",
+        f"register:{get_client_ip(request, settings)}",
         3,
         3600,
         RATE_LIMIT_REGISTER_EXCEEDED,
@@ -165,7 +159,7 @@ async def login(
     settings: SettingsDep,
     rate_limiter: RateLimiterDep,
 ) -> TokenResponse:
-    ip = _get_client_ip(request)
+    ip = get_client_ip(request, settings)
     _check_rate_limit(
         rate_limiter, f"login:{body.name}:{ip}", 5, 60, RATE_LIMIT_LOGIN_EXCEEDED
     )
@@ -204,7 +198,7 @@ async def refresh(
 ) -> TokenResponse:
     _check_rate_limit(
         rate_limiter,
-        f"refresh:{_get_client_ip(request)}",
+        f"refresh:{get_client_ip(request, settings)}",
         10,
         60,
         RATE_LIMIT_REFRESH_EXCEEDED,

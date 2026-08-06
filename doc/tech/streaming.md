@@ -32,7 +32,7 @@ data: {"type": "done", "message_id": "msg-uuid", "trace_id": "trace-uuid"}\n\n
 | `tool_result` | `{call_id, tool, status, content, truncated, parent_call_id?}` | завершение **отдельного вызова**, custom-канал (узел `tools` отчитывается сам); `status`: `success` \| `error`; `content` усечён | |
 | `agent_event` | `{kind, payload, parent_call_id?}` | custom-канал (`get_stream_writer`): `sphere_write`, `memory_write`, `skill_context_write`, `compaction` | |
 | `artifact_created` | `{id, title, artifact_type}` | custom-канал, сразу за `tool_result` своего вызова; по наличию `ToolMessage.artifact` (не по имени инструмента) | |
-| `final_output_review_started` / `final_output_review_complete` | `{}` | вокруг end-of-stream FINAL_OUTPUT-классификатора — только когда ход дал непустой `full_response` | |
+| `final_output_review_started` / `final_output_review_complete` | `{}` | вокруг end-of-stream FINAL_OUTPUT-классификатора — только когда ход дал непустой `full_response` и LLM-защита включена (`LLM_DEFENSE_ENABLED=true`) | |
 | `title_updated` | `{title}` | `ChatService`: готов сгенерированный auto-title чата, не чаще одного раза за поток | |
 | `security_block` | `{}` | любой из четырёх runtime-чекпоинтов защиты выдал вердикт INJECTION (см. «Security-чекпоинты» ниже) | ✔ |
 | `cancelled` | `{}` | отмена пользователем через `POST /cancel` | ✔ |
@@ -50,7 +50,7 @@ data: {"type": "done", "message_id": "msg-uuid", "trace_id": "trace-uuid"}\n\n
 
 **`tool_result` / `artifact_created`.** `status` берётся напрямую из `ToolMessage.status`. `artifact_created` эмитится по наличию `ToolMessage.artifact` (инструмент вернул его через `response_format="content_and_artifact"`) — не по whitelist имён; событие следует сразу за `tool_result` того же вызова, тем же writer'ом.
 
-Оба события **повызовные**: узел `tools` (`tool_guards.execute_tools_guarded`) исполняет каждый вызов хода отдельно, проверяет его результат чекпоинтом `TOOL_RESULT` и тут же пишет конверт в custom-канал (`stream_events.make_tool_result_reporter`) — не дожидаясь соседей по ходу. Апдейт узла в updates-канале для этого не годится: он приходит, когда завершился *самый долгий* вызов хода, и поиск, отработавший за десять секунд рядом с трёхминутным `run_subagent`, стоял бы в ленте незаконченным все три минуты и получил бы чужую длительность. Цена решения осознанная: классификатор зовётся по разу на результат вместо раза на батч — больше токенов на параллельных вызовах в обмен на ленту, которая не врёт о завершённости. Обоснование размена и отвергнутые альтернативы — [ADR-029](adr/ADR-029-per-call-tool-result-guard.md).
+Оба события **повызовные**: узел `tools` (`tool_guards.execute_tools_guarded`) исполняет каждый вызов хода отдельно, проверяет его результат чекпоинтом `TOOL_RESULT` и тут же пишет конверт в custom-канал (`stream_events.make_tool_result_reporter`) — не дожидаясь соседей по ходу. Апдейт узла в updates-канале для этого не годится: он приходит, когда завершился *самый долгий* вызов хода, и поиск, отработавший за десять секунд рядом с трёхминутным `run_subagent`, стоял бы в ленте незаконченным все три минуты и получил бы чужую длительность. Цена решения осознанная: классификатор зовётся по разу на результат вместо раза на батч — больше токенов на параллельных вызовах в обмен на ленту, которая не врёт о завершённости. Обоснование размена и отвергнутые альтернативы — [ADR-030](adr/ADR-030-per-call-tool-result-guard.md).
 
 Updates-канал за узлом `tools` остаётся ровно ради одной вещи — реестра анонсированных, но не разрешённых `call_id` (см. `tool_call_cancelled` выше); событий он с этого узла не порождает.
 
@@ -58,7 +58,7 @@ Updates-канал за узлом `tools` остаётся ровно ради 
 
 **`agent_event`.** Custom-канал несёт два разных семейства сообщений: доменные события наших инструментов (`sphere_write` / `memory_write` / `skill_context_write` / `compaction` — единственные `kind`, перечисленные в `agent_events.DOMAIN_AGENT_EVENT_KINDS`) раннер оборачивает в `{type: "agent_event", data: {kind, payload, parent_call_id?}}`; lifecycle-события инструментов субагента (см. «Вложенность субагента» ниже) уже приходят в форме готового wire-события и пробрасываются как есть, без обёртки — на проводе они неотличимы от одноимённых событий основного агента, кроме поля `parent_call_id`.
 
-**`final_output_review_*`.** Эмитятся, только если ход дал непустой текстовый ответ (`full_response`) и до этого момента не было блокировки — ход, закончившийся исключительно tool-вызовом без последующего текста, не порождает пары `final_output_review_started`/`_complete` вообще.
+**`final_output_review_*`.** Эмитятся, только если ход дал непустой текстовый ответ (`full_response`) и до этого момента не было блокировки — ход, закончившийся исключительно tool-вызовом без последующего текста, не порождает пары `final_output_review_started`/`_complete` вообще. Второе условие — включённая inline LLM-защита: при `LLM_DEFENSE_ENABLED=false` (энфорсер без guard'а, `RuntimeSecurityEnforcer.active == False`, → [security/architecture.md](../security/architecture.md)) проверка — безопасный no-op, пара не эмитится вовсе, и индикатор «проверяю ответ» во фронте не показывается — он не врёт про проверку, которой нет.
 
 **`security_block`.** Payload всегда пустой — `reason` / `checkpoint` / `detection_layer` не покидают сервер (остаются в Langfuse/SIEM через `RuntimeSecurityEnforcer`/`AgentRunSpan`); пользователю показывается только сам факт блокировки. Эмитируется в одной из четырёх точек, подробнее — «Security-чекпоинты» ниже.
 
@@ -151,7 +151,7 @@ sequenceDiagram
                 end
             end
         end
-        opt full_response непустой и блока ещё не было
+        opt full_response непустой, блока ещё не было, LLM-защита включена
             R-->>C: final_output_review_started {}
             R->>SEC: check_final_output(full_response)
             alt INJECTION

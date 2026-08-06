@@ -86,7 +86,7 @@ Identifiers are extracted from request/session context and injected into events 
 
 | Identifier | Meaning | Binding Point | Optional |
 |------------|---------|---------------|----------|
-| `ip` | Client IP address | HTTP middleware (X-Forwarded-For or socket) | Yes |
+| `ip` | Client IP address | HTTP middleware, via `get_client_ip` (source selected by `CLIENT_IP_SOURCE`) | Yes (never bound on the health-check path) |
 | `request_id` | Unique HTTP request ID | HTTP middleware (UUID) | No |
 | `user_id` | Authenticated user ID | Auth dependency (from JWT) | Yes (absent for unauthenticated requests) |
 | `session_id` | Refresh token session ID | Auth dependency (from token JTI) | Yes (only for authenticated requests) |

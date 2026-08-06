@@ -36,6 +36,21 @@ def render_canary_section(fragments: PromptFragmentsConfig, token: str) -> str:
     return f"\n{prefix}{token}"
 
 
+def render_security_preamble_section(
+    fragments: PromptFragmentsConfig, canary_token: str
+) -> str:
+    """Compose the hardening-preamble slot: preamble text + canary line.
+
+    Section = preamble text + canary line, applied literally (design-brief
+    § 1 "Композиция преамбулы"): the canary line is appended whenever
+    ``canary_token`` is non-empty, independently of whether the preamble
+    text itself is empty — no additional coupling between the two. No
+    nested templating: plain string concatenation, the leading ``\\n``
+    already comes from ``render_canary_section``.
+    """
+    return fragments.security_preamble + render_canary_section(fragments, canary_token)
+
+
 def render_custom_instructions_section(
     fragments: PromptFragmentsConfig, content: str
 ) -> str:
@@ -98,7 +113,9 @@ def build_system_message(
     so callers do not need to pass a separate fallback string.
     """
     slots = {
-        "canary_section": render_canary_section(fragments, canary_token),
+        "security_preamble_section": render_security_preamble_section(
+            fragments, canary_token
+        ),
         "custom_instructions_section": render_custom_instructions_section(
             fragments, custom_instructions
         ),

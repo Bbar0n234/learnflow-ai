@@ -2,9 +2,9 @@
 
 ## Контекст
 
-Фаза 5b: честный догфудинг через продукт и подготовка к показу преподавателям (~сентябрь, нулевой пилот Фазы 7). Рама догфудинга — авторский мини-курс «Защита LLM-приложений», первый получатель — реальный преподаватель (детали приватно, `doc/strategy.local.md`); обоснование и полка побочных выходов курса — [roadmap.md](../product/roadmap.md) § Фаза 5b.
+Фаза 5b: честный догфудинг через продукт и подготовка к показу преподавателям (~середина августа — сдвиг влево с ~сентября: полная занятость на проекте в августе; нулевой пилот Фазы 7). Рама догфудинга — авторский мини-курс «Защита LLM-приложений», первый получатель — реальный преподаватель (детали приватно, `doc/strategy.local.md`); обоснование и полка побочных выходов курса — [roadmap.md](../product/roadmap.md) § Фаза 5b.
 
-Тасклист покрывает путь от текущего состояния (накопленный `develop` не задеплоен в `main`) до показа: закрытие версии и деплой, инструменты догфудинга (вход файлов, PDF, слайды, модели), предпоказные фичи (OAuth, кастомные скиллы, web search, voice).
+Тасклист покрывает путь от текущего состояния (накопленный `develop` не задеплоен в `main`) до показа: закрытие версии и деплой, инструменты догфудинга (вход файлов, PDF, слайды, модели), execution runtime как общий фундамент выходных форматов (feat-011), ГОСТ-скилл (feat-012), OAuth. Кастомные скиллы, web search, voice — за гейтом показа.
 
 **Источник:** [backlog.md](../backlog.md) — триаж при планировании фазы.
 **Зависимости:** Post-MVP ([tasklist-post-mvp.md](tasklist-post-mvp.md)) — закрыт; его feat-001 (Chat UX) перенесена сюда (feat-002), feat-007 (SIEM Extensions) заморожена решением по SIEM kill-switch (см. chore-001).
@@ -22,7 +22,7 @@
 | Итерация | Алиас | Статус | Scope | Закрывает |
 |----------|-------|--------|-------|-----------|
 | feat-001 | A | ✅ Done | cross-cutting | Видимость работы агента: карта событий, live-фазы, reasoning-стрим, след tool-вызовов, security_block в UI |
-| chore-001 | B | 🚧 In Progress | cross-cutting | Prod-closing: kill-switch LLM-защиты + SIEM kill-switch, X-Forwarded-For, прод-образы без dev-deps; merge develop → main + деплой |
+| chore-001 | B | ✅ Done | cross-cutting | Prod-closing: kill-switch LLM-защиты + SIEM kill-switch, X-Forwarded-For, прод-образы без dev-deps; merge develop → main + деплой |
 | feat-002 | C | ✅ Done | cross-cutting | Chat UX: первое сообщение вместо title, auto-title отдельным модулем, удаление и переименование чатов |
 | feat-003 | D | ✅ Done | agent | Модели: cost-optimal подбор по внешним бенчмаркам, whitelist 5+, pricing seed в Langfuse |
 | feat-004 | E | 📋 Planned | cross-cutting | File attachments: вход файлов агенту (критический путь догфудинга) |
@@ -32,22 +32,25 @@
 | feat-008 | I | 📋 Planned | cross-cutting | OAuth (Google/GitHub) + дизайн auth-экранов + 404-экран |
 | feat-009 | J | 📋 Planned | infra | Self-hosted web search MCP |
 | feat-010 | K | 📋 Planned | cross-cutting | Voice input (STT) |
+| feat-011 | L | 📋 Planned | cross-cutting | Execution runtime: изолированное выполнение кода/CLI — общий фундамент PDF (F), слайдов (G), ГОСТ-скилла (M) |
+| feat-012 | M | 📋 Planned | agent | ГОСТ-скилл: bundle-скилл оформления студенческих работ по ГОСТ 7.32 (.docx) — оффер для студенческой волны |
 
 ## Порядок и приоритеты
 
 ```
-Июль W4   feat-001 (A) ──┬── chore-001 (B, параллельно, не пересекаются)
-                         └──→ merge develop → main → ДЕПЛОЙ
-Авг W1    feat-002 (C, после A — наследует стрим-контракт) ── feat-003 (D)
-Авг W2    feat-004 (E) ── feat-005 (F)
-          ► СТАРТ ДОГФУДИНГА (лекция №1 мини-курса) — как только E готова
-Авг W3    feat-006 (G) ── maintenance из [dogfood]-находок (2–3 пункта/нед)
-Авг W4    feat-007 (H) ── feat-008 (I)
-Сент W1   feat-009 (J) ── бренд-кит (design-branding feat-005) — гейт показа
-Сент W2   feat-010 (K, stretch) → предпоказная полировка → ПОКАЗ
+Авг W1     Финал A/B/C → merge develop → main → ДЕПЛОЙ (прод живой)
+Авг W1–W2  feat-011 (L, runtime — фундамент F/G/M) ── feat-004 (E, attachments)
+           ► СТАРТ ДОГФУДИНГА (лекция №1 мини-курса) — как только E готова
+Авг W2     feat-005 (F, PDF — на runtime) ── feat-006 (G, слайды — на runtime)
+Авг W2–W3  feat-012 (M, ГОСТ-скилл — на L+E) ── feat-008 (I, OAuth)
+           → предпоказная полировка + бренд-кит (design-branding feat-005)
+           → ПОКАЗ ПРЕПОДАВАТЕЛЯМ (~середина августа)
+Далее      студенческая волна (оффер ГОСТ; гейт — потолок затрат, backlog Backend)
+           feat-007 (H) ── feat-009 (J) ── feat-010 (K) ── maintenance [dogfood]
 ```
 
-- **Минимум к показу:** A–G + I (OAuth). H (кастомные скиллы), J (web search), K (voice) — первые кандидаты на сдвиг, если maintenance-поток догфудинга съест ёмкость.
+- **Минимум к показу:** A–G + I + L (runtime) + M (ГОСТ-скилл) — решение архитектора: показ только с полным набором выходных форматов и ГОСТ-скиллом. H (кастомные скиллы), J (web search), K (voice) — за гейтом показа.
+- **L перед F/G/M:** PDF, слайды и ГОСТ-сборка строятся на контракте runtime — проектируется один раз, не три костыля. E независима от L, допускает параллель.
 - **A → C последовательно:** Chat UX может потребовать SSE-событие `title_updated` — стрим-контракт перерабатывается в A, не трогаем его дважды.
 - **Догфудинг стартует после E** (без входа материалов преподавательский сценарий не работает) и дальше идёт параллельно итерациям; находки — в backlog с пометкой `[dogfood]`, разбор в maintenance-режиме.
 
@@ -84,7 +87,7 @@
 - [tracks/T1/test-cases.md](iterations/dogfooding/feat-001-agent-visibility/tracks/T1/test-cases.md) / [tracks/T2/test-cases.md](iterations/dogfooding/feat-001-agent-visibility/tracks/T2/test-cases.md) — тестовые кейсы и результаты прогонов
 - [review-a.md](iterations/dogfooding/feat-001-agent-visibility/review-a.md) / [review-b.md](iterations/dogfooding/feat-001-agent-visibility/review-b.md) — code review (независимый + соответствие контракту)
 - [harvest-proposals.md](iterations/dogfooding/feat-001-agent-visibility/harvest-proposals.md) — кандидаты в backlog/конвенции, собранные по ходу итерации
-- Создан: [ADR-029](../tech/adr/ADR-029-per-call-tool-result-guard.md) — проверка и отчёт результата инструмента повызовно, внутри узла `tools`: размен стоимости классификатора на правдивость ленты
+- Создан: [ADR-030](../tech/adr/ADR-030-per-call-tool-result-guard.md) — проверка и отчёт результата инструмента повызовно, внутри узла `tools`: размен стоимости классификатора на правдивость ленты
 - Обновлены по итогам: [streaming.md](../tech/streaming.md) (контракт SSE v2 целиком, typed parts истории, лимиты, вложенность субагента, security-чекпоинты), [agent-runtime.md](../tech/agent-runtime.md) (узел `tools`, три канала стрима, `get_history`, видимость шагов субагента), [frontend.md](../tech/frontend.md) (лента активности, stream store, дерево модулей, Security UX), [conventions/agent.md](../tech/conventions/agent.md) и [conventions/frontend.md](../tech/conventions/frontend.md) (чек-лист «добавляешь инструмент агенту», раскладка состояния стрима, живость строки), [observability.md](../tech/observability.md) (ручной cost-учёт компакции), [security/architecture.md](../security/architecture.md) (место чекпоинта `tool_result`, наблюдаемость деградации), [design-system.md](../tech/design-system.md) (снятая заглушка записи в Сферу)
 
 #### Сознательно вне scope
@@ -98,7 +101,7 @@
 
 **Цель:** сделать merge `develop` → `main` нестрашным и задеплоить накопленное (>300 коммитов с последнего релиза): выключить в проде исследовательские подсистемы, закрыть известные прод-дефекты периметра, вычистить прод-образы.
 
-**Статус:** 🚧 In Progress
+**Статус:** ✅ Done
 **Scope:** cross-cutting (Backend + Agent + Infra)
 **Параллельно с:** feat-001 (не пересекаются)
 
@@ -108,6 +111,17 @@
 - **P2** SIEM kill-switch — развилка «kill-switch ИЛИ допил до продакшна» решена архитектором в пользу **варианта A (kill-switch)**: SIEM реализован под учебную цель (дисциплина по ИБ, фундамент диплома) и её закрывает; для продакшна не годится (невалидируемый `config` правил, RBAC-guard пропускает не-админов), допиливать сейчас не будем. Per-env kill-switch по образцу kill-switch LLM-защиты; вариант B (допил: валидация правил, рабочий RBAC, активное реагирование) — вернётся при реальной потребности в живом SIEM (диплом / прод-нагрузка, см. backlog «SIEM → SOC evolution»). Следствие: post-mvp feat-007 (SIEM Extensions) — ⏸️ Paused *(Backend, SIEM, Security)*
 - **P2** `X-Forwarded-For` доверяется безусловно — спуфинг IP: `backend/app/main.py` (request_id middleware) и `backend/app/api/routes/auth.py` (`_get_client_ip`) берут первый IP из XFF без проверки доверенного прокси. Следствия: обход per-IP rate-лимитов (подтверждено прогонами feat-002/feat-004), подмена IP в логах и SIEM-событиях. Решение — по факту топологии прода (читается из deploy-конфигов в рамках итерации): trusted-hops (N-й IP справа), `uvicorn --proxy-headers --forwarded-allow-ips`, конфиг-флаг `TRUST_PROXY_HEADERS` *(Backend, Auth, Security, Infra)*
 - **P3** Прод-образы тащат dev-зависимости — `uv sync --all-packages` в `backend/Dockerfile` и `services/siem-service/Dockerfile` ставит dev-группу, включая test-harness (`learnflow-testing` → `testcontainers`, `pytest`, `factory-boy`). Почистить через `--no-dev`, проверив что entrypoint (alembic + uvicorn) не нуждается в dev-deps *(Infra)*
+
+#### Документация
+
+- [design-brief.md](iterations/dogfooding/chore-001-prod-closing/design-brief.md) — контекст решений, партиция треков
+- Ревью: [review-a.md](iterations/dogfooding/chore-001-prod-closing/review-a.md), [review-b.md](iterations/dogfooding/chore-001-prod-closing/review-b.md)
+- **T1 клиентский IP:** [plan](iterations/dogfooding/chore-001-prod-closing/tracks/T1/plan.md), [summary](iterations/dogfooding/chore-001-prod-closing/tracks/T1/summary.md), [test-cases](iterations/dogfooding/chore-001-prod-closing/tracks/T1/test-cases.md)
+- **T2 прод-образы:** [plan](iterations/dogfooding/chore-001-prod-closing/tracks/T2/plan.md), [summary](iterations/dogfooding/chore-001-prod-closing/tracks/T2/summary.md), [test-cases](iterations/dogfooding/chore-001-prod-closing/tracks/T2/test-cases.md)
+- **T3 kill-switch LLM-защиты:** [plan](iterations/dogfooding/chore-001-prod-closing/tracks/T3/plan.md), [summary](iterations/dogfooding/chore-001-prod-closing/tracks/T3/summary.md), [test-cases](iterations/dogfooding/chore-001-prod-closing/tracks/T3/test-cases.md)
+- **T4 SIEM kill-switch:** [plan](iterations/dogfooding/chore-001-prod-closing/tracks/T4/plan.md), [summary](iterations/dogfooding/chore-001-prod-closing/tracks/T4/summary.md), [test-cases](iterations/dogfooding/chore-001-prod-closing/tracks/T4/test-cases.md)
+- Новый: [tech/setup/production.md](../tech/setup/production.md) — nginx-периметр, runbook; [tech/adr/ADR-029](../tech/adr/ADR-029-operational-kill-switches.md) — принцип операционных kill-switch'ей
+- Актуализированы: [security/architecture.md](../security/architecture.md), [tech/siem-service.md](../tech/siem-service.md), [tech/agent-runtime.md](../tech/agent-runtime.md), [tech/streaming.md](../tech/streaming.md), [tech/observability.md](../tech/observability.md), [tech/backend.md](../tech/backend.md), [tech/auth.md](../tech/auth.md), [tech/conventions.md](../tech/conventions.md), [tech/conventions/agent.md](../tech/conventions/agent.md), [tech/adr/ADR-017](../tech/adr/ADR-017-prompt-injection-defense.md)
 
 #### Завершение итерации
 
@@ -287,3 +301,42 @@
 #### Из backlog
 
 - **P1** Voice input — голосовой ввод (STT). Фича тривиальна; нетривиальное — UX: склоняемся к «транскрипт → редактируемое поле чата» (пользователь правит ошибки STT по терминам/именам), а не «сразу агенту»; финальный UX — на этапе реализации *(cross: Backend)*
+
+---
+
+### feat-011 (L): Execution runtime — изолированное выполнение кода и рендер-пайплайнов
+
+**Цель:** выполнение кода/CLI из графа агента в изолированном окружении — общий фундамент выходных форматов: PDF-экспорт (F), слайды (G), ГОСТ-скилл (M) и будущие скиллы, которым нужен shell. Проектируется один раз как переиспользуемый контракт, не точечное решение под фичу.
+
+**Статус:** 📋 Planned
+**Scope:** cross-cutting (Agent + Backend + Infra + Security)
+**Before:** feat-005 (F), feat-006 (G), feat-012 (M) — строятся на контракте runtime
+
+#### Новые элементы (вне existing backlog, добавлено архитектором)
+
+- Контракт верхнеуровнево: агент кладёт входные файлы (markdown + ассеты) → runtime выполняет фиксированный тулчейн в изолированном окружении → файлы-артефакты возвращаются в blob-хранилище (`artifact_blobs` / `BlobStorage`, post-mvp feat-010).
+- В LangGraph готового ShellTool-middleware нет (в отличие от LangChain) — реализация: tool-обёртка над контейнерным исполнением. Ввод по [ADR-026](../tech/adr/ADR-026-tool-introduction-pattern.md): spike → validate → integrate.
+- **Security:** исполнение кода — новая поверхность атаки. Границы v1: фиксированный образ тулчейна (pandoc, marp/slidev-класс, python-docx, шрифты), без сети, лимиты CPU/RAM/время, изоляция от основного стека. ADR обязателен.
+
+#### Открытые вопросы (на design-brief)
+
+- Механика изоляции: контейнер per-request vs warm pool; docker-in-docker vs соседний сервис-executor.
+- Состав образа v1 — минимум под F/G/M, расширение по потребности.
+- Граница API: только «файлы → тулчейн-рецепт → файлы» или произвольный shell для агента (склоняемся к рецептам — уже поверхность, проще ревьюить).
+
+---
+
+### feat-012 (M): ГОСТ-скилл — оформление студенческих работ
+
+**Цель:** bundle-скилл оформления студенческих работ по ГОСТ 7.32 (лабораторные, курсовые, отчёты по практике): LLM генерирует Markdown → runtime собирает .docx (pandoc + python-docx + docxcompose, подключаемые титульники «вуз × тип работы»). Первый готовый оффер для студенческой аудитории и дистрибуционный крючок.
+
+**Статус:** 📋 Planned
+**Scope:** agent (cross: Backend, Product)
+**After:** feat-011 (runtime — сборка .docx), feat-004 (вход файлов: методичка, скриншоты, вариант задания)
+
+#### Новые элементы (вне existing backlog, добавлено архитектором)
+
+- Скилл существует и обкатан вне продукта (личный скилл владельца: профили типов работ, wizard титульников, review-чеклист) — задача переноса и адаптации под bundle-механику, не разработка с нуля.
+- Репозиторный (доверенный) скилл — НЕ требует feat-007 (кастомные скиллы пользователей) и её security-границы.
+- Опциональный слой авто-СОДЕРЖАНИЯ (LibreOffice + python-uno) — решить при переносе: включать в образ runtime или отрезать в v1 (обновление поля в Word руками — приемлемый fallback).
+- Дистрибуция: оффер «отчёт по ГОСТу» для студенческой волны (одногруппники, ~30 чел) после показа преподавателям; C1-статья про ГОСТ-скилл ([roadmap](../product/roadmap.md) § Доклады, talks.md) усиливается CTA «попробовать в продукте». Волновая модель и гейт затрат — backlog § Product / Distribution.

@@ -7,40 +7,29 @@
       238,
       224
     ],
-    "alpha_zero": 0.6093,
-    "alpha_partial": 0.1105,
-    "alpha_full": 0.2802,
-    "bg_leak": 0.00166,
-    "object_eaten": 0.02859,
-    "halo_bg_similarity": 205.0,
-    "suspicious_blobs": [
-      {
-        "area_px": 5361,
-        "bbox": [
-          594,
-          364,
-          769,
-          593
-        ],
-        "mean_alpha": 121.2
-      }
-    ],
+    "alpha_zero": 0.6047,
+    "alpha_partial": 0.1022,
+    "alpha_full": 0.2931,
+    "bg_leak": 0.00123,
+    "object_eaten": 0.03015,
+    "halo_bg_similarity": 230.4,
+    "suspicious_blobs": [],
     "edge_crop_centers": [
-      [
-        629,
-        441
-      ],
-      [
-        931,
-        489
-      ],
       [
         922,
         878
       ],
       [
-        1207,
-        739
+        730,
+        325
+      ],
+      [
+        488,
+        787
+      ],
+      [
+        335,
+        516
       ]
     ]
   },
@@ -86,40 +75,29 @@
       241,
       228
     ],
-    "alpha_zero": 0.5901,
-    "alpha_partial": 0.1056,
-    "alpha_full": 0.3044,
-    "bg_leak": 0.00133,
-    "object_eaten": 0.00583,
-    "halo_bg_similarity": 188.6,
-    "suspicious_blobs": [
-      {
-        "area_px": 10244,
-        "bbox": [
-          249,
-          650,
-          442,
-          743
-        ],
-        "mean_alpha": 203.0
-      }
-    ],
+    "alpha_zero": 0.5923,
+    "alpha_partial": 0.096,
+    "alpha_full": 0.3118,
+    "bg_leak": 0.01546,
+    "object_eaten": 0.03981,
+    "halo_bg_similarity": 244.7,
+    "suspicious_blobs": [],
     "edge_crop_centers": [
       [
-        350,
-        710
+        159,
+        825
       ],
       [
-        765,
-        973
+        409,
+        335
       ],
       [
-        827,
-        279
+        421,
+        803
       ],
       [
-        410,
-        331
+        1124,
+        288
       ]
     ]
   },
@@ -131,29 +109,29 @@
       239,
       225
     ],
-    "alpha_zero": 0.708,
-    "alpha_partial": 0.0594,
-    "alpha_full": 0.2326,
-    "bg_leak": 0.00028,
-    "object_eaten": 0.03918,
-    "halo_bg_similarity": 232.2,
+    "alpha_zero": 0.7123,
+    "alpha_partial": 0.0543,
+    "alpha_full": 0.2334,
+    "bg_leak": 0.00025,
+    "object_eaten": 0.0476,
+    "halo_bg_similarity": 241.4,
     "suspicious_blobs": [],
     "edge_crop_centers": [
       [
-        1142,
-        916
-      ],
-      [
-        598,
+        617,
         914
       ],
       [
-        1220,
-        616
+        1092,
+        918
       ],
       [
         397,
         265
+      ],
+      [
+        286,
+        923
       ]
     ]
   },
@@ -165,29 +143,14 @@
       244,
       234
     ],
-    "alpha_zero": 0.795,
-    "alpha_partial": 0.055,
+    "alpha_zero": 0.798,
+    "alpha_partial": 0.052,
     "alpha_full": 0.15,
-    "bg_leak": 0.00078,
-    "object_eaten": 0.03775,
-    "halo_bg_similarity": 216.8,
-    "suspicious_blobs": [
-      {
-        "area_px": 2795,
-        "bbox": [
-          1225,
-          627,
-          1394,
-          701
-        ],
-        "mean_alpha": 98.4
-      }
-    ],
+    "bg_leak": 0.00076,
+    "object_eaten": 0.04299,
+    "halo_bg_similarity": 231.2,
+    "suspicious_blobs": [],
     "edge_crop_centers": [
-      [
-        1335,
-        624
-      ],
       [
         415,
         625
@@ -199,6 +162,10 @@
       [
         1099,
         331
+      ],
+      [
+        1641,
+        594
       ]
     ]
   },
@@ -210,50 +177,29 @@
       240,
       228
     ],
-    "alpha_zero": 0.7916,
-    "alpha_partial": 0.0884,
-    "alpha_full": 0.12,
-    "bg_leak": 0.00089,
-    "object_eaten": 0.00928,
-    "halo_bg_similarity": 139.6,
-    "suspicious_blobs": [
-      {
-        "area_px": 12085,
-        "bbox": [
-          1078,
-          659,
-          1484,
-          853
-        ],
-        "mean_alpha": 187.8
-      },
-      {
-        "area_px": 4416,
-        "bbox": [
-          1021,
-          528,
-          1153,
-          602
-        ],
-        "mean_alpha": 180.3
-      }
-    ],
+    "alpha_zero": 0.7949,
+    "alpha_partial": 0.0731,
+    "alpha_full": 0.132,
+    "bg_leak": 0.001,
+    "object_eaten": 0.0175,
+    "halo_bg_similarity": 185.4,
+    "suspicious_blobs": [],
     "edge_crop_centers": [
-      [
-        1301,
-        795
-      ],
-      [
-        1094,
-        534
-      ],
       [
         1147,
         247
       ],
       [
+        1160,
+        796
+      ],
+      [
         1424,
         296
+      ],
+      [
+        959,
+        522
       ]
     ]
   },
@@ -333,50 +279,29 @@
       236,
       223
     ],
-    "alpha_zero": 0.5851,
-    "alpha_partial": 0.1039,
-    "alpha_full": 0.311,
-    "bg_leak": 0.0007,
-    "object_eaten": 0.03962,
-    "halo_bg_similarity": 185.6,
-    "suspicious_blobs": [
-      {
-        "area_px": 6647,
-        "bbox": [
-          245,
-          654,
-          400,
-          743
-        ],
-        "mean_alpha": 193.5
-      },
-      {
-        "area_px": 5336,
-        "bbox": [
-          470,
-          691,
-          617,
-          840
-        ],
-        "mean_alpha": 160.7
-      }
-    ],
+    "alpha_zero": 0.5868,
+    "alpha_partial": 0.0891,
+    "alpha_full": 0.3241,
+    "bg_leak": 0.00076,
+    "object_eaten": 0.03839,
+    "halo_bg_similarity": 240.6,
+    "suspicious_blobs": [],
     "edge_crop_centers": [
       [
-        317,
-        715
+        618,
+        774
       ],
       [
-        577,
+        409,
+        331
+      ],
+      [
+        171,
         755
       ],
       [
-        837,
-        974
-      ],
-      [
-        844,
-        270
+        1124,
+        284
       ]
     ]
   },
@@ -423,39 +348,28 @@
       227
     ],
     "alpha_zero": 0.7559,
-    "alpha_partial": 0.0639,
-    "alpha_full": 0.1802,
+    "alpha_partial": 0.0598,
+    "alpha_full": 0.1842,
     "bg_leak": 0.00043,
     "object_eaten": 0.04,
-    "halo_bg_similarity": 186.1,
-    "suspicious_blobs": [
-      {
-        "area_px": 6840,
-        "bbox": [
-          685,
-          378,
-          858,
-          465
-        ],
-        "mean_alpha": 156.8
-      }
-    ],
+    "halo_bg_similarity": 229.5,
+    "suspicious_blobs": [],
     "edge_crop_centers": [
       [
-        783,
-        441
-      ],
-      [
-        463,
-        592
+        543,
+        594
       ],
       [
         1558,
         599
       ],
       [
-        1192,
-        272
+        803,
+        445
+      ],
+      [
+        229,
+        563
       ]
     ]
   },
@@ -467,40 +381,29 @@
       236,
       222
     ],
-    "alpha_zero": 0.7953,
-    "alpha_partial": 0.0676,
-    "alpha_full": 0.1371,
-    "bg_leak": 0.00085,
-    "object_eaten": 0.00829,
-    "halo_bg_similarity": 185.2,
-    "suspicious_blobs": [
-      {
-        "area_px": 5849,
-        "bbox": [
-          1094,
-          660,
-          1418,
-          854
-        ],
-        "mean_alpha": 139.9
-      }
-    ],
+    "alpha_zero": 0.7952,
+    "alpha_partial": 0.0583,
+    "alpha_full": 0.1465,
+    "bg_leak": 0.00125,
+    "object_eaten": 0.00598,
+    "halo_bg_similarity": 197.4,
+    "suspicious_blobs": [],
     "edge_crop_centers": [
       [
-        1214,
-        795
-      ],
-      [
-        1474,
-        773
-      ],
-      [
-        1143,
-        534
+        1142,
+        555
       ],
       [
         1424,
         297
+      ],
+      [
+        1148,
+        278
+      ],
+      [
+        787,
+        543
       ]
     ]
   }

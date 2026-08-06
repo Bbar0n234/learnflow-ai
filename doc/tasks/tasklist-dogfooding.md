@@ -22,7 +22,7 @@
 | Итерация | Алиас | Статус | Scope | Закрывает |
 |----------|-------|--------|-------|-----------|
 | feat-001 | A | 🚧 In Progress | cross-cutting | Видимость работы агента: карта событий, live-фазы, reasoning-стрим, след tool-вызовов, security_block в UI |
-| chore-001 | B | 🚧 In Progress | cross-cutting | Prod-closing: kill-switch LLM-защиты + SIEM kill-switch, X-Forwarded-For, прод-образы без dev-deps; merge develop → main + деплой |
+| chore-001 | B | ✅ Done | cross-cutting | Prod-closing: kill-switch LLM-защиты + SIEM kill-switch, X-Forwarded-For, прод-образы без dev-deps; merge develop → main + деплой |
 | feat-002 | C | 🚧 In Progress | cross-cutting | Chat UX: первое сообщение вместо title, auto-title отдельным модулем, удаление и переименование чатов |
 | feat-003 | D | ✅ Done | agent | Модели: cost-optimal подбор по внешним бенчмаркам, whitelist 5+, pricing seed в Langfuse |
 | feat-004 | E | 📋 Planned | cross-cutting | File attachments: вход файлов агенту (критический путь догфудинга) |
@@ -87,7 +87,7 @@
 
 **Цель:** сделать merge `develop` → `main` нестрашным и задеплоить накопленное (>300 коммитов с последнего релиза): выключить в проде исследовательские подсистемы, закрыть известные прод-дефекты периметра, вычистить прод-образы.
 
-**Статус:** 🚧 In Progress
+**Статус:** ✅ Done
 **Scope:** cross-cutting (Backend + Agent + Infra)
 **Параллельно с:** feat-001 (не пересекаются)
 
@@ -97,6 +97,17 @@
 - **P2** SIEM kill-switch — развилка «kill-switch ИЛИ допил до продакшна» решена архитектором в пользу **варианта A (kill-switch)**: SIEM реализован под учебную цель (дисциплина по ИБ, фундамент диплома) и её закрывает; для продакшна не годится (невалидируемый `config` правил, RBAC-guard пропускает не-админов), допиливать сейчас не будем. Per-env kill-switch по образцу kill-switch LLM-защиты; вариант B (допил: валидация правил, рабочий RBAC, активное реагирование) — вернётся при реальной потребности в живом SIEM (диплом / прод-нагрузка, см. backlog «SIEM → SOC evolution»). Следствие: post-mvp feat-007 (SIEM Extensions) — ⏸️ Paused *(Backend, SIEM, Security)*
 - **P2** `X-Forwarded-For` доверяется безусловно — спуфинг IP: `backend/app/main.py` (request_id middleware) и `backend/app/api/routes/auth.py` (`_get_client_ip`) берут первый IP из XFF без проверки доверенного прокси. Следствия: обход per-IP rate-лимитов (подтверждено прогонами feat-002/feat-004), подмена IP в логах и SIEM-событиях. Решение — по факту топологии прода (читается из deploy-конфигов в рамках итерации): trusted-hops (N-й IP справа), `uvicorn --proxy-headers --forwarded-allow-ips`, конфиг-флаг `TRUST_PROXY_HEADERS` *(Backend, Auth, Security, Infra)*
 - **P3** Прод-образы тащат dev-зависимости — `uv sync --all-packages` в `backend/Dockerfile` и `services/siem-service/Dockerfile` ставит dev-группу, включая test-harness (`learnflow-testing` → `testcontainers`, `pytest`, `factory-boy`). Почистить через `--no-dev`, проверив что entrypoint (alembic + uvicorn) не нуждается в dev-deps *(Infra)*
+
+#### Документация
+
+- [design-brief.md](iterations/dogfooding/chore-001-prod-closing/design-brief.md) — контекст решений, партиция треков
+- Ревью: [review-a.md](iterations/dogfooding/chore-001-prod-closing/review-a.md), [review-b.md](iterations/dogfooding/chore-001-prod-closing/review-b.md)
+- **T1 клиентский IP:** [plan](iterations/dogfooding/chore-001-prod-closing/tracks/T1/plan.md), [summary](iterations/dogfooding/chore-001-prod-closing/tracks/T1/summary.md), [test-cases](iterations/dogfooding/chore-001-prod-closing/tracks/T1/test-cases.md)
+- **T2 прод-образы:** [plan](iterations/dogfooding/chore-001-prod-closing/tracks/T2/plan.md), [summary](iterations/dogfooding/chore-001-prod-closing/tracks/T2/summary.md), [test-cases](iterations/dogfooding/chore-001-prod-closing/tracks/T2/test-cases.md)
+- **T3 kill-switch LLM-защиты:** [plan](iterations/dogfooding/chore-001-prod-closing/tracks/T3/plan.md), [summary](iterations/dogfooding/chore-001-prod-closing/tracks/T3/summary.md), [test-cases](iterations/dogfooding/chore-001-prod-closing/tracks/T3/test-cases.md)
+- **T4 SIEM kill-switch:** [plan](iterations/dogfooding/chore-001-prod-closing/tracks/T4/plan.md), [summary](iterations/dogfooding/chore-001-prod-closing/tracks/T4/summary.md), [test-cases](iterations/dogfooding/chore-001-prod-closing/tracks/T4/test-cases.md)
+- Новый: [tech/setup/production.md](../tech/setup/production.md) — nginx-периметр, runbook; [tech/adr/ADR-029](../tech/adr/ADR-029-operational-kill-switches.md) — принцип операционных kill-switch'ей
+- Актуализированы: [security/architecture.md](../security/architecture.md), [tech/siem-service.md](../tech/siem-service.md), [tech/agent-runtime.md](../tech/agent-runtime.md), [tech/streaming.md](../tech/streaming.md), [tech/observability.md](../tech/observability.md), [tech/backend.md](../tech/backend.md), [tech/auth.md](../tech/auth.md), [tech/conventions.md](../tech/conventions.md), [tech/conventions/agent.md](../tech/conventions/agent.md), [tech/adr/ADR-017](../tech/adr/ADR-017-prompt-injection-defense.md)
 
 #### Завершение итерации
 

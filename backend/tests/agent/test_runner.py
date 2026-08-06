@@ -11,6 +11,13 @@ cancellation, and a pre-graph security block.
 The security-block test stubs the *enforcer* (its INJECTION side effects persist
 to the DB — S2 territory, болезненная граница); the runner's own job is only to
 emit ``security_block`` and stop, which is what we assert.
+
+Since the ``LLM_DEFENSE_ENABLED`` kill-switch, the review-event pair
+(``final_output_review_started`` / ``..._complete``) is emitted only while the
+enforcer reports ``active`` — the single public signal the runner reads. Both
+states are covered here: with defense on the pair frames the end-of-stream
+check, with defense off it disappears while the rest of the stream (and the
+check itself) is unchanged.
 """
 
 from __future__ import annotations
@@ -47,6 +54,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.tools import tool
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
+from learnflow_testing.fakes import StubGuard
 from structlog.testing import capture_logs
 from tests.agent.conftest import (
     RaisingFakeChatModel,
@@ -64,6 +72,8 @@ def echo(text: str) -> str:
 
 class _InjectionEnforcer:
     """Stub enforcer: reports an INJECTION verdict on user input, no DB effects."""
+
+    active = True
 
     async def check_user_input(self, **kwargs: Any) -> GuardResult:
         return GuardResult(
@@ -90,10 +100,12 @@ class _StagedEnforcer:
         mid: SecurityOutcome | None = None,
         final: SecurityOutcome | None = None,
         in_graph: SecurityOutcome | None = None,
+        active: bool = True,
     ) -> None:
         self._mid = mid
         self._final = final
         self._in_graph = in_graph
+        self.active = active
 
     async def check_user_input(self, **kwargs: Any) -> GuardResult | None:
         return None
@@ -127,7 +139,14 @@ def _make_runner(
     *,
     enforcer: Any | None = None,
     tools: list[Any] | None = None,
+    guard: Any | None = None,
 ) -> LangGraphAgentRunner:
+    """Build a runner; ``guard`` decides whether the real enforcer is active.
+
+    ``guard=None`` (default) is the ``LLM_DEFENSE_ENABLED=false`` shape — the
+    composition root hands ``None`` down and every ``check_*`` short-circuits.
+    Passing a ``StubGuard`` models defense-on without a live classifier.
+    """
     settings = Settings()
     agent_config: AgentConfig = load_agent_config().model_copy(
         update={"summarization": None}
@@ -153,7 +172,7 @@ def _make_runner(
     )
     history = CheckpointHistory(checkpointer, security_messages)
     real_enforcer = RuntimeSecurityEnforcer(
-        guard=None, security_messages=security_messages, history=history
+        guard=guard, security_messages=security_messages, history=history
     )
     tracer = AgentRunTracer(enabled=False, security_messages=security_messages)
     resolver = ModelConfigResolver(prompt_provider, agent_config)
@@ -188,7 +207,12 @@ def _ids() -> dict[str, Any]:
 
 @pytest.mark.integration
 async def test_stream_emits_text_chunks_and_final_output_review() -> None:
-    runner = _make_runner(tool_binding_fake([AIMessage(content="Hello world")]))
+    # Defense on (a guard was built): the review pair frames the end-of-stream
+    # check the user is told about.
+    runner = _make_runner(
+        tool_binding_fake([AIMessage(content="Hello world")]),
+        guard=StubGuard(Verdict.CLEAN),
+    )
 
     events = await _collect(runner, content="hi", **_ids())
 
@@ -199,6 +223,43 @@ async def test_stream_emits_text_chunks_and_final_output_review() -> None:
     assert "final_output_review_complete" in types
     assert "error" not in types
     assert "security_block" not in types
+
+
+@pytest.mark.integration
+async def test_stream_defense_off_omits_the_review_events_but_keeps_the_text() -> None:
+    # LLM_DEFENSE_ENABLED=false reaches the runner as a guard-less enforcer:
+    # the user must not be told "checking your answer" when nothing is checked,
+    # while the rest of the stream contract is untouched.
+    runner = _make_runner(tool_binding_fake([AIMessage(content="Hello world")]))
+
+    events = await _collect(runner, content="hi", **_ids())
+
+    types = [e.type for e in events]
+    text = "".join(e.data["content"] for e in events if e.type == "text_chunk")
+    assert text == "Hello world"
+    assert "final_output_review_started" not in types
+    assert "final_output_review_complete" not in types
+    assert "error" not in types
+    assert "security_block" not in types
+
+
+@pytest.mark.integration
+async def test_final_output_check_runs_even_when_review_events_are_muted() -> None:
+    # The runner mutes the *events* on inactive defense but keeps calling
+    # ``check_final_output`` unconditionally (it short-circuits on its own).
+    # Observable proof: an inactive enforcer that still returns an outcome
+    # blocks the turn — so the call was made, without any review event.
+    runner = _make_runner(
+        tool_binding_fake([AIMessage(content="Hello world")]),
+        enforcer=_StagedEnforcer(final=_outcome("llm_classifier"), active=False),
+    )
+
+    events = await _collect(runner, content="hi", **_ids())
+
+    types = [e.type for e in events]
+    assert "security_block" in types
+    assert "final_output_review_started" not in types
+    assert "final_output_review_complete" not in types
 
 
 # --- negative: upstream model failure ---------------------------------------

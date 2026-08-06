@@ -92,6 +92,7 @@ class ErrorMessagesConfig(BaseModel):
 class PromptFragmentsConfig(BaseModel):
     headers: dict[str, str] = {}
     wrappers: dict[str, list[str]] = {}
+    security_preamble: str = ""
 
     def wrap(self, key: str, text: str) -> str:
         pair = self.wrappers.get(key)
@@ -184,11 +185,40 @@ def load_error_messages(path: Path | None = None) -> ErrorMessagesConfig:
     return ErrorMessagesConfig(**data)
 
 
-def load_prompt_fragments(path: Path | None = None) -> PromptFragmentsConfig:
+# Security-specific prompt_fragments.yaml keys, gated by
+# ``load_prompt_fragments(include_security=False)`` (design-brief § 1 "Точка
+# врезки" — "Гасимые ключи"). Single grep-able source of truth: structural
+# keys (headers.custom_instructions; wrappers.{custom_instructions,
+# user_memory, knowledge_sphere, available_skills, user_installed_mcp_tools,
+# document}) are NOT listed here and remain present in both modes.
+_SECURITY_HEADER_KEYS: tuple[str, ...] = ("canary_prefix", "user_installed_mcp")
+_SECURITY_WRAPPER_KEYS: tuple[str, ...] = (
+    "user_message",
+    "tool_output",
+    "untrusted_tool_description",
+)
+
+
+def load_prompt_fragments(
+    path: Path | None = None, *, include_security: bool = True
+) -> PromptFragmentsConfig:
     if path is None:
         path = _configs_dir() / "prompt_fragments.yaml"
     with open(path) as f:
         data = yaml.safe_load(f) or {}
+    if not include_security:
+        data = dict(data)
+        data.pop("security_preamble", None)
+        data["headers"] = {
+            key: value
+            for key, value in (data.get("headers") or {}).items()
+            if key not in _SECURITY_HEADER_KEYS
+        }
+        data["wrappers"] = {
+            key: value
+            for key, value in (data.get("wrappers") or {}).items()
+            if key not in _SECURITY_WRAPPER_KEYS
+        }
     return PromptFragmentsConfig(**data)
 
 

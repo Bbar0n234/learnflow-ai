@@ -63,6 +63,8 @@ Threat model: [security/threat-model.md](../../security/threat-model.md). Арх
 
 **Решение:** Обёртка. system.txt не меняется — hardening добавляется без риска для существующего поведения агента.
 
+Место жительства hardening-текста менялось после первоначального решения: он переехал из шаблона `system.txt` в `configs/prompt_fragments.yaml` (ключ `security_preamble`), а в `system.txt` остался единственный слот `{{ security_preamble_section }}`. Причина — операционный тумблер `LLM_DEFENSE_ENABLED`, гасящий hardening-секцию тем же механизмом «нет ключа → нет текста», что и обёртки границы доверия ([security/architecture.md](../../security/architecture.md)). Решение ADR (hardening отделён от content, оба итерируются независимо) не пересматривается — меняется только конкретный файл, где живёт текст обёртки.
+
 ### 4. Fail Mode
 
 **A: Fail-closed** — guard недоступен → блокировать запрос.

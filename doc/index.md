@@ -72,9 +72,11 @@ doc/
   - [ADR-020: Security Event Contract](tech/adr/ADR-020-security-event-contract.md) — Pydantic SecurityEvent, vocabulary, identifiers, forward compatibility
   - [ADR-021: SIEM Correlation Engine](tech/adr/ADR-021-siem-correlation-engine.md) — polling-based engine, three strategies, open-alert deduplication, 24h age limit
   - [ADR-025: Conventions per Domain](tech/adr/ADR-025-conventions-per-domain.md) — дробление conventions.md: ядро + доменные файлы, progressive disclosure
+  - [ADR-029: Operational Kill-Switches](tech/adr/ADR-029-operational-kill-switches.md) — один env-тумблер на подсистему (`LLM_DEFENSE_ENABLED`, `SIEM_ENABLED`), гранулярность остаётся в существующих конфигах
 
 **Setup manuals:**
 - [tech/setup/codex-cloud.md](tech/setup/codex-cloud.md) — настройка ChatGPT Codex Environment для cloud-сессий
+- [tech/setup/production.md](tech/setup/production.md) — nginx-периметр прод-VM, инвариант доверия, режимы `CLIENT_IP_SOURCE`, ручной runbook перед деплоем
 
 ## Другие разделы
 

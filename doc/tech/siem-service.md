@@ -2,7 +2,11 @@
 
 Отдельный FastAPI backend-сервис для security-мониторинга: потребляет security-события main app из Redis Stream, хранит их в изолированной PostgreSQL, коррелирует по правилам, генерирует алерты и отдаёт admin-only REST API для мониторинга UI (страница `/security` основного SPA).
 
-Producer-сторона (нормализация событий, vocabulary, structlog-конвенция) описана в [backend.md](backend.md#security-event-logging-convention) и [security-events.md](security-events.md). Обоснования архитектурных решений — в ADR: [ADR-018](adr/ADR-018-siem-service-topology.md) (топология), [ADR-019](adr/ADR-019-security-event-transport.md) (транспорт), [ADR-020](adr/ADR-020-security-event-contract.md) (контракт события), [ADR-021](adr/ADR-021-siem-correlation-engine.md) (correlation engine).
+Producer-сторона (нормализация событий, vocabulary, structlog-конвенция) описана в [backend.md](backend.md#security-event-logging-convention) и [security-events.md](security-events.md). Обоснования архитектурных решений — в ADR: [ADR-018](adr/ADR-018-siem-service-topology.md) (топология), [ADR-019](adr/ADR-019-security-event-transport.md) (транспорт), [ADR-020](adr/ADR-020-security-event-contract.md) (контракт события), [ADR-021](adr/ADR-021-siem-correlation-engine.md) (correlation engine), [ADR-029](adr/ADR-029-operational-kill-switches.md) (`SIEM_ENABLED` как операционный тумблер).
+
+## Kill-switch
+
+Подсистема выключаема целиком операционным тумблером `SIEM_ENABLED` — независимо на трёх слоях: эмиссия событий из процесса main app (backend не создаёт транспорт в Redis, процессор молча дропает), docker-контейнеры `siem-service`/`siem-db` (compose-профиль `siem`, управляемый `COMPOSE_PROFILES`) и UI (build-time `VITE_SIEM_ENABLED`, выведенный из `SIEM_ENABLED` — роут `/security` и кнопка «Безопасность» не попадают в бандл). Код, тесты, миграции и правила корреляции при выключении не меняются и не удаляются — включение обратимо правкой `.env` и пересборкой образов. Точный операционный порядок переключения — [production.md § SIEM](setup/production.md#siem); почему тумблер один на всю подсистему, а не per-rule — [ADR-029](adr/ADR-029-operational-kill-switches.md).
 
 ## Топология
 
@@ -146,14 +150,14 @@ stateDiagram-v2
 
 | Метод | Путь | Назначение |
 |-------|------|-----------|
-| GET | `/security/events` | список событий; фильтры event_type, severity, период; пагинация |
-| GET | `/security/alerts` | список алертов; фильтры severity, status; пагинация |
-| GET | `/security/alerts/{id}` | детали алерта |
-| PATCH | `/security/alerts/{id}` | смена статуса (acknowledge/resolve) → meta-событие |
-| GET | `/security/rules` | список правил |
-| POST | `/security/rules` | создание правила → meta-событие |
-| PATCH | `/security/rules/{id}` | изменение правила → meta-событие |
-| DELETE | `/security/rules/{id}` | удаление правила → meta-событие |
+| GET | `/api/security/events` | список событий; фильтры event_type, severity, период; пагинация |
+| GET | `/api/security/alerts` | список алертов; фильтры severity, status; пагинация |
+| GET | `/api/security/alerts/{id}` | детали алерта |
+| PATCH | `/api/security/alerts/{id}` | смена статуса (acknowledge/resolve) → meta-событие |
+| GET | `/api/security/rules` | список правил |
+| POST | `/api/security/rules` | создание правила → meta-событие |
+| PATCH | `/api/security/rules/{id}` | изменение правила → meta-событие |
+| DELETE | `/api/security/rules/{id}` | удаление правила → meta-событие |
 
 Добавление нового правила корреляции — это INSERT через REST, без деплоя; расширение набора event_type — расширение Literal-vocabulary в `siem-contracts`.
 

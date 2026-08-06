@@ -92,6 +92,8 @@ flowchart TD
 
 Составной ключ для login (username + IP) предотвращает как brute force на один аккаунт, так и credential stuffing с одного IP.
 
+Клиентский IP для всех трёх лимитов резолвится единственной функцией `app.infra.client_ip.get_client_ip` — источник (`socket` / `x-real-ip` / `x-forwarded-for`) задаёт `CLIENT_IP_SOURCE`, не код на месте вызова. Наивное чтение `X-Forwarded-For`/`X-Real-IP` в auth-роутах запрещено — подробности режимов и grep-абельное правило: [conventions.md](conventions.md#logging-conventions), эксплуатационный контекст — [setup/production.md](setup/production.md).
+
 ## Конфигурация cookie
 
 Атрибуты refresh token cookie:

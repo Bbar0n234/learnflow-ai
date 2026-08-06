@@ -87,7 +87,9 @@ graph.astream(input_msg, config, stream_mode=["messages", "updates"], context=co
 Собирается секционно (Python, не Jinja-template) на каждый вызов agent node. Структура отражает trust- и disclosure-границы; маркировка обёртками — вход в [Security](#security):
 
 ```
-<system_instructions>           ← hardening preamble + canary token
+<system_instructions>           ← слот {{ security_preamble_section }}: hardening preamble
+                                   (prompt_fragments.yaml) + canary token; пусто при
+                                   LLM_DEFENSE_ENABLED=false
 [base prose]                    ← PromptProvider (→ prompt-management.md)
 <tools>
   <internal_tools>              ← capability-only описания internal non-MCP tools
@@ -102,7 +104,7 @@ graph.astream(input_msg, config, stream_mode=["messages", "updates"], context=co
 
 | Раздел | Источник | Область | Обновление |
 |--------|----------|--------|-----------|
-| System instructions | hardening preamble + base prose из Langfuse | Global | Canary token per-request |
+| System instructions | hardening preamble (`configs/prompt_fragments.yaml`) + base prose из Langfuse | Global | Canary token per-request; гасится целиком при `LLM_DEFENSE_ENABLED=false` |
 | Base prose | PromptProvider (Langfuse → file fallback) | Global | При изменении в Langfuse (SDK cache TTL) |
 | Tools (3 подсекции) | static + agent.yaml + DB (per-user MCP) | Mixed | На сборку prompt'а |
 | Custom instructions | LangGraph Store | Per-user | При сохранении через REST API |
@@ -380,7 +382,7 @@ Langfuse выполняет две роли: tracing (observability) + prompt ma
 | `configs/security.yaml` | Guard model, детекторы, per-checkpoint config, user-facing messages | Base defaults для security |
 | `configs/pricing.yaml` | Model pricing для cost tracking в Langfuse (shared agent + guard) | — |
 | `configs/prompts.yaml` | Реестр промптов (`name → source файл`) | — |
-| `configs/prompt_fragments.yaml` | XML-обёртки и заголовки секций system message | — |
+| `configs/prompt_fragments.yaml` | Hardening-преамбула, XML-обёртки и заголовки секций system message; security-ключи гасятся при `LLM_DEFENSE_ENABLED=false` | — |
 | `configs/error_messages.yaml` | Нормализованные сообщения SSE error events и заглушки | — |
 | `configs/prompts/*.txt` | Seed-файлы промптов | Seed → Langfuse |
 | Langfuse | Runtime промпты, model config в prompt metadata | Runtime override |
@@ -405,4 +407,5 @@ Security-конфиги, model pricing и реестр промптов выне
 Application-level настройки — `backend/app/config.py` через Pydantic Settings. Ключевые env vars:
 - `MCP_ENCRYPTION_KEY` — Fernet-ключ для шифрования API-ключей пользовательских MCP-серверов
 - `LANGFUSE_PROMPT_LABEL` — label для получения промптов (по умолчанию: `development`)
-- `CANARY_SECRET` — HMAC secret для canary token (пустой = canary отключён + warning)
+- `LLM_DEFENSE_ENABLED` — операционный тумблер inline LLM-защиты: `SecurityGuard` (детекторы + классификатор) и security-часть промпта (canary, hardening-преамбула, обёртки границы доверия). Дефолт `true`, в проде `false`; читается один раз в lifespan → рестарт контейнера для переключения. Подробнее — [security/architecture.md](../security/architecture.md)
+- `CANARY_SECRET` — HMAC secret для canary token; при включённой защите пустой = canary отключён + warning, при `LLM_DEFENSE_ENABLED=false` секрет не используется вовсе

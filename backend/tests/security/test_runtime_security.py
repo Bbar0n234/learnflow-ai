@@ -87,6 +87,24 @@ class _RaisingGraph:
         raise RuntimeError("checkpointer write failed")
 
 
+# --- "defense active" signal ----------------------------------------------
+#
+# ``active`` is the enforcer's only public statement about the kill-switch: the
+# runner reads it to decide whether to announce a review to the user, and must
+# never inspect the guard itself. The two states below are what the composition
+# root produces for LLM_DEFENSE_ENABLED true/false.
+
+
+@pytest.mark.unit
+def test_active_is_false_when_no_guard_was_built() -> None:
+    assert _enforcer(None).active is False
+
+
+@pytest.mark.unit
+def test_active_is_true_when_a_guard_was_built() -> None:
+    assert _enforcer(StubGuard(Verdict.CLEAN)).active is True
+
+
 # --- guard disabled -------------------------------------------------------
 
 
@@ -122,19 +140,23 @@ async def test_check_mid_stream_guard_off_returns_none() -> None:
 
 
 @pytest.mark.unit
-async def test_check_final_output_guard_off_returns_none() -> None:
+async def test_check_final_output_guard_off_returns_none(
+    recording_graph: RecordingGraph,
+) -> None:
     enforcer = _enforcer(None)
 
     outcome = await enforcer.check_final_output(
         thread_id=_THREAD,
         full_response="anything",
         canary_token="tok",
-        graph=RecordingGraph(),
+        graph=recording_graph,
         config={"configurable": {"thread_id": str(_THREAD)}},
         last_message_id="msg-1",
     )
 
     assert outcome is None
+    # Defense off must be inert, not merely permissive: no redaction is written.
+    assert recording_graph.updates == []
 
 
 # --- USER_INPUT: action gated on INJECTION --------------------------------

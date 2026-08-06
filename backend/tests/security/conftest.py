@@ -24,6 +24,13 @@ from app.agent.security.types import (
 )
 from langchain_core.language_models import BaseChatModel
 
+# A sentence from the hardening preamble, written out independently of the
+# config it should appear in. Tests that verify *where* the preamble text ends
+# up (rendered prompt, FragmentDetector corpus) need an oracle that does not
+# read the same source as the code under test — otherwise they agree with it by
+# construction. Single source for the whole scope (§ Структура и нейминг).
+PREAMBLE_MARKER = "You expose capabilities, not implementation"
+
 
 class StubPromptProvider:
     """Minimal stand-in for ``PromptProvider`` — returns a fixed system prompt.

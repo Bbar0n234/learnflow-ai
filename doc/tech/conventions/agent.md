@@ -12,7 +12,7 @@
 
 | Коллаборатор | Ответственность |
 |--------------|-----------------|
-| `RuntimeSecurityEnforcer` | Четыре runtime-чекпоинта guard'а (user input / mid-stream / final output / in-graph inspection) + редакция сообщений + пометка thread'а blocked. Каждый `check_*` делает свои сайд-эффекты и возвращает `SecurityOutcome | None`; runner по исходу решает `yield security_block`. |
+| `RuntimeSecurityEnforcer` | Четыре runtime-чекпоинта guard'а (user input / mid-stream / final output / in-graph inspection) + редакция сообщений + пометка thread'а blocked. Каждый `check_*` делает свои сайд-эффекты и возвращает `SecurityOutcome | None`; runner по исходу решает `yield security_block`. Живёт и с `guard=None` (`LLM_DEFENSE_ENABLED=false`) — `check_*` в этом состоянии безопасные no-op'ы; публичное read-only свойство `active` (`guard is not None`) — единственный признак, по которому runner решает, эмитить ли `final_output_review_*` (→ [streaming.md](../streaming.md)). Runner не читает `Settings` и не заглядывает в приватные поля enforcer'а. |
 | `AgentRunTracer` / `AgentRunSpan` | Langfuse-спан рана: score, finalize-on-block, output, mid-stream observation. Fail-safe (ошибки Langfuse подавляются). |
 | `CheckpointHistory` | Единственное место, знающее форму `channel_values["messages"]`: чтение, маппинг в `Message`, поиск редакций. |
 | `StreamEventMapper` | `stream_mode="updates"` → доменные `StreamEvent` (tool_start / tool_end / artifact_created). |

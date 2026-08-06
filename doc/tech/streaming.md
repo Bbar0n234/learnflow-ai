@@ -22,8 +22,8 @@ data: {"type": "done", "message_id": "msg-uuid", "trace_id": "trace-uuid"}\n\n
 | `tool_start` | `{tool, call_id}` | Агент инициировал вызов инструмента |
 | `tool_end` | `{tool, call_id}` | Инструмент завершил выполнение |
 | `artifact_created` | `{id, title, artifact_type}` | Агент создал артефакт (сохранён в БД) |
-| `final_output_review_started` | `{}` | Перед end-of-stream проверкой final output |
-| `final_output_review_complete` | `{}` | Final output проверен, verdict CLEAN |
+| `final_output_review_started` | `{}` | Перед end-of-stream проверкой final output (только при `LLM_DEFENSE_ENABLED=true`) |
+| `final_output_review_complete` | `{}` | Final output проверен, verdict CLEAN (только при `LLM_DEFENSE_ENABLED=true`) |
 | `trace_id` | `{trace_id}` | Langfuse trace ID (internal, не доходит до frontend) |
 | `done` | `{message_id, trace_id}` | Генерация завершена успешно |
 | `error` | `{detail}` | Ошибка или отмена генерации |
@@ -35,7 +35,7 @@ data: {"type": "done", "message_id": "msg-uuid", "trace_id": "trace-uuid"}\n\n
 
 `artifact_created` эмитится маппером по имени tool'а — срабатывает на любой artifact-producing tool (`create_artifact`, `generate_image`), форма события от tool'а не зависит; какие tools её порождают — [agent-runtime.md](agent-runtime.md#internal-tools).
 
-`final_output_review_*` — non-terminal события вокруг end-of-stream проверки final output. Frontend показывает индикатор «проверка ответа» в паузе между последним `text_chunk` и `done`. При INJECTION на этой проверке вместо `final_output_review_complete` отправляется `security_block`.
+`final_output_review_*` — non-terminal события вокруг end-of-stream проверки final output. Frontend показывает индикатор «проверка ответа» в паузе между последним `text_chunk` и `done`. При INJECTION на этой проверке вместо `final_output_review_complete` отправляется `security_block`. Пара эмитится только при включённой inline LLM-защите (`LLM_DEFENSE_ENABLED=true`, → [security/architecture.md](../security/architecture.md)); при выключенной защите проверка — безопасный no-op, событий нет вовсе, индикатор во фронте не показывается.
 
 `trace_id` — internal event: ChatService перехватывает его (не пробрасывает клиенту), сохраняет в Redis, а затем включает trace_id в payload `done` event. Frontend получает trace_id только через `done`.
 
@@ -62,12 +62,14 @@ sequenceDiagram
             Note over AGT: inline guards (tool_result, tool_call_arg, mid-stream final_output)
             AGT-->>C: text_chunk / tool_start / tool_end / artifact_created
         end
-        AGT-->>C: final_output_review_started
-        Note over AGT: end-of-stream final_output check
-        alt INJECTION
-            AGT-->>C: security_block
-        else CLEAN
-            AGT-->>C: final_output_review_complete
+        opt LLM_DEFENSE_ENABLED=true
+            AGT-->>C: final_output_review_started
+            Note over AGT: end-of-stream final_output check
+            alt INJECTION
+                AGT-->>C: security_block
+            else CLEAN
+                AGT-->>C: final_output_review_complete
+            end
         end
     end
 

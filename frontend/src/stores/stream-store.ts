@@ -7,12 +7,6 @@ import {
   type AgentFeedState,
 } from "@/shared/lib/agent-feed";
 
-export interface StreamingArtifact {
-  id: string;
-  title: string;
-  type: string;
-}
-
 /**
  * Эфемерное состояние активного стрима. Лента активности живёт моделью
  * `shared/lib/agent-feed` (`feed` + `redacted` приходят из неё) — плоского
@@ -25,12 +19,10 @@ export interface StreamingArtifact {
 interface StreamState extends AgentFeedState {
   isStreaming: boolean;
   streamingChatId: string | null;
-  streamingArtifacts: StreamingArtifact[];
   isReviewing: boolean;
   startStream: (chatId: string) => void;
   /** Единственная точка мутации ленты: событие уходит в редьюсер модели. */
   applyEvent: (event: SSEEvent) => void;
-  addArtifact: (artifact: StreamingArtifact) => void;
   redact: (stubText: string) => void;
   setReviewing: (value: boolean) => void;
   endStream: () => void;
@@ -38,12 +30,7 @@ interface StreamState extends AgentFeedState {
 
 type StreamData = Omit<
   StreamState,
-  | "startStream"
-  | "applyEvent"
-  | "addArtifact"
-  | "redact"
-  | "setReviewing"
-  | "endStream"
+  "startStream" | "applyEvent" | "redact" | "setReviewing" | "endStream"
 >;
 
 /** Пустое состояние — фабрика, а не константа: массивы не разделяются сбросами. */
@@ -51,7 +38,6 @@ function idleState(): StreamData {
   return {
     isStreaming: false,
     streamingChatId: null,
-    streamingArtifacts: [],
     feed: [],
     redacted: false,
     isReviewing: false,
@@ -65,8 +51,6 @@ export const useStreamStore = create<StreamState>()((set) => ({
   startStream: (chatId) =>
     set({ ...idleState(), isStreaming: true, streamingChatId: chatId }),
   applyEvent: (event) => set((s) => applyStreamEvent(s, event)),
-  addArtifact: (artifact) =>
-    set((s) => ({ streamingArtifacts: [...s.streamingArtifacts, artifact] })),
   // Редакция по `security_block` терминальна: ход на этом закончился, поэтому
   // она же закрывает стрим — но, в отличие от `endStream`, не стирает ленту, а
   // схлопывает её в заглушку и запирает флагом `redacted`. Гасить стрим здесь
@@ -76,16 +60,14 @@ export const useStreamStore = create<StreamState>()((set) => ({
   // ленты пользователь и не читает — её показывает история; лента же остаётся
   // запертой на случай событий, пришедших после терминального.
   //
-  // Ревью и артефакты гасятся по той же причине, что и стрим: от схлопнутого
-  // хода на экране не должно остаться ни индикатора проверки ответа, ни его
-  // карточек — иначе `redact` оставляет живые остатки там, где `endStream`
-  // чистит всё.
+  // Ревью гасится по той же причине, что и стрим: от схлопнутого хода на
+  // экране не должно остаться индикатора проверки ответа — иначе `redact`
+  // оставляет живые остатки там, где `endStream` чистит всё.
   redact: (stubText) =>
     set({
       ...redactFeed(stubText),
       isStreaming: false,
       streamingChatId: null,
-      streamingArtifacts: [],
       isReviewing: false,
     }),
   setReviewing: (value) => set({ isReviewing: value }),

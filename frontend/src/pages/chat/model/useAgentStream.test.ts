@@ -96,12 +96,6 @@ async function streamedFeed() {
   return useStreamStore.getState().feed;
 }
 
-/** Артефакты, объявленные ходом, — их карточки живут в идущем ходе. */
-async function streamedArtifacts() {
-  const { useStreamStore } = await import("@/stores/stream-store");
-  return useStreamStore.getState().streamingArtifacts;
-}
-
 async function isReviewing(): Promise<boolean> {
   const { useStreamStore } = await import("@/stores/stream-store");
   return useStreamStore.getState().isReviewing;
@@ -477,7 +471,11 @@ describe("useAgentStream", () => {
     expect(refreshCount).toBeGreaterThanOrEqual(1);
   });
 
-  it("показывает созданный артефакт в идущем ходе и обновляет их список", async () => {
+  it("инвалидирует список артефактов проекта на artifact_created", async () => {
+    // Карточку в живом ходе `artifact_created` больше не рисует: факт создания
+    // виден строкой ленты, полная карточка приезжает из истории после
+    // завершения хода. За событием остаётся его побочный эффект — инвалидация
+    // списка артефактов проекта.
     setAccessToken(fakeJwt());
     const live = liveStream();
     server.use(http.post(MESSAGES_URL, () => live.response));
@@ -497,15 +495,6 @@ describe("useAgentStream", () => {
       title: "Notes",
       artifact_type: "markdown",
     });
-
-    // Артефакт виден карточкой прямо в идущем ходе — сторонний список чинит
-    // только то, что откроется после. Проверять его можно лишь до
-    // терминального события: `done` сбрасывает стор целиком.
-    await waitFor(async () =>
-      expect(await streamedArtifacts()).toEqual([
-        { id: "a-1", title: "Notes", type: "markdown" },
-      ]),
-    );
 
     live.push({ type: "done", message_id: "m-art", trace_id: null });
     live.close();
@@ -993,7 +982,6 @@ describe("useAgentStream", () => {
         messages: [],
         isStreaming: true,
         feed,
-        streamingArtifacts: [],
         projectId: PROJECT_ID,
         chatId: CHAT_ID,
         streamError: null,

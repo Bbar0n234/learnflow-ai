@@ -222,6 +222,64 @@ describe("подпись вызова из имени и аргументов", 
   });
 });
 
+// Грамматика подписи — глагол 1-го лица, время спрягает статус вызова: идущий
+// читается настоящим, успешный — прошедшим совершенного вида, прерванный —
+// прошедшим несовершенного («делал, но не довёл»). Ожидаемые формы утверждены
+// архитектором на приёмке (вариант 1б), а не списаны из реестра.
+describe("грамматика подписи по статусу вызова", () => {
+  it.each([
+    { status: undefined, label: "Обновляю память проекта" },
+    { status: "running" as const, label: "Обновляю память проекта" },
+    { status: "success" as const, label: "Обновил память проекта" },
+    { status: "error" as const, label: "Обновлял память проекта" },
+    { status: "pending" as const, label: "Обновлял память проекта" },
+    { status: "cancelled" as const, label: "Обновлял память проекта" },
+  ])(
+    "update_section при статусе $status читается «$label»",
+    ({ status, label }) => {
+      const described = describeToolCall("update_section", { status });
+
+      expect(described.label).toBe(label);
+    },
+  );
+
+  it("у глагола без видовой пары обе прошедшие формы совпадают", () => {
+    // «Искать» естественной пары вида не имеет: успех и прерывание читаются
+    // одинаково — «Искал в интернете».
+    expect(
+      describeToolCall("firecrawl_search", { status: "success" }).label,
+    ).toBe("Искал в интернете");
+    expect(
+      describeToolCall("firecrawl_search", { status: "error" }).label,
+    ).toBe("Искал в интернете");
+  });
+
+  it("субагент остаётся именем действующего лица во всех статусах", () => {
+    // «Субагент» — не действие, спрягать его нечем (решение архитектора).
+    const source = {
+      args: JSON.stringify({ agent_type: "judge" }),
+      status: "success" as const,
+    };
+
+    expect(describeToolCall(SUBAGENT_TOOL_NAME, source).label).toBe(
+      "Проверяющий субагент",
+    );
+    expect(
+      describeToolCall(SUBAGENT_TOOL_NAME, { ...source, status: "error" })
+        .label,
+    ).toBe("Проверяющий субагент");
+  });
+
+  it("MCP fallback остаётся сырым именем во всех статусах", () => {
+    expect(describeToolCall("acme_do_thing", { status: "success" }).label).toBe(
+      "acme_do_thing",
+    );
+    expect(describeToolCall("acme_do_thing", { status: "pending" }).label).toBe(
+      "acme_do_thing",
+    );
+  });
+});
+
 describe("разбор аргументов вызова", () => {
   it("возвращает объект аргументов на целой JSON-строке", () => {
     expect(parseToolArgs('{"query": "langgraph", "limit": 10}', false)).toEqual(

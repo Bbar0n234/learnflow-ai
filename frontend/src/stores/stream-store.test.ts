@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { findFeedCall } from "@/shared/lib/agent-feed";
 import { useStreamStore } from "./stream-store";
 
-// Unit: стор активного стрима — аккумулятор ленты активности, артефактов и
-// флагов редакции/ревью. Чистые переходы состояния через публичные экшены.
+// Unit: стор активного стрима — аккумулятор ленты активности и флагов
+// редакции/ревью. Чистые переходы состояния через публичные экшены.
 // Семантику самой ленты сторожит shared/lib/agent-feed.test.ts; здесь — что
 // стор её держит и что сброс между стримами полный. Zustand-стор
 // автосбрасывается между тестами (src/test/setup.ts + __mocks__/zustand.ts).
@@ -16,7 +16,6 @@ describe("stream-store", () => {
     expect(s.isStreaming).toBe(false);
     expect(s.feed).toEqual([]);
     expect(s.streamingChatId).toBeNull();
-    expect(s.streamingArtifacts).toEqual([]);
     expect(s.redacted).toBe(false);
     expect(s.isReviewing).toBe(false);
   });
@@ -38,7 +37,6 @@ describe("stream-store", () => {
       call_id: "call-1",
       tool: "get_section",
     });
-    store.addArtifact({ id: "a1", title: "First", type: "doc" });
     store.setReviewing(true);
     store.redact("[hidden]");
 
@@ -46,7 +44,6 @@ describe("stream-store", () => {
 
     const s = useStreamStore.getState();
     expect(s.feed).toEqual([]);
-    expect(s.streamingArtifacts).toEqual([]);
     expect(s.streamingChatId).toBe("chat-2");
     expect(s.redacted).toBe(false);
     expect(s.isReviewing).toBe(false);
@@ -103,18 +100,6 @@ describe("stream-store", () => {
 
     expect(useStreamStore.getState().feed).toEqual([
       { id: "text-0", type: "text", content: "[hidden]" },
-    ]);
-  });
-
-  it("appends streaming artifacts preserving order", () => {
-    const store = useStreamStore.getState();
-
-    store.addArtifact({ id: "a1", title: "First", type: "doc" });
-    store.addArtifact({ id: "a2", title: "Second", type: "code" });
-
-    expect(useStreamStore.getState().streamingArtifacts).toEqual([
-      { id: "a1", title: "First", type: "doc" },
-      { id: "a2", title: "Second", type: "code" },
     ]);
   });
 
@@ -175,7 +160,6 @@ describe("stream-store", () => {
       call_id: "call-1",
       tool: "get_section",
     });
-    store.addArtifact({ id: "a1", title: "First", type: "doc" });
     store.setReviewing(true);
 
     store.endStream();
@@ -184,7 +168,6 @@ describe("stream-store", () => {
     expect(s.isStreaming).toBe(false);
     expect(s.feed).toEqual([]);
     expect(s.streamingChatId).toBeNull();
-    expect(s.streamingArtifacts).toEqual([]);
     expect(s.redacted).toBe(false);
     expect(s.isReviewing).toBe(false);
   });

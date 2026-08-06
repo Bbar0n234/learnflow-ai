@@ -16,9 +16,20 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import type { FeedItemStatus } from "@/shared/lib/agent-feed";
+
 /**
  * Реестр человекочитаемых подписей инструментов агента: имя с провода →
  * действие по-русски, иконка и осмысленное дополнение подписи из аргументов.
+ *
+ * Грамматика подписи — глагол 1-го лица, время выбирает статус вызова:
+ * идущий (`running`) читается настоящим («Обновляю память проекта»),
+ * успешно завершённый (`success`) — прошедшим совершенного вида («Обновил
+ * память проекта»), а прерванный (`error`, `pending`, `cancelled`) —
+ * прошедшим НЕсовершенного вида («Обновлял память проекта» — делал, но не
+ * довёл). Прошедшие формы живут в `pastLabels`; записи без него держат один
+ * `label` на все статусы — `run_subagent` подписан именем действующего лица,
+ * а не действием, и MCP fallback показывает сырое имя.
  *
  * Полноту реестра сторожит `agent-tools.test.ts` против машиночитаемого
  * фикстура имён бэкенда (`backend/contracts/agent-tool-names.json`): новый
@@ -34,9 +45,21 @@ import {
 /** Разобранные аргументы вызова; ключи — параметры инструмента. */
 export type ToolArgs = Record<string, unknown>;
 
+/**
+ * Прошедшие формы глагола подписи: `done` — совершенный вид для успешного
+ * вызова, `interrupted` — несовершенный для прерванного. У глагола без
+ * естественной видовой пары («искать») обе формы совпадают.
+ */
+export interface ToolPastLabels {
+  done: string;
+  interrupted: string;
+}
+
 export interface ToolSignature {
-  /** Действие по-русски: «Ищу в интернете», «Обновляю память проекта». */
+  /** Действие по-русски в настоящем времени: «Ищу в интернете», «Обновляю память проекта». */
   label: string;
+  /** Прошедшие формы; без них `label` держит все статусы (имя, а не действие). */
+  pastLabels?: ToolPastLabels;
   icon: LucideIcon;
   /** Дополнение подписи из аргументов, без разделителя — его ставит рендер. */
   argTemplate?: (args: ToolArgs) => string | null;
@@ -117,61 +140,97 @@ const SUBAGENT_LABELS: Record<string, string> = {
 export const AGENT_TOOL_SIGNATURES: Record<string, ToolSignature> = {
   create_artifact: {
     label: "Сохраняю артефакт",
+    pastLabels: { done: "Сохранил артефакт", interrupted: "Сохранял артефакт" },
     icon: FileText,
     argTemplate: (args) => quoted(text(args, "title")),
   },
   create_section: {
     label: "Создаю раздел памяти проекта",
+    pastLabels: {
+      done: "Создал раздел памяти проекта",
+      interrupted: "Создавал раздел памяти проекта",
+    },
     icon: FilePlus,
     argTemplate: section,
   },
   delete_section: {
     label: "Удаляю раздел памяти проекта",
+    pastLabels: {
+      done: "Удалил раздел памяти проекта",
+      interrupted: "Удалял раздел памяти проекта",
+    },
     icon: Trash2,
     argTemplate: section,
   },
   delete_skill_context: {
     label: "Удаляю документ навыка",
+    pastLabels: {
+      done: "Удалил документ навыка",
+      interrupted: "Удалял документ навыка",
+    },
     icon: Trash2,
     argTemplate: (args) => quoted(text(args, "key")),
   },
   delete_user_memory: {
     label: "Удаляю запись из памяти о вас",
+    pastLabels: {
+      done: "Удалил запись из памяти о вас",
+      interrupted: "Удалял запись из памяти о вас",
+    },
     icon: Trash2,
     argTemplate: (args) => quoted(text(args, "key")),
   },
   firecrawl_extract: {
     label: "Извлекаю данные со страницы",
+    pastLabels: {
+      done: "Извлёк данные со страницы",
+      interrupted: "Извлекал данные со страницы",
+    },
     icon: FileSearch,
     argTemplate: firstUrl,
   },
   firecrawl_scrape: {
     label: "Читаю страницу",
+    pastLabels: { done: "Прочитал страницу", interrupted: "Читал страницу" },
     icon: Globe,
     argTemplate: (args) => text(args, "url"),
   },
   firecrawl_search: {
     label: "Ищу в интернете",
+    pastLabels: { done: "Искал в интернете", interrupted: "Искал в интернете" },
     icon: Search,
     argTemplate: (args) => quoted(text(args, "query")),
   },
   generate_image: {
     label: "Генерирую изображение",
+    pastLabels: {
+      done: "Сгенерировал изображение",
+      interrupted: "Генерировал изображение",
+    },
     icon: ImagePlus,
     argTemplate: (args) => quoted(text(args, "title")),
   },
   get_section: {
     label: "Читаю память проекта",
+    pastLabels: {
+      done: "Прочитал память проекта",
+      interrupted: "Читал память проекта",
+    },
     icon: BookOpen,
     argTemplate: section,
   },
   get_skill_context: {
     label: "Читаю документ навыка",
+    pastLabels: {
+      done: "Прочитал документ навыка",
+      interrupted: "Читал документ навыка",
+    },
     icon: BookOpen,
     argTemplate: (args) => quoted(text(args, "key")),
   },
   load_skill: {
     label: "Загружаю навык",
+    pastLabels: { done: "Загрузил навык", interrupted: "Загружал навык" },
     icon: Sparkles,
     argTemplate: (args) => quoted(text(args, "skill_name")),
   },
@@ -188,26 +247,40 @@ export const AGENT_TOOL_SIGNATURES: Record<string, ToolSignature> = {
   },
   save_skill_context: {
     label: "Сохраняю документ навыка",
+    pastLabels: {
+      done: "Сохранил документ навыка",
+      interrupted: "Сохранял документ навыка",
+    },
     icon: Save,
     argTemplate: (args) => quoted(text(args, "key")),
   },
   save_user_memory: {
     label: "Запоминаю о вас",
+    pastLabels: { done: "Запомнил о вас", interrupted: "Запоминал о вас" },
     icon: Brain,
     argTemplate: (args) => quoted(text(args, "key")),
   },
   tavily_extract: {
     label: "Извлекаю данные со страницы",
+    pastLabels: {
+      done: "Извлёк данные со страницы",
+      interrupted: "Извлекал данные со страницы",
+    },
     icon: FileSearch,
     argTemplate: firstUrl,
   },
   tavily_search: {
     label: "Ищу в интернете",
+    pastLabels: { done: "Искал в интернете", interrupted: "Искал в интернете" },
     icon: Search,
     argTemplate: (args) => quoted(text(args, "query")),
   },
   update_section: {
     label: "Обновляю память проекта",
+    pastLabels: {
+      done: "Обновил память проекта",
+      interrupted: "Обновлял память проекта",
+    },
     icon: PenLine,
     argTemplate: section,
   },
@@ -265,16 +338,39 @@ export interface ToolCallDescription {
   known: boolean;
 }
 
-/** Подпись строки ленты для одного вызова — из имени и (по возможности) аргументов. */
+/**
+ * Форма глагола по статусу вызова. Без статуса (строка без статуса выполнения)
+ * и на идущем вызове — настоящее время; успех — совершенный вид, любое
+ * прерывание (`error`, `pending`, `cancelled`) — несовершенный. Записи без
+ * `pastLabels` время не спрягают — `label` один на все статусы.
+ */
+function labelForStatus(
+  signature: ToolSignature,
+  status: FeedItemStatus | undefined,
+): string {
+  const past = signature.pastLabels;
+  if (past === undefined || status === undefined || status === "running") {
+    return signature.label;
+  }
+  return status === "success" ? past.done : past.interrupted;
+}
+
+/** Подпись строки ленты для одного вызова — из имени, статуса и (по возможности) аргументов. */
 export function describeToolCall(
   tool: string,
-  source?: { args?: string | null; truncated?: boolean },
+  source?: {
+    args?: string | null;
+    truncated?: boolean;
+    status?: FeedItemStatus;
+  },
 ): ToolCallDescription {
   const signature = resolveToolSignature(tool);
   const args = parseToolArgs(source?.args, source?.truncated) ?? {};
   return {
     name: signature.name,
-    label: signature.labelTemplate?.(args) ?? signature.label,
+    label:
+      signature.labelTemplate?.(args) ??
+      labelForStatus(signature, source?.status),
     arg: signature.argTemplate?.(args) ?? null,
     icon: signature.icon,
     known: signature.known,

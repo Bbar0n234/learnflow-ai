@@ -1,31 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 import type { Message } from "@/shared/api/chats";
 import { groupFeedBlocks, type AgentFeedItem } from "@/shared/lib/agent-feed";
-import { useStreamStore, type StreamingArtifact } from "@/stores/stream-store";
+import { useStreamStore } from "@/stores/stream-store";
 import { MessageItem } from "./MessageItem";
 import { MarkdownRenderer } from "@/shared/ui/MarkdownRenderer";
 import { ActivityFeed } from "./ActivityFeed";
 import { ActivityPauseRow } from "./ActivityPauseRow";
 import { ReviewIndicator } from "./ReviewIndicator";
 import { StreamEndNotice, type StreamEndReason } from "./StreamEndNotice";
-import { ArtifactCard } from "./ArtifactCard";
-import { GeneratingArtifactCard } from "./GeneratingArtifactCard";
 
 interface MessageListProps {
   messages: Message[];
   isStreaming: boolean;
   /** Лента активного хода — та же структура, что рендерит история. */
   feed: AgentFeedItem[];
-  streamingArtifacts: StreamingArtifact[];
   projectId: string;
   chatId: string;
   streamError: string | null;
   /** Чем закончился ход, если он закончился не ответом. */
   endNotice: StreamEndReason | null;
 }
-
-/** Инструмент, чей вызов показывается плейсхолдер-карточкой артефакта. */
-const IMAGE_TOOL = "generate_image";
 
 /**
  * Порог тишины ленты: столько миллисекунд без единого прибывшего данного — и
@@ -40,23 +34,6 @@ const IMAGE_TOOL = "generate_image";
  * даёт. Обе границы наблюдались на живом ходе (кейсы Layer 3, `test-cases.md`).
  */
 const FEED_SILENCE_MS = 2000;
-
-/**
- * `call_id` идущих прямо сейчас генераций изображений — карточка-плейсхолдер
- * живёт ровно столько, сколько вызов остаётся незакрытым (`tool_result` /
- * `artifact_created` того же вызова переводят строку из `running`).
- */
-function pendingImageCalls(feed: AgentFeedItem[]): string[] {
-  const calls: string[] = [];
-  for (const item of feed) {
-    if (item.type !== "tool_call") continue;
-    if (item.tool === IMAGE_TOOL && item.status === "running") {
-      calls.push(item.callId);
-    }
-    calls.push(...pendingImageCalls(item.children));
-  }
-  return calls;
-}
 
 /**
  * Число строк по всей ленте, включая вложенные: шаги субагента приезжают в
@@ -156,7 +133,6 @@ export function MessageList({
   messages,
   isStreaming,
   feed,
-  streamingArtifacts,
   projectId,
   chatId,
   streamError,
@@ -165,7 +141,6 @@ export function MessageList({
   const bottomRef = useRef<HTMLDivElement>(null);
   const isReviewing = useStreamStore((s) => s.isReviewing);
   const liveBlocks = groupFeedBlocks(feed);
-  const pendingImages = pendingImageCalls(feed);
   const size = feedSize(feed);
   const textLength = feedTextLength(feed);
   // Признак поступления данных: новая лента приезжает ровно на событии, которое
@@ -249,16 +224,11 @@ export function MessageList({
                   прицепить, после прозы ответа — нити тоже нет. */}
               {showPause && !pauseInFeed && <ActivityPauseRow />}
               {isReviewing && <ReviewIndicator />}
-              {pendingImages.map((callId) => (
-                <GeneratingArtifactCard key={callId} />
-              ))}
-              {streamingArtifacts.map((artifact) => (
-                <ArtifactCard
-                  key={artifact.id}
-                  artifact={artifact}
-                  projectId={projectId}
-                />
-              ))}
+              {/* Карточек артефактов в живом ходе нет: факт создания виден
+                  строкой ленты («Сохраняю артефакт…» со статусом), а полная
+                  карточка приезжает после завершения хода из истории
+                  (`MessageItem`). Стоя после живых блоков, карточка «плыла» бы
+                  вниз с каждым чанком текста. */}
             </div>
           </div>
         )}

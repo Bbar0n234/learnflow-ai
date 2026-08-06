@@ -18,10 +18,9 @@ import { MessageList } from "./MessageList";
 import type { StreamEndReason } from "./StreamEndNotice";
 
 // Integration: the streaming region of the message feed. Live activity is the
-// same feed the history renders (`shared/lib/agent-feed`), and on top of it the
-// image generation placeholder lives for exactly as long as a `generate_image`
-// call stays unclosed — it appears with the call's args and goes away on the
-// call's result (feat-001, T2.4: покрытие переехало с `tool_start`/`tool_end`).
+// same feed the history renders (`shared/lib/agent-feed`); карточек артефактов
+// в живом ходе нет — создание видно строкой ленты, полная карточка приезжает
+// из истории после завершения хода.
 
 // jsdom has no layout — MessageList auto-scrolls a ref into view on mount.
 beforeAll(() => {
@@ -49,7 +48,6 @@ function listTree(feed: AgentFeedItem[], options: RenderOptions = {}) {
         messages={[]}
         isStreaming={options.isStreaming ?? true}
         feed={feed}
-        streamingArtifacts={[]}
         projectId="p1"
         chatId="c1"
         streamError={null}
@@ -64,8 +62,6 @@ function renderFeed(feed: AgentFeedItem[], options: RenderOptions = {}) {
   return renderWithProviders(listTree(feed, options));
 }
 
-const GENERATION_LABEL = "Идёт генерация изображения";
-
 function imageCall(callId: string, prompt: string): SSEEvent[] {
   return [
     { type: "tool_call_started", call_id: callId, tool: "generate_image" },
@@ -78,21 +74,21 @@ function imageCall(callId: string, prompt: string): SSEEvent[] {
   ];
 }
 
-describe("MessageList — image generation placeholder", () => {
-  it("renders one placeholder card per unfinished generate_image call", () => {
-    renderFeed(
-      feedFrom([
-        ...imageCall("call-1", "кот на подоконнике"),
-        ...imageCall("call-2", "график производной"),
-      ]),
-    );
+// Карточек-плейсхолдеров в живом ходе больше нет: стоя после живых блоков, они
+// «плыли» вниз с каждым чанком текста. Генерация видна строкой ленты — той же,
+// что и любой другой вызов.
+describe("MessageList — генерация изображения в живом ходе", () => {
+  it("показывает идущую генерацию строкой ленты, без карточки-плейсхолдера", () => {
+    renderFeed(feedFrom(imageCall("call-1", "кот на подоконнике")));
 
-    expect(
-      screen.getAllByRole("status", { name: GENERATION_LABEL }),
-    ).toHaveLength(2);
+    expect(screen.getByText(/Генерирую изображение/)).toBeInTheDocument();
+    // Плейсхолдер жил ролью status; пока вызов идёт, легитимных status-строк
+    // нет вовсе (пауза при идущем вызове не показывается) — любая всплывшая
+    // карточка видна как лишний status.
+    expect(screen.queryAllByRole("status")).toHaveLength(0);
   });
 
-  it("drops the placeholder once the call returns its result", () => {
+  it("закрывает строку генерации результатом вызова", () => {
     renderFeed(
       feedFrom([
         ...imageCall("call-1", "кот на подоконнике"),
@@ -107,41 +103,32 @@ describe("MessageList — image generation placeholder", () => {
       ]),
     );
 
-    expect(
-      screen.queryByRole("status", { name: GENERATION_LABEL }),
-    ).not.toBeInTheDocument();
+    // Успешный вызов читается совершенным видом; сама карточка приедет из
+    // истории после завершения хода.
+    expect(screen.getByText(/Сгенерировал изображение/)).toBeInTheDocument();
+    expect(screen.getByText("успешно")).toBeInTheDocument();
   });
 
-  it("shows no placeholder for a non-image tool call", () => {
+  it("не рисует карточку артефакта в живом ходе даже после успеха вызова", () => {
     renderFeed(
       feedFrom([
+        ...imageCall("call-1", "кот на подоконнике"),
         {
-          type: "tool_call_started",
-          call_id: "call-9",
-          tool: "firecrawl_search",
-        },
-        {
-          type: "tool_call_args",
-          call_id: "call-9",
-          args: JSON.stringify({ query: "langgraph" }),
+          type: "tool_result",
+          call_id: "call-1",
+          tool: "generate_image",
+          status: "success",
+          content: "готово",
           truncated: false,
         },
       ]),
     );
 
-    // Работа инструмента видна строкой ленты, а не карточкой генерации.
-    expect(screen.getByText(/Ищу в интернете/)).toBeInTheDocument();
-    expect(
-      screen.queryByRole("status", { name: GENERATION_LABEL }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("shows no placeholder cards on an empty feed", () => {
-    renderFeed([]);
-
-    expect(
-      screen.queryByRole("status", { name: GENERATION_LABEL }),
-    ).not.toBeInTheDocument();
+    // Карточка артефакта — ссылка на его страницу; в живом ходе ссылок нет
+    // вовсе (история пуста), полная карточка приедет из истории после
+    // завершения хода. Стоя после живых блоков, она «плыла» бы вниз с каждым
+    // чанком.
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });
 
@@ -377,16 +364,16 @@ describe("MessageList — живость ленты", () => {
       renderFeed(
         feedFrom([{ type: "reasoning_chunk", content: "надо поискать" }]),
       );
-      expect(screen.getByText("Рассуждает")).toBeInTheDocument();
+      expect(screen.getByText("Рассуждаю")).toBeInTheDocument();
 
       await act(async () => {
         vi.advanceTimersByTime(2500);
       });
 
       // Подпись и пауза отвечают на один вопрос и обязаны отвечать одинаково:
-      // строка «Рассуждает» рядом со строкой-паузой была бы враньём.
-      expect(screen.getByText("Рассуждения")).toBeInTheDocument();
-      expect(screen.queryByText("Рассуждает")).not.toBeInTheDocument();
+      // строка «Рассуждаю» рядом со строкой-паузой была бы враньём.
+      expect(screen.getByText("Рассуждал")).toBeInTheDocument();
+      expect(screen.queryByText("Рассуждаю")).not.toBeInTheDocument();
       expect(
         screen.getByRole("status", { name: "Агент думает" }),
       ).toBeInTheDocument();
@@ -402,8 +389,8 @@ describe("MessageList — живость ленты", () => {
       feedFrom([{ type: "reasoning_chunk", content: "надо поискать" }]),
     );
 
-    expect(screen.getByText("Рассуждает")).toBeInTheDocument();
-    expect(screen.queryByText("Рассуждения")).not.toBeInTheDocument();
+    expect(screen.getByText("Рассуждаю")).toBeInTheDocument();
+    expect(screen.queryByText("Рассуждал")).not.toBeInTheDocument();
     // Пока поток дописывает рассуждение, оно видно без клика — иначе живой
     // ход снова становится немым.
     expect(screen.getByText("надо поискать")).toBeInTheDocument();
@@ -432,8 +419,8 @@ describe("MessageList — живость ленты", () => {
       ]),
     );
 
-    expect(screen.getByText("Рассуждения")).toBeInTheDocument();
-    expect(screen.queryByText("Рассуждает")).not.toBeInTheDocument();
+    expect(screen.getByText("Рассуждал")).toBeInTheDocument();
+    expect(screen.queryByText("Рассуждаю")).not.toBeInTheDocument();
   });
 
   it("показывает счётчик времени только у действия, идущего дольше порога", async () => {
@@ -638,9 +625,9 @@ describe("живая лента совпадает с историей", () => {
     expect(rowLabels(live.container)).toEqual(rowLabels(history.container));
     // Набор не пуст и содержит ровно те строки, ради которых ход показан.
     expect(rowLabels(live.container)).toEqual([
-      "Рассуждения",
-      "Ищу в интернете · «изоляция контекста»успешно",
-      "Обновляю память проекта · раздел «Субагенты»ошибка",
+      "Рассуждал",
+      "Искал в интернете · «изоляция контекста»успешно",
+      "Обновлял память проекта · раздел «Субагенты»ошибка",
     ]);
   });
 

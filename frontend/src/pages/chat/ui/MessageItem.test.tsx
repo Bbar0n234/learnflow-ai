@@ -73,7 +73,7 @@ describe("лента в истории", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: /Ищу в интернете/ }),
+      screen.getByRole("button", { name: /Искал в интернете/ }),
     ).toBeInTheDocument();
     expect(screen.getByText(/«изоляция контекста»/)).toBeInTheDocument();
   });
@@ -94,7 +94,7 @@ describe("лента в истории", () => {
       ]),
     );
 
-    await userEvent.click(screen.getByRole("button", { name: /Ищу/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Искал/ }));
 
     expect(screen.getByText("firecrawl_search")).toBeInTheDocument();
     expect(screen.getByText(/query: изоляция контекста/)).toBeInTheDocument();
@@ -119,7 +119,7 @@ describe("лента в истории", () => {
       ]),
     );
 
-    await userEvent.click(screen.getByRole("button", { name: /Ищу/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Искал/ }));
 
     // Бейджа усечения нет (решение архитектора на приёмке) — честность несёт
     // формулировка кнопки: она не обещает недостающего.
@@ -147,7 +147,7 @@ describe("лента в истории", () => {
       ]),
     );
 
-    await userEvent.click(screen.getByRole("button", { name: /Ищу/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Искал/ }));
 
     expect(
       screen.getByText("Аргументы оборваны сервером — не разобраны."),
@@ -257,12 +257,12 @@ describe("лента в истории", () => {
       ]),
     );
 
-    expect(screen.getByRole("button", { name: /Рассуждения/ })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Рассуждал/ })).toBeVisible();
     expect(
-      screen.getByRole("button", { name: /Ищу в интернете/ }),
+      screen.getByRole("button", { name: /Искал в интернете/ }),
     ).toBeVisible();
     expect(
-      screen.getByRole("button", { name: /Обновляю память проекта/ }),
+      screen.getByRole("button", { name: /Обновлял память проекта/ }),
     ).toBeVisible();
     expect(screen.getByText("ошибка")).toBeInTheDocument();
     expect(screen.getByText("Готово.")).toBeInTheDocument();
@@ -297,7 +297,7 @@ describe("статусы вызова в истории", () => {
       message([toolCallPart({ status: "pending", result_preview: "" })]),
     );
 
-    await userEvent.click(screen.getByRole("button", { name: /Ищу/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Искал/ }));
 
     expect(
       screen.getByText("Вызов не завершён — результата нет."),
@@ -313,7 +313,7 @@ describe("большие и обрезанные данные", () => {
       message([toolCallPart({ args: CUT_ARGS, args_truncated: true })]),
     );
 
-    await userEvent.click(screen.getByRole("button", { name: /Ищу/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Искал/ }));
 
     // Оборванный посреди JSON текст читать нечем — вместо него сказано, что
     // аргументы обрезаны. Заодно подпись строки остаётся без дополнения.
@@ -329,7 +329,7 @@ describe("большие и обрезанные данные", () => {
       message([toolCallPart({ args: "не json вовсе", args_truncated: false })]),
     );
 
-    await userEvent.click(screen.getByRole("button", { name: /Ищу/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Искал/ }));
 
     expect(screen.getByText("не json вовсе")).toBeInTheDocument();
     expect(screen.queryByText("обрезано сервером")).not.toBeInTheDocument();
@@ -338,7 +338,7 @@ describe("большие и обрезанные данные", () => {
   it("короткий результат показан целиком, без обещания раскрытия", async () => {
     renderMessage(message([toolCallPart({ result_preview: "нашлось" })]));
 
-    await userEvent.click(screen.getByRole("button", { name: /Ищу/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Искал/ }));
 
     expect(screen.getByText("нашлось")).toBeInTheDocument();
     expect(
@@ -353,7 +353,7 @@ describe("большие и обрезанные данные", () => {
       ]),
     );
 
-    await userEvent.click(screen.getByRole("button", { name: /Ищу/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Искал/ }));
 
     // Обрезки нет — кнопка обещает ровно то, что покажет.
     const expand = screen.getByRole("button", { name: "Показать полностью" });
@@ -369,7 +369,7 @@ describe("большие и обрезанные данные", () => {
       message([toolCallPart({ result_preview: LONG, result_truncated: true })]),
     );
 
-    await userEvent.click(screen.getByRole("button", { name: /Ищу/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Искал/ }));
 
     // Усечение результата видно по кнопке его зоны; аргументы целы и разобраны.
     expect(
@@ -408,7 +408,7 @@ describe("рассуждения и совместимость", () => {
       screen.queryByText("Сначала проверю память проекта."),
     ).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /Рассуждения/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Рассуждал/ }));
 
     expect(
       screen.getByText("Сначала проверю память проекта."),
@@ -444,7 +444,7 @@ describe("рассуждения и совместимость", () => {
     expect(
       screen.getByText("[Сообщение скрыто в целях безопасности]"),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/Ищу в интернете/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Искал в интернете/)).not.toBeInTheDocument();
     expect(screen.queryByText("секретный ответ")).not.toBeInTheDocument();
     expect(screen.queryAllByRole("button")).toHaveLength(0);
   });

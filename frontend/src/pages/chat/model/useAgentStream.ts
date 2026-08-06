@@ -93,14 +93,8 @@ export function useAgentStream(
 
   const send = useCallback(
     (content: string) => {
-      const {
-        startStream,
-        applyEvent,
-        addArtifact,
-        redact,
-        setReviewing,
-        endStream,
-      } = useStreamStore.getState();
+      const { startStream, applyEvent, redact, setReviewing, endStream } =
+        useStreamStore.getState();
 
       startStream(chatId);
       isCancellingRef.current = false;
@@ -241,11 +235,10 @@ export function useAgentStream(
                   applyEvent(event);
                   break;
                 case "artifact_created":
-                  addArtifact({
-                    id: event.id,
-                    title: event.title,
-                    type: event.artifact_type,
-                  });
+                  // В живом ходе карточка не рисуется: факт создания виден
+                  // строкой ленты, а полную карточку рисует история после
+                  // завершения хода. Здесь — только инвалидация списка
+                  // артефактов проекта, чтобы он открылся уже с новым.
                   queryClient.invalidateQueries({
                     queryKey: queryKeys.projects.artifacts(projectId),
                   });

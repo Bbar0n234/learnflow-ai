@@ -94,7 +94,6 @@ export function ChatThread() {
   });
 
   const feed = useStreamStore((s) => s.feed);
-  const streamingArtifacts = useStreamStore((s) => s.streamingArtifacts);
 
   const handleSend = useCallback(
     (content: string) => {
@@ -196,7 +195,6 @@ export function ChatThread() {
           messages={allMessages}
           isStreaming={isStreaming}
           feed={feed}
-          streamingArtifacts={streamingArtifacts}
           projectId={id!}
           chatId={cid!}
           streamError={ownStreamError}

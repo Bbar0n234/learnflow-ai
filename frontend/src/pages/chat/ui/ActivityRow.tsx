@@ -62,6 +62,9 @@ function rowView(item: AgentFeedItem, active: boolean): RowView | null {
       const described = describeToolCall(item.tool, {
         args: item.args,
         truncated: item.argsTruncated,
+        // Статус спрягает подпись: идущий вызов — настоящее время, успешный —
+        // совершенный вид, прерванный — несовершенный (реестр `agent-tools`).
+        status: item.status,
       });
       const subagent = item.tool === SUBAGENT_TOOL_NAME;
       return {
@@ -83,8 +86,10 @@ function rowView(item: AgentFeedItem, active: boolean): RowView | null {
     case "reasoning":
       return {
         icon: Sparkles,
-        // Пока чанки идут — процесс, дальше — его след.
-        label: active ? "Рассуждает" : "Рассуждения",
+        // Пока чанки идут — процесс, дальше — его след; та же грамматика
+        // 1-го лица, что у вызовов: несовершенный вид, довести рассуждение
+        // «до конца» нечем.
+        label: active ? "Рассуждаю" : "Рассуждал",
         arg: null,
         status: null,
         durationMs: null,

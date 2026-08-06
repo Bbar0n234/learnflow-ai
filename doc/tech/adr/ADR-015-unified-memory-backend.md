@@ -18,9 +18,10 @@ Knowledge Sphere уже живёт в LangGraph Store (`AsyncPostgresStore`, nam
 Все слои памяти — через LangGraph Store. Разделение через namespaces:
 
 ```python
-("user", user_id, "instructions")   # Custom Instructions (1 item, key="default")
-("user", user_id, "memory")         # User Memory (N items, key=slug)
-("project", project_id, "sphere")   # Knowledge Sphere (без изменений)
+("user", user_id, "instructions")              # Custom Instructions (1 item, key="default")
+("user", user_id, "memory")                    # User Memory (N items, key=slug)
+("project", project_id, "sphere")              # Knowledge Sphere (без изменений)
+("user", user_id, "skill_context", skill_name) # Skill Context (N items per skill, key=doc key)
 ```
 
 Новые таблицы в PostgreSQL не создаются. Store = единственный storage для агентской и пользовательской памяти. Все слои читаются в `agent_node` через один API (`aget`, `asearch`), инжектируются в system message через единый `prompt_builder`.
@@ -41,7 +42,7 @@ Instructions — "настройка пользователя", ближе к us
 
 ## Следствия
 
-- **Единый паттерн расширения:** все будущие типы памяти (per-chat instructions, org-level guidelines, semantic memory с embeddings) идут через Store — новый namespace, тот же API
+- **Единый паттерн расширения:** все будущие типы памяти (per-chat instructions, org-level guidelines, semantic memory с embeddings) идут через Store — новый namespace, тот же API. Skill Context (namespace `("user", user_id, "skill_context", skill_name)`, четырёхуровневый — коллекция документов на скилл, а не одна запись) — первое подтверждение паттерна на практике
 - **Нет миграций** для memory-related features — namespace создаётся при первом `aput`
 - **Trade-off: нет SQL-queryability.** Нельзя `SELECT ... WHERE created_at > ...` или join с другими таблицами. Приемлемо — память читается по конкретному namespace, сложные запросы не нужны
 - **Trade-off: нет FK constraints.** Удаление пользователя не каскадирует на его память в Store. Требует application-level cleanup. Приемлемо на текущем масштабе (один пользователь)

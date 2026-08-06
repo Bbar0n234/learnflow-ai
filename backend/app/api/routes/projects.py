@@ -1,19 +1,22 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Response, status
+import uuid
 
-from app.api.deps import CurrentUser, ProjectServiceDep, UserProject
+from fastapi import APIRouter, HTTPException, Response, status
+
+from app.api.deps import CurrentUser, Pagination, ProjectServiceDep, UserProject
 from app.api.schemas.projects import (
     ProjectCreate,
     ProjectListResponse,
     ProjectResponse,
     ProjectUpdate,
 )
+from app.services.exceptions import EntityNotFoundError
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-@router.post("", response_model=ProjectResponse)
+@router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
     body: ProjectCreate,
     user: CurrentUser,
@@ -27,10 +30,16 @@ async def create_project(
 async def list_projects(
     user: CurrentUser,
     service: ProjectServiceDep,
+    page: Pagination,
 ) -> ProjectListResponse:
-    projects = await service.list_projects(user.id)
+    projects, total = await service.list_projects(
+        user.id, limit=page.limit, offset=page.offset
+    )
     return ProjectListResponse(
-        items=[ProjectResponse.model_validate(p) for p in projects]
+        items=[ProjectResponse.model_validate(p) for p in projects],
+        total=total,
+        limit=page.limit,
+        offset=page.offset,
     )
 
 
@@ -53,8 +62,18 @@ async def update_project(
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(
-    project: UserProject,
+    project_id: uuid.UUID,
+    user: CurrentUser,
     service: ProjectServiceDep,
 ) -> Response:
+    # Idempotent DELETE (api.md): an already-removed project resolves as a
+    # no-op 204 instead of 404. Ownership is still enforced — an existing
+    # project owned by another user stays hidden behind a 404.
+    try:
+        project = await service.get_project(project_id)
+    except EntityNotFoundError:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    if project.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Project not found")
     await service.delete_project(project.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -29,15 +29,28 @@ dependencies = [
     "langchain>=1.2.13",
     "redis[hiredis]>=7.4.0",
     "siem-contracts>=0.1.0",
+    "anyio>=4.12.1",
+    "httpx>=0.28.1",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "unit: fast, no external infra",
+    "integration: requires real Postgres (testcontainers)",
+    "slow: long-running",
+    "external: hits third-party network APIs",
+]
 
 [tool.uv.sources]
 siem-contracts = { workspace = true }
+learnflow-testing = { workspace = true }
 
 [dependency-groups]
 dev = [
     "types-pyyaml>=6.0.12.20250915",
+    "learnflow-testing",
+    "pytest-xdist>=3.6",
 ]

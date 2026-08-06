@@ -1,7 +1,14 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "@fontsource/source-serif-4/600.css";
+@import "@fontsource/source-serif-4/700.css";
+@import "@fontsource/instrument-sans/400.css";
+@import "@fontsource/instrument-sans/500.css";
+@import "@fontsource/instrument-sans/600.css";
+@import "@fontsource/instrument-sans/700.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
 
 @source "../node_modules/streamdown/dist/*.js";
 @source "../node_modules/@streamdown/code/dist/*.js";
@@ -11,76 +18,133 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  /* Чернила / Электрик — light tokens */
+  --background: #faf7f1;
+  --foreground: #2e2a24;
+  --card: #fffefa;
+  --card-foreground: #2e2a24;
+  --popover: #fffefa;
+  --popover-foreground: #2e2a24;
+  --primary: #7434f4;
+  --primary-foreground: #f6f1ff;
+  --secondary: #efe7fe;
+  --secondary-foreground: #5b21ce;
+  --muted: #f1ede3;
+  --muted-foreground: #8b8370;
+  --accent: #efe7fe;
+  --accent-foreground: #5b21ce;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: #e2dcd0;
+  --input: #d8d1c2;
+  --ring: #7434f4;
+  --radius: 0.7rem;
+  --sidebar: #f1ede3;
+  --sidebar-foreground: #2e2a24;
+  --sidebar-primary: #7434f4;
+  --sidebar-primary-foreground: #f6f1ff;
+  --sidebar-accent: #efe7fe;
+  --sidebar-accent-foreground: #5b21ce;
+  --sidebar-border: #e2dcd0;
+  --sidebar-ring: #7434f4;
+  /* Extra brand tokens */
+  --brand-lavender: #c5a9f9;
+  --bubble-user: #ede7da;
+  /* Terracotta — destructive soft (Delete, Revert) */
+  --destructive-warm: #b0573f;
+  /* MCP server status indicators */
+  --mcp-connected: #4c9a6e;
+  --mcp-disabled: #c8c0ae;
+  /* Shadows */
+  --shadow-input: 0 2px 10px rgba(80, 70, 50, 0.06);
+  --shadow-lens: 0 24px 80px rgba(24, 16, 36, 0.35);
+  /* Sphere lens overlay scrim */
+  --scrim-overlay: rgba(24, 16, 36, 0.45);
+  /* Slides viewer — намеренно dark независимо от темы приложения (slides viewer design, T6c) */
+  --slides-bg: #181420;
+  --slides-fg: #ede8e2;
+  /* Layout geometry */
+  --content-max-w: 680px;
+  /* Орб-токены (единственное место с градиентом) */
+  --orb-gradient: radial-gradient(
+    circle at 38% 32%,
+    #a47cfa 0%,
+    #7434f4 52%,
+    #4c16b8 100%
+  );
+  --orb-shadow: 0 6px 26px rgba(116, 52, 244, 0.35);
+  --orb-ring-1: #e5dcfc;
+  --orb-ring-2: #cdb9f8;
+  /* Chart tokens */
   --chart-1: oklch(0.809 0.105 251.813);
   --chart-2: oklch(0.623 0.214 259.815);
   --chart-3: oklch(0.546 0.245 262.881);
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  /* Чернила / Электрик — dark tokens */
+  --background: #181420;
+  --foreground: #ede8e2;
+  --card: #221c30;
+  --card-foreground: #ede8e2;
+  --popover: #221c30;
+  --popover-foreground: #ede8e2;
+  --primary: #8a5cf6;
+  --primary-foreground: #f7f4ff;
+  --secondary: rgba(177, 148, 255, 0.15);
+  --secondary-foreground: #cdb6ff;
+  --muted: #1e1929;
+  --muted-foreground: #9a90a8;
+  --accent: rgba(177, 148, 255, 0.15);
+  --accent-foreground: #cdb6ff;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: #322a44;
+  --input: #3a3150;
+  --ring: #b194ff;
+  --sidebar: #1e1929;
+  --sidebar-foreground: #ede8e2;
+  --sidebar-primary: #8a5cf6;
+  --sidebar-primary-foreground: #f7f4ff;
+  --sidebar-accent: rgba(177, 148, 255, 0.15);
+  --sidebar-accent-foreground: #cdb6ff;
+  --sidebar-border: #322a44;
+  --sidebar-ring: #b194ff;
+  /* Terracotta — destructive soft (Delete, Revert) */
+  --destructive-warm: #d06050;
+  /* MCP server status indicators */
+  --mcp-connected: #6ab88a;
+  --mcp-disabled: #7e7490;
+  /* Extra brand tokens */
+  --brand-lavender: #b194ff;
+  --bubble-user: #262031;
+  /* Орб-токены — dark */
+  --orb-gradient: radial-gradient(
+    circle at 38% 32%,
+    #d0baff 0%,
+    #9d6fff 50%,
+    #5520c8 100%
+  );
+  --orb-shadow: 0 0 46px rgba(177, 148, 255, 0.47);
+  --orb-ring-1: rgba(177, 148, 255, 0.25);
+  --orb-ring-2: rgba(177, 148, 255, 0.45);
+  /* Chart tokens */
   --chart-1: oklch(0.809 0.105 251.813);
   --chart-2: oklch(0.623 0.214 259.815);
   --chart-3: oklch(0.546 0.245 262.881);
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
 }
 
 @theme inline {
-  --font-sans: "Geist Variable", sans-serif;
+  --font-sans: "Instrument Sans", sans-serif;
+  --font-serif: "Source Serif 4", serif;
+  --font-mono: "IBM Plex Mono", monospace;
+  --color-destructive-warm: var(--destructive-warm);
+  --color-mcp-connected: var(--mcp-connected);
+  --color-mcp-disabled: var(--mcp-disabled);
+  --color-brand-lavender: var(--brand-lavender);
+  --color-bubble-user: var(--bubble-user);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -121,6 +185,12 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Studio-open modifier: applied by T6 to the chat content wrapper when the
+   studio panel is open; narrows the center content column from 680px to 520px */
+.studio-open {
+  --content-max-w: 520px;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -130,5 +200,173 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* ─── Sphere / Artifact markdown prose (T4d) ───────────────────────────────
+   Wraps MarkdownRenderer output in sphere viewer and artifact viewer.
+   H-tags: Source Serif 4. List markers: «—» in primary accent.
+   Scope: .sphere-prose (applied by SphereViewer, ArtifactView, SkillContextSection).
+   ─────────────────────────────────────────────────────────────────────────── */
+.sphere-prose h1,
+.sphere-prose h2,
+.sphere-prose h3,
+.sphere-prose h4,
+.sphere-prose h5,
+.sphere-prose h6 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: var(--foreground);
+}
+.sphere-prose h1 {
+  font-size: 1.375rem;
+}
+.sphere-prose h2 {
+  font-size: 1.125rem;
+}
+.sphere-prose h3 {
+  font-size: 1rem;
+}
+.sphere-prose h1:first-child,
+.sphere-prose h2:first-child,
+.sphere-prose h3:first-child {
+  margin-top: 0;
+}
+.sphere-prose p {
+  margin-bottom: 0.75rem;
+  line-height: 1.65;
+}
+.sphere-prose ul {
+  list-style: none;
+  padding-left: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+.sphere-prose ul > li {
+  position: relative;
+  margin-bottom: 0.3rem;
+}
+.sphere-prose ul > li::before {
+  content: "—";
+  position: absolute;
+  left: -1.5rem;
+  color: var(--primary);
+  font-weight: 500;
+}
+.sphere-prose ol {
+  list-style: decimal;
+  padding-left: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+.sphere-prose ol > li {
+  margin-bottom: 0.3rem;
+}
+.sphere-prose ol > li::marker {
+  color: var(--primary);
+}
+.sphere-prose blockquote {
+  border-left: 3px solid var(--primary);
+  padding-left: 1rem;
+  color: var(--muted-foreground);
+  margin-bottom: 0.75rem;
+  margin-left: 0;
+}
+.sphere-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background-color: var(--muted);
+  padding: 0.15rem 0.3rem;
+  border-radius: 0.25rem;
+}
+.sphere-prose pre {
+  background-color: var(--muted);
+  padding: 1rem;
+  border-radius: var(--radius);
+  overflow-x: auto;
+  margin-bottom: 0.75rem;
+}
+.sphere-prose pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.875rem;
+}
+.sphere-prose a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.sphere-prose hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.25rem 0;
+}
+.sphere-prose strong {
+  font-weight: 600;
+  color: var(--foreground);
+}
+.sphere-prose em {
+  font-style: italic;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Лента активности: бегущие точки живого элемента (`LiveDots`) — у активной
+   строки после подписи, у строки-паузы на месте будущей подписи. Ступенчатая
+   задержка даёт волну; в tw-animate-css нет staggered-подскока, поэтому
+   кастомный keyframe.
+   ─────────────────────────────────────────────────────────────────────────── */
+@keyframes feed-dot-bounce {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 0.9;
+    transform: translateY(-3px);
+  }
+}
+.feed-dot {
+  animation: feed-dot-bounce 1.2s ease-in-out infinite;
+}
+.feed-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.feed-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .feed-dot {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   TypedTitle: каретка посимвольной печати auto-title (замена плейсхолдера
+   «Новый чат» на название, сгенерированное моделью, событие `title_updated`).
+   Цветовой переход держит `transition-colors` (Tailwind); только мигание
+   каретки требует кастомного keyframe — аналога нет в tw-animate-css.
+   ─────────────────────────────────────────────────────────────────────────── */
+@keyframes typed-title-caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+.typed-title-caret::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 0.9em;
+  margin-left: 1px;
+  vertical-align: -0.08em;
+  background: var(--primary);
+  animation: typed-title-caret-blink 0.7s step-end infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .typed-title-caret::after {
+    animation: none;
   }
 }

@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Видимость работы агента — целевой таймлайн (feat-001 mockup)</title>
+<!-- Шрифты продукта: Instrument Sans / Source Serif 4 / IBM Plex Mono (Google Fonts — допущение конвенции для мокапов) -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Source+Serif+4:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  /* ══ Токены — честная копия frontend/src/index.css («Чернила / Электрик») ══ */
+  :root {
+    --background: #faf7f1;
+    --foreground: #2e2a24;
+    --card: #fffefa;
+    --card-foreground: #2e2a24;
+    --primary: #7434f4;
+    --primary-foreground: #f6f1ff;
+    --secondary: #efe7fe;
+    --secondary-foreground: #5b21ce;
+    --muted: #f1ede3;
+    --muted-foreground: #8b8370;
+    --accent: #efe7fe;
+    --accent-foreground: #5b21ce;
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: #e2dcd0;
+    --input: #d8d1c2;
+    --ring: #7434f4;
+    --radius: 0.7rem;
+    --brand-lavender: #c5a9f9;
+    --bubble-user: #ede7da;
+    --success: #3d7a45;
+    --shadow-input: 0 2px 10px rgba(80, 70, 50, 0.06);
+    --content-max-w: 680px;
+    --font-sans: "Instrument Sans", sans-serif;
+    --font-serif: "Source Serif 4", serif;
+    --font-mono: "IBM Plex Mono", monospace;
+  }
+  .dark {
+    --background: #181420;
+    --foreground: #ede8e2;
+    --card: #221c30;
+    --card-foreground: #ede8e2;
+    --primary: #8a5cf6;
+    --primary-foreground: #f7f4ff;
+    --secondary: rgba(177, 148, 255, 0.15);
+    --secondary-foreground: #cdb6ff;
+    --muted: #1e1929;
+    --muted-foreground: #9a90a8;
+    --accent: rgba(177, 148, 255, 0.15);
+    --accent-foreground: #cdb6ff;
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: #322a44;
+    --input: #3a3150;
+    --ring: #b194ff;
+    --brand-lavender: #b194ff;
+    --bubble-user: #262031;
+    --success: #6fbf78;
+    --shadow-input: 0 2px 10px rgba(0, 0, 0, 0.25);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; border-color: var(--border); }
+  html { font-family: var(--font-sans); }
+  body { background: var(--background); color: var(--foreground); min-height: 100vh; transition: background 0.2s, color 0.2s; }
+  button { font: inherit; cursor: pointer; background: none; border: none; color: inherit; }
+
+  /* ══ Каркас мокапа (не продукт): панель управления + аннотация ══ */
+  .mock-chrome { max-width: 1060px; margin: 0 auto; padding: 20px 24px 8px; }
+  .mock-chrome h1 { font-family: var(--font-serif); font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+  .mock-chrome .sub { font-size: 13px; color: var(--muted-foreground); margin-top: 2px; }
+  .mock-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; }
+  .seg { display: inline-flex; background: var(--muted); border-radius: 999px; padding: 3px; gap: 2px; }
+  .seg button { padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 500; color: var(--muted-foreground); transition: background 0.15s, color 0.15s; }
+  .seg button.on { background: var(--card); color: var(--foreground); box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .chip-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 500; background: var(--secondary); color: var(--secondary-foreground); }
+  .chip-btn:hover { filter: brightness(0.97); }
+
+  .annotation { max-width: 1060px; margin: 12px auto 0; padding: 0 24px; }
+  .annotation .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; font-size: 13px; line-height: 1.55; }
+  .annotation b { font-weight: 600; }
+  .annotation .req { color: var(--muted-foreground); margin-top: 4px; }
+  .annotation .tag { display: inline-block; font-family: var(--font-mono); font-size: 11px; background: var(--muted); border-radius: 5px; padding: 1px 6px; margin: 0 1px; }
+
+  /* ══ Продуктовая рамка: экран чата ══ */
+  .frame { max-width: 1060px; margin: 16px auto 40px; padding: 0 24px; }
+  .screen { display: flex; border: 1px solid var(--border); border-radius: calc(var(--radius) * 1.4); overflow: hidden; background: var(--background); height: 700px; }
+  .sidebar-stub { width: 52px; flex-shrink: 0; background: color-mix(in srgb, var(--muted) 80%, transparent); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; padding-top: 14px; gap: 10px; }
+  .sidebar-stub i { display: block; width: 26px; height: 26px; border-radius: 8px; background: var(--border); opacity: 0.6; }
+  .chat-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+  .chat-header { height: 56px; display: flex; flex-direction: column; justify-content: center; border-bottom: 1px solid var(--border); padding: 0 16px; flex-shrink: 0; }
+  .chat-header .back { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted-foreground); }
+  .chat-header .row { display: flex; align-items: center; gap: 8px; }
+  .chat-header .title { font-family: var(--font-serif); font-size: 17px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chat-header .chips { margin-left: auto; display: flex; gap: 6px; flex-shrink: 0; }
+  .chat-header .chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; background: var(--secondary); color: var(--secondary-foreground); padding: 4px 10px; font-size: 12px; }
+
+  .list { flex: 1; overflow: auto; padding: 24px; }
+  .list-inner { max-width: var(--content-max-w); margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  .msg-user { display: flex; justify-content: flex-end; }
+  .msg-user .bubble { max-width: 80%; border-radius: 14px 4px 14px 14px; background: var(--bubble-user); padding: 12px 16px; font-size: 14px; white-space: pre-wrap; line-height: 1.5; }
+  .dark .msg-user .bubble { border: 1px solid var(--border); }
+
+  /* ══ Сообщение ассистента = поток typed parts ══ */
+  .msg-assistant { display: flex; justify-content: flex-start; }
+  .msg-assistant .parts { width: 100%; display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.65; }
+  .part-text p { margin-bottom: 10px; }
+  .part-text p:last-child { margin-bottom: 0; }
+
+  /* Статусная строка фазы + elapsed */
+  .status-line { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted-foreground); }
+  .status-line .bar { width: 8px; height: 16px; border-radius: 2px; background: var(--primary); flex-shrink: 0; animation: bar-p 1.6s ease-in-out infinite; }
+  .status-line .elapsed { margin-left: auto; font-family: var(--font-mono); font-size: 12px; color: var(--muted-foreground); }
+  @keyframes bar-p { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  /* Reasoning-часть: сворачиваемая, стримится */
+  .part-reasoning { border: 1px dashed var(--border); border-radius: calc(var(--radius) * 0.8); background: color-mix(in srgb, var(--card) 55%, transparent); }
+  .part-reasoning .head { display: flex; align-items: center; gap: 7px; padding: 7px 12px; font-size: 12px; color: var(--muted-foreground); width: 100%; text-align: left; }
+  .part-reasoning .head:hover { color: var(--foreground); }
+  .part-reasoning .chev { transition: transform 0.15s; font-size: 10px; }
+  .part-reasoning.open .chev { transform: rotate(90deg); }
+  .part-reasoning .rbody { display: none; padding: 0 12px 9px; font-size: 12.5px; color: var(--muted-foreground); line-height: 1.6; white-space: pre-wrap; }
+  .part-reasoning.open .rbody { display: block; }
+  .part-reasoning .head .spin { width: 10px; height: 10px; border-radius: 999px; border: 2px solid var(--border); border-top-color: var(--primary); animation: spin 0.9s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Карточка tool-вызова */
+  .part-tool { border: 1px solid var(--border); border-radius: var(--radius); background: color-mix(in srgb, var(--card) 60%, transparent); padding: 9px 13px; }
+  .part-tool .top { display: flex; align-items: center; gap: 9px; }
+  .part-tool .icon { width: 26px; height: 26px; border-radius: 8px; background: var(--secondary); color: var(--secondary-foreground); display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+  .part-tool.subagent .icon { background: color-mix(in srgb, var(--brand-lavender) 28%, transparent); color: var(--foreground); }
+  .part-tool .label { font-size: 13.5px; font-weight: 500; }
+  .part-tool .detail { font-size: 12.5px; color: var(--muted-foreground); margin-top: 1px; }
+  .part-tool .raw { font-family: var(--font-mono); font-size: 11px; color: var(--muted-foreground); opacity: 0.75; }
+  .part-tool .state { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-shrink: 0; font-size: 12px; color: var(--muted-foreground); }
+  .part-tool .state .runbar { width: 8px; height: 14px; border-radius: 2px; background: var(--primary); animation: bar-p 1.6s ease-in-out infinite; }
+  .part-tool.subagent .state .runbar { background: var(--brand-lavender); }
+  .part-tool .state .ok { color: var(--success); font-size: 13px; }
+  .part-tool .state .fail { color: var(--destructive); font-size: 13px; }
+  .part-tool .steps { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 7px; display: flex; flex-direction: column; gap: 3px; }
+  .part-tool .step { display: flex; gap: 8px; align-items: baseline; font-size: 12px; color: var(--muted-foreground); }
+  .part-tool .step .t { font-family: var(--font-mono); font-size: 10.5px; opacity: 0.7; flex-shrink: 0; }
+  .part-tool .step.now { color: var(--foreground); }
+
+  /* Семантическое событие (agent_event) */
+  .part-event { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted-foreground); padding: 2px 2px; }
+  .part-event .eicon { font-size: 12px; opacity: 0.85; }
+  .part-event .val { color: var(--foreground); font-weight: 500; }
+
+  /* Review-строка (стилистика текущего ReviewIndicator) */
+  .part-review { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted-foreground); }
+  .part-review .sq { width: 8px; height: 8px; border-radius: 2px; background: var(--primary); animation: bar-p 1.6s ease-in-out infinite; }
+
+  .caret { display: inline-block; width: 7px; height: 15px; background: var(--primary); vertical-align: -2px; margin-left: 2px; animation: caret-b 1s steps(1) infinite; }
+  @keyframes caret-b { 50% { opacity: 0; } }
+
+  .input-wrap { padding: 12px 16px 16px; flex-shrink: 0; }
+  .input-card { max-width: var(--content-max-w); margin: 0 auto; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow-input); }
+  .input-row { display: flex; align-items: flex-end; gap: 8px; padding: 12px; }
+  .input-row .ta { flex: 1; min-height: 40px; font-size: 14px; color: var(--muted-foreground); padding: 8px 4px; user-select: none; }
+  .round-btn { width: 34px; height: 34px; border-radius: 999px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: filter 0.15s; }
+  .round-btn:hover { filter: brightness(0.92); }
+  .round-btn.send { background: var(--primary); color: var(--primary-foreground); }
+  .round-btn.stop { background: var(--destructive); color: #fff; }
+  .round-btn svg { width: 14px; height: 14px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .status-line .bar, .part-tool .state .runbar, .caret, .part-reasoning .head .spin, .part-review .sq { animation: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="mock-chrome">
+    <h1>Видимость работы агента: целевой таймлайн</h1>
+    <div class="sub">Мокап полного прогона по решениям Гейта 1 · feat-001 · после «done» всё видимое остаётся в истории (typed parts)</div>
+    <div class="mock-controls">
+      <div class="seg" id="variant-seg">
+        <button data-v="A" class="on">Субагент A · Карточка</button>
+        <button data-v="B">Субагент B · Хронология</button>
+      </div>
+      <button class="chip-btn" id="replay">↻ Прогнать симуляцию</button>
+      <button class="chip-btn" id="theme-toggle">◐ Тема: светлая</button>
+    </div>
+  </div>
+
+  <div class="annotation">
+    <div class="card" id="annotation-card"></div>
+  </div>
+
+  <div class="frame">
+    <div class="screen">
+      <div class="sidebar-stub" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <div class="chat-col">
+
+        <div class="chat-header">
+          <button class="back">← <span>Мини-курс «Защита LLM-приложений»</span></button>
+          <div class="row">
+            <span class="title">Изоляция контекста субагентов</span>
+            <div class="chips">
+              <span class="chip">🤖 Модель</span>
+              <span class="chip">⚙ Инструменты</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="list" id="list">
+          <div class="list-inner">
+            <div class="msg-user">
+              <div class="bubble">Сравни подходы к изоляции контекста субагентов и сохрани выжимку в память проекта. Проверь выводы судьёй.</div>
+            </div>
+
+            <div class="msg-assistant">
+              <div class="parts" id="parts"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="input-wrap">
+          <div class="input-card">
+            <div class="input-row">
+              <div class="ta">Сообщение...</div>
+              <button class="round-btn stop" id="btn-stop" title="Отменить" hidden>
+                <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+              </button>
+              <button class="round-btn send" id="btn-send" title="Отправить">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 3 3 9-3 9 19-9Z"/><path d="M6 12h16"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+<script>
+  "use strict";
+  const ANNOTATIONS = {
+    A: `<b>Полный таймлайн, субагент — вариант A «Карточка».</b> Ack мгновенно → рассуждения стримятся (сворачиваемые) → карточка инструмента появляется с первого чанка вызова и обогащается аргументами → субагент — одна живая карточка с типом и elapsed → семантическое событие «обновил память проекта» → текст → review → done. Всё видимое остаётся в истории.
+      <div class="req"><b>Сервер:</b> <span class="tag">stream_started</span> + <span class="tag">heartbeat</span>, <span class="tag">reasoning_chunk</span>, ранний <span class="tag">tool_call_started</span> из token-стрима + <span class="tag">tool_call_args</span>, <span class="tag">tool_result</span> со статусом, <span class="tag">agent_event</span> (custom-канал), typed parts в истории.</div>`,
+    B: `<b>Полный таймлайн, субагент — вариант B «Хронология».</b> То же, но карточка субагента разворачивает вложенные шаги его работы в реальном времени (получил задание → читает источники → фактчек). Больше жизни на долгих ранах; риск — визуальный шум при коротких.
+      <div class="req"><b>Сервер:</b> всё из варианта A + прогресс-события из инструментов субагента через <span class="tag">custom</span>-канал (обёртка исполнения tools субагента; всплывают из вложенности штатно).</div>`,
+  };
+
+  const REASONING_TEXT = "Пользователь хочет сравнение подходов к изоляции контекста и запись в память проекта. Сначала соберу свежие источники по subagent-паттернам, затем сохраню выжимку в Knowledge Sphere и прогоню выводы через проверяющего субагента, как просили. Начну с поиска.";
+  const ANSWER_TEXT = [
+    "Коротко: изоляция строится на «чистом старте» — субагент получает только задачу и приложенные документы, без истории сессии.",
+    "Сильнейшие гарантии даёт паттерн subagent-as-tool с отдельным графом на вызов; shared-state с фильтрацией и очереди сообщений слабее. Выжимка с источниками сохранена в память проекта, выводы проверены судьёй.",
+  ];
+
+  const $ = (id) => document.getElementById(id);
+  const parts = $("parts"), list = $("list");
+  const btnStop = $("btn-stop"), btnSend = $("btn-send");
+
+  let variant = "A";
+  let timers = [], tickTimer = null, t0 = 0;
+
+  function clearTimers() {
+    timers.forEach((t) => { clearTimeout(t); clearInterval(t); });
+    timers = [];
+    if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+  }
+  function at(ms, fn) { timers.push(setTimeout(fn, ms)); }
+  function scrollDown() { list.scrollTop = list.scrollHeight; }
+  function elapsedStr() {
+    const s = Math.floor((Date.now() - t0) / 1000);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  }
+
+  /* ── Части сообщения ── */
+  function addStatusLine() {
+    const el = document.createElement("div");
+    el.className = "status-line"; el.id = "status-line";
+    el.innerHTML = `<span class="bar"></span><span id="status-text">Запрос принят…</span><span class="elapsed" id="status-elapsed">0:00</span>`;
+    parts.appendChild(el); scrollDown();
+  }
+  function setStatus(text) { const t = $("status-text"); if (t) t.textContent = text; }
+  function removeStatusLine() { $("status-line")?.remove(); }
+
+  function addReasoning() {
+    const el = document.createElement("div");
+    el.className = "part-reasoning open"; el.id = "p-reasoning";
+    el.innerHTML = `
+      <button class="head" id="r-toggle"><span class="chev">▶</span><span id="r-label">Рассуждает…</span><span class="spin" id="r-spin"></span></button>
+      <div class="rbody" id="r-body"></div>`;
+    parts.appendChild(el);
+    $("r-toggle").addEventListener("click", () => el.classList.toggle("open"));
+    scrollDown();
+  }
+  function streamReasoning(onDone) {
+    let i = 0; const step = 4;
+    const iv = setInterval(() => {
+      i = Math.min(REASONING_TEXT.length, i + step);
+      $("r-body").textContent = REASONING_TEXT.slice(0, i);
+      scrollDown();
+      if (i >= REASONING_TEXT.length) { clearInterval(iv); onDone && onDone(); }
+    }, 45);
+    timers.push(iv);
+  }
+  function finishReasoning(secs) {
+    const el = $("p-reasoning");
+    if (!el) return;
+    $("r-spin")?.remove();
+    $("r-label").textContent = `Рассуждения · ${secs} c`;
+    el.classList.remove("open");
+  }
+
+  function addToolCard(id, opts) {
+    const el = document.createElement("div");
+    el.className = "part-tool" + (opts.subagent ? " subagent" : ""); el.id = id;
+    el.innerHTML = `
+      <div class="top">
+        <span class="icon">${opts.icon}</span>
+        <div>
+          <div class="label">${opts.label}</div>
+          <div class="detail" id="${id}-detail" ${opts.detail ? "" : "hidden"}>${opts.detail || ""}</div>
+          <div class="raw">${opts.raw}</div>
+        </div>
+        <div class="state" id="${id}-state"><span class="runbar"></span></div>
+      </div>`;
+    parts.appendChild(el); scrollDown();
+  }
+  function enrichTool(id, detail) {
+    const d = $(id + "-detail");
+    if (d) { d.hidden = false; d.textContent = detail; scrollDown(); }
+  }
+  function finishTool(id, ok, meta) {
+    const st = $(id + "-state");
+    if (st) st.innerHTML = (meta ? `<span>${meta}</span>` : "") + (ok ? `<span class="ok">✓</span>` : `<span class="fail">✕</span>`);
+  }
+  function addToolStep(cardId, t, label) {
+    let steps = $(cardId)?.querySelector(".steps");
+    if (!steps) {
+      steps = document.createElement("div");
+      steps.className = "steps";
+      $(cardId).appendChild(steps);
+    }
+    steps.querySelectorAll(".step").forEach((s) => s.classList.remove("now"));
+    const el = document.createElement("div");
+    el.className = "step now";
+    el.innerHTML = `<span class="t">${t}</span><span>${label}</span>`;
+    steps.appendChild(el); scrollDown();
+  }
+
+  function addEvent(icon, html) {
+    const el = document.createElement("div");
+    el.className = "part-event";
+    el.innerHTML = `<span class="eicon">${icon}</span><span>${html}</span>`;
+    parts.appendChild(el); scrollDown();
+  }
+
+  function addText(onDone) {
+    const el = document.createElement("div");
+    el.className = "part-text"; el.id = "p-text";
+    parts.appendChild(el);
+    const full = ANSWER_TEXT.join("\n\n");
+    let i = 0; const step = 3;
+    const iv = setInterval(() => {
+      i = Math.min(full.length, i + step);
+      el.innerHTML =
+        full.slice(0, i).split("\n\n").map((p) => `<p>${p}</p>`).join("") +
+        (i < full.length ? `<span class="caret"></span>` : "");
+      scrollDown();
+      if (i >= full.length) { clearInterval(iv); onDone && onDone(); }
+    }, 30);
+    timers.push(iv);
+  }
+
+  function addReview() {
+    const el = document.createElement("div");
+    el.className = "part-review"; el.id = "p-review";
+    el.innerHTML = `<span class="sq"></span><span>Проверяем ответ…</span>`;
+    parts.appendChild(el); scrollDown();
+  }
+
+  /* ── Симуляция полного прогона ── */
+  function replay() {
+    clearTimers();
+    parts.innerHTML = "";
+    btnSend.hidden = true; btnStop.hidden = false;
+    t0 = Date.now();
+
+    addStatusLine(); // stream_started: ack мгновенно, heartbeat ведёт elapsed
+    tickTimer = setInterval(() => {
+      const el = $("status-elapsed");
+      if (el) el.textContent = elapsedStr();
+    }, 1000);
+
+    at(1200, () => { setStatus("Рассуждает…"); addReasoning(); streamReasoning(); });
+    at(5200, () => { finishReasoning(4); setStatus("Работает инструмент…");
+      addToolCard("t-search", { icon: "🔍", label: "Ищу в интернете", raw: "firecrawl_search" }); });
+    at(6600, () => enrichTool("t-search", "«изоляция контекста субагентов, паттерны 2026»"));
+    at(9200, () => finishTool("t-search", true, "8 источников"));
+
+    at(10000, () => {
+      addToolCard("t-sub", { icon: "🧩", label: "Запускаю проверяющего субагента", detail: "тип: judge — независимая проверка выводов", subagent: true, raw: "run_subagent" });
+      if (variant === "B") {
+        at(900,  () => addToolStep("t-sub", "0:01", "получил задание и черновик выводов"));
+        at(2600, () => addToolStep("t-sub", "0:03", "читает источник: docs.langchain.com…"));
+        at(4600, () => addToolStep("t-sub", "0:05", "фактчек цитат по черновику"));
+      }
+    });
+    at(16400, () => finishTool("t-sub", true, "вердикт получен"));
+
+    at(17200, () => addEvent("✎", `Обновил память проекта: раздел <span class="val">«Субагенты»</span>`));
+
+    at(18000, () => { setStatus("Пишет ответ…"); addText(); });
+    at(24500, () => { removeStatusLine(); addReview(); });
+    at(26500, () => { // done: индикаторы исчезают, части остаются в истории
+      $("p-review")?.remove();
+      if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+      btnStop.hidden = true; btnSend.hidden = false;
+      scrollDown();
+    });
+  }
+
+  document.querySelectorAll("#variant-seg button").forEach((b) => {
+    b.addEventListener("click", () => {
+      document.querySelectorAll("#variant-seg button").forEach((x) => x.classList.remove("on"));
+      b.classList.add("on");
+      variant = b.dataset.v;
+      $("annotation-card").innerHTML = ANNOTATIONS[variant];
+      replay();
+    });
+  });
+  $("replay").addEventListener("click", replay);
+  btnSend.addEventListener("click", replay);
+  btnStop.addEventListener("click", () => {
+    clearTimers();
+    removeStatusLine(); $("p-review")?.remove();
+    addEvent("◼", "Генерация остановлена");
+    btnStop.hidden = true; btnSend.hidden = false;
+  });
+
+  $("theme-toggle").addEventListener("click", () => {
+    const dark = document.documentElement.classList.toggle("dark");
+    $("theme-toggle").textContent = dark ? "◐ Тема: тёмная" : "◐ Тема: светлая";
+  });
+
+  $("annotation-card").innerHTML = ANNOTATIONS.A;
+  replay();
+</script>
+</body>
+</html>

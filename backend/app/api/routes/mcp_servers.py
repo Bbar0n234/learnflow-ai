@@ -8,7 +8,14 @@ from fastapi import APIRouter, HTTPException, Request
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.sessions import SSEConnection, StreamableHttpConnection
 
-from app.api.deps import CurrentUser, DBSession, UserProject
+from app.api.deps import (
+    CurrentUser,
+    DBSession,
+    PageParams,
+    Pagination,
+    UserProject,
+    UserThread,
+)
 from app.api.schemas.mcp_servers import (
     InheritedMCPServer,
     MCPServerCreate,
@@ -17,6 +24,7 @@ from app.api.schemas.mcp_servers import (
     MCPServerUpdate,
     TestConnectionResponse,
     ToggleInheritedRequest,
+    ToggleInheritedResponse,
 )
 from app.models.mcp_server import (
     ProjectMCPServer,
@@ -25,8 +33,9 @@ from app.models.mcp_server import (
 )
 from app.repositories.mcp_server import MCPServerRepository
 from app.services.encryption import EncryptionService
+from app.services.exceptions import InvalidURLError, SecurityPolicyViolationError
 from app.services.mcp_server import McpServerService
-from app.services.url_validator import validate_url
+from app.services.url_validator import mcp_no_redirect_client_factory, validate_url
 
 logger = structlog.get_logger()
 
@@ -48,7 +57,13 @@ def _build_mcp_service(request: Request, session: Any) -> McpServerService:
         repo=MCPServerRepository(session),
         guard=getattr(request.app.state, "security_guard", None),
         encryption=_get_encryption(request),
+        mcp_timeout=request.app.state.settings.mcp_timeout_seconds,
     )
+
+
+def _page_slice[T](items: list[T], page: PageParams) -> tuple[list[T], int]:
+    """In-memory pagination: списки ограничены MAX_SERVERS_PER_SCOPE."""
+    return items[page.offset : page.offset + page.limit], len(items)
 
 
 def _to_response(
@@ -85,13 +100,15 @@ def _to_inherited(
 
 
 async def _test_connection(
-    url: str, transport: str, api_key: str | None
+    url: str, transport: str, api_key: str | None, timeout: int
 ) -> TestConnectionResponse:
     """Test MCP server connection."""
     try:
         validate_url(url)
-    except ValueError as e:
-        return TestConnectionResponse(success=False, error=str(e))
+    except (InvalidURLError, SecurityPolicyViolationError) as e:
+        # validate_url raises AppError subclasses (not ValueError): map the SSRF
+        # / bad-URL rejection into the contract result instead of a 4xx.
+        return TestConnectionResponse(success=False, error=e.detail)
 
     headers = {}
     if api_key:
@@ -100,14 +117,22 @@ async def _test_connection(
     try:
         conn: SSEConnection | StreamableHttpConnection
         if transport == "sse":
-            conn = SSEConnection(transport="sse", url=url, sse_read_timeout=30)
+            conn = SSEConnection(
+                transport="sse",
+                url=url,
+                sse_read_timeout=float(timeout),
+                httpx_client_factory=mcp_no_redirect_client_factory,
+            )
             if headers:
                 conn["headers"] = headers
         else:
+            # StreamableHttpConnection.timeout expects timedelta; passing int is
+            # accepted at runtime but mismatches the TypedDict annotation.
             conn = StreamableHttpConnection(
                 transport="streamable_http",
                 url=url,
-                timeout=30,  # type: ignore[typeddict-item]
+                timeout=timeout,  # type: ignore[typeddict-item]
+                httpx_client_factory=mcp_no_redirect_client_factory,
             )
             if headers:
                 conn["headers"] = headers
@@ -132,10 +157,17 @@ async def list_user_servers(
     user: CurrentUser,
     session: DBSession,
     request: Request,
+    page: Pagination,
 ) -> MCPServerListResponse:
     repo = MCPServerRepository(session)
     servers = await repo.list_by_user(user.id, active_only=False)
-    return MCPServerListResponse(items=[_to_response(s) for s in servers])
+    items, total = _page_slice(servers, page)
+    return MCPServerListResponse(
+        items=[_to_response(s) for s in items],
+        total=total,
+        limit=page.limit,
+        offset=page.offset,
+    )
 
 
 @router.post("/users/me/mcp-servers", response_model=MCPServerResponse, status_code=201)
@@ -149,7 +181,7 @@ async def create_user_server(
     count = await repo.count_by_scope("user", user.id)
     if count >= MAX_SERVERS_PER_SCOPE:
         raise HTTPException(
-            status_code=400,
+            status_code=409,
             detail=f"Maximum {MAX_SERVERS_PER_SCOPE} servers per scope",
         )
     service = _build_mcp_service(request, session)
@@ -214,7 +246,12 @@ async def test_user_server(
     api_key = None
     if server.api_key_encrypted and enc.is_available:
         api_key = enc.decrypt(server.api_key_encrypted)
-    return await _test_connection(server.url, server.transport, api_key)
+    return await _test_connection(
+        server.url,
+        server.transport,
+        api_key,
+        request.app.state.settings.mcp_timeout_seconds,
+    )
 
 
 # ====================== Project-level ======================
@@ -226,6 +263,7 @@ async def list_project_servers(
     user: CurrentUser,
     session: DBSession,
     request: Request,
+    page: Pagination,
     include_inherited: bool = False,
 ) -> MCPServerListResponse:
     repo = MCPServerRepository(session)
@@ -235,8 +273,12 @@ async def list_project_servers(
         user_servers = await repo.list_by_user(user.id, active_only=False)
         disabled_ids = await repo.list_disabled_ids("project", project.id)
         inherited = [_to_inherited(s, disabled_ids) for s in user_servers]
+    items, total = _page_slice(servers, page)
     return MCPServerListResponse(
-        items=[_to_response(s) for s in servers],
+        items=[_to_response(s) for s in items],
+        total=total,
+        limit=page.limit,
+        offset=page.offset,
         inherited=inherited,
     )
 
@@ -256,7 +298,7 @@ async def create_project_server(
     count = await repo.count_by_scope("project", project.id)
     if count >= MAX_SERVERS_PER_SCOPE:
         raise HTTPException(
-            status_code=400,
+            status_code=409,
             detail=f"Maximum {MAX_SERVERS_PER_SCOPE} servers per scope",
         )
     service = _build_mcp_service(request, session)
@@ -324,7 +366,12 @@ async def test_project_server(
     api_key = None
     if server.api_key_encrypted and enc.is_available:
         api_key = enc.decrypt(server.api_key_encrypted)
-    return await _test_connection(server.url, server.transport, api_key)
+    return await _test_connection(
+        server.url,
+        server.transport,
+        api_key,
+        request.app.state.settings.mcp_timeout_seconds,
+    )
 
 
 # ====================== Project-level toggle ======================
@@ -332,6 +379,7 @@ async def test_project_server(
 
 @router.put(
     "/projects/{project_id}/mcp-servers/inherited/{server_id}/toggle",
+    response_model=ToggleInheritedResponse,
 )
 async def toggle_project_inherited(
     server_id: uuid.UUID,
@@ -339,80 +387,85 @@ async def toggle_project_inherited(
     project: UserProject,
     session: DBSession,
     request: Request,
-) -> dict[str, bool]:
+) -> ToggleInheritedResponse:
     repo = MCPServerRepository(session)
     await repo.set_disable("project", project.id, server_id, disabled=body.disabled)
     _get_tool_resolver(request).invalidate("project", project.id)
-    return {"disabled": body.disabled}
+    return ToggleInheritedResponse(disabled=body.disabled)
 
 
 # ====================== Thread-level ======================
 
 
 @router.get(
-    "/projects/{project_id}/chats/{thread_id}/mcp-servers",
+    "/projects/{project_id}/chats/{chat_id}/mcp-servers",
     response_model=MCPServerListResponse,
 )
 async def list_thread_servers(
-    thread_id: uuid.UUID,
+    thread: UserThread,
     project: UserProject,
     user: CurrentUser,
     session: DBSession,
     request: Request,
+    page: Pagination,
     include_inherited: bool = False,
 ) -> MCPServerListResponse:
     repo = MCPServerRepository(session)
-    servers = await repo.list_by_thread(thread_id, active_only=False)
+    servers = await repo.list_by_thread(thread.thread_id, active_only=False)
     inherited: list[InheritedMCPServer] = []
     if include_inherited:
         user_servers = await repo.list_by_user(user.id, active_only=False)
         project_servers = await repo.list_by_project(project.id, active_only=False)
-        disabled_ids = await repo.list_disabled_ids("thread", thread_id)
+        disabled_ids = await repo.list_disabled_ids("thread", thread.thread_id)
         all_inherited: list[UserMCPServer | ProjectMCPServer] = [
             *user_servers,
             *project_servers,
         ]
         inherited = [_to_inherited(s, disabled_ids) for s in all_inherited]
+    items, total = _page_slice(servers, page)
     return MCPServerListResponse(
-        items=[_to_response(s) for s in servers],
+        items=[_to_response(s) for s in items],
+        total=total,
+        limit=page.limit,
+        offset=page.offset,
         inherited=inherited,
     )
 
 
 @router.post(
-    "/projects/{project_id}/chats/{thread_id}/mcp-servers",
+    "/projects/{project_id}/chats/{chat_id}/mcp-servers",
     response_model=MCPServerResponse,
     status_code=201,
 )
 async def create_thread_server(
-    thread_id: uuid.UUID,
+    thread: UserThread,
     body: MCPServerCreate,
     project: UserProject,
     session: DBSession,
     request: Request,
 ) -> MCPServerResponse:
     repo = MCPServerRepository(session)
-    count = await repo.count_by_scope("thread", thread_id)
+    count = await repo.count_by_scope("thread", thread.thread_id)
     if count >= MAX_SERVERS_PER_SCOPE:
         raise HTTPException(
-            status_code=400,
+            status_code=409,
             detail=f"Maximum {MAX_SERVERS_PER_SCOPE} servers per scope",
         )
     service = _build_mcp_service(request, session)
     server = await service.guard_and_persist(
-        scope="thread", owner_id=thread_id, payload=body
+        scope="thread", owner_id=thread.thread_id, payload=body
     )
-    _get_tool_resolver(request).invalidate("thread", thread_id)
+    _get_tool_resolver(request).invalidate("thread", thread.thread_id)
     return _to_response(server)
 
 
 @router.put(
-    "/projects/{project_id}/chats/{thread_id}/mcp-servers/{server_id}",
+    "/projects/{project_id}/chats/{chat_id}/mcp-servers/{server_id}",
     response_model=MCPServerResponse,
 )
 async def update_thread_server(
     server_id: uuid.UUID,
-    thread_id: uuid.UUID,
+    thread: UserThread,
     body: MCPServerUpdate,
     project: UserProject,
     session: DBSession,
@@ -420,43 +473,43 @@ async def update_thread_server(
 ) -> MCPServerResponse:
     repo = MCPServerRepository(session)
     server = await repo.get_thread_server(server_id)
-    if server is None or server.thread_id != thread_id:
+    if server is None or server.thread_id != thread.thread_id:
         raise HTTPException(status_code=404, detail="Server not found")
     service = _build_mcp_service(request, session)
     server = await service.update_and_reguard(
-        scope="thread", owner_id=thread_id, server=server, payload=body
+        scope="thread", owner_id=thread.thread_id, server=server, payload=body
     )
-    _get_tool_resolver(request).invalidate("thread", thread_id)
+    _get_tool_resolver(request).invalidate("thread", thread.thread_id)
     return _to_response(server)
 
 
 @router.delete(
-    "/projects/{project_id}/chats/{thread_id}/mcp-servers/{server_id}",
+    "/projects/{project_id}/chats/{chat_id}/mcp-servers/{server_id}",
     status_code=204,
 )
 async def delete_thread_server(
     server_id: uuid.UUID,
-    thread_id: uuid.UUID,
+    thread: UserThread,
     project: UserProject,
     session: DBSession,
     request: Request,
 ) -> None:
     repo = MCPServerRepository(session)
     server = await repo.get_thread_server(server_id)
-    if server is None or server.thread_id != thread_id:
+    if server is None or server.thread_id != thread.thread_id:
         raise HTTPException(status_code=404, detail="Server not found")
     await repo.cleanup_disables_for_server(server_id)
     await repo.delete(server)
-    _get_tool_resolver(request).invalidate("thread", thread_id)
+    _get_tool_resolver(request).invalidate("thread", thread.thread_id)
 
 
 @router.post(
-    "/projects/{project_id}/chats/{thread_id}/mcp-servers/{server_id}/test",
+    "/projects/{project_id}/chats/{chat_id}/mcp-servers/{server_id}/test",
     response_model=TestConnectionResponse,
 )
 async def test_thread_server(
     server_id: uuid.UUID,
-    thread_id: uuid.UUID,
+    thread: UserThread,
     project: UserProject,
     session: DBSession,
     request: Request,
@@ -464,26 +517,34 @@ async def test_thread_server(
     repo = MCPServerRepository(session)
     enc = _get_encryption(request)
     server = await repo.get_thread_server(server_id)
-    if server is None or server.thread_id != thread_id:
+    if server is None or server.thread_id != thread.thread_id:
         raise HTTPException(status_code=404, detail="Server not found")
     api_key = None
     if server.api_key_encrypted and enc.is_available:
         api_key = enc.decrypt(server.api_key_encrypted)
-    return await _test_connection(server.url, server.transport, api_key)
+    return await _test_connection(
+        server.url,
+        server.transport,
+        api_key,
+        request.app.state.settings.mcp_timeout_seconds,
+    )
 
 
 @router.put(
-    "/projects/{project_id}/chats/{thread_id}/mcp-servers/inherited/{server_id}/toggle",
+    "/projects/{project_id}/chats/{chat_id}/mcp-servers/inherited/{server_id}/toggle",
+    response_model=ToggleInheritedResponse,
 )
 async def toggle_thread_inherited(
     server_id: uuid.UUID,
-    thread_id: uuid.UUID,
+    thread: UserThread,
     body: ToggleInheritedRequest,
     project: UserProject,
     session: DBSession,
     request: Request,
-) -> dict[str, bool]:
+) -> ToggleInheritedResponse:
     repo = MCPServerRepository(session)
-    await repo.set_disable("thread", thread_id, server_id, disabled=body.disabled)
-    _get_tool_resolver(request).invalidate("thread", thread_id)
-    return {"disabled": body.disabled}
+    await repo.set_disable(
+        "thread", thread.thread_id, server_id, disabled=body.disabled
+    )
+    _get_tool_resolver(request).invalidate("thread", thread.thread_id)
+    return ToggleInheritedResponse(disabled=body.disabled)

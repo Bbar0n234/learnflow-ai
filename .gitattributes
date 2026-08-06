@@ -1,0 +1,4 @@
+# Артефакты итераций (plan, summary, test-cases, review-a/b, proposals) схлопываются
+# в GitHub-диффе PR — гейт архитектора смотрит код и doc/tech, артефакты раскрываются
+# по клику. См. doc/tech/conventions/review.md § Инструментарий.
+doc/tasks/iterations/** linguist-generated=true

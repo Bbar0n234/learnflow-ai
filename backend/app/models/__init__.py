@@ -1,4 +1,5 @@
 from app.models.artifact import Artifact
+from app.models.artifact_blob import ArtifactBlob
 from app.models.base import Base
 from app.models.mcp_server import (
     MCPServerDisable,
@@ -18,6 +19,7 @@ __all__ = [
     "Project",
     "ThreadView",
     "Artifact",
+    "ArtifactBlob",
     "RefreshToken",
     "UserSettings",
     "ProjectSettings",

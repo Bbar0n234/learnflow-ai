@@ -16,3 +16,19 @@ repos:
         files: ^backend/
         pass_filenames: false
         args: [backend/]
+
+      # Architecture gate (feat-008). import-linter needs PYTHONPATH so Grimp can
+      # locate the backend/siem source roots (not pip-installed as packages).
+      - id: import-linter
+        name: import-linter (layer contracts)
+        entry: bash -c 'PYTHONPATH=backend:services/siem-service uv run lint-imports'
+        language: system
+        pass_filenames: false
+        files: \.(py|toml)$
+
+      - id: arch-checker-ast
+        name: arch-checker (AST asserts)
+        entry: uv run python -m arch_checker
+        language: system
+        pass_filenames: false
+        files: \.py$

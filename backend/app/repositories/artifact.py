@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.artifact import Artifact
@@ -35,13 +35,25 @@ class ArtifactRepository:
     async def get_by_id(self, artifact_id: uuid.UUID) -> Artifact | None:
         return await self._session.get(Artifact, artifact_id)
 
-    async def list_by_project(self, project_id: uuid.UUID) -> list[Artifact]:
+    async def list_by_project(
+        self, project_id: uuid.UUID, *, limit: int = 50, offset: int = 0
+    ) -> list[Artifact]:
         result = await self._session.execute(
             select(Artifact)
             .where(Artifact.project_id == project_id)
             .order_by(Artifact.created_at.desc())
+            .limit(limit)
+            .offset(offset)
         )
         return list(result.scalars().all())
+
+    async def count_by_project(self, project_id: uuid.UUID) -> int:
+        result = await self._session.execute(
+            select(func.count())
+            .select_from(Artifact)
+            .where(Artifact.project_id == project_id)
+        )
+        return result.scalar_one()
 
     async def set_message_id(
         self, artifact_ids: list[uuid.UUID], message_id: str

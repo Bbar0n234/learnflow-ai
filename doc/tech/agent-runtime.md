@@ -31,7 +31,7 @@ graph TD
 | Метод | Назначение |
 |-------|------------|
 | `stream(thread_id, content, project_id, user_id, session?, model_config?)` | Генерация ответа, поток `StreamEvent` |
-| `get_history(thread_id)` | История сообщений (HumanMessage + AIMessage без tool_calls) |
+| `get_history(thread_id)` | История чата: один `Message` на ход (user или assistant), ассистентский `Message` несёт `parts` — typed-разбор хода (`reasoning`/`text`/`tool_call`), собранный из чекпоинта, → [streaming.md § История: typed parts](streaming.md#история-typed-parts) |
 | `get_last_ai_message_id(thread_id)` | ID последнего ответа агента (для привязки артефактов) |
 | `cancel(thread_id)` | Отмена генерации через `asyncio.Event` |
 
@@ -60,13 +60,13 @@ ChatService
 graph LR
     START(("START")) --> AGENT["agent node"]
     AGENT --> COND{tool_calls?}
-    COND -->|Да| TOOLS["tools (ToolNode)"]
+    COND -->|Да| TOOLS["tools (ToolNode<br>под guard-обёрткой)"]
     TOOLS --> AGENT
     COND -->|Нет| END_(("END"))
 ```
 
 - **agent node** — основной узел: compaction → system message assembly → trimming → LLM call
-- **tools** — встроенный `ToolNode`, выполнение tool calls
+- **tools** — встроенный `ToolNode` под обёрткой `execute_tools_guarded`: исполняет вызовы хода по одному (параллельно), на каждом результате отрабатывает чекпоинт `TOOL_RESULT` и сам отчитывается о завершённом вызове в custom-канал — выход узла читают и провод, и чекпоинтер, поэтому непроверенный результат не покидает узел (→ [ADR-030](adr/ADR-030-per-call-tool-result-guard.md))
 - **tools_condition** — встроенный router: AIMessage с tool_calls → tools node, иначе → END
 
 **Context schema:** `AgentContext(project_id, user_id, canary_token, user_installed_tool_names)` — передаётся через параметр `context=` в `astream()`, доступен в nodes и tools через `runtime.context`. `canary_token` вычисляется для каждого запроса; `user_installed_tool_names` нужен prompt-builder'у для дифференциации built-in / user-installed MCP-инструментов (→ [architecture.md](../security/architecture.md)).
@@ -77,17 +77,22 @@ graph LR
 
 **Invocation:**
 ```
-graph.astream(input_msg, config, stream_mode=["messages", "updates"], context=context)
+graph.astream(input_msg, config, stream_mode=["messages", "updates", "custom"], context=context)
 ```
-- `stream_mode=["messages"]` — потоковые токены от LLM → `text_chunk` SSE events
-- `stream_mode=["updates"]` — результаты узлов → `tool_start`, `tool_end`, `artifact_created` events
+- `stream_mode=["messages"]` — сырые чанки LLM → `text_chunk` / `reasoning_chunk` / ранние `tool_call_started` / `tool_call_args` (`TokenChunkMapper`)
+- `stream_mode=["updates"]` — результаты узлов → `tool_call_cancelled` (`StreamEventMapper`); `tool_result` / `artifact_created` идут повызовно в custom-канал прямо из узла `tools`
+- `stream_mode=["custom"]` — writer рана из tools/узлов графа → `agent_event` (доменные записи, факт компакции), повызовные `tool_result` / `artifact_created` узла `tools` и, для инструментов субагента, те же lifecycle-события с `parent_call_id`
+
+Полный контракт событий и их payload'ы — [streaming.md](streaming.md).
 
 ## System Message
 
 Собирается секционно (Python, не Jinja-template) на каждый вызов agent node. Структура отражает trust- и disclosure-границы; маркировка обёртками — вход в [Security](#security):
 
 ```
-<system_instructions>           ← hardening preamble + canary token
+<system_instructions>           ← слот {{ security_preamble_section }}: hardening preamble
+                                   (prompt_fragments.yaml) + canary token; пусто при
+                                   LLM_DEFENSE_ENABLED=false
 [base prose]                    ← PromptProvider (→ prompt-management.md)
 <tools>
   <internal_tools>              ← capability-only описания internal non-MCP tools
@@ -102,7 +107,7 @@ graph.astream(input_msg, config, stream_mode=["messages", "updates"], context=co
 
 | Раздел | Источник | Область | Обновление |
 |--------|----------|--------|-----------|
-| System instructions | hardening preamble + base prose из Langfuse | Global | Canary token per-request |
+| System instructions | hardening preamble (`configs/prompt_fragments.yaml`) + base prose из Langfuse | Global | Canary token per-request; гасится целиком при `LLM_DEFENSE_ENABLED=false` |
 | Base prose | PromptProvider (Langfuse → file fallback) | Global | При изменении в Langfuse (SDK cache TTL) |
 | Tools (3 подсекции) | static + agent.yaml + DB (per-user MCP) | Mixed | На сборку prompt'а |
 | Custom instructions | LangGraph Store | Per-user | При сохранении через REST API |
@@ -128,11 +133,13 @@ graph TD
 
     subgraph "JIT (on-demand by agent)"
         KSF["Full KS section"]
-        SKL["Full SKILL.md"]
+        SKL["SKILL.md / модуль скилла<br/>+ Skill Context index"]
+        SCD["Full Skill Context document"]
     end
 
     KSI -.->|"Agent sees index"| KSF
     SI -.->|"Agent sees index"| SKL
+    SKL -.->|"Agent sees context index"| SCD
 ```
 
 | Уровень | Содержимое | Когда | Размер |
@@ -140,7 +147,8 @@ graph TD
 | Pre-loaded | Custom Instructions, User Memory | Каждый вызов agent node | Variable (user-dependent) |
 | Pre-loaded | Knowledge Sphere Index, Skills Index | Каждый вызов agent node | ~500–1500 tokens |
 | JIT | Полная секция Knowledge Sphere | `get_section(section_id)` | Variable |
-| JIT | Полный SKILL.md | `load_skill(skill_name)` | Variable |
+| JIT | SKILL.md (+ автосписок файлов, + Skill Context index) или модуль скилла | `load_skill(skill_name, file=None)` | Variable |
+| JIT | Полный документ Skill Context | `get_skill_context(skill_name, key)` | Variable |
 | Managed | Message history | Trimming + compaction | До `max_tokens` budget |
 
 Агент видит индексы в системном промпте и решает, какой контекст подтянуть для текущей задачи. Полные данные загружаются только когда нужны — минимизирует расход контекстного окна.
@@ -179,7 +187,7 @@ flowchart TD
 
 ## Tools
 
-Четыре категории, объединяются при компиляции графа. Internal non-MCP tools — PROTECTED implementation surface: их имена, параметры и схемы не должны попадать в final output (→ [security/architecture.md](../security/architecture.md)).
+Пять категорий, объединяются при компиляции графа. Internal non-MCP tools — PROTECTED implementation surface: их имена, параметры и схемы не должны попадать в final output (→ [security/architecture.md](../security/architecture.md)).
 
 ### Internal Tools
 
@@ -197,8 +205,11 @@ flowchart TD
 | Tool | Назначение |
 |------|------------|
 | `create_artifact` | Сохранить результат работы агента как артефакт проекта |
+| `generate_image` | Сгенерировать изображение через OpenRouter Image API и сохранить как артефакт `type="image"` (bytes — в `artifact_blobs`, [backend.md](backend.md#persistence)) |
 
-`response_format="content_and_artifact"` — tool возвращает текстовый ответ и metadata артефакта (`id`, `title`, `type`). Metadata передаётся через SSE как `artifact_created` event.
+`response_format="content_and_artifact"` — оба tool'а возвращают текстовый ответ и metadata артефакта (`id`, `title`, `type`). Metadata передаётся через SSE как `artifact_created` event ([streaming.md](streaming.md)).
+
+`generate_image(prompt, title, aspect_ratio?, resolution?)` разделяет параметры «творческое агенту, операционное оператору»: агент задаёт содержание (`prompt`) и композицию (`aspect_ratio`, `resolution`); модель провайдера и дефолт-параметры вызова — в конфиге (секция `image` в `agent.yaml`, см. [Configuration](#configuration)). Изображение в контекст агента не возвращается — ToolMessage текстовый (title, id, resolution, cost); байты уходят в БД мимо истории диалога. Стоимость вызова учитывается в Langfuse вручную, не через `CallbackHandler` — [observability.md](observability.md#model-definitions--cost-tracking).
 
 **User Memory** — автономное управление фактами о пользователе (подробнее — [user-memory.md](user-memory.md)):
 
@@ -209,11 +220,25 @@ flowchart TD
 
 Агент решает самостоятельно, когда сохранять информацию. Память кросс-проектна — доступна во всех чатах пользователя.
 
+**Skill Context** — per-user документы, привязанные к конкретному скиллу (подробнее — [user-memory.md § Skill Context](user-memory.md#skill-context)):
+
+| Tool | Назначение |
+|------|------------|
+| `get_skill_context` | Получить полное содержимое документа по скиллу и ключу |
+| `save_skill_context` | Сохранить/обновить документ (upsert по ключу) |
+| `delete_skill_context` | Удалить документ |
+
 **Skills:**
 
 | Tool | Назначение |
 |------|------------|
-| `load_skill` | Загрузить полный SKILL.md по имени |
+| `load_skill` | Загрузить SKILL.md по имени (+ автосписок файлов скилла, + индекс Skill Context), либо конкретный файл скилла по относительному пути |
+
+**Subagents:**
+
+| Tool | Назначение |
+|------|------------|
+| `run_subagent` | Делегировать изолированную подзадачу субагенту (`agent_type`, `task`, `input_artifact_ids?`) — подробнее в [Субагенты](#субагенты) |
 
 ### External Tools (MCP)
 
@@ -231,12 +256,17 @@ Skill — модуль специализированных знаний, заг
 
 **Формат:** директория с `SKILL.md` (YAML frontmatter `name` + `description`, затем контент). Совместим с Claude Code skill format.
 
+Скилл может быть многофайловым: `SKILL.md` — точка входа, рядом с ним — произвольные вспомогательные модули (любое расширение, вложенные поддиректории), которые скилл подгружает по мере необходимости (progressive disclosure).
+
 **Lifecycle:**
 1. **Discovery** (при старте): `scan_skills_index()` сканирует `skills/`, парсит frontmatter → формирует Skills Index
 2. **Index** (в system message): агент видит список `name: description`
-3. **Loading** (JIT): агент вызывает `load_skill(skill_name)` → полный контент SKILL.md в контексте
+3. **Loading** (JIT): `load_skill(skill_name)` без `file` → содержимое `SKILL.md`, а следом — автосписок остальных файлов скилла (футер вида `Skill files (load with load_skill(skill_name, file)): - <path>`). Список строится рекурсивным обходом директории скилла, исключает сам `SKILL.md` и dotfiles (скрытым считается любой сегмент относительного пути, начинающийся с `.`, не только имя файла), пути — отсортированные и относительные к директории скилла. В список попадают только записи, чей путь разрешается внутрь директории скилла (`resolve()` + `is_relative_to(skill_dir)`) — симлинки, ведущие наружу, в автосписке не показываются, так как второй слой валидации `file` их всё равно отклонит при загрузке. Для однофайлового скилла список пуст и футер не добавляется — ответ не отличается от загрузки одного `SKILL.md`. Автосписок — робастность progressive disclosure: вспомогательные модули видны агенту, даже если ссылка на них потерялась в тексте `SKILL.md`. Тем же вызовом (`file=None`) дописывается индекс Skill Context (`key: description`) — только если для этого скилла и пользователя есть хотя бы один документ; пустой namespace или запрос конкретного `file` вывод не меняют. Подробнее о механизме — [user-memory.md § Skill Context](user-memory.md#skill-context).
+4. **Module loading** (JIT): `load_skill(skill_name, file)` → содержимое конкретного файла из автосписка. Файл не найден, либо `file` отклонён валидацией пути (см. «Безопасность» ниже) → ошибка со списком доступных файлов скилла (тот же автосписок) — единообразная наводящая диагностика для всех отказных веток. Содержимое, не декодируемое как UTF-8 (бинарный файл), → ошибка вместо контента — канал tool-результата текстовый.
 
-**Безопасность:** валидация имени `^[a-z0-9_-]+$`, проверка `is_relative_to(skills_dir)` — защита от path traversal.
+**Безопасность:** двухслойная валидация на обоих уровнях пути.
+- `skill_name`: имя проверяется паттерном `^[a-z0-9_-]+$`, итоговый путь до `SKILL.md` — проверкой `is_relative_to(skills_dir)`.
+- `file` (путь модуля внутри директории скилла): первый слой — allowlist-паттерн по `/`-сегментам пути (`^[\w.-]+$`, юникодный `\w` — не-ASCII имена модулей проходят; сегмент не может быть пустым, `.` или `..`), отклоняющий абсолютные пути и `..`-traversal до какого-либо обращения к файловой системе; второй слой — `resolve()` + `is_relative_to(skill_dir)`, симметрично проверке `skill_name`.
 
 ## MCP Integration
 
@@ -284,9 +314,36 @@ CRUD и каскадная видимость — [backend.md](backend.md).
 
 **Graceful degradation:** недоступный MCP-сервер → skip + warning в логах, остальные tools работают.
 
+## Субагенты
+
+Паттерн **subagent-as-tool**: основной агент делегирует изолированную подзадачу отдельному скомпилированному `StateGraph`, вызываемому `ainvoke` изнутри обычного tool `run_subagent(agent_type, task, input_artifact_ids?)` — наружу возвращается только результат. Чистота контекста не требует отдельного механизма фильтрации: канал в субагента — аргументы tool-вызова, а не общий state, поэтому история сессии физически туда не попадает. Полное обоснование паттерна, отклонённые альтернативы (`langgraph-supervisor`/`langgraph-swarm`/`deepagents`, generic-tool без реестра, tool-per-role) и sync v1 vs async v2 — [ADR-028](adr/ADR-028-product-subagents.md).
+
+```mermaid
+flowchart LR
+    NODE["agent node"] -->|tool_calls| TOOL["tool: run_subagent"]
+    TOOL -->|"agent_type, task,<br/>input_artifact_ids?"| RUNNER["SubagentRunner"]
+    RUNNER -->|"ainvoke,<br/>tags: [subagent]"| SGRAPH["Subagent StateGraph<br/>(ReAct)"]
+    SGRAPH -->|result text| RUNNER
+    RUNNER -->|ToolMessage| NODE
+```
+
+**Слоистость** (`backend/app/agent/subagents/`, `backend/app/agent/tools/subagents.py`):
+
+- **`SubagentSpec`** — декларация типа: `name`, `description` (видна модели при выборе tool'а), `prompt` (имя в Langfuse-контуре, → [prompt-management.md](prompt-management.md)), `model` (опциональный override дефолтной модели), `tools` (непустой список имён из built-in пула), `persistence` (`none | inherit`). Реестр — секция `subagents` в `configs/agent.yaml` (`llm`-дефолт + `registry`). Текущий реестр — три типа с общим firecrawl-toolset (`firecrawl_search`/`firecrawl_scrape`/`firecrawl_extract`): `judge` (независимый ревьюер с вердиктом-с-evidence; веб-инструменты — для выборочного фактчека), `web-research` (ресёрчер с выжимкой источников), `general-purpose` (generic изолированная подзадача).
+- **`SubagentRunner`** — резолвит спеку по `agent_type`, строит модель (`spec.model` или `subagents.llm`), берёт промпт через `PromptProvider`, собирает вход, компилирует граф per-invoke и вызывает `ainvoke`. Неизвестный `agent_type` → ошибка со списком доступных типов. Инвариант: `run_subagent` исключается из собственного toolset субагента безусловно, независимо от содержимого спеки — рекурсия исключена на уровне Runner'а.
+- **tool `run_subagent`** — единственная точка, которую видит основной граф; description собирается на старте из реестра (паттерн Skills Index — `тип: описание` на строку). Опциональный `input_artifact_ids` резолвится кодом, не моделью: артефакты подтягиваются через `ArtifactRepository` (скоуп по `project_id` из контекста вызова), каждый — в `HumanMessage` в XML-обёртке `document` (`configs/prompt_fragments.yaml`) с атрибуцией `id`/`title`. Разрешение — всё или ничего: любой чужой/несуществующий id обрывает вызов целиком (error-строка с перечнем именно проблемных id), частичный вход не собирается никогда.
+
+**Граф субагента** (`build_subagent_graph`) — всегда один и тот же ReAct-граф `START → llm → (tools_condition) → tools → llm/END`; любой субагент — ReAct-агент, single-turn как отдельная форма не существует. Прогон без tool-вызовов — вырожденный случай того же графа: один super-step, `tools_condition` уводит в END. Строительные блоки — те же, что в основном графе: `ToolNode(tools, handle_tool_errors=...)` + `tools_condition`. System message — только промпт спеки (без KS/memory/skills/compaction, без trust-boundary обёрток). Guard-проверки переиспользуются из общего модуля-коллаборатора `backend/app/agent/tool_guards.py` и стоят там же, где в основном графе: `TOOL_CALL_ARG` — в llm-узле, на только что полученном ответе модели; `TOOL_RESULT` — в узле `tools`, повызовно, до отчёта о вызове и до возврата результатов (`execute_tools_guarded`), потому что выход узла идёт и в чекпоинтер, и на провод (→ [ADR-030](adr/ADR-030-per-call-tool-result-guard.md)). Семантика та же fail-safe redact, что в основном графе (заражённый результат → заглушка, цикл продолжает; инъекция в аргументах → `tool_calls` срезаются, граф уходит в END); пока в диалоге нет tool-вызовов, проверки структурно бездействуют. `recursion_limit` ограничивает цикл (invoke-time ключ `RunnableConfig`, не compile-time параметр графа); значение — операционный knob `subagents.recursion_limit` в `configs/agent.yaml` (дефолт 10, общий для реестра).
+
+**Пул tools субагента** — `internal_tools + built-in MCP` (собирается в `main.py` при старте), **без** user-installed MCP — trust-граница между продуктовыми и пользовательскими интеграциями (→ [security/architecture.md](../security/architecture.md)). Имена в `spec.tools` резолвятся против этого пула fail-fast при старте приложения: неизвестное имя — как и пустой `tools` (субагент обязан объявить непустой toolset) — валит boot, как и любая другая опечатка в `configs/*.yaml`.
+
+**Persistence** — `none` (v1, все три типа): `compile(checkpointer=False)`, субагент полностью stateless между вызовами. `inherit` — субграф наследует PG checkpointer родителя под отдельным `checkpoint_ns`; свойство архитектуры, доступное сменой одного поля спеки, не задействовано ни одним v1-типом.
+
+**Наблюдаемость** — запуски видны в Langfuse вложенными span'ами независимо от режима `persistence` (callbacks пробрасываются во вложенный граф автоматически через contextvars, → [observability.md](observability.md)). Токены субагента (сырой LLM-текст) в чат не рисуются: чанки `stream_mode="messages"`, помеченные тегом `subagent` в metadata, отфильтровываются в стрим-цикле до аккумуляции `full_response` и до canary/mid-stream проверок. Шаги субагента при этом не немы: его вызов инструмента даёт те же `tool_call_started`/`tool_call_args`/`tool_result`/`agent_event`, что и вызов инструмента основным агентом, с `parent_call_id` = `call_id` вызова `run_subagent`. Отчётность разнесена по границе «что уже проверено»: анонс вызова эмитит прокси вокруг инструмента (`SubagentRunner`, `_LifecycleEmittingTool`), результат — узел `tools` субагентского графа, после guard'а и санитайзера ошибок `ToolNode` — механизм и лимиты этой live-ленты → [streaming.md § Вложенность субагента](streaming.md#вложенность-субагента). Промпты трёх типов — в том же Langfuse-контуре, что остальные системные промпты (`prompts.yaml` + seed + file fallback) — → [prompt-management.md](prompt-management.md).
+
 ## Security
 
-`SecurityGuard` проверяет данные на семи checkpoint'ах: четыре в runtime (user input до графа, tool result до LLM, tool call args после ответа, final output на стриме) и три на add-time write paths в service-слое (MCP-регистрация, custom instructions, KS write через REST). При INJECTION — `security_block` SSE event и блокировка thread'а в runtime, или HTTP 422 на add-time. Подробнее — [security/architecture.md](../security/architecture.md), обоснование — [ADR-017](adr/ADR-017-prompt-injection-defense.md), [ADR-022](adr/ADR-022-protected-disclosable-boundary.md), [ADR-023](adr/ADR-023-two-level-detection.md), [ADR-024](adr/ADR-024-streaming-security-guard.md).
+`SecurityGuard` проверяет данные на восьми checkpoint'ах: четыре в runtime (user input до графа, tool result до LLM, tool call args после ответа, final output на стриме) и четыре на add-time write paths в service-слое (MCP-регистрация, custom instructions, KS write через REST, skill context write через REST). При INJECTION — `security_block` SSE event и блокировка thread'а в runtime, или HTTP 422 на add-time. Подробнее — [security/architecture.md](../security/architecture.md), обоснование — [ADR-017](adr/ADR-017-prompt-injection-defense.md), [ADR-022](adr/ADR-022-protected-disclosable-boundary.md), [ADR-023](adr/ADR-023-two-level-detection.md), [ADR-024](adr/ADR-024-streaming-security-guard.md).
 
 Топология графа из-за защиты не меняется: проверки inline в `agent_node` и в runner, `tools_condition` сохранён.
 
@@ -328,7 +385,7 @@ Langfuse выполняет две роли: tracing (observability) + prompt ma
 | `configs/security.yaml` | Guard model, детекторы, per-checkpoint config, user-facing messages | Base defaults для security |
 | `configs/pricing.yaml` | Model pricing для cost tracking в Langfuse (shared agent + guard) | — |
 | `configs/prompts.yaml` | Реестр промптов (`name → source файл`) | — |
-| `configs/prompt_fragments.yaml` | XML-обёртки и заголовки секций system message | — |
+| `configs/prompt_fragments.yaml` | Hardening-преамбула, XML-обёртки и заголовки секций system message; security-ключи гасятся при `LLM_DEFENSE_ENABLED=false` | — |
 | `configs/error_messages.yaml` | Нормализованные сообщения SSE error events и заглушки | — |
 | `configs/prompts/*.txt` | Seed-файлы промптов | Seed → Langfuse |
 | Langfuse | Runtime промпты, model config в prompt metadata | Runtime override |
@@ -342,7 +399,10 @@ Langfuse выполняет две роли: tracing (observability) + prompt ma
 | `context` | max_tokens, compaction_threshold_ratio, recent_messages_to_keep |
 | `prompt` | Путь к файлу system prompt (seed) |
 | `summarization` | Модель суммаризации, max_summary_tokens |
+| `subagents` | Реестр субагентов: LLM-дефолт (`llm`) + `registry` спек (`name`, `description`, `prompt`, `model?`, `tools`, `persistence`) — → [Субагенты](#субагенты) |
 | `mcp_servers` | Built-in MCP-серверы: transport, URL, API keys, whitelist инструментов |
+| `image` | Модель генерации изображений (`model`) + произвольные дефолт-параметры вызова (`params`, прокидываются в запрос as-is) — обязательная секция, без дефолта |
+| `title` | Модель генерации auto-title чата (`model`) + `extra_body` — обязательная секция, без дефолта, по той же форме, что `llm`/`summarization`. Reasoning выключен (`reasoning.enabled: false`): на однострочном заголовке он не улучшает результат, но вчетверо увеличивает латентность, из-за чего название не успевает доехать в стрим |
 
 Security-конфиги, model pricing и реестр промптов вынесены отдельными файлами — детали в соответствующих документах ([security/architecture.md](../security/architecture.md), [observability.md](observability.md), [prompt-management.md](prompt-management.md)).
 
@@ -351,4 +411,5 @@ Security-конфиги, model pricing и реестр промптов выне
 Application-level настройки — `backend/app/config.py` через Pydantic Settings. Ключевые env vars:
 - `MCP_ENCRYPTION_KEY` — Fernet-ключ для шифрования API-ключей пользовательских MCP-серверов
 - `LANGFUSE_PROMPT_LABEL` — label для получения промптов (по умолчанию: `development`)
-- `CANARY_SECRET` — HMAC secret для canary token (пустой = canary отключён + warning)
+- `LLM_DEFENSE_ENABLED` — операционный тумблер inline LLM-защиты: `SecurityGuard` (детекторы + классификатор) и security-часть промпта (canary, hardening-преамбула, обёртки границы доверия). Дефолт `true`, в проде `false`; читается один раз в lifespan → рестарт контейнера для переключения. Подробнее — [security/architecture.md](../security/architecture.md)
+- `CANARY_SECRET` — HMAC secret для canary token; при включённой защите пустой = canary отключён + warning, при `LLM_DEFENSE_ENABLED=false` секрет не используется вовсе

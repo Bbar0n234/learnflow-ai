@@ -18,6 +18,9 @@ RATE_LIMIT_LOGIN_EXCEEDED = "rate_limit.login.exceeded"
 RATE_LIMIT_REFRESH_EXCEEDED = "rate_limit.refresh.exceeded"
 RATE_LIMIT_REGISTER_EXCEEDED = "rate_limit.register.exceeded"
 
+# Agent security guard events - cross-checkpoint degradation
+AGENT_GUARD_DEGRADED = "agent.guard.degraded"
+
 # Agent security guard events - input checkpoint
 AGENT_GUARD_INPUT_CLASSIFIER_INJECTION = "agent.guard.input.classifier_injection"
 AGENT_GUARD_INPUT_CLASSIFIER_SUSPICIOUS = "agent.guard.input.classifier_suspicious"
@@ -54,6 +57,8 @@ EventType = Literal[
     "rate_limit.login.exceeded",
     "rate_limit.refresh.exceeded",
     "rate_limit.register.exceeded",
+    # Agent guard - cross-checkpoint degradation
+    "agent.guard.degraded",
     # Agent guard - input
     "agent.guard.input.classifier_injection",
     "agent.guard.input.classifier_suspicious",

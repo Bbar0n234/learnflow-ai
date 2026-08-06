@@ -5,10 +5,10 @@ from datetime import datetime
 from typing import Any, Protocol
 
 import structlog
-from fastapi import HTTPException
 
 from app.agent.security.guard import SecurityGuard
 from app.agent.security.types import Checkpoint, Verdict
+from app.services.exceptions import SecurityPolicyViolationError
 
 logger = structlog.get_logger()
 
@@ -68,16 +68,12 @@ class LangGraphUserMemoryService:
                         )
                     },
                 )
-                raise HTTPException(
-                    status_code=422,
-                    detail={
-                        "error": "security_policy_violation",
-                        "reason": (
-                            result.detection_layer.value
-                            if result.detection_layer
-                            else "custom_instructions_write"
-                        ),
-                    },
+                raise SecurityPolicyViolationError(
+                    reason=(
+                        result.detection_layer.value
+                        if result.detection_layer
+                        else "custom_instructions_write"
+                    )
                 )
         await self._store.aput(
             ("user", user_id, "instructions"),

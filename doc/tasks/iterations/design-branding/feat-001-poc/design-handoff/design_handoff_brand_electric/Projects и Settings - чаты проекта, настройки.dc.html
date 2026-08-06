@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400..700&family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    body { margin: 0; background: #E9E6E0; }
+  </style>
+</helmet>
+
+<div style="min-height: 100vh; background: #E9E6E0; font-family: 'Instrument Sans', sans-serif; color: #2A2722; padding: 56px 40px 80px; display: flex; flex-direction: column; align-items: center; gap: 56px;">
+
+  <!-- ============ INTRO ============ -->
+  <div data-screen-label="Интро — Projects и Settings" style="width: 100%; max-width: 1400px; display: flex; flex-direction: column; gap: 20px;">
+    <div style="font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: #8B857A;">LearnFlowAI · feat-007 · «Электрик» · остаточные экраны для bundle</div>
+    <h1 style="margin: 0; font-size: 40px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1;">Проект (Чаты) · Настройки проекта · Настройки пользователя</h1>
+    <div style="background: #FFFFFF; border-radius: 14px; padding: 24px 28px; font-size: 14.5px; line-height: 1.6; color: #4A463E;">По информационной архитектуре брифа: страница проекта — имя, input нового чата, табы Чаты / Сфера / Артефакты / Настройки; настройки проекта — model override и MCP-серверы проекта; настройки пользователя (/settings) — модель по умолчанию, custom instructions, память агента, MCP-серверы. Всё в светлой теме; тёмная — по правилам dark-токенов.</div>
+  </div>
+
+  <!-- ============ PROJECT CHATS ============ -->
+  <div data-screen-label="Экран — Проект, вкладка Чаты" style="width: 100%; max-width: 1400px; display: flex; flex-direction: column; gap: 16px;">
+    <div style="display: flex; align-items: baseline; gap: 14px;">
+      <span style="font-size: 13px; font-weight: 600; letter-spacing: 0.1em; color: #7434F4;">P1</span>
+      <h2 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.01em;">Проект — вкладка «Чаты»</h2>
+      <span style="font-size: 14px; color: #8B857A;">чат создаётся только отсюда — input нового чата наверху</span>
+    </div>
+    <div style="background: #FFFFFF; border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 20px; overflow-x: auto;">
+      <div data-screen-label="Макет P1 — чаты проекта" style="display: flex; width: 1352px; min-width: 1352px; height: 832px; background: #FAF7F1; border: 1px solid #E2DCD0; border-radius: 14px; overflow: hidden; font-family: 'Instrument Sans', sans-serif; color: #2E2A24;">
+        <div style="width: 252px; flex-shrink: 0; background: #F1EDE3; border-right: 1px solid #E2DCD0; display: flex; flex-direction: column; padding: 18px 14px 14px; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 9px; padding: 0 6px;">
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #A47CFA 0%, #7434F4 62%, #4C16B8 100%);"></span>
+            <span style="font-family: 'Source Serif 4', serif; font-size: 19px; font-weight: 600;">LearnFlow</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; align-items: center; justify-content: center; height: 38px; border-radius: 10px; background: #7434F4; color: #F6F1FF; font-size: 14px; font-weight: 600;">+ Новый чат</div>
+            <div style="display: flex; align-items: center; justify-content: center; height: 36px; border-radius: 10px; border: 1px solid #D8D1C2; color: #5A5446; font-size: 13.5px; font-weight: 500;">Новый проект</div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 0;">
+            <div style="font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: #9D9582; padding: 0 8px 4px;">Проекты</div>
+            <div style="display: flex; align-items: center; gap: 8px; padding: 8px 8px; border-radius: 9px; background: #FAF7F1; border: 1px solid #E2DCD0; font-size: 13.5px; font-weight: 600;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #7434F4;"></span>Event-Driven доклад</div>
+            <div style="display: flex; align-items: center; gap: 8px; padding: 8px 8px; border-radius: 9px; font-size: 13.5px; color: #5A5446;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #C5A9F9;"></span>Курс: Go для джунов</div>
+            <div style="display: flex; align-items: center; gap: 8px; padding: 8px 8px; border-radius: 9px; font-size: 13.5px; color: #5A5446;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #C8C0AE;"></span>База: System Design</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 8px 0; border-top: 1px solid #E2DCD0;">
+            <span style="width: 28px; height: 28px; border-radius: 50%; background: #D8D1C2; color: #5A5446; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600;">АК</span>
+            <span style="font-size: 13.5px; font-weight: 500;">Алексей К.</span>
+          </div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+          <div style="flex-shrink: 0; display: flex; flex-direction: column; padding: 18px 28px 0; border-bottom: 1px solid #ECE6D8; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="font-family: 'Source Serif 4', serif; font-size: 22px; font-weight: 600;">Event-Driven доклад</span>
+              <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #5B21CE; background: #EFE7FE; border-radius: 999px; padding: 3px 10px;"><span style="width: 9px; height: 9px; border-radius: 50%; background: radial-gradient(circle at 38% 32%, #A47CFA 0%, #7434F4 60%, #4C16B8 100%);"></span>сфера v2.4.1 · растёт</span>
+              <span style="flex: 1;"></span>
+            </div>
+            <div style="display: flex; gap: 22px; font-size: 13.5px;">
+              <span style="padding-bottom: 10px; font-weight: 600; color: #7434F4; box-shadow: inset 0 -2px 0 #7434F4;">Чаты · 6</span>
+              <span style="padding-bottom: 10px; color: #8B8370; cursor: pointer;">Сфера</span>
+              <span style="padding-bottom: 10px; color: #8B8370; cursor: pointer;">Артефакты · 5</span>
+              <span style="padding-bottom: 10px; color: #8B8370; cursor: pointer;">Настройки</span>
+            </div>
+          </div>
+          <div style="flex: 1; min-height: 0; overflow: hidden; padding: 26px 36px 0; display: flex; justify-content: center;">
+            <div style="width: 100%; max-width: 760px; display: flex; flex-direction: column; gap: 20px;">
+              <div style="background: #FFFEFA; border: 1px solid #DCD5C6; border-radius: 15px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 2px 10px rgba(80, 70, 50, 0.06);">
+                <span style="font-size: 15px; color: #9D9582;">Новый чат в этом проекте — агент начнёт со сферы знаний…</span>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #5A5446; border: 1px solid #E2DCD0; border-radius: 999px; padding: 4px 11px; cursor: pointer;">Прикрепить</span>
+                  <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #5A5446; border: 1px solid #E2DCD0; border-radius: 999px; padding: 4px 11px; cursor: pointer;">Sonnet 4.5 ▾</span>
+                  <span style="flex: 1;"></span>
+                  <span style="width: 34px; height: 34px; border-radius: 50%; background: #7434F4; color: #F6F1FF; display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer;">↑</span>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 14px; background: #FFFEFA; border: 1px solid #E6E0D2; border-radius: 12px; padding: 14px 16px; cursor: pointer;">
+                  <span style="display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0;">
+                    <span style="font-family: 'Source Serif 4', serif; font-size: 15px; font-weight: 600;">Структура доклада</span>
+                    <span style="font-size: 12.5px; color: #8B8370; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Собрал структуру на ваших заметках и трёх прошлых обсуждениях из сферы…</span>
+                  </span>
+                  <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: #5B21CE; background: #EFE7FE; border-radius: 999px; padding: 3px 9px; white-space: nowrap;">2 артефакта</span>
+                  <span style="font-size: 12px; color: #9D9582; white-space: nowrap;">сегодня</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 14px; background: #FFFEFA; border: 1px solid #E6E0D2; border-radius: 12px; padding: 14px 16px; cursor: pointer;">
+                  <span style="display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0;">
+                    <span style="font-family: 'Source Serif 4', serif; font-size: 15px; font-weight: 500;">Сага vs оркестрация</span>
+                    <span style="font-size: 12.5px; color: #8B8370; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Сошлись на хореографии для нашего кейса; оркестрацию упоминаем как анти-паттерн…</span>
+                  </span>
+                  <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: #5B21CE; background: #EFE7FE; border-radius: 999px; padding: 3px 9px; white-space: nowrap;">+5 в сферу</span>
+                  <span style="font-size: 12px; color: #9D9582; white-space: nowrap;">вчера</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 14px; background: #FFFEFA; border: 1px solid #E6E0D2; border-radius: 12px; padding: 14px 16px; cursor: pointer;">
+                  <span style="display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0;">
+                    <span style="font-family: 'Source Serif 4', serif; font-size: 15px; font-weight: 500;">Хронометраж и демо</span>
+                    <span style="font-size: 12.5px; color: #8B8370; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Разметили блоки по минутам, на live-demo остаётся 8 минут с фолбэком…</span>
+                  </span>
+                  <span style="font-size: 12px; color: #9D9582; white-space: nowrap;">3 дня назад</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 14px; background: #FFFEFA; border: 1px solid #E6E0D2; border-radius: 12px; padding: 14px 16px; cursor: pointer;">
+                  <span style="display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0;">
+                    <span style="font-family: 'Source Serif 4', serif; font-size: 15px; font-weight: 500;">Разбор заметок с митапа</span>
+                    <span style="font-size: 12.5px; color: #8B8370; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Загрузили 14 страниц заметок, агент разложил их по будущим разделам сферы…</span>
+                  </span>
+                  <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: #5B21CE; background: #EFE7FE; border-radius: 999px; padding: 3px 9px; white-space: nowrap;">+12 в сферу</span>
+                  <span style="font-size: 12px; color: #9D9582; white-space: nowrap;">неделю назад</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PROJECT SETTINGS ============ -->
+  <div data-screen-label="Экран — Настройки проекта" style="width: 100%; max-width: 1400px; display: flex; flex-direction: column; gap: 16px;">
+    <div style="display: flex; align-items: baseline; gap: 14px;">
+      <span style="font-size: 13px; font-weight: 600; letter-spacing: 0.1em; color: #7434F4;">P2</span>
+      <h2 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.01em;">Проект — вкладка «Настройки»</h2>
+      <span style="font-size: 14px; color: #8B857A;">model override + MCP-серверы проекта</span>
+    </div>
+    <div style="background: #FFFFFF; border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 20px; overflow-x: auto;">
+      <div data-screen-label="Макет P2 — настройки проекта" style="display: flex; width: 1352px; min-width: 1352px; height: 832px; background: #FAF7F1; border: 1px solid #E2DCD0; border-radius: 14px; overflow: hidden; font-family: 'Instrument Sans', sans-serif; color: #2E2A24;">
+        <div style="width: 252px; flex-shrink: 0; background: #F1EDE3; border-right: 1px solid #E2DCD0; display: flex; flex-direction: column; padding: 18px 14px 14px; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 9px; padding: 0 6px;">
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #A47CFA 0%, #7434F4 62%, #4C16B8 100%);"></span>
+            <span style="font-family: 'Source Serif 4', serif; font-size: 19px; font-weight: 600;">LearnFlow</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; align-items: center; justify-content: center; height: 38px; border-radius: 10px; background: #7434F4; color: #F6F1FF; font-size: 14px; font-weight: 600;">+ Новый чат</div>
+            <div style="display: flex; align-items: center; justify-content: center; height: 36px; border-radius: 10px; border: 1px solid #D8D1C2; color: #5A5446; font-size: 13.5px; font-weight: 500;">Новый проект</div>
+          </div>
+          <div style="flex: 1;"></div>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 8px 0; border-top: 1px solid #E2DCD0;">
+            <span style="width: 28px; height: 28px; border-radius: 50%; background: #D8D1C2; color: #5A5446; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600;">АК</span>
+            <span style="font-size: 13.5px; font-weight: 500;">Алексей К.</span>
+          </div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+          <div style="flex-shrink: 0; display: flex; flex-direction: column; padding: 18px 28px 0; border-bottom: 1px solid #ECE6D8; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="font-family: 'Source Serif 4', serif; font-size: 22px; font-weight: 600;">Event-Driven доклад</span>
+              <span style="flex: 1;"></span>
+            </div>
+            <div style="display: flex; gap: 22px; font-size: 13.5px;">
+              <span style="padding-bottom: 10px; color: #8B8370; cursor: pointer;">Чаты · 6</span>
+              <span style="padding-bottom: 10px; color: #8B8370; cursor: pointer;">Сфера</span>
+              <span style="padding-bottom: 10px; color: #8B8370; cursor: pointer;">Артефакты · 5</span>
+              <span style="padding-bottom: 10px; font-weight: 600; color: #7434F4; box-shadow: inset 0 -2px 0 #7434F4;">Настройки</span>
+            </div>
+          </div>
+          <div style="flex: 1; min-height: 0; overflow: hidden; padding: 26px 36px 0; display: flex; justify-content: center;">
+            <div style="width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 16px;">
+              <div style="background: #FFFEFA; border: 1px solid #E6E0D2; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="display: flex; flex-direction: column; gap: 2px; flex: 1;">
+                    <span style="font-family: 'Source Serif 4', serif; font-size: 16px; font-weight: 600;">Модель проекта</span>
+                    <span style="font-size: 12.5px; color: #8B8370;">Переопределяет модель по умолчанию из настроек пользователя</span>
+                  </span>
+                  <span style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #2E2A24; border: 1px solid #D8D1C2; border-radius: 9px; padding: 8px 14px; cursor: pointer;">Sonnet 4.5 <span style="color: #9D9582;">▾</span></span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: #8B8370; border-top: 1px solid #ECE6D8; padding-top: 12px;">
+                  <span style="width: 6px; height: 6px; border-radius: 50%; background: #C5A9F9;"></span>
+                  По умолчанию у пользователя: Sonnet 4.5 — сейчас совпадает
+                </div>
+              </div>
+              <div style="background: #FFFEFA; border: 1px solid #E6E0D2; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 4px;">
+                <div style="display: flex; align-items: center; gap: 12px; padding-bottom: 10px;">
+                  <span style="display: flex; flex-direction: column; gap: 2px; flex: 1;">
+                    <span style="font-family: 'Source Serif 4', serif; font-size: 16px; font-weight: 600;">MCP-серверы проекта</span>
+                    <span style="font-size: 12.5px; color: #8B8370;">Инструменты агента, доступные только в этом проекте</span>
+                  </span>
+                  <span style="display: inline-flex; align-items: center; height: 32px; padding: 0 14px; border-radius: 9px; border: 1px solid #D8CCF2; color: #7434F4; font-size: 13px; font-weight: 600; cursor: pointer;">+ Добавить</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px; border-top: 1px solid #ECE6D8; padding: 12px 0;">
+                  <span style="width: 8px; height: 8px; border-radius: 50%; background: #4C9A6E;"></span>
+                  <span style="display: flex; flex-direction: column; gap: 1px; flex: 1;"><span style="font-size: 14px; font-weight: 500;">confluence-internal</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #9D9582;">3 инструмента · подключён</span></span>
+                  <span style="position: relative; width: 36px; height: 20px; border-radius: 999px; background: #7434F4; cursor: pointer;"><span style="position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; border-radius: 50%; background: #FFFFFF;"></span></span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px; border-top: 1px solid #ECE6D8; padding: 12px 0;">
+                  <span style="width: 8px; height: 8px; border-radius: 50%; background: #4C9A6E;"></span>
+                  <span style="display: flex; flex-direction: column; gap: 1px; flex: 1;"><span style="font-size: 14px; font-weight: 500;">github-repos</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #9D9582;">5 инструментов · подключён</span></span>
+                  <span style="position: relative; width: 36px; height: 20px; border-radius: 999px; background: #7434F4; cursor: pointer;"><span style="position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; border-radius: 50%; background: #FFFFFF;"></span></span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px; border-top: 1px solid #ECE6D8; padding: 12px 0 4px;">
+                  <span style="width: 8px; height: 8px; border-radius: 50%; background: #C8C0AE;"></span>
+                  <span style="display: flex; flex-direction: column; gap: 1px; flex: 1;"><span style="font-size: 14px; font-weight: 500; color: #8B8370;">conference-cfp</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #9D9582;">2 инструмента · выключен</span></span>
+                  <span style="position: relative; width: 36px; height: 20px; border-radius: 999px; background: #D8D1C2; cursor: pointer;"><span style="position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #FFFFFF;"></span></span>
+                </div>
+              </div>
+              <div style="background: #FFFEFA; border: 1px solid #E6E0D2; border-radius: 14px; padding: 18px 20px; display: flex; align-items: center; gap: 12px;">
+                <span style="display: flex; flex-direction: column; gap: 2px; flex: 1;">
+                  <span style="font-family: 'Source Serif 4', serif; font-size: 16px; font-weight: 600;">Имя проекта</span>
+                  <span style="font-size: 12.5px; color: #8B8370;">Видно в sidebar и в Recents</span>
+                </span>
+                <span style="font-size: 13.5px; color: #2E2A24; border: 1px solid #D8D1C2; border-radius: 9px; padding: 8px 14px; min-width: 220px;">Event-Driven доклад</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px; padding: 4px 20px 0;">
+                <span style="font-size: 13px; color: #B0573F; cursor: pointer;">Удалить проект…</span>
+                <span style="font-size: 12px; color: #9D9582;">сфера и артефакты будут удалены безвозвратно</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ USER SETTINGS ============ -->
+  <div data-screen-label="Экран — Настройки пользователя" style="width: 100%; max-width: 1400px; display: flex; flex-direction: column; gap: 16px;">
+    <div style="display: flex; align-items: baseline; gap: 14px;">
+      <span style="font-size: 13px; font-weight: 600; letter-spacing: 0.1em; color: #7434F4;">P3</span>
+      <h2 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.01em;">Настройки пользователя (/settings)</h2>
+      <span style="font-size: 14px; color: #8B857A;">модель по умолчанию · custom instructions · память агента · MCP</span>
+    </div>
+    <div style="background: #FFFFFF; border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 20px; overflow-x: auto;">
+      <div data-screen-label="Макет P3 — настройки пользователя" style="display: flex; width: 1352px; min-width: 1352px; height: 832px; background: #FAF7F1; border: 1px solid #E2DCD0; border-radius: 14px; overflow: hidden; font-family: 'Instrument Sans', sans-serif; color: #2E2A24;">
+        <div style="width: 252px; flex-shrink: 0; background: #F1EDE3; border-right: 1px solid #E2DCD0; display: flex; flex-direction: column; padding: 18px 14px 14px; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 9px; padding: 0 6px;">
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 35% 32%, #A47CFA 0%, #7434F4 62%, #4C16B8 100%);"></span>
+            <span style="font-family: 'Source Serif 4', serif; font-size: 19px; font-weight: 600;">LearnFlow</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; align-items: center; justify-content: center; height: 38px; border-radius: 10px; background: #7434F4; color: #F6F1FF; font-size: 14px; font-weight: 600;">+ Новый чат</div>
+            <div style="display: flex; align-items: center; justify-content: center; height: 36px; border-radius: 10px; border: 1px solid #D8D1C2; color: #5A5446; font-size: 13.5px; font-weight: 500;">Новый проект</div>
+          </div>
+          <div style="flex: 1;"></div>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 8px 8px 0; border-top: 1px solid #E2DCD0; background: #FAF7F1; border-radius: 9px; margin: 0 -2px; padding: 10px 8px;">
+            <span style="width: 28px; height: 28px; border-radius: 50%; background: #D8D1C2; color: #5A5446; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600;">АК</span>
+            <span style="font-size: 13.5px; font-weight: 600;">Алексей К.</span>
+          </div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+          <div style="height: 58px; flex-shrink: 0; display: flex; align-items: center; gap: 14px; padding: 0 28px; border-bottom: 1px solid #ECE6D8;">
+            <span style="font-family: 'Source Serif 4', serif; font-size: 20px; font-weight: 600;">Настройки</span>
+          </div>
+          <div style="flex: 1; min-height: 0; overflow: hidden; padding: 26px 36px 0; display: flex; justify-content: center;">
+            <div style="width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 16px;">
+              <div style="background: #FFFEFA; border: 1px solid #E6E0D2; border-radius: 14px; padding: 18px 20px; display: flex; align-items: center; gap: 12px;">
+                <span style="display: flex; flex-direction: column; gap: 2px; flex: 1;">
+                  <span style="font-family: 'Source Serif 4', serif; font-size: 16px; font-weight: 600;">Модель по умолчанию</span>
+                  <span style="font-size: 12.5px; color: #8B8370;">Для новых чатов; проект может переопределить</span>
+                </span>
+                <span style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #2E2A24; border: 1px solid #D8D1C2; border-radius: 9px; padding: 8px 14px; cursor: pointer;">Sonnet 4.5 <span style="color: #9D9582;">▾</span></span>
+              </div>
+              <div style="background: #FFFEFA; border: 1px solid #E6E0D2; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px;">
+                <span style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="font-family: 'Source Serif 4', serif; font-size: 16px; font-weight: 600;">Custom instructions</span>
+                  <span style="font-size: 12.5px; color: #8B8370;">Агент учитывает их во всех проектах</span>
+                </span>
+                <div style="border: 1px solid #E2DCD0; border-radius: 10px; padding: 12px 14px; font-size: 13.5px; line-height: 1.6; color: #3C362C; min-height: 72px;">Я готовлю доклады и курсы для senior-аудитории. Пиши структурно, без воды; примеры — из реальных production-кейсов. Термины не переводи.</div>
+              </div>
+              <div style="background: #FFFEFA; border: 1px solid #E6E0D2; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 4px;">
+                <div style="display: flex; align-items: center; gap: 12px; padding-bottom: 8px;">
+                  <span style="display: flex; flex-direction: column; gap: 2px; flex: 1;">
+                    <span style="font-family: 'Source Serif 4', serif; font-size: 16px; font-weight: 600;">Память агента</span>
+                    <span style="font-size: 12.5px; color: #8B8370;">Что агент запомнил о вас между проектами — 14 записей</span>
+                  </span>
+                  <span style="position: relative; width: 36px; height: 20px; border-radius: 999px; background: #7434F4; cursor: pointer;"><span style="position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; border-radius: 50%; background: #FFFFFF;"></span></span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; border-top: 1px solid #ECE6D8; padding-top: 12px; font-size: 13px; color: #5A5446;">
+                  <span style="width: 6px; height: 6px; border-radius: 50%; background: #C5A9F9;"></span>
+                  «Предпочитает хореографию саг», «доклады по 40 минут», «демо всегда с фолбэком»…
+                  <span style="flex: 1;"></span>
+                  <span style="font-size: 12.5px; font-weight: 600; color: #7434F4; cursor: pointer; white-space: nowrap;">Просмотреть</span>
+                </div>
+              </div>
+              <div style="background: #FFFEFA; border: 1px solid #E6E0D2; border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 4px;">
+                <div style="display: flex; align-items: center; gap: 12px; padding-bottom: 10px;">
+                  <span style="display: flex; flex-direction: column; gap: 2px; flex: 1;">
+                    <span style="font-family: 'Source Serif 4', serif; font-size: 16px; font-weight: 600;">MCP-серверы</span>
+                    <span style="font-size: 12.5px; color: #8B8370;">Доступны во всех проектах</span>
+                  </span>
+                  <span style="display: inline-flex; align-items: center; height: 32px; padding: 0 14px; border-radius: 9px; border: 1px solid #D8CCF2; color: #7434F4; font-size: 13px; font-weight: 600; cursor: pointer;">+ Добавить</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px; border-top: 1px solid #ECE6D8; padding: 12px 0 4px;">
+                  <span style="width: 8px; height: 8px; border-radius: 50%; background: #4C9A6E;"></span>
+                  <span style="display: flex; flex-direction: column; gap: 1px; flex: 1;"><span style="font-size: 14px; font-weight: 500;">web-search</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #9D9582;">1 инструмент · подключён</span></span>
+                  <span style="position: relative; width: 36px; height: 20px; border-radius: 999px; background: #7434F4; cursor: pointer;"><span style="position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; border-radius: 50%; background: #FFFFFF;"></span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ NEXT STEPS ============ -->
+  <div style="width: 100%; max-width: 1400px; background: #FFFFFF; border-radius: 14px; padding: 22px 28px; font-size: 14.5px; line-height: 1.6; color: #4A463E;">
+    <div style="font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #8B857A; margin-bottom: 8px;">Статус</div>
+    Это последние экраны итерации — дальше всё лежит в handoff bundle (папка design_handoff_brand_electric). Security/SIEM по брифу отдельно не прорабатывается — только общие токены.
+  </div>
+</div></div>
+</x-dc>
+</body>
+</html>

@@ -11,12 +11,12 @@ from app.api.schemas.auth import (
     UserResponse,
 )
 from app.api.schemas.chats import (
-    ChatCreate,
     ChatDetailResponse,
     ChatListResponse,
     ChatRecentItem,
     ChatRecentResponse,
     ChatResponse,
+    ChatUpdate,
     MessageOut,
 )
 from app.api.schemas.messages import CancelResponse, MessageCreate
@@ -38,12 +38,12 @@ __all__ = [
     "ArtifactListItem",
     "ArtifactListResponse",
     "CancelResponse",
-    "ChatCreate",
     "ChatDetailResponse",
     "ChatListResponse",
     "ChatRecentItem",
     "ChatRecentResponse",
     "ChatResponse",
+    "ChatUpdate",
     "MessageCreate",
     "MessageOut",
     "ProjectCreate",

@@ -1,25 +1,85 @@
 llm:
-  model: z-ai/glm-5
+  model: z-ai/glm-5.2
   extra_body:
-    include_reasoning: true
     reasoning:
-      effort: low
+      effort: medium
+      exclude: false
 context:
   max_tokens: 100000
   compaction_threshold_ratio: 0.75
   recent_messages_to_keep: 10
 summarization:
-  model: z-ai/glm-4.7-flash
+  model: deepseek/deepseek-v4-flash
   max_summary_tokens: 500
   extra_body:
-    include_reasoning: true
+    reasoning:
+      effort: medium
+      exclude: false
+image:
+  model: google/gemini-3.1-flash-image
+  params: {}
+title:
+  model: deepseek/deepseek-v4-flash
+  extra_body:
+    reasoning:
+      enabled: false
 available_models:
-- name: z-ai/glm-5
-  display_name: GLM-5
-- name: z-ai/glm-4.7-flash
-  display_name: GLM-4.7 Flash
-- name: google/gemini-3.1-pro-preview
-  display_name: Gemini 3.1 Pro
+- name: z-ai/glm-5.2
+  display_name: GLM-5.2
+- name: google/gemini-3.6-flash
+  display_name: Gemini 3.6 Flash
+- name: deepseek/deepseek-v4-pro
+  display_name: DeepSeek V4 Pro
+- name: x-ai/grok-4.5
+  display_name: Grok 4.5
+- name: qwen/qwen3.7-max
+  display_name: Qwen3.7 Max
+subagents:
+  llm:
+    model: deepseek/deepseek-v4-flash
+    extra_body:
+      reasoning:
+        effort: medium
+        exclude: false
+  recursion_limit: 10
+  registry:
+  - name: judge
+    description: >-
+      Independent reviewer with a clean context (no session history).
+      Give it a task describing the review pass and the artifact id(s)
+      to review; it returns a verdict with evidence (quotes/references
+      to specific spots), not a bare summary. Has web tools to
+      fact-check claims when the verdict depends on verifiable facts.
+    prompt: subagent-judge
+    tools:
+    - firecrawl_search
+    - firecrawl_scrape
+    - firecrawl_extract
+    persistence: none
+  - name: web-research
+    description: >-
+      Researcher with web search/scrape/extract tools and a clean
+      context. Give it a research task (and optional reference
+      artifact ids); it returns a distilled summary with sources —
+      the pages it reads never enter your context.
+    prompt: subagent-web-research
+    tools:
+    - firecrawl_search
+    - firecrawl_scrape
+    - firecrawl_extract
+    persistence: none
+  - name: general-purpose
+    description: >-
+      Generic executor for an isolated subtask with a clean context
+      (no session history) and web search/scrape/extract tools. Use
+      for self-contained work that should not inherit conversation
+      context.
+    prompt: subagent-general-purpose
+    tools:
+    - firecrawl_search
+    - firecrawl_scrape
+    - firecrawl_extract
+    persistence: none
 mcp_servers:
   firecrawl:
     enabled: true
@@ -28,8 +88,8 @@ mcp_servers:
     api_key_env: FIRECRAWL_API_KEY
     allowed_tools:
     - firecrawl_search
-    - firecrawl_scrape_url
-    - firecrawl_extract_data
+    - firecrawl_scrape
+    - firecrawl_extract
   tavily:
     enabled: false
     transport: http

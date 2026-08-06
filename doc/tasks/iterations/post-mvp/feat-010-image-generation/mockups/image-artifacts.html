@@ -1,0 +1,742 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мокап image-артефактов: карточка в чате + ImageViewer (feat-010)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@600;700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* ===== Токены 1:1 из frontend/src/index.css («Чернила / Электрик») ===== */
+  :root {
+    --background: #faf7f1;
+    --foreground: #2e2a24;
+    --card: #fffefa;
+    --card-foreground: #2e2a24;
+    --primary: #7434f4;
+    --primary-foreground: #f6f1ff;
+    --secondary: #efe7fe;
+    --secondary-foreground: #5b21ce;
+    --muted: #f1ede3;
+    --muted-foreground: #8b8370;
+    --accent: #efe7fe;
+    --accent-foreground: #5b21ce;
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: #e2dcd0;
+    --input: #d8d1c2;
+    --ring: #7434f4;
+    --radius: 0.7rem;
+    --bubble-user: #ede7da;
+    --shadow-input: 0 2px 10px rgba(80, 70, 50, 0.06);
+    --content-max-w: 680px;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+  .dark {
+    --background: #181420;
+    --foreground: #ede8e2;
+    --card: #221c30;
+    --card-foreground: #ede8e2;
+    --primary: #8a5cf6;
+    --primary-foreground: #f7f4ff;
+    --secondary: rgba(177, 148, 255, 0.15);
+    --secondary-foreground: #cdb6ff;
+    --muted: #1e1929;
+    --muted-foreground: #9a90a8;
+    --accent: rgba(177, 148, 255, 0.15);
+    --accent-foreground: #cdb6ff;
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: #322a44;
+    --input: #3a3150;
+    --ring: #b194ff;
+    --bubble-user: #262031;
+    --shadow-input: 0 2px 10px rgba(0, 0, 0, 0.25);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: "Instrument Sans", system-ui, sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: inherit; }
+
+  /* ===== Обвязка мокапа (не продукт) ===== */
+  .mock-toolbar {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; gap: 1rem;
+    padding: 0.6rem 1.5rem;
+    background: var(--card); border-bottom: 1px solid var(--border);
+    font-size: 0.8rem; color: var(--muted-foreground);
+  }
+  .mock-toolbar b { color: var(--foreground); font-weight: 600; }
+  .theme-btn {
+    margin-left: auto; cursor: pointer;
+    color: var(--foreground);
+    background: var(--muted); border: 1px solid var(--border);
+    border-radius: 0.5rem; padding: 0.3rem 0.8rem; font-size: 0.8rem;
+  }
+  .theme-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+  .wrap { max-width: 860px; margin: 0 auto; padding: 1.5rem 1.5rem 3rem; }
+  .block-title {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--muted-foreground); margin: 2rem 0 0.6rem;
+  }
+  .block-title:first-child { margin-top: 0.5rem; }
+
+  /* Панель переключателей мокапа */
+  .mock-controls {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.25rem;
+    padding: 0.55rem 0.9rem; margin-bottom: 0.9rem;
+    border: 1px dashed var(--input); border-radius: 0.5rem;
+    background: color-mix(in srgb, var(--muted) 60%, transparent);
+    font-size: 0.78rem; color: var(--muted-foreground);
+  }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; background: var(--card); }
+  .seg button {
+    border: 0; background: transparent; cursor: pointer;
+    padding: 0.25rem 0.8rem; font-size: 0.75rem; color: var(--muted-foreground);
+  }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button.on { background: var(--secondary); color: var(--secondary-foreground); font-weight: 500; }
+  .seg button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+  .mock-controls label.chk { display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; }
+  .mock-controls input[type="checkbox"] { accent-color: var(--primary); margin: 0; }
+
+  /* Маркеры-аннотации */
+  .mk {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 1.05rem; height: 1.05rem; border-radius: 999px;
+    background: var(--primary); color: var(--primary-foreground);
+    font-size: 0.62rem; font-weight: 600; line-height: 1;
+    cursor: help; user-select: none; opacity: 0.9; flex-shrink: 0;
+  }
+  .mk.abs { position: absolute; }
+
+  /* ===== Блок 1 — чат-лента (вёрстка MessageList / MessageItem / ArtifactCard) ===== */
+  .chat-frame {
+    border: 1px solid var(--border); border-radius: 0.98rem;
+    background: var(--background); overflow: hidden;
+  }
+  .chat-scroll { padding: 1.5rem; }
+  .chat-col {
+    max-width: var(--content-max-w); margin: 0 auto;
+    display: flex; flex-direction: column; gap: 1rem;
+  }
+  .msg-user { display: flex; justify-content: flex-end; }
+  .msg-user .bubble {
+    max-width: 80%;
+    border-radius: 14px 4px 14px 14px;
+    background: var(--bubble-user);
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem; white-space: pre-wrap;
+  }
+  .dark .msg-user .bubble { border: 1px solid var(--border); }
+  .msg-agent { display: flex; justify-content: flex-start; }
+  .msg-agent .body { width: 100%; }
+  .msg-agent p { margin: 0 0 0.75rem; font-size: 0.9rem; line-height: 1.65; }
+  .msg-agent p:last-of-type { margin-bottom: 0; }
+
+  /* Индикатор незавершённого стрима (условность мокапа вместо MarkdownRenderer isStreaming) */
+  .stream-dot {
+    display: inline-block; width: 0.5rem; height: 0.5rem; margin-left: 0.35rem;
+    border-radius: 999px; background: var(--primary); vertical-align: baseline;
+    animation: pulse 1.1s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 0.25; } 50% { opacity: 0.9; } }
+  @media (prefers-reduced-motion: reduce) { .stream-dot { animation: none; } }
+
+  /* ArtifactCard: mt-2 flex items-center gap-3 rounded-md bg-card p-3 hover:bg-accent + borderLeft 3px var(--ring) */
+  .artifact-card-row { position: relative; }
+  .artifact-card {
+    margin-top: 0.5rem;
+    display: flex; align-items: center; gap: 0.75rem;
+    border-radius: 0.56rem; background: var(--card); padding: 0.75rem;
+    border-left: 3px solid var(--ring);
+    text-decoration: none; color: inherit;
+    transition: background-color 0.15s ease;
+  }
+  a.artifact-card:hover { background: var(--accent); }
+  a.artifact-card:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .artifact-card .meta { min-width: 0; flex: 1; }
+  .artifact-card .title {
+    margin: 0; font-size: 0.875rem; font-weight: 500;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .artifact-card .type { margin: 0; font-size: 0.75rem; color: var(--muted-foreground); }
+  /* Превью: миниатюра того же изображения (тот же media-endpoint) на месте типовой иконки */
+  .artifact-card .thumb {
+    flex-shrink: 0; width: 4rem; height: 2.5rem;
+    border-radius: 0.35rem; border: 1px solid var(--border);
+    background-size: cover; background-position: center;
+  }
+  /* Плейсхолдер на время генерации: та же карточка, зона миниатюры — шиммер */
+  .artifact-card.placeholder { cursor: default; }
+  .artifact-card .thumb.shimmer {
+    background: linear-gradient(
+      100deg,
+      var(--muted) 40%,
+      color-mix(in srgb, var(--muted-foreground) 14%, var(--muted)) 50%,
+      var(--muted) 60%
+    );
+    background-size: 240% 100%;
+    animation: shimmer 1.6s linear infinite;
+  }
+  .artifact-card .title.gen { color: var(--muted-foreground); font-weight: 500; }
+  .genbar {
+    display: block; margin-top: 0.4rem;
+    width: 10rem; max-width: 100%; height: 3px;
+    border-radius: 999px; background: var(--muted); overflow: hidden;
+  }
+  .genbar-run {
+    display: block; height: 100%; width: 40%;
+    border-radius: 999px; background: var(--primary);
+    animation: indet 1.3s ease-in-out infinite;
+  }
+  @keyframes indet { from { transform: translateX(-110%); } to { transform: translateX(280%); } }
+  @media (prefers-reduced-motion: reduce) {
+    .artifact-card .thumb.shimmer { animation: none; }
+    .genbar-run { animation: none; width: 100%; opacity: 0.35; }
+  }
+
+  /* FeedbackButtons (появляются только у завершённого сообщения) */
+  .feedback { margin-top: 0.5rem; display: flex; align-items: center; gap: 0.25rem; }
+  .feedback button {
+    display: inline-flex; align-items: center; gap: 0.25rem;
+    border: 0; background: transparent; cursor: pointer;
+    border-radius: 0.25rem; padding: 0.25rem 0.5rem;
+    font-size: 0.75rem; color: var(--muted-foreground);
+    transition: background-color 0.15s ease;
+  }
+  .feedback button:hover { background: color-mix(in srgb, var(--muted-foreground) 10%, transparent); }
+  .feedback svg { width: 0.75rem; height: 0.75rem; }
+
+  /* ===== Блок 2 — ImageViewer (вёрстка pages/artifact/ui/ImageViewer.tsx) ===== */
+  .viewer-frame {
+    border: 1px solid var(--border); border-radius: 0.98rem;
+    background: var(--background); overflow: hidden;
+    display: flex; flex-direction: column; height: 620px;
+  }
+  .viewer-head {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    flex-shrink: 0; border-bottom: 1px solid var(--border);
+    padding: 1rem 1.5rem;
+  }
+  .viewer-head .lhs { min-width: 0; flex: 1; padding-right: 1rem; }
+  .viewer-head h2 {
+    margin: 0; font-family: "Source Serif 4", Georgia, serif;
+    font-size: 26px; font-weight: 600; line-height: 1.25;
+  }
+  .viewer-head .meta { margin: 0.25rem 0 0; font-size: 0.75rem; color: var(--muted-foreground); }
+  .viewer-head .actions { display: flex; flex-shrink: 0; align-items: center; gap: 0.5rem; position: relative; }
+
+  /* Button size=sm из shared/ui/button.tsx: h-7, px-2.5, radius-md, text-[0.8rem], icon 14px */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.25rem;
+    height: 1.75rem; padding: 0 0.625rem;
+    border-radius: 0.56rem; border: 1px solid transparent;
+    font-size: 0.8rem; font-weight: 500; white-space: nowrap;
+    cursor: pointer; transition: background-color 0.15s ease, color 0.15s ease;
+  }
+  .btn svg { width: 0.875rem; height: 0.875rem; flex-shrink: 0; }
+  .btn:active { transform: translateY(1px); }
+  .btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .btn.primary { background: var(--primary); color: var(--primary-foreground); }
+  .btn.primary:hover { background: color-mix(in srgb, var(--primary) 88%, black); }
+  .btn.outline { border-color: var(--border); background: var(--background); color: var(--foreground); }
+  .btn.outline:hover { background: var(--muted); }
+  .dark .btn.outline { border-color: var(--input); background: color-mix(in srgb, var(--input) 30%, transparent); }
+  .dark .btn.outline:hover { background: color-mix(in srgb, var(--input) 50%, transparent); }
+  .btn:disabled { opacity: 0.5; pointer-events: none; }
+
+  .viewer-body {
+    position: relative; flex: 1; min-height: 0;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; padding: 1.5rem;
+    background: color-mix(in srgb, var(--muted) 30%, transparent);
+  }
+  .img-box {
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; border-radius: 0.98rem;
+    border: 1px solid var(--border); background: var(--card);
+    box-shadow: var(--shadow-sm);
+    max-width: 100%; max-height: 100%; aspect-ratio: 16 / 9;
+    transition: width 0.15s ease;
+  }
+  .img-box img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+  /* Состояние «Загрузка»: скелетон на месте изображения */
+  .skeleton {
+    width: 100%; height: 100%;
+    background: linear-gradient(
+      100deg,
+      var(--muted) 40%,
+      color-mix(in srgb, var(--muted-foreground) 14%, var(--muted)) 50%,
+      var(--muted) 60%
+    );
+    background-size: 240% 100%;
+    animation: shimmer 1.6s linear infinite;
+  }
+  @keyframes shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+  @media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
+
+  /* Состояние «Ошибка 404»: пустое состояние в стиле текущей заглушки вьюера */
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center; gap: 0.75rem;
+    color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+    text-align: center; padding: 1rem;
+  }
+  .empty-state svg { width: 3rem; height: 3rem; }
+  .empty-state .t1 {
+    margin: 0; font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.75rem; color: var(--muted-foreground);
+  }
+  .empty-state .t2 { margin: 0; font-size: 0.72rem; color: color-mix(in srgb, var(--muted-foreground) 70%, transparent); }
+
+  /* Зум-pill: absolute bottom-4 center, rounded-full border bg-card px-2 py-1 shadow-sm */
+  .zoom-pill {
+    position: absolute; bottom: 1rem; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 0.125rem;
+    border-radius: 999px; border: 1px solid var(--border);
+    background: var(--card); padding: 0.25rem 0.5rem;
+    box-shadow: var(--shadow-sm);
+  }
+  .zoom-pill .zbtn {
+    display: flex; align-items: center; justify-content: center;
+    width: 1.5rem; height: 1.5rem; border-radius: 999px;
+    border: 0; background: transparent; color: var(--foreground); cursor: pointer;
+    transition: background-color 0.15s ease;
+  }
+  .zoom-pill .zbtn:hover { background: var(--muted); }
+  .zoom-pill .zbtn:disabled { cursor: not-allowed; opacity: 0.4; background: transparent; }
+  .zoom-pill .zbtn svg { width: 0.75rem; height: 0.75rem; }
+  .zoom-pill .zval {
+    min-width: 3.5rem; text-align: center;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.75rem; color: var(--foreground);
+  }
+  .zoom-pill .zsep { margin: 0 0.25rem; height: 0.75rem; width: 1px; background: var(--border); }
+  .zoom-pill .zfit {
+    display: flex; align-items: center; gap: 0.25rem;
+    height: 1.5rem; padding: 0 0.5rem; border-radius: 999px;
+    border: 0; background: transparent; color: var(--foreground);
+    font-size: 0.75rem; cursor: pointer; transition: background-color 0.15s ease;
+  }
+  .zoom-pill .zfit:hover { background: var(--muted); }
+  .zoom-pill .zfit svg { width: 0.75rem; height: 0.75rem; }
+
+  .viewer-caption {
+    position: relative; flex-shrink: 0;
+    border-top: 1px solid var(--border); padding: 0.75rem 1.5rem;
+  }
+  .viewer-caption p { margin: 0; font-size: 0.75rem; color: var(--muted-foreground); padding-right: 1.6rem; }
+
+  /* ===== Аннотации ===== */
+  .notes { max-width: 860px; margin: 0 auto; padding: 0 1.5rem 4rem; }
+  .notes h2 { font-family: "Source Serif 4", Georgia, serif; font-size: 1rem; font-weight: 600; margin: 0 0 0.6rem; }
+  .note {
+    display: flex; gap: 0.6rem; padding: 0.55rem 0.75rem; margin-bottom: 0.4rem;
+    background: var(--muted); border-radius: 0.5rem; font-size: 0.8rem;
+  }
+  .note .mk { margin-top: 0.15rem; }
+  code.inline { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.9em; }
+</style>
+</head>
+<body>
+
+<div class="mock-toolbar">
+  <span><b>Интерактивный мокап feat-010</b> · image-артефакты: карточка в чате + ImageViewer · токены и вёрстка — из frontend/src</span>
+  <button class="theme-btn" id="themeToggle" type="button">Тема: светлая ⇄ тёмная</button>
+</div>
+
+<div class="wrap">
+
+  <!-- ═══════════ Блок 1 — чат-лента ═══════════ -->
+  <p class="block-title">Блок 1 · Карточка image-артефакта в чат-ленте (MessageList → MessageItem → ArtifactCard)</p>
+
+  <div class="mock-controls">
+    <span>Состояние ответа:</span>
+    <span class="seg" role="group" aria-label="Состояние ответа агента">
+      <button type="button" data-cstate="generating">Генерация в процессе</button>
+      <button type="button" data-cstate="sse">Стрим: карточка по SSE</button>
+      <button type="button" data-cstate="done" class="on">Завершено</button>
+    </span>
+  </div>
+
+  <div class="chat-frame">
+    <div class="chat-scroll">
+      <div class="chat-col">
+
+        <div class="msg-user">
+          <div class="bubble">Сделай обложку для статьи про мультиагентный конвейер — тёмная, с неоновыми акцентами</div>
+        </div>
+
+        <div class="msg-agent">
+          <div class="body">
+            <p id="agentText"></p>
+
+            <div class="artifact-card-row" id="realCardRow">
+              <a class="artifact-card" href="#viewer" id="artifactCard" title="Открыть артефакт">
+                <span class="thumb" id="cardThumb" aria-hidden="true"></span>
+                <span class="meta">
+                  <p class="title">Обложка: конвейер AI-агентов</p>
+                  <p class="type">image</p>
+                </span>
+              </a>
+              <span class="mk abs" style="top: 0.85rem; right: -1.6rem;" title="См. аннотацию 1">1</span>
+            </div>
+
+            <!-- Плейсхолдер на время генерации (tool_start → tool_end/artifact_created) -->
+            <div class="artifact-card-row" id="genCardRow" hidden>
+              <span class="artifact-card placeholder" role="status" aria-label="Идёт генерация изображения">
+                <span class="thumb shimmer" aria-hidden="true"></span>
+                <span class="meta">
+                  <p class="title gen">Генерирую изображение…</p>
+                  <span class="genbar"><span class="genbar-run"></span></span>
+                </span>
+              </span>
+              <span class="mk abs" style="top: 0.85rem; right: -1.6rem;" title="См. аннотацию 2">2</span>
+            </div>
+
+            <div class="feedback" id="feedbackRow" aria-label="Оценка ответа">
+              <button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/></svg>Полезно</button>
+              <button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg>Не то</button>
+              <button type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Перегенерировать</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ Блок 2 — ImageViewer ═══════════ -->
+  <p class="block-title" id="viewer">Блок 2 · Страница артефакта, ImageViewer (рамка — условная, вместо полного лэйаута приложения)</p>
+
+  <div class="mock-controls">
+    <span>Состояние:</span>
+    <span class="seg" role="group" aria-label="Состояние вьюера">
+      <button type="button" data-vstate="loading">Загрузка</button>
+      <button type="button" data-vstate="ready" class="on">Готово</button>
+      <button type="button" data-vstate="error">Ошибка 404</button>
+    </span>
+  </div>
+
+  <div class="viewer-frame">
+    <div class="viewer-head">
+      <div class="lhs">
+        <h2>Обложка: конвейер AI-агентов</h2>
+        <p class="meta">image · 15.07.2026</p>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn primary" id="downloadBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg>
+          .png
+        </button>
+      </div>
+    </div>
+
+    <div class="viewer-body">
+      <div class="img-box" id="imgBox">
+        <!-- содержимое подставляет JS по состоянию -->
+      </div>
+
+      <div class="zoom-pill" id="zoomPill">
+        <button type="button" class="zbtn" id="zoomOut" aria-label="Уменьшить">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg>
+        </button>
+        <span class="zval" id="zoomVal">100%</span>
+        <button type="button" class="zbtn" id="zoomIn" aria-label="Увеличить">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+        </button>
+        <span class="zsep"></span>
+        <button type="button" class="zfit" id="zoomFit">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" x2="14" y1="3" y2="10"/><line x1="3" x2="10" y1="21" y2="14"/></svg>
+          По ширине
+        </button>
+      </div>
+    </div>
+
+    <div class="viewer-caption">
+      <p>Обложка статьи: изометрическая иллюстрация конвейера AI-агентов, тёмный фон, неоновые акценты</p>
+      <span class="mk abs" style="top: 0.7rem; right: 0.9rem;" title="См. аннотацию 3">3</span>
+    </div>
+  </div>
+
+</div>
+
+<div class="notes">
+  <h2>Аннотации к дизайну</h2>
+  <div class="note"><span class="mk">1</span><span>
+    <b>Превью в карточке — решение принято.</b> Карточка image-артефакта всегда с миниатюрой (64×40,
+    скруглённая, с бордером) на месте типовой иконки; остальная вёрстка <code class="inline">ArtifactCard</code>
+    не трогается. Превью в карточке — уменьшенное отображение того же изображения (тот же
+    media-endpoint), отдельного thumbnail-эндпоинта в v1 нет.
+  </span></div>
+  <div class="note"><span class="mk">2</span><span>
+    <b>Плейсхолдер на время генерации (10–30 сек).</b> Рисуется по существующему SSE-событию
+    <code class="inline">tool_start</code> (tool=<code class="inline">generate_image</code>,
+    <code class="inline">call_id</code>), снимается по <code class="inline">tool_end</code>/<code class="inline">artifact_created</code> —
+    реальная карточка встаёт на его место. Прогресс-бар — indeterminate (псевдозагрузка): реального
+    прогресса генерация не отдаёт.
+  </span></div>
+  <div class="note"><span class="mk">3</span><span>
+    <b>Caption — решение принято.</b> Caption = prompt артефакта (<code class="inline">content</code>);
+    отдельная человекочитаемая подпись от агента — возможное улучшение, backlog.
+  </span></div>
+  <div class="note"><span class="mk">4</span><span>
+    <b>Стрим.</b> Карточка приходит по SSE-событию до завершения ответа и выглядит идентично финальной —
+    отдельного «streaming»-вида у карточки нет (так уже работает для текстовых артефактов:
+    <code class="inline">streamingArtifacts</code> в <code class="inline">MessageList</code>).
+    Пульсирующая точка в тексте — условность мокапа, а не элемент продукта. FeedbackButtons появляются
+    только после завершения.
+  </span></div>
+  <div class="note"><span class="mk">5</span><span>
+    <b>Состояния «Загрузка» и «Ошибка 404» — новые.</b> В текущей заглушке вьюера их нет. Скелетон
+    держит каркас (header, зум, caption на месте) и то же соотношение сторон. При отсутствии блоба —
+    пустое состояние в стилистике текущей заглушки (иконка + mono-текст); зум-pill скрыт, скачивание
+    выключено. Кнопка «.png» в состоянии «Готово» реально скачивает изображение.
+  </span></div>
+</div>
+
+<script>
+  // ---------- «сгенерированное» изображение: inline SVG 16:9, тёмный фон, неон ----------
+  var SVG_ART =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">' +
+    '<defs>' +
+    '<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">' +
+    '<stop offset="0" stop-color="#161027"/><stop offset="1" stop-color="#0f0b1c"/>' +
+    '</linearGradient>' +
+    '<radialGradient id="vig" cx="0.5" cy="0.45" r="0.75">' +
+    '<stop offset="0.6" stop-color="#000000" stop-opacity="0"/><stop offset="1" stop-color="#000000" stop-opacity="0.5"/>' +
+    '</radialGradient>' +
+    '</defs>' +
+    '<rect width="1280" height="720" fill="url(#bg)"/>' +
+    // изометрическая сетка
+    '<g stroke="#8a5cf6" stroke-opacity="0.07" stroke-width="1">' +
+    '<path d="M-100 260 L700 660"/><path d="M60 180 L860 580"/><path d="M220 100 L1020 500"/><path d="M380 20 L1180 420"/><path d="M540 -60 L1340 340"/>' +
+    '<path d="M420 760 L1380 280"/><path d="M260 700 L1220 220"/><path d="M100 640 L1060 160"/><path d="M-60 580 L900 100"/><path d="M-220 520 L740 40"/>' +
+    '</g>' +
+    // линия конвейера (слоистое неоновое свечение)
+    '<g fill="none" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M110 600 L320 500 L640 420 L960 340 L1180 240" stroke="#22d3ee" stroke-opacity="0.10" stroke-width="18"/>' +
+    '<path d="M110 600 L320 500 L640 420 L960 340 L1180 240" stroke="#22d3ee" stroke-opacity="0.25" stroke-width="7"/>' +
+    '<path d="M110 600 L320 500 L640 420 L960 340 L1180 240" stroke="#7de3f4" stroke-opacity="0.9" stroke-width="2"/>' +
+    '</g>' +
+    // стрелки-шевроны вдоль конвейера
+    '<g fill="none" stroke="#67e8f9" stroke-opacity="0.7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M470 472 l22 -6 -6 22"/><path d="M790 392 l22 -6 -6 22"/><path d="M1080 296 l22 -8 -4 22"/>' +
+    '</g>' +
+    // куб 1
+    '<g stroke-linejoin="round">' +
+    '<polygon points="320,436 400,476 320,516 240,476" fill="#372a5e" stroke="#c4b5fd" stroke-opacity="0.9" stroke-width="1.5"/>' +
+    '<polygon points="240,476 320,516 320,580 240,540" fill="#2d2151" stroke="#a78bfa" stroke-opacity="0.5" stroke-width="1.5"/>' +
+    '<polygon points="400,476 320,516 320,580 400,540" fill="#251b45" stroke="#a78bfa" stroke-opacity="0.5" stroke-width="1.5"/>' +
+    '<circle cx="320" cy="452" r="30" fill="#8a5cf6" fill-opacity="0.16"/>' +
+    '<circle cx="320" cy="452" r="15" fill="none" stroke="#a78bfa" stroke-width="2.5"/>' +
+    '<circle cx="320" cy="452" r="6" fill="#e9d5ff"/>' +
+    '</g>' +
+    // куб 2
+    '<g stroke-linejoin="round">' +
+    '<polygon points="640,356 720,396 640,436 560,396" fill="#372a5e" stroke="#c4b5fd" stroke-opacity="0.9" stroke-width="1.5"/>' +
+    '<polygon points="560,396 640,436 640,500 560,460" fill="#2d2151" stroke="#a78bfa" stroke-opacity="0.5" stroke-width="1.5"/>' +
+    '<polygon points="720,396 640,436 640,500 720,460" fill="#251b45" stroke="#a78bfa" stroke-opacity="0.5" stroke-width="1.5"/>' +
+    '<circle cx="640" cy="372" r="30" fill="#22d3ee" fill-opacity="0.14"/>' +
+    '<circle cx="640" cy="372" r="15" fill="none" stroke="#67e8f9" stroke-width="2.5"/>' +
+    '<circle cx="640" cy="372" r="6" fill="#cffafe"/>' +
+    '</g>' +
+    // куб 3
+    '<g stroke-linejoin="round">' +
+    '<polygon points="960,276 1040,316 960,356 880,316" fill="#372a5e" stroke="#c4b5fd" stroke-opacity="0.9" stroke-width="1.5"/>' +
+    '<polygon points="880,316 960,356 960,420 880,380" fill="#2d2151" stroke="#a78bfa" stroke-opacity="0.5" stroke-width="1.5"/>' +
+    '<polygon points="1040,316 960,356 960,420 1040,380" fill="#251b45" stroke="#a78bfa" stroke-opacity="0.5" stroke-width="1.5"/>' +
+    '<circle cx="960" cy="292" r="30" fill="#8a5cf6" fill-opacity="0.16"/>' +
+    '<circle cx="960" cy="292" r="15" fill="none" stroke="#b194ff" stroke-width="2.5"/>' +
+    '<circle cx="960" cy="292" r="6" fill="#e9d5ff"/>' +
+    '</g>' +
+    // связи между нодами (дуги над конвейером)
+    '<g fill="none" stroke-linecap="round">' +
+    '<path d="M335 440 Q480 330 625 364" stroke="#8a5cf6" stroke-opacity="0.15" stroke-width="8"/>' +
+    '<path d="M335 440 Q480 330 625 364" stroke="#b194ff" stroke-opacity="0.8" stroke-width="1.8"/>' +
+    '<path d="M655 364 Q800 260 945 286" stroke="#22d3ee" stroke-opacity="0.13" stroke-width="8"/>' +
+    '<path d="M655 364 Q800 260 945 286" stroke="#7de3f4" stroke-opacity="0.8" stroke-width="1.8"/>' +
+    '</g>' +
+    // частицы
+    '<g>' +
+    '<circle cx="200" cy="220" r="4" fill="#8a5cf6" fill-opacity="0.8"/>' +
+    '<circle cx="200" cy="220" r="10" fill="#8a5cf6" fill-opacity="0.15"/>' +
+    '<circle cx="1120" cy="480" r="3" fill="#22d3ee" fill-opacity="0.8"/>' +
+    '<circle cx="1120" cy="480" r="9" fill="#22d3ee" fill-opacity="0.14"/>' +
+    '<circle cx="820" cy="150" r="3" fill="#b194ff" fill-opacity="0.85"/>' +
+    '<circle cx="820" cy="150" r="8" fill="#b194ff" fill-opacity="0.16"/>' +
+    '<circle cx="480" cy="620" r="2.5" fill="#67e8f9" fill-opacity="0.7"/>' +
+    '<circle cx="1010" cy="600" r="2.5" fill="#8a5cf6" fill-opacity="0.6"/>' +
+    '<circle cx="90" cy="400" r="2.5" fill="#b194ff" fill-opacity="0.55"/>' +
+    '</g>' +
+    '<rect width="1280" height="720" fill="url(#vig)"/>' +
+    '</svg>';
+  var ART_URI = "data:image/svg+xml;utf8," + encodeURIComponent(SVG_ART);
+
+  // ---------- Блок 1: состояния ответа агента ----------
+  var TEXT_FULL =
+    "Сгенерировал обложку для статьи: изометрический конвейер AI-агентов на тёмном фоне, " +
+    "неоновые акценты — как обсуждали. Открой артефакт, чтобы посмотреть в полном размере; " +
+    "если нужно другое настроение или композиция, перегенерирую по уточнённому промпту.";
+  var TEXT_PARTIAL =
+    "Сгенерировал обложку для статьи: изометрический конвейер AI-агентов на тёмном фоне, нео";
+  var TEXT_GENERATING =
+    "Сделаю обложку по твоему описанию: изометрический конвейер AI-агентов, тёмный фон, " +
+    "неоновые акценты. Запускаю генерацию";
+
+  var chatPhase = "done"; // generating | sse | done
+  var agentText = document.getElementById("agentText");
+  var feedbackRow = document.getElementById("feedbackRow");
+  var realCardRow = document.getElementById("realCardRow");
+  var genCardRow = document.getElementById("genCardRow");
+  var cstateBtns = document.querySelectorAll("[data-cstate]");
+
+  document.getElementById("cardThumb").style.backgroundImage = "url('" + ART_URI + "')";
+
+  function renderChat() {
+    if (chatPhase === "done") {
+      agentText.textContent = TEXT_FULL;
+    } else {
+      agentText.innerHTML = "";
+      agentText.appendChild(document.createTextNode(
+        chatPhase === "generating" ? TEXT_GENERATING : TEXT_PARTIAL
+      ));
+      var dot = document.createElement("span");
+      dot.className = "stream-dot";
+      dot.setAttribute("aria-label", "генерация продолжается");
+      agentText.appendChild(dot);
+    }
+    feedbackRow.toggleAttribute("hidden", chatPhase !== "done");
+    realCardRow.toggleAttribute("hidden", chatPhase === "generating");
+    genCardRow.toggleAttribute("hidden", chatPhase !== "generating");
+    cstateBtns.forEach(function (b) {
+      b.classList.toggle("on", b.getAttribute("data-cstate") === chatPhase);
+    });
+  }
+  cstateBtns.forEach(function (b) {
+    b.addEventListener("click", function () {
+      chatPhase = b.getAttribute("data-cstate");
+      renderChat();
+    });
+  });
+  renderChat();
+
+  // ---------- Блок 2: ImageViewer ----------
+  var ZOOM_STEPS = [50, 75, 100, 125, 150, 200];
+  var viewer = { state: "ready", zoomIndex: 2 };
+
+  var imgBox = document.getElementById("imgBox");
+  var zoomPill = document.getElementById("zoomPill");
+  var zoomVal = document.getElementById("zoomVal");
+  var zoomOut = document.getElementById("zoomOut");
+  var zoomIn = document.getElementById("zoomIn");
+  var downloadBtn = document.getElementById("downloadBtn");
+  var stateBtns = document.querySelectorAll("[data-vstate]");
+
+  function renderViewer() {
+    var zoom = ZOOM_STEPS[viewer.zoomIndex];
+    imgBox.style.width = zoom + "%";
+    zoomVal.textContent = zoom + "%";
+    zoomOut.disabled = viewer.zoomIndex === 0;
+    zoomIn.disabled = viewer.zoomIndex === ZOOM_STEPS.length - 1;
+
+    imgBox.innerHTML = "";
+    if (viewer.state === "loading") {
+      var sk = document.createElement("div");
+      sk.className = "skeleton";
+      sk.setAttribute("aria-label", "Изображение загружается");
+      imgBox.appendChild(sk);
+    } else if (viewer.state === "ready") {
+      var img = document.createElement("img");
+      img.src = ART_URI;
+      img.alt = "Обложка: конвейер AI-агентов";
+      imgBox.appendChild(img);
+    } else {
+      var es = document.createElement("div");
+      es.className = "empty-state";
+      es.innerHTML =
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<line x1="2" x2="22" y1="2" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/>' +
+        '<line x1="13.5" x2="6" y1="13.5" y2="21"/><line x1="18" x2="21" y1="12" y2="15"/>' +
+        '<path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/>' +
+        '<path d="M21 15V5a2 2 0 0 0-2-2H9"/></svg>' +
+        '<p class="t1">изображение не найдено (404)</p>' +
+        '<p class="t2">Файл отсутствует в хранилище. Попросите агента перегенерировать изображение.</p>';
+      imgBox.appendChild(es);
+    }
+
+    zoomPill.style.display = viewer.state === "error" ? "none" : "flex";
+    downloadBtn.disabled = viewer.state !== "ready";
+
+    stateBtns.forEach(function (b) {
+      b.classList.toggle("on", b.getAttribute("data-vstate") === viewer.state);
+    });
+  }
+
+  stateBtns.forEach(function (b) {
+    b.addEventListener("click", function () {
+      viewer.state = b.getAttribute("data-vstate");
+      renderViewer();
+    });
+  });
+  zoomOut.addEventListener("click", function () {
+    viewer.zoomIndex = Math.max(0, viewer.zoomIndex - 1);
+    renderViewer();
+  });
+  zoomIn.addEventListener("click", function () {
+    viewer.zoomIndex = Math.min(ZOOM_STEPS.length - 1, viewer.zoomIndex + 1);
+    renderViewer();
+  });
+  document.getElementById("zoomFit").addEventListener("click", function () {
+    viewer.zoomIndex = 2;
+    renderViewer();
+  });
+  renderViewer();
+
+  // Скачивание: рендер SVG в canvas → настоящий .png
+  downloadBtn.addEventListener("click", function () {
+    var img = new Image();
+    img.onload = function () {
+      var c = document.createElement("canvas");
+      c.width = 1280;
+      c.height = 720;
+      c.getContext("2d").drawImage(img, 0, 0, 1280, 720);
+      c.toBlob(function (blob) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = "oblozhka-konveyer-ai-agentov.png";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      }, "image/png");
+    };
+    img.src = ART_URI;
+  });
+
+  // ---------- тема ----------
+  (function () {
+    var html = document.documentElement;
+    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      html.classList.add("dark");
+    }
+    document.getElementById("themeToggle").addEventListener("click", function () {
+      html.classList.toggle("dark");
+    });
+  })();
+</script>
+
+</body>
+</html>

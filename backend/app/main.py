@@ -13,11 +13,15 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from langchain_core.tools import BaseTool
 from langfuse import get_client as get_langfuse_client
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 
+from app.agent.checkpoint_history import CheckpointHistory
 from app.agent.config import (
     PromptsRegistry,
+    SubagentsConfig,
     load_agent_config,
     load_error_messages,
     load_pricing_config,
@@ -26,6 +30,7 @@ from app.agent.config import (
 )
 from app.agent.graph_factory import GraphFactory
 from app.agent.runner import LangGraphAgentRunner
+from app.agent.runtime_security import RuntimeSecurityEnforcer
 from app.agent.security.classifier import LLMClassifier
 from app.agent.security.config import checkpoint_configs, load_security_config
 from app.agent.security.corpus import (
@@ -42,13 +47,20 @@ from app.agent.security.detectors.base import DeterministicDetector
 from app.agent.security.guard import SecurityGuard
 from app.agent.security.observer import GuardObserver
 from app.agent.security.types import Checkpoint, Verdict
+from app.agent.stream_events import StreamEventMapper
+from app.agent.subagents import SubagentRunner
 from app.agent.tools import (
-    ks_tools,
     make_create_artifact_tool,
+    make_generate_image_tool,
     make_load_skill_tool,
+    make_run_subagent_tool,
+    make_skill_context_tools,
+    scan_skill_names,
     scan_skills_index,
-    user_memory_tools,
 )
+from app.agent.tools.registry import assemble_internal_tools
+from app.agent.tracing import AgentRunTracer
+from app.api.problem import TYPE_PREFIX, problem_response, register_problem_handlers
 from app.api.routes import (
     artifacts,
     auth,
@@ -58,17 +70,18 @@ from app.api.routes import (
     messages,
     models,
     projects,
+    skill_context,
     sphere,
     user_memory,
 )
 from app.api.routes import settings as settings_routes
 from app.config import Settings
+from app.infra.client_ip import get_client_ip, is_health_path
 from app.infra.db import create_engine, create_session_factory
 from app.infra.langfuse import (
     ensure_model_definitions,
     ensure_security_score_config,
     init_langfuse,
-    langfuse_enabled,
     shutdown_langfuse,
 )
 from app.infra.langgraph import create_checkpointer, create_store
@@ -76,14 +89,15 @@ from app.infra.llm import create_guard_llm
 from app.infra.logging import setup_logging
 from app.infra.mcp import create_mcp_client
 from app.infra.prompt_provider import PromptProvider
+from app.infra.rate_limit import RateLimiter
 from app.infra.redis import create_redis
 from app.security_pipeline.processor import make_security_event_processor
 from app.security_pipeline.transport import (
     EventTransportHolder,
     RedisEventTransport,
 )
+from app.services.chat_title import ChatTitleGenerator
 from app.services.encryption import EncryptionService
-from app.services.exceptions import EntityNotFoundError
 from app.services.mcp_server import (
     fetch_remote_metadata,
     serialize_mcp_meta_blob,
@@ -102,13 +116,17 @@ def _content_hash(text: str, config: dict[str, Any]) -> str:
 
 async def _validate_builtin_mcp(
     servers: dict[str, Any],
-    guard: Any,
+    guard: SecurityGuard | None,
+    timeout: int,
 ) -> set[str]:
     """Validate each enabled remote built-in MCP server at startup.
 
-    Fetches remote ``tools/list`` and runs the guard against the full
-    metadata blob. Returns names of servers to disable (fetch failed OR
-    guard fired INJECTION). ``stdio`` / disabled servers are skipped.
+    Fetches remote ``tools/list`` and, when the guard is active, runs it
+    against the full metadata blob. Returns names of servers to disable
+    (fetch failed OR guard fired INJECTION). ``stdio`` / disabled servers
+    are skipped. With ``guard=None`` (LLM_DEFENSE_ENABLED=false), the
+    fetch and the network-error fallback still run — only the guard check
+    is skipped.
     """
     disabled: set[str] = set()
     for name, cfg in servers.items():
@@ -117,29 +135,32 @@ async def _validate_builtin_mcp(
         api_key = os.environ.get(cfg.api_key_env, "") if cfg.api_key_env else None
         try:
             remote_tools = await fetch_remote_metadata(
-                cfg.url or "", cfg.transport, api_key
+                cfg.url or "", cfg.transport, api_key, timeout
             )
-            blob = serialize_mcp_meta_blob(
-                name=name,
-                transport=cfg.transport,
-                url=cfg.url or "",
-                allowed_tools=cfg.allowed_tools or [],
-                remote_tools=remote_tools,
-            )
-            result = await guard.check(
-                blob,
-                Checkpoint.MCP_METADATA,
-                trace_ctx={"top_level": True, "scope": "mcp.builtin"},
-            )
-            if result.verdict == Verdict.INJECTION:
-                logger.warning(
-                    "built-in mcp disabled after guard failure",
+            if guard is not None:
+                blob = serialize_mcp_meta_blob(
                     name=name,
-                    detection_layer=(
-                        result.detection_layer.value if result.detection_layer else None
-                    ),
+                    transport=cfg.transport,
+                    url=cfg.url or "",
+                    allowed_tools=cfg.allowed_tools or [],
+                    remote_tools=remote_tools,
                 )
-                disabled.add(name)
+                result = await guard.check(
+                    blob,
+                    Checkpoint.MCP_METADATA,
+                    trace_ctx={"top_level": True, "scope": "mcp.builtin"},
+                )
+                if result.verdict == Verdict.INJECTION:
+                    logger.warning(
+                        "built-in mcp disabled after guard failure",
+                        name=name,
+                        detection_layer=(
+                            result.detection_layer.value
+                            if result.detection_layer
+                            else None
+                        ),
+                    )
+                    disabled.add(name)
         except Exception:
             logger.warning(
                 "built-in mcp disabled after guard/fetch failure",
@@ -148,6 +169,36 @@ async def _validate_builtin_mcp(
             )
             disabled.add(name)
     return disabled
+
+
+def _validate_subagent_tool_pool(
+    subagents_config: SubagentsConfig, pool: dict[str, BaseTool]
+) -> None:
+    """Fail-fast: every subagent spec must declare a non-empty ``tools`` list
+    and every name in it must resolve in the built-in tool pool (internal
+    tools + built-in MCP tools).
+
+    Every subagent is a ReAct agent — an empty ``tools`` list has no runnable
+    form (``bind_tools([])`` is rejected by OpenAI-compatible APIs). Both an
+    empty list and an unknown name are configuration errors — same severity
+    as any other typo in ``configs/*.yaml`` — so they abort application
+    startup instead of surfacing lazily on first ``run_subagent`` call. All
+    violations are aggregated into a single error.
+    """
+    problems: list[str] = []
+    for spec in subagents_config.registry:
+        if not spec.tools:
+            problems.append(
+                f"{spec.name}: tools must be non-empty — all subagents are ReAct agents"
+            )
+            continue
+        unknown = [name for name in spec.tools if name not in pool]
+        if unknown:
+            problems.append(f"{spec.name}: unknown tool name(s) {', '.join(unknown)}")
+    if problems:
+        raise RuntimeError(
+            f"subagents config error — invalid registry: {'; '.join(problems)}"
+        )
 
 
 def _seed_prompts(
@@ -210,6 +261,8 @@ def _seed_prompts(
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = Settings()
+    app.state.settings = settings
+    app.state.rate_limiter = RateLimiter()
 
     # Holder is created up front so the structlog processor has something to
     # bind to, then populated when Redis is available below.
@@ -223,8 +276,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         log_file=settings.log_file,
     )
 
+    langfuse_enabled = False
     try:
-        init_langfuse(
+        langfuse_enabled = init_langfuse(
             public_key=settings.langfuse_public_key,
             secret_key=settings.langfuse_secret_key,
             host=settings.langfuse_base_url,
@@ -238,16 +292,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     security_config = load_security_config()
     pricing_config = load_pricing_config()
     error_messages = load_error_messages()
-    prompt_fragments = load_prompt_fragments()
+    prompt_fragments = load_prompt_fragments(
+        include_security=settings.llm_defense_enabled
+    )
     prompts_registry = load_prompts_registry()
 
     try:
-        ensure_model_definitions(pricing_config.models)
+        ensure_model_definitions(pricing_config.models, enabled=langfuse_enabled)
     except Exception:
         logger.warning("langfuse model definitions init failed", exc_info=True)
 
     try:
-        ensure_security_score_config()
+        ensure_security_score_config(enabled=langfuse_enabled)
     except Exception:
         logger.warning("langfuse security score config init failed", exc_info=True)
 
@@ -267,7 +323,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     app.state.redis = await create_redis(settings)
 
-    if app.state.redis is not None:
+    if not settings.siem_enabled:
+        logger.info("siem event emission disabled by flag")
+    elif app.state.redis is not None:
         event_transport = RedisEventTransport(
             redis_client=app.state.redis,
             queue_maxsize=1000,
@@ -302,6 +360,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             settings.langfuse_prompt_label,
         )
 
+    # Chat auto-title generator (fire-and-forget, design-brief § Auto-title
+    # модуль). Built here — after session_factory + PromptProvider, before
+    # the LangGraph persistence block below — and stored on app.state so its
+    # in-flight task registry survives across requests.
+    app.state.chat_title_generator = ChatTitleGenerator(
+        session_factory=app.state.session_factory,
+        settings=settings,
+        title_config=agent_config.title,
+        prompt_provider=prompt_provider,
+        prompt_fragments=prompt_fragments,
+        langfuse_enabled=langfuse_enabled,
+    )
+
     # Encryption service
     encryption_service = EncryptionService(settings.mcp_encryption_key)
     app.state.encryption_service = encryption_service
@@ -322,61 +393,109 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         skills_dir = Path(__file__).resolve().parents[2] / "skills"
         load_skill = make_load_skill_tool(skills_dir)
         skills_idx = scan_skills_index(skills_dir)
+        skill_names = scan_skill_names(skills_dir)
+        app.state.skill_names = skill_names
+        skill_context_tools = make_skill_context_tools(skill_names)
         create_artifact = make_create_artifact_tool(app.state.session_factory)
-
-        internal_tools: list = (
-            ks_tools + user_memory_tools + [load_skill, create_artifact]
+        generate_image = make_generate_image_tool(
+            app.state.session_factory,
+            settings,
+            agent_config.image,
+            langfuse_enabled=langfuse_enabled,
         )
 
-        # Security guard (Sec 2.0 — always on). Must exist before MCP built-in
-        # validation so the startup guard can call it.
-        guard_llm = create_guard_llm(settings, security_config)
-        fragment_corpus = collect_fragment_corpus(
-            system_prompt=prompt_provider.load_file("system"),
-            guard_classifier_prompt=prompt_provider.load_file("security-classifier"),
-            internal_tools=internal_tools,
+        internal_tools: list[BaseTool] = assemble_internal_tools(
+            skill_context_tools=skill_context_tools,
+            load_skill=load_skill,
+            create_artifact=create_artifact,
+            generate_image=generate_image,
         )
-        tool_registry = collect_tool_registry(internal_tools)
 
-        detectors: list[DeterministicDetector] = [
-            CanaryDetector(),
-            UnicodeDetector(),
-            PairedToolIdentifierDetector(
-                tool_registry,
-                min_compromised_tools=security_config.detectors.paired.min_compromised_tools,
-                min_params_per_tool=security_config.detectors.paired.min_params_per_tool,
-            ),
-            FragmentDetector(
-                fragment_corpus,
-                window_size=security_config.detectors.fragment.window_size,
-                stride=security_config.detectors.fragment.stride,
-                min_unique_matches=security_config.detectors.fragment.min_unique_matches,
-            ),
-        ]
-        classifier = LLMClassifier(
-            llm=guard_llm,
-            prompt_provider=prompt_provider,
-            security_config=security_config,
-            checkpoint_configs=checkpoint_configs(security_config),
-        )
-        security_guard = SecurityGuard(
-            detectors=detectors,
-            classifier=classifier,
-            observer=GuardObserver(),
-            config=security_config,
-        )
-        logger.info(
-            "security guard initialized",
-            guard_model=security_config.llm_classifier.model,
-            corpus_items=len(fragment_corpus),
-            tool_registry_size=len(tool_registry),
-        )
+        # Security guard — gated by LLM_DEFENSE_ENABLED (kill-switch, T3).
+        # When disabled, `_build_security_guard` returns None without
+        # constructing guard_llm, classifier, detectors or the fragment
+        # corpus — the flag must not pay for a guard-model instantiation it
+        # never uses. When enabled: must exist before MCP built-in
+        # validation so the startup guard can call it. Built here from
+        # internal_tools known so far, and rebuilt further below once
+        # `run_subagent` (another internal tool) is known — so
+        # PairedToolIdentifierDetector/FragmentDetector cover its
+        # identifier/description too, like every other internal tool. Safe to
+        # split this way: neither detector applies to Checkpoint.MCP_METADATA
+        # (see their `applies_to`), so the interim guard built here is
+        # complete for the one check it's used for below.
+        # `_build_security_guard` is defined separately in each branch below
+        # (rather than once, gated by an internal early-return) so that
+        # `classifier`/`guard_observer` — bound only on the enabled path —
+        # can never be referenced from a code path where they don't exist:
+        # the disabled-path closure captures nothing from the enabled branch
+        # at all, so there is no unbound-variable access for mypy or a
+        # future refactor to miss.
+        if settings.llm_defense_enabled:
+            guard_llm = create_guard_llm(settings, security_config)
+            classifier = LLMClassifier(
+                llm=guard_llm,
+                prompt_provider=prompt_provider,
+                security_config=security_config,
+                checkpoint_configs=checkpoint_configs(security_config),
+            )
+            guard_observer = GuardObserver(enabled=langfuse_enabled)
+
+            def _build_security_guard(
+                tools_for_corpus: list[BaseTool],
+            ) -> SecurityGuard | None:
+                fragment_corpus = collect_fragment_corpus(
+                    system_prompt=prompt_provider.load_file("system"),
+                    guard_classifier_prompt=prompt_provider.load_file(
+                        "security-classifier"
+                    ),
+                    internal_tools=tools_for_corpus,
+                    security_preamble=prompt_fragments.security_preamble,
+                )
+                registry = collect_tool_registry(tools_for_corpus)
+                detectors: list[DeterministicDetector] = [
+                    CanaryDetector(),
+                    UnicodeDetector(),
+                    PairedToolIdentifierDetector(
+                        registry,
+                        min_compromised_tools=security_config.detectors.paired.min_compromised_tools,
+                        min_params_per_tool=security_config.detectors.paired.min_params_per_tool,
+                    ),
+                    FragmentDetector(
+                        fragment_corpus,
+                        window_size=security_config.detectors.fragment.window_size,
+                        stride=security_config.detectors.fragment.stride,
+                        min_unique_matches=security_config.detectors.fragment.min_unique_matches,
+                    ),
+                ]
+                guard = SecurityGuard(
+                    detectors=detectors,
+                    classifier=classifier,
+                    observer=guard_observer,
+                    config=security_config,
+                )
+                logger.info(
+                    "security guard initialized",
+                    guard_model=security_config.llm_classifier.model,
+                    corpus_items=len(fragment_corpus),
+                    tool_registry_size=len(registry),
+                )
+                return guard
+        else:
+            logger.info("security guard disabled by flag")
+
+            def _build_security_guard(
+                tools_for_corpus: list[BaseTool],
+            ) -> SecurityGuard | None:
+                return None
+
+        security_guard = _build_security_guard(internal_tools)
 
         # Built-in MCP validation: fetch remote tools/list + run guard. A
         # server that fails the fetch or the guard check is excluded from the
         # runtime tool registry. App still boots (graceful disable).
         disabled_builtin_mcp: set[str] = await _validate_builtin_mcp(
-            agent_config.mcp_servers, security_guard
+            agent_config.mcp_servers, security_guard, settings.mcp_timeout_seconds
         )
         app.state.disabled_builtin_mcp = disabled_builtin_mcp
 
@@ -388,7 +507,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 for name, cfg in agent_config.mcp_servers.items()
                 if cfg.enabled and name not in disabled_builtin_mcp
             }
-            mcp_client = create_mcp_client(active_mcp)
+            mcp_client = create_mcp_client(
+                active_mcp, timeout=settings.mcp_timeout_seconds
+            )
             if mcp_client is not None:
                 for server_name, server_config in active_mcp.items():
                     tools = await mcp_client.get_tools(server_name=server_name)
@@ -409,9 +530,65 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 exc_info=True,
             )
 
-        global_tools = (
-            ks_tools + user_memory_tools + [load_skill, create_artifact] + mcp_tools
-        )
+        # Subagents (feat-011, T1.3): tool `run_subagent` + SubagentRunner.
+        # Skipped gracefully if `subagents` is absent from agent.yaml — same
+        # treatment as other optional config sections.
+        if agent_config.subagents is not None:
+            # Built-in pool only: internal_tools + built-in MCP tools. No
+            # user-installed MCP — trust boundary (design-brief § "Tools
+            # субагента").
+            subagent_tool_pool: dict[str, BaseTool] = {
+                t.name: t for t in [*internal_tools, *mcp_tools]
+            }
+            # Fail-fast: an unresolved tool name in the registry aborts
+            # startup, same severity as any other configs/*.yaml typo.
+            _validate_subagent_tool_pool(agent_config.subagents, subagent_tool_pool)
+
+            subagent_runner = SubagentRunner(
+                agent_config=agent_config,
+                prompt_fragments=prompt_fragments,
+                prompt_provider=prompt_provider,
+                settings=settings,
+                tool_pool=subagent_tool_pool,
+                # The interim guard (built from internal_tools *before*
+                # run_subagent is appended below) — not the rebuilt one at
+                # the bottom of this block. Using the interim guard here (as
+                # opposed to reordering to build the final guard first) is
+                # deliberate: the final guard's only difference is that
+                # PairedToolIdentifierDetector/FragmentDetector also cover
+                # `run_subagent`'s own identifier/description, which is
+                # irrelevant to the checks a subagent's *own* tool loop runs
+                # (web-research's tools are firecrawl_*, never run_subagent
+                # — excluded from the pool by SubagentRunner's constructor
+                # invariant). Avoids a circular dependency: the final guard
+                # needs `run_subagent` in internal_tools, which needs this
+                # Runner to exist first.
+                security_guard=security_guard,
+                security_messages=security_config.messages,
+            )
+            run_subagent = make_run_subagent_tool(
+                app.state.session_factory,
+                subagent_runner,
+                agent_config.subagents.registry,
+            )
+            internal_tools = assemble_internal_tools(
+                skill_context_tools=skill_context_tools,
+                load_skill=load_skill,
+                create_artifact=create_artifact,
+                generate_image=generate_image,
+                run_subagent=run_subagent,
+            )
+            # Rebuild the guard so PairedToolIdentifierDetector/
+            # FragmentDetector cover `run_subagent`'s identifier/description
+            # too — see the comment on the first `_build_security_guard`
+            # call above for why this reorder is safe.
+            security_guard = _build_security_guard(internal_tools)
+            logger.info(
+                "run_subagent tool registered",
+                tool_pool_size=len(subagent_tool_pool),
+            )
+
+        global_tools = internal_tools + mcp_tools
 
         # GraphFactory + ModelConfigResolver
         graph_factory = GraphFactory(
@@ -438,23 +615,39 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             session_factory=app.state.session_factory,
             encryption_service=encryption_service,
             global_tool_names=global_tool_names,
+            mcp_timeout=settings.mcp_timeout_seconds,
         )
 
         app.state.tool_resolver = tool_resolver
 
-        if not settings.canary_secret:
+        if settings.llm_defense_enabled and not settings.canary_secret:
             logger.warning("CANARY_SECRET not configured, canary protection disabled")
+
+        checkpoint_history = CheckpointHistory(checkpointer, security_config.messages)
+        runtime_security = RuntimeSecurityEnforcer(
+            guard=security_guard,
+            security_messages=security_config.messages,
+            history=checkpoint_history,
+            session_factory=app.state.session_factory,
+        )
+        agent_tracer = AgentRunTracer(
+            enabled=langfuse_enabled,
+            security_messages=security_config.messages,
+        )
 
         app.state.agent_runner = LangGraphAgentRunner(
             graph_factory=graph_factory,
             model_resolver=model_resolver,
-            checkpointer=checkpointer,
-            security_messages=security_config.messages,
+            tracer=agent_tracer,
+            enforcer=runtime_security,
+            history=checkpoint_history,
             error_messages=error_messages,
+            event_mapper_factory=StreamEventMapper,
             tool_resolver=tool_resolver,
-            security_guard=security_guard,
-            canary_secret=settings.canary_secret,
-            session_factory=app.state.session_factory,
+            canary_secret=settings.canary_secret
+            if settings.llm_defense_enabled
+            else "",
+            checkpointer=checkpointer,
         )
         app.state.agent_config = agent_config
         app.state.security_config = security_config
@@ -476,6 +669,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             await app.state.security_publisher_task
         logger.info("security event publisher stopped")
 
+    # In-flight auto-title tasks hold sessions from the same engine and can be
+    # parked in the title LLM call for LLM_TITLE_TIMEOUT_SECONDS, so they are
+    # unwound here — before engine.dispose() below, same pattern as the
+    # publisher task above (conventions/api.md § Владение состоянием).
+    await app.state.chat_title_generator.shutdown()
+
     shutdown_langfuse()
     if app.state.redis:
         await app.state.redis.aclose()
@@ -486,7 +685,45 @@ def create_app() -> FastAPI:
     settings = Settings()
     app = FastAPI(title="LearnFlowAI", lifespan=lifespan)
 
-    # CORS
+    # Request ID + security context + Layer 3 generic-500 catch.
+    #
+    # Middleware ordering (Starlette): add_middleware inserts at the front of
+    # the stack, so the LAST registered middleware is the OUTERMOST. CORS is
+    # registered AFTER this one (below) and is therefore the outermost wrapper.
+    # The generic-500 JSONResponse returned here flows back OUT through
+    # CORSMiddleware and picks up Access-Control-Allow-Origin (F-API-01). A bare
+    # add_exception_handler(Exception) would run in ServerErrorMiddleware,
+    # OUTSIDE all user middleware including CORS, and the 500 would ship without
+    # CORS headers — which is exactly why the catch lives here.
+    @app.middleware("http")
+    async def request_id_middleware(request: Request, call_next: Any) -> Any:
+        structlog.contextvars.clear_contextvars()
+        request_id = str(uuid.uuid4())
+
+        # Extract User-Agent and hash it
+        user_agent = request.headers.get("User-Agent", "")
+        user_agent_hash = hashlib.sha256(user_agent.encode()).hexdigest()
+
+        # Bind security context. Client IP goes through app.infra.client_ip
+        # (single source of truth for reading proxy headers); on the health
+        # path it is not bound at all — docker healthcheck bypasses nginx,
+        # so there is no proxy header to read and nothing to log.
+        structlog.contextvars.bind_contextvars(
+            request_id=request_id,
+            user_agent_hash=user_agent_hash,
+        )
+        if not is_health_path(request.url.path):
+            structlog.contextvars.bind_contextvars(ip=get_client_ip(request, settings))
+        try:
+            response = await call_next(request)
+            return response
+        except Exception:
+            logger.error("unhandled exception", exc_info=True)
+            return problem_response(status=500, detail="Internal server error")
+
+    # CORS — registered LAST so it is the OUTERMOST middleware and wraps the
+    # generic-500 handler above; this is what lets 500 responses carry CORS
+    # headers (F-API-01).
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -495,46 +732,26 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Request ID and security context middleware
-    @app.middleware("http")
-    async def request_id_middleware(request: Request, call_next: Any) -> Any:
-        structlog.contextvars.clear_contextvars()
-        request_id = str(uuid.uuid4())
+    # Exception handlers — RFC 9457 problem+json
+    register_problem_handlers(app)
 
-        # Extract client IP (handle X-Forwarded-For for proxies)
-        client_ip = "unknown"
-        if request.client:
-            client_ip = request.client.host
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            client_ip = forwarded.split(",")[0].strip()
-
-        # Extract User-Agent and hash it
-        user_agent = request.headers.get("User-Agent", "")
-        user_agent_hash = hashlib.sha256(user_agent.encode()).hexdigest()
-
-        # Bind security context
-        structlog.contextvars.bind_contextvars(
-            request_id=request_id,
-            ip=client_ip,
-            user_agent_hash=user_agent_hash,
-        )
-        response = await call_next(request)
-        return response
-
-    # Exception handlers
-    @app.exception_handler(EntityNotFoundError)
-    async def entity_not_found_handler(
-        request: object, exc: EntityNotFoundError
-    ) -> JSONResponse:
-        return JSONResponse(status_code=404, content={"detail": str(exc)})
-
-    # Health check
-    @app.get("/health")
-    async def health(request: Request) -> dict[str, str]:
-        async with request.app.state.engine.connect() as conn:
-            await conn.execute(text("SELECT 1"))
-        return {"status": "ok"}
+    # Health check — honest 503 when DB is down (F-API-02).
+    # response_model=None: the handler returns either a plain dict (200) or a
+    # JSONResponse (503 problem+json); FastAPI cannot build a response model
+    # from that union (Response subclass + dict) and would raise at startup.
+    @app.get("/health", response_model=None)
+    async def health(request: Request) -> JSONResponse | dict[str, str]:
+        try:
+            async with request.app.state.engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+            return {"status": "ok"}
+        except OperationalError:
+            logger.warning("health check: database unavailable", exc_info=True)
+            return problem_response(
+                status=503,
+                detail="Database unavailable",
+                type_=TYPE_PREFIX + "db-unavailable",
+            )
 
     # API routes
     api_prefix = "/api"
@@ -548,6 +765,7 @@ def create_app() -> FastAPI:
     app.include_router(models.router, prefix=api_prefix)
     app.include_router(settings_routes.router, prefix=api_prefix)
     app.include_router(user_memory.router, prefix=api_prefix)
+    app.include_router(skill_context.router, prefix=api_prefix)
     app.include_router(mcp_servers.router, prefix=api_prefix)
 
     # Serve frontend static files (only when dist exists — Docker mode)

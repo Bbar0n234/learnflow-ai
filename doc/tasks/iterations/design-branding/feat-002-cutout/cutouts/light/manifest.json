@@ -1,0 +1,54 @@
+[
+  {
+    "source": "/home/bbaron/dev/my_pet_projects/learnflow-ai/doc/tasks/iterations/design-branding/feat-001-poc/refs/illustrations/final/light/empty-chats.png",
+    "output": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-002-cutout/doc/tasks/iterations/design-branding/feat-002-cutout/cutouts/light/empty-chats.png",
+    "source_size": [
+      1448,
+      1086
+    ],
+    "inference_resolution": "2048x1536",
+    "weights": "General-HR",
+    "space": "ZhengPeng7/BiRefNet_demo",
+    "seconds": 7.8,
+    "finished_at": "2026-08-06T13:35:15+0300"
+  },
+  {
+    "source": "/home/bbaron/dev/my_pet_projects/learnflow-ai/doc/tasks/iterations/design-branding/feat-001-poc/refs/illustrations/final/light/empty-sphere.png",
+    "output": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-002-cutout/doc/tasks/iterations/design-branding/feat-002-cutout/cutouts/light/empty-sphere.png",
+    "source_size": [
+      1448,
+      1086
+    ],
+    "inference_resolution": "2048x1536",
+    "weights": "General-HR",
+    "space": "ZhengPeng7/BiRefNet_demo",
+    "seconds": 7.8,
+    "finished_at": "2026-08-06T13:35:23+0300"
+  },
+  {
+    "source": "/home/bbaron/dev/my_pet_projects/learnflow-ai/doc/tasks/iterations/design-branding/feat-001-poc/refs/illustrations/final/light/error-state.png",
+    "output": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-002-cutout/doc/tasks/iterations/design-branding/feat-002-cutout/cutouts/light/error-state.png",
+    "source_size": [
+      1448,
+      1086
+    ],
+    "inference_resolution": "2048x1536",
+    "weights": "General-HR",
+    "space": "ZhengPeng7/BiRefNet_demo",
+    "seconds": 5.2,
+    "finished_at": "2026-08-06T13:35:28+0300"
+  },
+  {
+    "source": "/home/bbaron/dev/my_pet_projects/learnflow-ai/doc/tasks/iterations/design-branding/feat-001-poc/refs/illustrations/final/light/welcome-hero.png",
+    "output": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-002-cutout/doc/tasks/iterations/design-branding/feat-002-cutout/cutouts/light/welcome-hero.png",
+    "source_size": [
+      1672,
+      941
+    ],
+    "inference_resolution": "2048x1152",
+    "weights": "General-HR",
+    "space": "ZhengPeng7/BiRefNet_demo",
+    "seconds": 8.0,
+    "finished_at": "2026-08-06T13:44:13+0300"
+  }
+]

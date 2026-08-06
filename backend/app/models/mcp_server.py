@@ -9,7 +9,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     LargeBinary,
-    String,
+    Text,
     UniqueConstraint,
     func,
     text,
@@ -33,15 +33,15 @@ class UserMCPServer(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         index=True,
     )
-    name: Mapped[str] = mapped_column(String(100))
-    transport: Mapped[str] = mapped_column(String(20))
-    url: Mapped[str] = mapped_column(String(2000))
+    name: Mapped[str] = mapped_column(Text)
+    transport: Mapped[str] = mapped_column(Text)
+    url: Mapped[str] = mapped_column(Text)
     api_key_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
-    api_key_hint: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    api_key_hint: Mapped[str | None] = mapped_column(Text, nullable=True)
     allowed_tools: Mapped[list] = mapped_column(
         JSONB, server_default=text("'[]'::jsonb")
     )
-    is_active: Mapped[bool] = mapped_column(Boolean, server_default="true")
+    is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -62,15 +62,15 @@ class ProjectMCPServer(Base):
         ForeignKey("projects.id", ondelete="CASCADE"),
         index=True,
     )
-    name: Mapped[str] = mapped_column(String(100))
-    transport: Mapped[str] = mapped_column(String(20))
-    url: Mapped[str] = mapped_column(String(2000))
+    name: Mapped[str] = mapped_column(Text)
+    transport: Mapped[str] = mapped_column(Text)
+    url: Mapped[str] = mapped_column(Text)
     api_key_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
-    api_key_hint: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    api_key_hint: Mapped[str | None] = mapped_column(Text, nullable=True)
     allowed_tools: Mapped[list] = mapped_column(
         JSONB, server_default=text("'[]'::jsonb")
     )
-    is_active: Mapped[bool] = mapped_column(Boolean, server_default="true")
+    is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -91,15 +91,15 @@ class ThreadMCPServer(Base):
         ForeignKey("thread_views.thread_id", ondelete="CASCADE"),
         index=True,
     )
-    name: Mapped[str] = mapped_column(String(100))
-    transport: Mapped[str] = mapped_column(String(20))
-    url: Mapped[str] = mapped_column(String(2000))
+    name: Mapped[str] = mapped_column(Text)
+    transport: Mapped[str] = mapped_column(Text)
+    url: Mapped[str] = mapped_column(Text)
     api_key_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
-    api_key_hint: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    api_key_hint: Mapped[str | None] = mapped_column(Text, nullable=True)
     allowed_tools: Mapped[list] = mapped_column(
         JSONB, server_default=text("'[]'::jsonb")
     )
-    is_active: Mapped[bool] = mapped_column(Boolean, server_default="true")
+    is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -111,9 +111,9 @@ class ThreadMCPServer(Base):
 class MCPServerDisable(Base):
     __tablename__ = "mcp_server_disables"
     __table_args__ = (
-        CheckConstraint("scope_type IN ('project', 'thread')", name="ck_scope_type"),
+        CheckConstraint("scope_type IN ('project', 'thread')", name="scope_type"),
     )
 
-    scope_type: Mapped[str] = mapped_column(String(10), primary_key=True)
+    scope_type: Mapped[str] = mapped_column(Text, primary_key=True)
     scope_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True)
     server_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True)

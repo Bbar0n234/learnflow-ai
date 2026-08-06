@@ -1,0 +1,546 @@
+{
+  "generated_at": "2026-06-13T14:51:18+0300",
+  "status": "awaiting_architect_approval",
+  "profiles": {
+    "soft-balanced": {
+      "low_rgb_distance": 8.0,
+      "high_rgb_distance": 28.0,
+      "foreground_decontamination": false
+    },
+    "soft-wide": {
+      "low_rgb_distance": 12.0,
+      "high_rgb_distance": 42.0,
+      "foreground_decontamination": false
+    }
+  },
+  "runs": [
+    {
+      "profile": "soft-balanced",
+      "theme": "light",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-artifacts.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-balanced/light/empty-artifacts.png",
+      "size": [
+        1448,
+        1086
+      ],
+      "background_rgb": [
+        252.0,
+        238.0,
+        224.0
+      ],
+      "low_rgb_distance": 8.0,
+      "high_rgb_distance": 28.0,
+      "alpha_zero_fraction": 0.593905,
+      "alpha_partial_fraction": 0.011999,
+      "alpha_opaque_fraction": 0.394095,
+      "elapsed_seconds": 2.179,
+      "output_bytes": 2090079
+    },
+    {
+      "profile": "soft-balanced",
+      "theme": "light",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-chats.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-balanced/light/empty-chats.png",
+      "size": [
+        1448,
+        1086
+      ],
+      "background_rgb": [
+        253.0,
+        239.0,
+        223.0
+      ],
+      "low_rgb_distance": 8.0,
+      "high_rgb_distance": 28.0,
+      "alpha_zero_fraction": 0.672957,
+      "alpha_partial_fraction": 0.012963,
+      "alpha_opaque_fraction": 0.31408,
+      "elapsed_seconds": 2.318,
+      "output_bytes": 1880450
+    },
+    {
+      "profile": "soft-balanced",
+      "theme": "light",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-sphere.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-balanced/light/empty-sphere.png",
+      "size": [
+        1448,
+        1086
+      ],
+      "background_rgb": [
+        253.0,
+        241.0,
+        228.0
+      ],
+      "low_rgb_distance": 8.0,
+      "high_rgb_distance": 28.0,
+      "alpha_zero_fraction": 0.56288,
+      "alpha_partial_fraction": 0.013523,
+      "alpha_opaque_fraction": 0.423597,
+      "elapsed_seconds": 1.921,
+      "output_bytes": 2250748
+    },
+    {
+      "profile": "soft-balanced",
+      "theme": "light",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/error-state.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-balanced/light/error-state.png",
+      "size": [
+        1448,
+        1086
+      ],
+      "background_rgb": [
+        253.0,
+        239.0,
+        225.0
+      ],
+      "low_rgb_distance": 8.0,
+      "high_rgb_distance": 28.0,
+      "alpha_zero_fraction": 0.698802,
+      "alpha_partial_fraction": 0.010776,
+      "alpha_opaque_fraction": 0.290422,
+      "elapsed_seconds": 2.301,
+      "output_bytes": 1875636
+    },
+    {
+      "profile": "soft-balanced",
+      "theme": "light",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/sidebar-vignette.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-balanced/light/sidebar-vignette.png",
+      "size": [
+        1983,
+        793
+      ],
+      "background_rgb": [
+        253.0,
+        244.0,
+        234.0
+      ],
+      "low_rgb_distance": 8.0,
+      "high_rgb_distance": 28.0,
+      "alpha_zero_fraction": 0.793037,
+      "alpha_partial_fraction": 0.008642,
+      "alpha_opaque_fraction": 0.198322,
+      "elapsed_seconds": 1.884,
+      "output_bytes": 1250289
+    },
+    {
+      "profile": "soft-balanced",
+      "theme": "light",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/welcome-hero.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-balanced/light/welcome-hero.png",
+      "size": [
+        1672,
+        941
+      ],
+      "background_rgb": [
+        252.0,
+        240.0,
+        228.0
+      ],
+      "low_rgb_distance": 8.0,
+      "high_rgb_distance": 28.0,
+      "alpha_zero_fraction": 0.793658,
+      "alpha_partial_fraction": 0.009223,
+      "alpha_opaque_fraction": 0.197119,
+      "elapsed_seconds": 2.378,
+      "output_bytes": 1378784
+    },
+    {
+      "profile": "soft-balanced",
+      "theme": "dark",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-artifacts.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-balanced/dark/empty-artifacts.png",
+      "size": [
+        1448,
+        1086
+      ],
+      "background_rgb": [
+        252.0,
+        236.0,
+        222.0
+      ],
+      "low_rgb_distance": 8.0,
+      "high_rgb_distance": 28.0,
+      "alpha_zero_fraction": 0.592059,
+      "alpha_partial_fraction": 0.012878,
+      "alpha_opaque_fraction": 0.395063,
+      "elapsed_seconds": 2.258,
+      "output_bytes": 2045731
+    },
+    {
+      "profile": "soft-balanced",
+      "theme": "dark",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-chats.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-balanced/dark/empty-chats.png",
+      "size": [
+        1448,
+        1086
+      ],
+      "background_rgb": [
+        253.0,
+        237.0,
+        222.0
+      ],
+      "low_rgb_distance": 8.0,
+      "high_rgb_distance": 28.0,
+      "alpha_zero_fraction": 0.625162,
+      "alpha_partial_fraction": 0.013321,
+      "alpha_opaque_fraction": 0.361517,
+      "elapsed_seconds": 2.229,
+      "output_bytes": 2039238
+    },
+    {
+      "profile": "soft-balanced",
+      "theme": "dark",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-sphere.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-balanced/dark/empty-sphere.png",
+      "size": [
+        1448,
+        1086
+      ],
+      "background_rgb": [
+        251.0,
+        236.0,
+        223.0
+      ],
+      "low_rgb_distance": 8.0,
+      "high_rgb_distance": 28.0,
+      "alpha_zero_fraction": 0.56257,
+      "alpha_partial_fraction": 0.012545,
+      "alpha_opaque_fraction": 0.424885,
+      "elapsed_seconds": 2.291,
+      "output_bytes": 2059101
+    },
+    {
+      "profile": "soft-balanced",
+      "theme": "dark",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/error-state.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-balanced/dark/error-state.png",
+      "size": [
+        1448,
+        1086
+      ],
+      "background_rgb": [
+        251.0,
+        235.0,
+        224.0
+      ],
+      "low_rgb_distance": 8.0,
+      "high_rgb_distance": 28.0,
+      "alpha_zero_fraction": 0.651676,
+      "alpha_partial_fraction": 0.010881,
+      "alpha_opaque_fraction": 0.337444,
+      "elapsed_seconds": 2.292,
+      "output_bytes": 1930192
+    },
+    {
+      "profile": "soft-balanced",
+      "theme": "dark",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/sidebar-vignette.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-balanced/dark/sidebar-vignette.png",
+      "size": [
+        1983,
+        793
+      ],
+      "background_rgb": [
+        252.0,
+        238.0,
+        227.0
+      ],
+      "low_rgb_distance": 8.0,
+      "high_rgb_distance": 28.0,
+      "alpha_zero_fraction": 0.743257,
+      "alpha_partial_fraction": 0.016386,
+      "alpha_opaque_fraction": 0.240356,
+      "elapsed_seconds": 2.55,
+      "output_bytes": 1643801
+    },
+    {
+      "profile": "soft-balanced",
+      "theme": "dark",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/welcome-hero.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-balanced/dark/welcome-hero.png",
+      "size": [
+        1672,
+        941
+      ],
+      "background_rgb": [
+        252.0,
+        236.0,
+        222.0
+      ],
+      "low_rgb_distance": 8.0,
+      "high_rgb_distance": 28.0,
+      "alpha_zero_fraction": 0.789678,
+      "alpha_partial_fraction": 0.011714,
+      "alpha_opaque_fraction": 0.198608,
+      "elapsed_seconds": 2.682,
+      "output_bytes": 1600508
+    },
+    {
+      "profile": "soft-wide",
+      "theme": "light",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-artifacts.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-wide/light/empty-artifacts.png",
+      "size": [
+        1448,
+        1086
+      ],
+      "background_rgb": [
+        252.0,
+        238.0,
+        224.0
+      ],
+      "low_rgb_distance": 12.0,
+      "high_rgb_distance": 42.0,
+      "alpha_zero_fraction": 0.598953,
+      "alpha_partial_fraction": 0.009632,
+      "alpha_opaque_fraction": 0.391415,
+      "elapsed_seconds": 2.162,
+      "output_bytes": 2084889
+    },
+    {
+      "profile": "soft-wide",
+      "theme": "light",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-chats.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-wide/light/empty-chats.png",
+      "size": [
+        1448,
+        1086
+      ],
+      "background_rgb": [
+        253.0,
+        239.0,
+        223.0
+      ],
+      "low_rgb_distance": 12.0,
+      "high_rgb_distance": 42.0,
+      "alpha_zero_fraction": 0.678501,
+      "alpha_partial_fraction": 0.011015,
+      "alpha_opaque_fraction": 0.310484,
+      "elapsed_seconds": 2.436,
+      "output_bytes": 1875857
+    },
+    {
+      "profile": "soft-wide",
+      "theme": "light",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/empty-sphere.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-wide/light/empty-sphere.png",
+      "size": [
+        1448,
+        1086
+      ],
+      "background_rgb": [
+        253.0,
+        241.0,
+        228.0
+      ],
+      "low_rgb_distance": 12.0,
+      "high_rgb_distance": 42.0,
+      "alpha_zero_fraction": 0.573454,
+      "alpha_partial_fraction": 0.031305,
+      "alpha_opaque_fraction": 0.395241,
+      "elapsed_seconds": 2.037,
+      "output_bytes": 2283351
+    },
+    {
+      "profile": "soft-wide",
+      "theme": "light",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/error-state.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-wide/light/error-state.png",
+      "size": [
+        1448,
+        1086
+      ],
+      "background_rgb": [
+        253.0,
+        239.0,
+        225.0
+      ],
+      "low_rgb_distance": 12.0,
+      "high_rgb_distance": 42.0,
+      "alpha_zero_fraction": 0.703388,
+      "alpha_partial_fraction": 0.007978,
+      "alpha_opaque_fraction": 0.288634,
+      "elapsed_seconds": 2.336,
+      "output_bytes": 1868877
+    },
+    {
+      "profile": "soft-wide",
+      "theme": "light",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/sidebar-vignette.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-wide/light/sidebar-vignette.png",
+      "size": [
+        1983,
+        793
+      ],
+      "background_rgb": [
+        253.0,
+        244.0,
+        234.0
+      ],
+      "low_rgb_distance": 12.0,
+      "high_rgb_distance": 42.0,
+      "alpha_zero_fraction": 0.79727,
+      "alpha_partial_fraction": 0.00532,
+      "alpha_opaque_fraction": 0.19741,
+      "elapsed_seconds": 1.943,
+      "output_bytes": 1243112
+    },
+    {
+      "profile": "soft-wide",
+      "theme": "light",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/light/welcome-hero.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-wide/light/welcome-hero.png",
+      "size": [
+        1672,
+        941
+      ],
+      "background_rgb": [
+        252.0,
+        240.0,
+        228.0
+      ],
+      "low_rgb_distance": 12.0,
+      "high_rgb_distance": 42.0,
+      "alpha_zero_fraction": 0.800204,
+      "alpha_partial_fraction": 0.036546,
+      "alpha_opaque_fraction": 0.16325,
+      "elapsed_seconds": 2.395,
+      "output_bytes": 1408403
+    },
+    {
+      "profile": "soft-wide",
+      "theme": "dark",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-artifacts.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-wide/dark/empty-artifacts.png",
+      "size": [
+        1448,
+        1086
+      ],
+      "background_rgb": [
+        252.0,
+        236.0,
+        222.0
+      ],
+      "low_rgb_distance": 12.0,
+      "high_rgb_distance": 42.0,
+      "alpha_zero_fraction": 0.597722,
+      "alpha_partial_fraction": 0.010121,
+      "alpha_opaque_fraction": 0.392158,
+      "elapsed_seconds": 2.22,
+      "output_bytes": 2039222
+    },
+    {
+      "profile": "soft-wide",
+      "theme": "dark",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-chats.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-wide/dark/empty-chats.png",
+      "size": [
+        1448,
+        1086
+      ],
+      "background_rgb": [
+        253.0,
+        237.0,
+        222.0
+      ],
+      "low_rgb_distance": 12.0,
+      "high_rgb_distance": 42.0,
+      "alpha_zero_fraction": 0.630043,
+      "alpha_partial_fraction": 0.014042,
+      "alpha_opaque_fraction": 0.355915,
+      "elapsed_seconds": 2.13,
+      "output_bytes": 2039132
+    },
+    {
+      "profile": "soft-wide",
+      "theme": "dark",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/empty-sphere.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-wide/dark/empty-sphere.png",
+      "size": [
+        1448,
+        1086
+      ],
+      "background_rgb": [
+        251.0,
+        236.0,
+        223.0
+      ],
+      "low_rgb_distance": 12.0,
+      "high_rgb_distance": 42.0,
+      "alpha_zero_fraction": 0.567622,
+      "alpha_partial_fraction": 0.010087,
+      "alpha_opaque_fraction": 0.422291,
+      "elapsed_seconds": 2.228,
+      "output_bytes": 2054178
+    },
+    {
+      "profile": "soft-wide",
+      "theme": "dark",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/error-state.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-wide/dark/error-state.png",
+      "size": [
+        1448,
+        1086
+      ],
+      "background_rgb": [
+        251.0,
+        235.0,
+        224.0
+      ],
+      "low_rgb_distance": 12.0,
+      "high_rgb_distance": 42.0,
+      "alpha_zero_fraction": 0.655688,
+      "alpha_partial_fraction": 0.010935,
+      "alpha_opaque_fraction": 0.333377,
+      "elapsed_seconds": 2.256,
+      "output_bytes": 1928981
+    },
+    {
+      "profile": "soft-wide",
+      "theme": "dark",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/sidebar-vignette.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-wide/dark/sidebar-vignette.png",
+      "size": [
+        1983,
+        793
+      ],
+      "background_rgb": [
+        252.0,
+        238.0,
+        227.0
+      ],
+      "low_rgb_distance": 12.0,
+      "high_rgb_distance": 42.0,
+      "alpha_zero_fraction": 0.752619,
+      "alpha_partial_fraction": 0.00878,
+      "alpha_opaque_fraction": 0.238601,
+      "elapsed_seconds": 2.582,
+      "output_bytes": 1631388
+    },
+    {
+      "profile": "soft-wide",
+      "theme": "dark",
+      "source": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/final/dark/welcome-hero.png",
+      "output": "doc/tasks/iterations/frontend/feat-007-design-branding/refs/illustrations/candidates/transparent/soft-wide/dark/welcome-hero.png",
+      "size": [
+        1672,
+        941
+      ],
+      "background_rgb": [
+        252.0,
+        236.0,
+        222.0
+      ],
+      "low_rgb_distance": 12.0,
+      "high_rgb_distance": 42.0,
+      "alpha_zero_fraction": 0.795191,
+      "alpha_partial_fraction": 0.009269,
+      "alpha_opaque_fraction": 0.19554,
+      "elapsed_seconds": 2.668,
+      "output_bytes": 1595702
+    }
+  ]
+}

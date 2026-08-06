@@ -1,12 +1,11 @@
 """Correlation rule evaluation strategies."""
 
 from datetime import UTC, datetime, timedelta
-from typing import Any, Protocol, cast
-from uuid import UUID
+from typing import Any, Protocol
 
 import structlog
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
 
 from siem_service.correlation.deduper import AlertCandidate
 from siem_service.domain.models import CorrelationRule, SiemEvent
@@ -38,7 +37,7 @@ class ThresholdStrategy:
         session: AsyncSession,
     ) -> list[AlertCandidate]:
         """Evaluate threshold rule."""
-        config: dict[str, Any] = cast(dict[str, Any], rule.config or {})
+        config: dict[str, Any] = rule.config or {}
 
         event_type_pattern = config.get("event_type_pattern")
         threshold = config.get("threshold", 1)
@@ -70,11 +69,11 @@ class ThresholdStrategy:
             latest_event = max(events, key=lambda e: e.ingested_at)
             candidates.append(
                 AlertCandidate(
-                    rule_id=cast(int, rule.id),
-                    severity=cast(str, rule.severity),
+                    rule_id=rule.id,
+                    severity=rule.severity,
                     group_key=None,
-                    first_event_id=cast(UUID, first_event.event_id),
-                    latest_event_id=cast(UUID, latest_event.event_id),
+                    first_event_id=first_event.event_id,
+                    latest_event_id=latest_event.event_id,
                 )
             )
         else:
@@ -82,10 +81,8 @@ class ThresholdStrategy:
             grouped: dict[str, list[SiemEvent]] = {}
             for event in events:
                 # Extract group key from identifiers
-                identifiers: dict[str, Any] = cast(
-                    dict[str, Any], event.identifiers or {}
-                )
-                key_value = identifiers.get(cast(str, group_key))
+                identifiers = event.identifiers or {}
+                key_value = identifiers.get(group_key) if group_key else None
 
                 # Skip events without required identifier (NULL group_key policy)
                 if key_value is None:
@@ -103,11 +100,11 @@ class ThresholdStrategy:
                     latest_event = max(group_events, key=lambda e: e.ingested_at)
                     candidates.append(
                         AlertCandidate(
-                            rule_id=cast(int, rule.id),
-                            severity=cast(str, rule.severity),
+                            rule_id=rule.id,
+                            severity=rule.severity,
                             group_key=key_value,
-                            first_event_id=cast(UUID, first_event.event_id),
-                            latest_event_id=cast(UUID, latest_event.event_id),
+                            first_event_id=first_event.event_id,
+                            latest_event_id=latest_event.event_id,
                         )
                     )
 
@@ -123,7 +120,7 @@ class SequenceStrategy:
         session: AsyncSession,
     ) -> list[AlertCandidate]:
         """Evaluate sequence rule."""
-        config: dict[str, Any] = cast(dict[str, Any], rule.config or {})
+        config: dict[str, Any] = rule.config or {}
 
         event_a_pattern = config.get("event_a_pattern")
         event_b_pattern = config.get("event_b_pattern")
@@ -173,11 +170,11 @@ class SequenceStrategy:
 
                 candidates.append(
                     AlertCandidate(
-                        rule_id=cast(int, rule.id),
-                        severity=cast(str, rule.severity),
+                        rule_id=rule.id,
+                        severity=rule.severity,
                         group_key=key_value,
-                        first_event_id=cast(UUID, event_a.event_id),
-                        latest_event_id=cast(UUID, event_b.event_id),
+                        first_event_id=event_a.event_id,
+                        latest_event_id=event_b.event_id,
                     )
                 )
 
@@ -193,7 +190,7 @@ class AggregateStrategy:
         session: AsyncSession,
     ) -> list[AlertCandidate]:
         """Evaluate aggregate rule (equivalent to threshold without group_key)."""
-        config: dict[str, Any] = cast(dict[str, Any], rule.config or {})
+        config: dict[str, Any] = rule.config or {}
 
         event_type_pattern = config.get("event_type_pattern")
         threshold = config.get("threshold", 1)
@@ -219,11 +216,11 @@ class AggregateStrategy:
             latest_event = max(events, key=lambda e: e.ingested_at)
             return [
                 AlertCandidate(
-                    rule_id=cast(int, rule.id),
-                    severity=cast(str, rule.severity),
+                    rule_id=rule.id,
+                    severity=rule.severity,
                     group_key=None,
-                    first_event_id=cast(UUID, first_event.event_id),
-                    latest_event_id=cast(UUID, latest_event.event_id),
+                    first_event_id=first_event.event_id,
+                    latest_event_id=latest_event.event_id,
                 )
             ]
 
@@ -231,10 +228,20 @@ class AggregateStrategy:
 
 
 def get_strategy(rule_type: str) -> Strategy:
-    """Get strategy for rule type."""
+    """Get strategy for rule type.
+
+    Raises ValueError for unknown rule_type so the per-rule try/except in
+    CorrelationEngine logs the error and skips the rule without crashing the
+    engine (F-SIEM-G4: one failing rule must not stop the correlation cycle).
+    Unknown values indicate a DB record created before schema tightening —
+    silent fallback to ThresholdStrategy is intentionally avoided.
+    """
     strategies: dict[str, Strategy] = {
         "threshold": ThresholdStrategy(),
         "sequence": SequenceStrategy(),
         "aggregate": AggregateStrategy(),
     }
-    return strategies.get(rule_type, ThresholdStrategy())
+    if rule_type not in strategies:
+        logger.warning("unknown rule type in correlation engine", rule_type=rule_type)
+        raise ValueError(f"Unknown rule_type: {rule_type!r}")
+    return strategies[rule_type]

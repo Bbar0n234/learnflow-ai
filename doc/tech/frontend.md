@@ -22,9 +22,9 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 ```
 
 **Sidebar (постоянный):**
-- New chat (активна только в контексте проекта — project_id из URL) / New project
+- New chat (доступна с любого экрана — открывает модалку выбора проекта, даже когда пользователь уже внутри проекта; пустой список проектов → empty-state с переходом в создание проекта) / New project
 - Список проектов пользователя
-- Recents — недавние чаты (быстрое переключение между чатами разных проектов)
+- Recents — недавние чаты (быстрое переключение между чатами разных проектов; rename/delete через `ChatActions`)
 
 **Центральная область** — контент текущего маршрута.
 
@@ -32,9 +32,10 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 
 | Маршрут | Центральная область |
 |---------|---------------------|
-| `/` | Welcome (без input — создание чата только из проекта) |
+| `/` | Welcome (без input; чат создаётся на странице проекта или через композер) |
 | `/settings` | Пользовательские настройки: модель, инструкции, память, MCP серверы |
 | `/projects/:id` | Проект: табы **Chats** / **Sphere** / **Artifacts** / **Settings** |
+| `/projects/:id/chats/new` | Композер: draft-режим чата до отправки первого сообщения (записи в БД ещё нет) |
 | `/projects/:id/chats/:cid` | Чат: ChatHeader (← project, model selector, tools dialog) + сообщения + SSE-стриминг + input |
 | `/projects/:id/sphere` | Knowledge Sphere: просмотр и редактирование (Markdown) |
 | `/projects/:id/artifacts` | Список артефактов проекта |
@@ -44,10 +45,10 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 
 ### Экраны
 
-**Главная (`/`):** welcome-экран без input. Создание чата — только из контекста проекта (`/projects/:id`). Проекты доступны через sidebar.
+**Главная (`/`):** welcome-экран без input. Проекты доступны через sidebar; создание чата — с поля первого сообщения на странице проекта или через кнопку «+ Новый чат» в sidebar (модалка выбора проекта → композер).
 
-**Проект (`/projects/:id`):** имя проекта, input для нового чата в этом проекте, табы:
-- **Chats** (default) — список чатов проекта (название, превью, дата)
+**Проект (`/projects/:id`):** имя проекта, поле первого сообщения для нового чата в этом проекте (не поле названия — само название генерируется после отправки), табы:
+- **Chats** (default) — список чатов проекта (название, превью, дата; rename/delete через `ChatActions`)
 - **Sphere** — Knowledge Sphere
 - **Artifacts** — артефакты проекта
 - **Settings** — настройки проекта (model override, MCP серверы)
@@ -56,11 +57,15 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 
 **Чат (`/projects/:id/chats/:cid`):** полноценный chat view на всю центральную область. Sidebar остаётся для навигации назад.
 
+**Композер (`/projects/:id/chats/new`):** draft-режим того же chat view — пустая история, заголовок «Новый чат», обычный `ChatInput`; thread-scoped контролы (селектор модели, чип MCP-инструментов) скрыты — чата в БД ещё нет. Отправка первого сообщения создаёт чат (`POST /projects/:id/chats`, без тела) и однократно переводит на `/projects/:id/chats/{thread_id}` с авто-отправкой этого сообщения.
+
+**Модалка выбора проекта:** открывается кнопкой «+ Новый чат» в sidebar с любого экрана. Список проектов пользователя — клик ведёт в композер выбранного проекта; пустой список — empty-state с переходом в создание проекта (переиспользует модалку создания проекта).
+
 **Создание проекта:** модалка поверх текущего экрана. Один input (название) + кнопка создания. При необходимости расширяется дополнительными полями.
 
 ## Компонентная архитектура
 
-Feature-based: компоненты группируются по фичам, не по типам. Новая фича = новая папка, существующие не затрагиваются.
+Организация по FSD: код группируется по слоям и слайсам (`pages/` — экраны маршрутов, `features/` — переиспользуемые interactions), не по техническим типам. Раскладка по дереву — в [Module Structure](#module-structure) ниже; ниже — функциональное описание экранов и компонентов.
 
 ### Layout
 
@@ -77,26 +82,35 @@ Feature-based: компоненты группируются по фичам, н
 - Карточка проекта в sidebar (с контекстным меню rename/delete)
 
 **chat** — ядро приложения.
-- ChatHeader — название чата, ссылка на проект, model selector (dropdown per-thread), tools dialog
+- ChatHeader — название чата (посимвольная печать через `TypedTitle` при замене плейсхолдера сгенерированным title), ссылка на проект, model selector (dropdown per-thread), tools dialog; в draft-режиме (`chats/new`) — заголовок всегда «Новый чат», model selector и tools dialog не рендерятся
 - Список сообщений (scroll, auto-scroll при стриминге)
-- Сообщение — user и assistant рендерятся по-разному (assistant → Markdown через Streamdown)
-- Input с отправкой (Enter / кнопка)
-- Индикаторы: стриминг текста, tool use (`tool_start`/`tool_end`)
-- Карточка артефакта (инлайн в чате, по событию `artifact_created`)
+- Сообщение — user и assistant рендерятся по-разному: ассистентское собирается из `parts` хода (текстовые блоки — Markdown через Streamdown, блоки действий — лента активности), при пустых `parts` остаётся плоский рендер по `content`
+- Input с отправкой (Enter / кнопка); в draft-режиме — тот же компонент, отправка создаёт чат и однократно переигрывает сообщение на новом маршруте
+- Лента активности (`ActivityFeed` / `ActivityRow` / `ActivityDetails`) — след работы агента: строки рассуждений, вызовов инструментов и доменных записей с человекочитаемой подписью из реестра `shared/config/agent-tools.ts`, статусом, длительностью и разворотом в зоны «Вызов» / «Результат»; шаги субагента идут вложенной лентой внутри строки его вызова. Один и тот же компонент рисует живой ход и сохранённый — данные у них одной формы (см. [streaming.md](streaming.md#frontend-потребление-стрима))
+- Живые элементы ленты: бегущие точки и счётчик времени у идущего действия (`LiveDots`), строка-пауза в любом промежутке хода без движения (`ActivityPauseRow`), индикатор ревью ответа (`ReviewIndicator`)
+- Чем закончился ход, если он закончился не ответом (`StreamEndNotice`): нейтральная «Генерация остановлена» на отмене и generic-карточка на security-блокировке (деталей блокировки контракт не отдаёт). Единственная красная плашка в чате — ошибка соединения
+- Карточка артефакта (инлайн в чате, по событию `artifact_created`); `type === "image"` показывает превью-миниатюру с media-endpoint вместо иконки
+- Плейсхолдер генерации изображения — выводится из ленты, а не из отдельного состояния: незакрытый вызов `generate_image` даёт pending-карточку (шиммер, indeterminate-прогресс), результат того же вызова её снимает
 - Кнопка cancel
 - Tools dialog — просмотр и управление MCP серверами per-thread (inherited + собственные, toggle)
 
+**chat-actions** — rename/delete чата, переиспользуется на 2+ хостах (список чатов проекта, recents в sidebar).
+- Dropdown по hover (`MoreHorizontal`) → «Переименовать» (диалог с полем) / «Удалить» (диалог-подтверждение, destructive)
+- Доступны и для `security_blocked` чатов — блокировка ограничивает только продолжение диалога (`POST /messages`), не управление самим чатом
+- Удаление открытого чата — переход на страницу проекта
+
 **settings** — пользовательские настройки и per-scope конфигурация.
-- SettingsPage (`/settings`) — user-level: ModelSelector, CustomInstructionsSection, AgentMemorySection, MCPServersSection
+- SettingsPage (`/settings`) — user-level: ModelSelector, CustomInstructionsSection, AgentMemorySection, SkillContextSection, MCPServersSection
 - ProjectSettingsTab — project-level: ModelSelector, MCPServersSection
 - Компоненты переиспользуются на разных уровнях с параметром scope (user / project / thread)
-- Подробнее о custom instructions и agent memory — [user-memory.md](user-memory.md)
+- SkillContextSection — секция «Контекст скиллов»: группировка документов по скиллу, раскрытие в Markdown-превью, правка raw-content, удаление, бейдж для скиллов, отсутствующих в библиотеке
+- Подробнее о custom instructions, agent memory и skill context — [user-memory.md](user-memory.md)
 
 **sphere** — Knowledge Sphere. Viewer (Markdown) + Editor (textarea). Подробнее — [knowledge-sphere.md](knowledge-sphere.md).
 
 **artifacts** — артефакты проекта.
 - Список артефактов (название, тип, дата)
-- Просмотр артефакта (Markdown render + кнопки скачивания md/pdf)
+- Просмотр артефакта: Markdown render + кнопки скачивания md/pdf для текстовых типов; `type === "image"` — `ImageViewer` (fetch bytes с JWT → objectURL, зум, caption = `content`/prompt, скачивание .png), состояния загрузки и «блоба нет» (404)
 
 **security** — admin-only мониторинг SIEM-подсистемы. Подробнее о backend-стороне — [backend.md](backend.md#siem-service), [observability.md](observability.md#siem-observability-security-event-pipeline).
 - SecurityPage (`/security`) — три таба: Events, Alerts, Rules
@@ -104,7 +118,7 @@ Feature-based: компоненты группируются по фичам, н
 - SecurityEvents — таблица событий с фильтрами (event_type, severity, time range), пагинация, диалог Details
 - SecurityAlerts — таблица алертов с фильтрами (severity, status), действия `Acknowledge` / `Resolve`
 - SecurityRules — таблица rules с CRUD через RuleForm (Threshold / Sequence / Aggregate), toggle `enabled`
-- Сейчас отображает `user_id` напрямую (username enrichment отложен в feat-007)
+- Сейчас отображает `user_id` напрямую, без username enrichment
 
 ### Shared
 
@@ -115,45 +129,91 @@ Feature-based: компоненты группируются по фичам, н
 
 Серверные данные не дублируются в клиентский store. Активный таб, текущий проект/чат — derived from URL (React Router `useParams`), store не нужен.
 
+Две оси состояния и путь данных к компонентам:
+
+```mermaid
+flowchart LR
+    COMP["Компоненты features/"]
+
+    subgraph SRV["Серверный state — TanStack Query"]
+        HOOKS["hooks фич — useProjects,<br>useChats, useArtifacts, ..."]
+        CACHE["Query cache —<br>инвалидация по queryKey"]
+    end
+
+    subgraph CLI["Клиентский state — Zustand"]
+        STST["stream-store —<br>текущий SSE-стрим"]
+        UIST["ui-store — UI-флаги"]
+    end
+
+    APIM["shared/api — axios"]
+    BE["Main Backend"]
+
+    COMP --> HOOKS
+    HOOKS --> CACHE
+    CACHE --> COMP
+    HOOKS --> APIM
+    APIM -->|HTTP| BE
+    BE -->|"SSE (fetch stream)"| UAS["useAgentStream"]
+    UAS --> STST
+    STST --> COMP
+    UIST --> COMP
+
+    style SRV fill:#3fb9501a,stroke:#3fb950,color:#3fb950
+    style CLI fill:#bc8cff1a,stroke:#bc8cff,color:#bc8cff
+```
+
 ### TanStack Query — серверный state
 
-Кеширование, рефетч, loading/error — автоматически. Query keys иерархические, для точечной инвалидации.
+Кеширование, рефетч, loading/error — автоматически. Query keys иерархические, для префиксной инвалидации.
+
+**Источник истины по ключам — фабрика `shared/api/query-keys.ts`** (объект `queryKeys`); инлайн-литералов в хуках нет. Таблица ниже отражает её структуру.
 
 **Queries:**
 
-| Query Key | Endpoint |
-|-----------|----------|
-| `["projects"]` | `GET /projects` |
-| `["projects", id]` | `GET /projects/:id` |
-| `["projects", id, "chats"]` | `GET /projects/:id/chats` |
-| `["projects", id, "chats", cid]` | `GET /projects/:id/chats/:cid` |
-| `["projects", id, "sphere"]` | `GET /projects/:id/sphere` |
-| `["projects", id, "artifacts"]` | `GET /projects/:id/artifacts` |
-| `["projects", id, "artifacts", aid]` | `GET /projects/:id/artifacts/:aid` |
-| `["chats", "recent"]` | `GET /chats/recent` |
-| `["models"]` | `GET /models` |
-| `["user", "settings"]` | `GET /users/me/settings` |
-| `["user", "instructions"]` | `GET /users/me/instructions` |
-| `["user", "memories"]` | `GET /users/me/memories` |
-| `["user", "mcp-servers"]` | `GET /users/me/mcp-servers` |
-| `["projects", id, "settings"]` | `GET /projects/:id/settings` |
-| `["projects", id, "mcp-servers"]` | `GET /projects/:id/mcp-servers` |
-| `["projects", id, "chats", cid, "settings"]` | `GET /projects/:id/chats/:cid/settings` |
-| `["projects", id, "chats", cid, "mcp-servers"]` | `GET /projects/:id/chats/:cid/mcp-servers` |
+| Фабрика | Ключ | Endpoint |
+|---------|------|----------|
+| `queryKeys.projects.all` | `["projects"]` | `GET /projects` |
+| `queryKeys.projects.detail(id)` | `["projects", id]` | `GET /projects/:id` |
+| `queryKeys.projects.chats(id)` | `["projects", id, "chats"]` | `GET /projects/:id/chats` |
+| `queryKeys.projects.chat(id, cid)` | `["projects", id, "chats", cid]` | `GET /projects/:id/chats/:cid` |
+| `queryKeys.projects.sphere(id)` | `["projects", id, "sphere"]` | `GET /projects/:id/sphere` |
+| `queryKeys.projects.artifacts(id)` | `["projects", id, "artifacts"]` | `GET /projects/:id/artifacts` |
+| `queryKeys.projects.artifact(id, aid)` | `["projects", id, "artifacts", aid]` | `GET /projects/:id/artifacts/:aid` |
+| `queryKeys.projects.artifactMedia(id, aid)` | `["projects", id, "artifacts", aid, "media"]` | `GET /projects/:id/artifacts/:aid/media` |
+| `queryKeys.chats.recent` | `["chats", "recent"]` | `GET /chats/recent` |
+| `queryKeys.models` | `["models"]` | `GET /models` |
+| `queryKeys.instructions` | `["instructions"]` | `GET /users/me/instructions` |
+| `queryKeys.memories` | `["memories"]` | `GET /users/me/memories` |
+| `queryKeys.skillContexts` | `["skill-contexts"]` | `GET /users/me/skill-contexts` |
+| `queryKeys.settings(scope, projectId?, threadId?)` | `["settings", scope, …]` | settings по scope (user/project/thread) |
+| `queryKeys.mcpServers(scope, projectId?, threadId?)` | `["mcp-servers", scope, …]` | mcp-servers по scope |
+| `queryKeys.auth.me` | `["auth", "me"]` | `GET /auth/me` (route guard, user footer) |
+| `queryKeys.security.*` | `["security", …]` | SIEM events/alerts/rules (siem-service) |
+
+Settings и MCP-серверы используют единый ключ с осью `scope` (`user` / `project` / `thread`) + `projectId`/`threadId`, отфильтрованными через `.filter(Boolean)` — не отдельные ключи на каждый уровень.
+
+`artifactMedia` — потомок `artifact(id, aid)` в иерархии ключей, так что префиксная инвалидация артефакта задевает и media-запись. `staleTime: Infinity` — контент иммутабелен (перегенерация создаёт новый артефакт с новым id/URL), рефетч не нужен; карточка ленты и `ImageViewer` читают один и тот же ключ — react-query дедуплицирует сетевой запрос между потребителями.
 
 **Mutations → инвалидация:**
 
 | Действие | Инвалидирует |
 |----------|-------------|
-| Создать/обновить/удалить проект | `["projects"]` |
-| Создать чат | `["projects", id, "chats"]`, `["chats", "recent"]` |
-| Обновить sphere | `["projects", id, "sphere"]` |
-| Стрим завершён (`done`) | `["projects", id, "chats", cid]`, `["chats", "recent"]` |
-| Событие `artifact_created` | `["projects", id, "artifacts"]` |
-| Обновить settings (any scope) | Соответствующий `[..., "settings"]` key |
-| Обновить instructions | `["user", "instructions"]` |
-| Удалить memory | `["user", "memories"]` |
-| CRUD MCP server (any scope) | Соответствующий `[..., "mcp-servers"]` key |
+| Создать/обновить/удалить проект | `queryKeys.projects.all` |
+| Создать чат | `queryKeys.projects.chats(id)` (`exact: true`), `queryKeys.chats.recent` |
+| Переименовать чат | `queryKeys.projects.chats(id)` (`exact: true`), `queryKeys.chats.recent`, + точечный `setQueryData`-патч `queryKeys.projects.chat(id, cid)` |
+| Удалить чат | `queryKeys.projects.chats(id)` (`exact: true`), `queryKeys.chats.recent` |
+| Обновить sphere | `queryKeys.projects.sphere(id)` |
+| Событие `title_updated` (стрим) | — `setQueryData`-патч поля `title`, не инвалидация: `queryKeys.projects.chats(id)`, `queryKeys.chats.recent`, `queryKeys.projects.chat(id, cid)` |
+| Стрим завершён (`done`) | `queryKeys.projects.chat(id, cid)`, `queryKeys.projects.chats(id)` (`exact: true`, fallback на случай непришедшего `title_updated`), `queryKeys.chats.recent` |
+| Событие `artifact_created` | `queryKeys.projects.artifacts(id)` |
+| Обновить settings (any scope) | `queryKeys.settings(scope, …)` |
+| Обновить instructions | `queryKeys.instructions` |
+| Удалить memory | `queryKeys.memories` |
+| Обновить/удалить skill context | `queryKeys.skillContexts` |
+| CRUD MCP server (any scope) | `queryKeys.mcpServers(scope, …)` |
+| Ack/resolve alert, CRUD rule | `queryKeys.security.alerts` / `queryKeys.security.rules` |
+
+**Инвариант:** любая инвалидация `queryKeys.projects.chats(id)` идёт с `exact: true` — этот ключ является префиксом detail-ключей `queryKeys.projects.chat(id, cid)`, префиксная инвалидация зарефетчила бы открытый чат посреди активного стрима (в т.ч. на своём же `title_updated`/`done`) и задвоила бы optimistic-копию user-сообщения в клиентском стриминговом состоянии.
 
 ### Zustand — клиентский state
 
@@ -167,23 +227,25 @@ uiStore
 └── toggleSidebar()
 ```
 
-**Stream Store** — эфемерный, существует только во время SSE-стрима:
+**Stream Store** — эфемерный, существует только во время SSE-стрима. Ленту активности держит не он сам: её форма и правила сборки живут чистой моделью `shared/lib/agent-feed.ts` (`AgentFeedState` = `feed` + `redacted`), стор эту модель хранит и отдаёт подписчикам.
 
 ```
 streamStore
 ├── isStreaming: boolean
-├── streamingText: string
-├── activeTool: string | null
 ├── streamingChatId: string | null
-├── streamingArtifacts: StreamingArtifact[]
+├── feed: AgentFeedItem[]          — лента хода: рассуждения, текст, вызовы, доменные события
+├── redacted: boolean              — ход схлопнут в заглушку security-блокировкой
+├── isReviewing: boolean
 ├── startStream(chatId)
-├── appendText(chunk)
-├── setTool(name | null)
-├── addArtifact(artifact)
+├── applyEvent(event)              — единственная точка мутации ленты: событие уходит редьюсеру модели
+├── redact(stubText)               — терминальная редакция: закрывает стрим, ленту не стирает
+├── setReviewing(value)
 └── endStream()
 ```
 
-После `endStream()` — сброс в initial state. Полное сообщение приходит с сервера через инвалидацию chat query.
+Скаляров «текущий текст» / «текущий инструмент» в сторе нет — параллельные вызовы адресуются по `call_id` внутри самой ленты и закрываются независимо; всё производное (pending-карточка генерации, активная строка, сигнал автопрокрутки) считается из ленты на рендере. Причины и границы этой раскладки — [conventions/frontend.md § Состояние стрима](conventions/frontend.md#состояние-стрима-модель-ленты-чистая-стор--её-держатель).
+
+После `endStream()` — сброс в initial state. Полное сообщение приходит с сервера через инвалидацию chat query: сохранённый ход отдаёт `parts`, из которых собирается та же лента.
 
 ## API-интеграция
 
@@ -195,63 +257,70 @@ streamStore
 
 ### TypeScript типы
 
-Ручные, 1:1 со schemas из [backend.md](backend.md). Единый файл `types.ts`. Генерация из OpenAPI — при росте API.
+Ручные, 1:1 со schemas из [backend.md](backend.md). DTO-типы дробятся по доменам и лежат рядом с API-функциями ресурса (`shared/api/<domain>.ts`), а не единым файлом. Generic-envelope `ListResponse<T>` — `shared/api/pagination.ts`, типы SSE-событий — `shared/api/sse.ts`. Генерация из OpenAPI — при росте API.
 
-### API-модули
+### API-модули и хуки
 
-По модулю на ресурс, по функции на endpoint:
+По доменному модулю на ресурс в `shared/api/`. Каждый модуль — самодостаточный домен: DTO-типы + API-функции + TanStack Query data-хуки. CRUD/data-fetch — инфраструктура, по FSD её место в `shared/api`, а не в слайсах.
 
 ```
 shared/api/
-├── client.ts        — axios instance
-├── types.ts         — TS-типы
-├── projects.ts      — getProjects, getProject, createProject, updateProject, deleteProject
-├── chats.ts         — getChats, getChat, createChat, getRecentChats
-├── sphere.ts        — getSphere, updateSphere
-├── artifacts.ts     — getArtifacts, getArtifact, downloadArtifact
-├── models.ts        — getModels
-├── settings.ts      — get/updateUserSettings, get/updateProjectSettings, get/updateThreadSettings
-├── user-memory.ts   — getInstructions, updateInstructions, getMemories, deleteMemory
-└── mcp-servers.ts   — CRUD per scope (user, project, thread), testConnection
+├── client.ts        — axios instance, interceptor, ensureFreshToken
+├── query-keys.ts    — фабрика queryKeys (единый источник ключей)
+├── pagination.ts    — ListResponse<T>
+├── sse.ts           — SSEEvent
+├── projects.ts      — Project + getProjects… + useProjects, useProject, useCreate/Update/DeleteProject
+├── chats.ts         — Chat/ChatDetail/Message… + DEFAULT_CHAT_TITLE/CHAT_TITLE_MAX_LENGTH (доменные
+│                       константы плейсхолдера и лимита названия) + createChat (без тела)/updateChat/
+│                       deleteChat + useChats, useChat, useCreateChat, useUpdateChat, useDeleteChat,
+│                       useRecentChats
+├── sphere.ts        — Sphere + getSphere/updateSphere + useSphere, useUpdateSphere
+├── artifacts.ts     — Artifact… + getArtifacts/getArtifact/downloadArtifact/getArtifactMedia + useArtifacts,
+│                       useArtifact, useArtifactMedia, isArtifactMediaNotFound
+├── models.ts        — AvailableModel + getModels + useModels
+├── settings.ts      — Settings… + get/updateSettings + useSettings, useUpdateSettings (per scope)
+├── user-memory.ts   — Instructions/MemoryItem + … + useInstructions, useUpdateInstructions, useMemories
+├── skill-context.ts — SkillContextDocument/SkillGroup + getSkillContexts/update/delete + useSkillContexts,
+│                       useUpdateSkillContext, useDeleteSkillContext
+├── mcp-servers.ts   — MCPServer… + CRUD per scope + useMCPServers, useMCPServerMutations
+├── feedback.ts      — setFeedback, deleteFeedback
+├── auth.ts          — register/login/refresh/getMe/logout
+└── security.ts      — SIEM типы + siemClient + listEvents/Alerts/Rules… + useEvents, useAlerts, useRules, …
 ```
 
-Без `messages.ts` — отправка сообщений через SSE (см. ниже).
-
-### TanStack Query хуки
-
-По хуку на query/mutation, живут в features:
-
-```
-features/projects/   → useProjects, useProject, useCreateProject, useUpdateProject, useDeleteProject
-features/chat/       → useChats, useChat, useCreateChat, useRecentChats
-features/sphere/     → useSphere, useUpdateSphere
-features/artifacts/  → useArtifacts, useArtifact
-features/settings/   → useModels, useSettings, useUpdateSettings, useInstructions, useUpdateInstructions,
-                       useMemories, useDeleteMemory, useMCPServers, useMCPServerCRUD, useTestConnection
-features/security/   → useSecurityAPI (events, alerts, rules — list, mutate)
-```
-
-Компоненты вызывают хуки, не API-функции напрямую.
+Без `messages.ts` — отправка сообщений через SSE (см. ниже). Компоненты вызывают хуки, не API-функции напрямую. Страница-специфичная оркестрация (SSE-стрим) живёт в слайсе: `pages/chat/model/useAgentStream.ts`.
 
 **downloadArtifact** — axios blob download с Bearer token (через interceptor). Не через TanStack Query (императивный вызов из onClick).
+
+**getArtifactMedia / useArtifactMedia** — тот же `responseType: "blob"`-паттерн, но через TanStack Query (не императивный вызов): `<img src>` не шлёт Authorization header, поэтому картинка качается как обычные API-данные (Blob) и превращается в `URL.createObjectURL` на стороне потребителя (`ImageViewer`, превью в `ArtifactCard`), а не отдаётся напрямую браузеру по URL. `isArtifactMediaNotFound` — типизированный предикат по `AxiosError.status === 404`, отличает «блоба нет» от сетевой/5xx-ошибки для выбора пустого состояния во вьюере.
 
 ## SSE-стриминг
 
 Кастомный хук `useAgentStream` поверх native `fetch`. Полная спецификация протокола, event types, lifecycle, cancellation — [streaming.md](streaming.md).
 
-Связь с frontend state: Zustand stream store обновляется на каждое событие, TanStack Query инвалидируется после `done` и `artifact_created` (таблица в секции State Management выше). `security_block` — terminal event ([architecture.md](../security/architecture.md)): см. Security UX ниже.
+Связь с frontend state: событие целиком уходит в модель ленты, Zustand stream store держит результат, TanStack Query инвалидируется после `done` и `artifact_created` (таблица в секции State Management выше). `security_block` — terminal event ([architecture.md](../security/architecture.md)): см. Security UX ниже.
+
+Хук отвечает и за живучесть транспорта: между чтениями тела потока он уступает событийному циклу, иначе накопленный сервером бэклог, приехавший разом, упирается в сторож вложенных обновлений React и рвёт ход целиком — механизм и замеры в [conventions/frontend.md § Состояние стрима](conventions/frontend.md#состояние-стрима-модель-ленты-чистая-стор--её-держатель).
 
 ## Security UX
 
 Frontend различает две точки взаимодействия с системой защиты — runtime (чат) и add-time (формы записи).
 
-**Runtime block (чат).** На SSE `security_block` хук агент-стрима делает оптимистичный patch `chat.security_blocked=true` и инвалидирует кеш чата. ChatInput блокируется кастомным placeholder'ом «Чат заблокирован системой безопасности»; заглушка `Message.redacted` остаётся в истории при reload — единый источник правды, без транзиентного error-баннера. Generic-текст в UI; `checkpoint` / `detection_layer` доступны только в developer console.
+**Runtime block (чат).** На SSE `security_block` хук агент-стрима делает оптимистичный patch `chat.security_blocked=true` и инвалидирует кеш чата. ChatInput блокируется кастомным placeholder'ом «Чат заблокирован системой безопасности»; ход закрывается generic-карточкой «остановлен системой безопасности» (не красной — красная плашка остаётся за ошибкой соединения), а заглушка `Message.redacted` приезжает из истории и переживает reload — единый источник правды, без транзиентного error-баннера. Причины блокировки в UI нет и быть не может: payload события пустой, `checkpoint` / `detection_layer` не покидают сервер.
 
 **Add-time block (формы записи).** Custom Instructions, Knowledge Sphere editor, MCP server form: при HTTP 422 с маркером security violation (helper `isSecurityViolation(error)`) форма показывает inline-сообщение под кнопкой Save. Текст в форме не сбрасывается — пользователь редактирует и пробует ещё раз. Конкретная причина детекции в UI не раскрывается.
 
+## Дизайн-система и темизация
+
+Визуальный язык продукта — система «Чернила / Электрик»: тёплая бумажная основа, один плоский фиолетовый акцент, serif-акценты, Сфера-орб как ядро бренда. Токены light/dark, типографика, бренд-примитивы (`Wordmark`, `SphereOrb`), иллюстрации и error UX — в [design-system.md](design-system.md). Здесь — только точки интеграции:
+
+- **Темизация.** Тема — клиентское состояние `stores/theme-store.ts` (Zustand + persist, ключ `learnflow-theme`); переключение вешает класс `.dark` на `<html>`, no-FOUC инлайн-скрипт в `index.html`. Переключатель — в user-строке Sidebar.
+- **Иллюстрации.** Welcome-hero, sidebar-vignette, empty-states и error-state идут через централизованную карту `shared/assets/illustrations/index.ts` (обёртка `shared/ui/Illustration`) — единственная точка свапа ассетов.
+- **Error UX.** Тосты `sonner` на ошибках мутаций (`MutationCache.onError` → `toast.error` из парсера `shared/lib/api-error.ts`); брендовый ErrorBoundary с иллюстрацией; инлайн error-бары на токене `--destructive`.
+
 ## Стек и инструменты
 
-Обоснование выбора, альтернативы и риски — в [ADR-008](adr/ADR-008-frontend-stack.md).
+Обоснование выбора, альтернативы и риски — в [ADR-008](adr/ADR-008-frontend-stack.md). Визуальный язык и токены — в [design-system.md](design-system.md).
 
 | Категория | Технология |
 |-----------|-----------|
@@ -265,11 +334,83 @@ Frontend различает две точки взаимодействия с с
 | UI state | Zustand v5 |
 | Роутинг | React Router v7 (library mode) |
 | Markdown/стриминг | Streamdown |
+| Тосты/уведомления | sonner |
+| Шрифты | @fontsource (Source Serif 4, Instrument Sans, IBM Plex Mono) |
 | Иконки | Lucide React |
 | Линтер | ESLint |
 | Форматер | Prettier |
 
 ## Module Structure
+
+Слои FSD показаны цветными подложками поверх компонентов и их связей. Импорт строго вниз по слоям: `app → pages → features → shared`; `stores/` — cross-cutting клиентское состояние.
+
+```mermaid
+graph TD
+    BE["Main Backend :8000"]
+    SIEMS["SIEM Service :8001"]
+
+    subgraph ENTRY["Entry"]
+        MAINX["main.tsx — React root"]
+        APPX["App.tsx — AuthGate"]
+    end
+
+    subgraph SHELL["app/ — application shell"]
+        ROUTERX["router.tsx"]
+        LAY["layouts/ — AppLayout, ProjectLayout"]
+        PROVX["providers/ — QueryClientProvider"]
+        ACOMP["components/ — Sidebar, project- и chat-модалки,<br>AuthGate, ErrorBoundary"]
+    end
+
+    subgraph PAGESL["pages/ — слайсы уровня маршрута (ui/ + model/)"]
+        CHATP["chat · project-chats"]
+        SPHP["sphere"]
+        ARTP["artifacts · artifact"]
+        SETP["user-settings · project-settings"]
+        SECP["security — admin"]
+        WELP["welcome"]
+    end
+
+    subgraph FEATSL["features/ — переиспользуемые interactions"]
+        MSEL["model-selector"]
+        MCPF["mcp-servers"]
+        CHACT["chat-actions"]
+    end
+
+    subgraph CLST["stores/ — клиентский state, Zustand"]
+        UIST["ui-store"]
+        STST["stream-store — SSE"]
+    end
+
+    subgraph SHRD["shared/"]
+        APIX["api/ — client, query-keys,<br>домены: типы+fn+хуки"]
+        UIX["ui/ — shadcn + MarkdownRenderer"]
+        LIBX["lib/ — agent-feed, logger, utils"]
+        CFGX["config/ — agent-tools,<br>feature-flags"]
+    end
+
+    MAINX --> APPX
+    APPX --> ROUTERX
+    ROUTERX --> LAY
+    LAY --> PAGESL
+    PAGESL --> FEATSL
+    PAGESL --> SHRD
+    FEATSL --> SHRD
+    ACOMP --> SHRD
+    CHATP --> STST
+    STST --> SHRD
+    APIX -->|HTTP| BE
+    APIX -->|HTTP| SIEMS
+    CHATP -->|"SSE fetch"| BE
+
+    style ENTRY fill:#8b949e1a,stroke:#8b949e,color:#8b949e
+    style SHELL fill:#58a6ff1a,stroke:#58a6ff,color:#58a6ff
+    style PAGESL fill:#3fb9501a,stroke:#3fb950,color:#3fb950
+    style FEATSL fill:#e3b3411a,stroke:#e3b341,color:#e3b341
+    style CLST fill:#bc8cff1a,stroke:#bc8cff,color:#bc8cff
+    style SHRD fill:#d299221a,stroke:#d29922,color:#d29922
+```
+
+Структура каноническая по FSD с осознанными отступлениями (зафиксированы в [conventions/frontend.md](conventions/frontend.md#frontend)): `stores/` на верхнем уровне (`stream-store` cross-feature), `shared/` импортируется по доменным файлам без barrel-индексов, слои `widgets/` и `entities/` не вводятся.
 
 ```
 frontend/
@@ -284,60 +425,60 @@ frontend/
 │   ├── index.css                  — Tailwind + shadcn theme variables
 │   │
 │   ├── app/                       — application shell
-│   │   ├── layouts/
-│   │   │   ├── AppLayout.tsx      — sidebar + центральная область
-│   │   │   └── ProjectLayout.tsx  — имя проекта, табы (Chats/Sphere/Artifacts)
-│   │   ├── components/            — app-level компоненты (AuthGate, WelcomePage и т.д.)
+│   │   ├── layouts/               — AppLayout (sidebar + центр), ProjectLayout (табы)
+│   │   ├── components/            — Sidebar, ProjectList/ProjectCard/ProjectActions/
+│   │   │                            CreateProjectModal, NewChatModal (модалка выбора проекта,
+│   │   │                            единственный хост — Sidebar), AuthGate, ErrorBoundary
 │   │   ├── providers/             — QueryClientProvider, прочие провайдеры
 │   │   └── router.tsx             — конфигурация маршрутов
 │   │
-│   ├── features/                  — feature-based модули
-│   │   ├── projects/
-│   │   │   ├── components/        — ProjectCard, ProjectActions, CreateProjectModal, ProjectList
-│   │   │   └── hooks/             — useProjects, useProject, useCreateProject, useUpdateProject, useDeleteProject
-│   │   ├── chat/
-│   │   │   ├── components/        — ChatList, ChatView, ChatHeader, ModelSelector, ToolsDialog,
-│   │   │   │                        MessageList, MessageItem, ChatInput, ToolIndicator, ArtifactCard
-│   │   │   └── hooks/             — useChats, useChat, useCreateChat, useRecentChats, useAgentStream
-│   │   ├── settings/
-│   │   │   ├── components/        — SettingsPage, ModelSelector, CustomInstructionsSection,
-│   │   │   │                        AgentMemorySection, MCPServersSection, ProjectSettingsTab
-│   │   │   └── hooks/             — useModels, useSettings, useInstructions, useMemories, useMCPServers
-│   │   ├── sphere/
-│   │   │   ├── components/        — SphereView, SphereViewer, SphereEditor
-│   │   │   └── hooks/             — useSphere, useUpdateSphere
-│   │   ├── artifacts/
-│   │   │   ├── components/        — ArtifactList, ArtifactView
-│   │   │   └── hooks/             — useArtifacts, useArtifact
-│   │   └── security/              — admin-only SIEM monitoring
-│   │       ├── components/        — SecurityPage, SecurityRouteGuard, SecurityEvents,
-│   │       │                        SecurityAlerts, SecurityRules, RuleForm,
-│   │       │                        SecurityFilter, SecurityPagination,
-│   │       │                        SeverityBadge, StatusBadge
-│   │       └── hooks/             — useSecurityAPI
+│   ├── pages/                     — слайсы уровня маршрута (ui/ + при нужде model/), public API в index.ts
+│   │   ├── welcome/               — /
+│   │   ├── project-chats/         — /projects/:id (ChatList — список + поле первого сообщения)
+│   │   ├── chat/                  — /projects/:id/chats/:cid, /projects/:id/chats/new
+│   │   │   ├── ui/                — ChatView (тонкий диспетчер по наличию `cid`) → ChatThread
+│   │   │   │                        (обычный режим) | ChatDraft (композер, без useChat/
+│   │   │   │                        useAgentStream/useStudio); ChatHeader (проп `draft`),
+│   │   │   │                        ChatInput (опциональный контролируемый режим value/
+│   │   │   │                        onValueChange), MessageList, MessageItem,
+│   │   │   │                        ActivityFeed/ActivityRow/ActivityDetails (лента активности),
+│   │   │   │                        ActivityPauseRow, LiveDots, StreamEndNotice, ReviewIndicator,
+│   │   │   │                        ArtifactCard, FeedbackButtons
+│   │   │   └── model/             — useAgentStream (SSE-оркестрация)
+│   │   ├── sphere/                — /projects/:id/sphere (SphereView/Viewer/Editor)
+│   │   ├── artifacts/             — /projects/:id/artifacts (ArtifactList)
+│   │   ├── artifact/              — /projects/:id/artifacts/:aid (ArtifactView)
+│   │   ├── user-settings/         — /settings (SettingsPage, CustomInstructions, AgentMemory, SkillContext)
+│   │   ├── project-settings/      — /projects/:id/settings (ProjectSettingsPage)
+│   │   └── security/              — /security, admin (SecurityPage, RouteGuard, Events/Alerts/Rules,
+│   │                                RuleForm, Filter, Pagination, Severity/StatusBadge)
+│   │
+│   ├── features/                  — переиспользуемые interactions (2+ страниц), public API в index.ts
+│   │   ├── model-selector/        — ModelSelector (chat + user/project settings)
+│   │   ├── mcp-servers/           — MCPServersSection (+ MCPServerForm, приватный)
+│   │   └── chat-actions/          — ChatActions (rename/delete dropdown + диалоги; хосты —
+│   │                                project-chats/ChatList и app/components/Sidebar recents)
 │   │
 │   ├── shared/
-│   │   ├── api/                   — HTTP-слой
-│   │   │   ├── client.ts          — axios instance
-│   │   │   ├── types.ts           — TS-типы (1:1 с backend schemas)
-│   │   │   ├── projects.ts
-│   │   │   ├── chats.ts
-│   │   │   ├── sphere.ts
-│   │   │   ├── artifacts.ts
-│   │   │   ├── models.ts
-│   │   │   ├── settings.ts
-│   │   │   ├── user-memory.ts
-│   │   │   ├── mcp-servers.ts
-│   │   │   └── security.ts        — events, alerts, rules (siem-service API)
-│   │   ├── ui/                    — shadcn/ui компоненты
-│   │   └── components/            — MarkdownRenderer и другие shared-компоненты
+│   │   ├── api/                   — HTTP-слой: домен = типы + API-функции + data-хуки
+│   │   │   ├── client.ts          — axios instance, interceptor, ensureFreshToken
+│   │   │   ├── query-keys.ts      — фабрика queryKeys (единый источник ключей)
+│   │   │   ├── pagination.ts      — ListResponse<T>
+│   │   │   ├── sse.ts             — SSEEvent
+│   │   │   ├── projects.ts  chats.ts  sphere.ts  artifacts.ts  models.ts
+│   │   │   ├── settings.ts  user-memory.ts  skill-context.ts  mcp-servers.ts  feedback.ts  auth.ts
+│   │   │   └── security.ts        — SIEM типы + siemClient + хуки (siem-service API)
+│   │   ├── ui/                    — shadcn/ui примитивы + MarkdownRenderer + TypedTitle
+│   │   │                            (посимвольная печать auto-title, домен-нейтральный)
+│   │   ├── config/                — agent-tools (реестр подписей инструментов),
+│   │   │                            feature-flags (гейт незрелых фич)
+│   │   └── lib/                   — утилиты (logger, utils, security-error) + agent-feed
+│   │                                (модель ленты активности: редьюсер SSE, адаптер parts)
 │   │
-│   └── stores/                    — Zustand stores
-│       ├── ui-store.ts
-│       └── stream-store.ts
+│   └── stores/                    — Zustand stores (ui-store, stream-store)
 ```
 
-**Принципы:** features/ изолированы друг от друга. shared/ — то, что нужно нескольким фичам. app/ — shell (layouts, providers, router), не бизнес-логика. stores/ отдельно от features, т.к. stream store используется cross-feature. Pages не выделены — при 6 маршрутах роутер рендерит layout + feature-компонент напрямую.
+**Принципы:** `pages/` — композиция уровня маршрута, каждая изолирована и закрыта `index.ts`. `features/` — только реально переиспользуемое между страницами (`model-selector`, `mcp-servers`, `chat-actions`); кросс-импортов между слайсами одного слоя нет — страницы тянут общие куски вниз, из `features/`. Компонент с одним хостом (`NewChatModal`) остаётся в `app/components/`, а не заводит `features/` — критерий 2+ страниц не выполнен. `shared/api` держит data-хуки и фабрику ключей. `app/` — shell (layouts, providers, router, постоянный Sidebar с управлением проектами), не бизнес-логика. `stores/` отдельно — `stream-store` cross-feature.
 
 ## Logging
 
@@ -361,4 +502,4 @@ logger.error("[context]", error);
 
 ### Error Boundary
 
-`frontend/src/app/components/ErrorBoundary.tsx` — React class component, оборачивает корень приложения. При непойманной ошибке рендера показывает fallback UI (сообщение + кнопка "обновить страницу") вместо белого экрана. Логирует ошибку через `logger.error`.
+`frontend/src/app/components/ErrorBoundary.tsx` — React class component, оборачивает корень приложения. При непойманной ошибке рендера показывает брендовый fallback UI (иллюстрация error-state + сообщение + кнопка «обновить страницу») вместо белого экрана. Логирует ошибку через `logger.error`. Ошибки API доводятся тостами `sonner` (мутации) и инлайн error-барами — см. [design-system.md § Error UX](design-system.md#error-ux).

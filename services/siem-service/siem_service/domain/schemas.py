@@ -1,7 +1,7 @@
 """Pydantic schemas for REST API responses."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -71,7 +71,9 @@ class AlertResponse(BaseModel):
     id: int = Field(..., description="Alert ID")
     rule_id: int = Field(..., description="Correlation rule ID")
     severity: str = Field(..., description="Severity level")
-    status: str = Field(..., description="Alert status (new, acknowledged, resolved)")
+    status: str = Field(
+        ..., description="Alert status (new, acknowledged, resolved, expired)"
+    )
     group_key: str | None = Field(None, description="Grouping key if applicable")
     matched_events_count: int = Field(..., description="Number of matched events")
     first_event_id: UUID = Field(..., description="First matched event ID")
@@ -92,7 +94,9 @@ class AlertResponse(BaseModel):
 class AlertPatchRequest(BaseModel):
     """Request body for patching an alert."""
 
-    status: str = Field(..., description="New status (acknowledged or resolved)")
+    status: Literal["acknowledged", "resolved"] = Field(
+        ..., description="New status (acknowledged or resolved)"
+    )
 
 
 class PaginatedAlertsResponse(BaseModel):
@@ -146,9 +150,13 @@ class RuleCreateRequest(BaseModel):
 
     name: str = Field(..., description="Rule name")
     description: str | None = Field(None, description="Rule description")
-    rule_type: str = Field(..., description="Rule type")
+    rule_type: Literal["threshold", "sequence", "aggregate"] = Field(
+        ..., description="Rule type"
+    )
     enabled: bool = Field(True, description="Enable rule")
-    severity: str = Field("warning", description="Alert severity")
+    severity: Literal["info", "warning", "critical"] = Field(
+        "warning", description="Alert severity"
+    )
     config: dict[str, Any] = Field(..., description="Rule configuration")
 
 
@@ -157,9 +165,9 @@ class RuleUpdateRequest(BaseModel):
 
     name: str | None = None
     description: str | None = None
-    rule_type: str | None = None
+    rule_type: Literal["threshold", "sequence", "aggregate"] | None = None
     enabled: bool | None = None
-    severity: str | None = None
+    severity: Literal["info", "warning", "critical"] | None = None
     config: dict[str, Any] | None = None
 
 

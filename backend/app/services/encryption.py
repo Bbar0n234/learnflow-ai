@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import structlog
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
+
+from app.services.exceptions import EncryptionError
 
 logger = structlog.get_logger()
 
@@ -34,4 +36,10 @@ class EncryptionService:
             raise RuntimeError(
                 "Decryption not available: MCP_ENCRYPTION_KEY not configured"
             )
-        return self._fernet.decrypt(ciphertext).decode()
+        try:
+            return self._fernet.decrypt(ciphertext).decode()
+        except InvalidToken as e:
+            logger.error("decryption failed: invalid or corrupted token", exc_info=True)
+            raise EncryptionError(
+                "Decryption failed: invalid or corrupted ciphertext"
+            ) from e

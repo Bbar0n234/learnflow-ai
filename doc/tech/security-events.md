@@ -39,6 +39,12 @@ Event types follow the naming convention: `<domain>.<subject>.<outcome>`
 | `rate_limit.register.exceeded` | `warning` | Registration rate limit exceeded | `ip`, `request_id` |
 | `rate_limit.refresh.exceeded` | `warning` | Refresh rate limit exceeded | `ip`, `request_id` |
 
+#### Security Guard Events - Degradation (cross-checkpoint)
+
+| Event Type | Severity | Occurs When | Identifiers |
+|------------|----------|-------------|-------------|
+| `agent.guard.degraded` | `critical` | LLM guard degraded to CLEAN (LLM exception or classifier retries exhausted) | `request_id`, `thread_id`, `user_id` |
+
 #### Security Guard Events - Input Checkpoint
 
 | Event Type | Severity | Occurs When | Identifiers |
@@ -80,7 +86,7 @@ Identifiers are extracted from request/session context and injected into events 
 
 | Identifier | Meaning | Binding Point | Optional |
 |------------|---------|---------------|----------|
-| `ip` | Client IP address | HTTP middleware (X-Forwarded-For or socket) | Yes |
+| `ip` | Client IP address | HTTP middleware, via `get_client_ip` (source selected by `CLIENT_IP_SOURCE`) | Yes (never bound on the health-check path) |
 | `request_id` | Unique HTTP request ID | HTTP middleware (UUID) | No |
 | `user_id` | Authenticated user ID | Auth dependency (from JWT) | Yes (absent for unauthenticated requests) |
 | `session_id` | Refresh token session ID | Auth dependency (from token JTI) | Yes (only for authenticated requests) |

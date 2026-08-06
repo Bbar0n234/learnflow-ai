@@ -1,0 +1,67 @@
+[
+  {
+    "source": "/home/bbaron/dev/my_pet_projects/learnflow-ai/doc/tasks/iterations/design-branding/feat-001-poc/refs/illustrations/final/dark/empty-artifacts.png",
+    "output": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-002-cutout/doc/tasks/iterations/design-branding/feat-002-cutout/cutouts/dark/empty-artifacts.png",
+    "source_size": [
+      1448,
+      1086
+    ],
+    "inference_resolution": "2048x1536",
+    "weights": "General-HR",
+    "space": "ZhengPeng7/BiRefNet_demo",
+    "seconds": 7.8,
+    "finished_at": "2026-08-06T13:44:23+0300"
+  },
+  {
+    "source": "/home/bbaron/dev/my_pet_projects/learnflow-ai/doc/tasks/iterations/design-branding/feat-001-poc/refs/illustrations/final/dark/empty-chats.png",
+    "output": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-002-cutout/doc/tasks/iterations/design-branding/feat-002-cutout/cutouts/dark/empty-chats.png",
+    "source_size": [
+      1448,
+      1086
+    ],
+    "inference_resolution": "2048x1536",
+    "weights": "General-HR",
+    "space": "ZhengPeng7/BiRefNet_demo",
+    "seconds": 5.8,
+    "finished_at": "2026-08-06T13:44:29+0300"
+  },
+  {
+    "source": "/home/bbaron/dev/my_pet_projects/learnflow-ai/doc/tasks/iterations/design-branding/feat-001-poc/refs/illustrations/final/dark/empty-sphere.png",
+    "output": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-002-cutout/doc/tasks/iterations/design-branding/feat-002-cutout/cutouts/dark/empty-sphere.png",
+    "source_size": [
+      1448,
+      1086
+    ],
+    "inference_resolution": "2048x1536",
+    "weights": "General-HR",
+    "space": "ZhengPeng7/BiRefNet_demo",
+    "seconds": 5.7,
+    "finished_at": "2026-08-06T13:44:35+0300"
+  },
+  {
+    "source": "/home/bbaron/dev/my_pet_projects/learnflow-ai/doc/tasks/iterations/design-branding/feat-001-poc/refs/illustrations/final/dark/error-state.png",
+    "output": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-002-cutout/doc/tasks/iterations/design-branding/feat-002-cutout/cutouts/dark/error-state.png",
+    "source_size": [
+      1448,
+      1086
+    ],
+    "inference_resolution": "2048x1536",
+    "weights": "General-HR",
+    "space": "ZhengPeng7/BiRefNet_demo",
+    "seconds": 5.7,
+    "finished_at": "2026-08-06T13:44:40+0300"
+  },
+  {
+    "source": "/home/bbaron/dev/my_pet_projects/learnflow-ai/doc/tasks/iterations/design-branding/feat-001-poc/refs/illustrations/final/dark/sidebar-vignette.png",
+    "output": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-002-cutout/doc/tasks/iterations/design-branding/feat-002-cutout/cutouts/dark/sidebar-vignette.png",
+    "source_size": [
+      1983,
+      793
+    ],
+    "inference_resolution": "2048x832",
+    "weights": "General-HR",
+    "space": "ZhengPeng7/BiRefNet_demo",
+    "seconds": 5.2,
+    "finished_at": "2026-08-06T13:44:45+0300"
+  }
+]

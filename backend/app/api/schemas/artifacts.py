@@ -5,6 +5,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from app.api.schemas.common import Page
+
 
 class ArtifactListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -15,8 +17,8 @@ class ArtifactListItem(BaseModel):
     created_at: datetime
 
 
-class ArtifactListResponse(BaseModel):
-    items: list[ArtifactListItem]
+class ArtifactListResponse(Page[ArtifactListItem]):
+    pass
 
 
 class ArtifactDetailResponse(BaseModel):

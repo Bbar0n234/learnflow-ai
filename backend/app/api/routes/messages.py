@@ -1,46 +1,47 @@
 from __future__ import annotations
 
 import json
-import uuid
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, Depends, HTTPException
+import structlog
+from fastapi import APIRouter, Depends
 from starlette.responses import StreamingResponse
 
 from app.api.deps import (
     ChatServiceDep,
     CurrentUser,
-    DBSession,
     UserProject,
+    UserThread,
     require_unblocked_thread,
 )
 from app.api.schemas.messages import CancelResponse, MessageCreate
-from app.repositories.thread_view import ThreadViewRepository
 from app.security_pipeline.context import bind_security_context
 from app.services.agent_runner import StreamEvent
 
 router = APIRouter(tags=["messages"])
 
-
-async def _validate_thread_ownership(
-    session: DBSession,
-    chat_id: uuid.UUID,
-    project_id: uuid.UUID,
-) -> None:
-    """Pre-validate that thread belongs to project before streaming."""
-    repo = ThreadViewRepository(session)
-    thread_view = await repo.get_by_id(chat_id)
-    if thread_view is None or thread_view.project_id != project_id:
-        raise HTTPException(status_code=404, detail="Chat not found")
+logger = structlog.get_logger()
 
 
 async def _event_generator(
     events: AsyncIterator[StreamEvent],
 ) -> AsyncIterator[str]:
-    """Map StreamEvent objects to SSE wire format."""
-    async for event in events:
-        payload = {"type": event.type, **event.data}
-        yield f"data: {json.dumps(payload)}\n\n"
+    """Map StreamEvent objects to SSE wire format.
+
+    Wraps the iteration in try/except so exceptions in the setup phase of the
+    runner (before its own try-block) or in JSON serialisation produce a
+    terminal ``{"type":"error"}`` event rather than a silent stream tear.
+    The runner (T3) already emits error events for in-graph exceptions; this
+    catch covers the residual gap (setup failures, serialisation errors).
+    """
+    try:
+        async for event in events:
+            payload = {"type": event.type, **event.data}
+            yield f"data: {json.dumps(payload)}\n\n"
+    except Exception:
+        logger.error("sse stream error", exc_info=True)
+        error_payload = json.dumps({"type": "error", "detail": "Stream failed"})
+        yield f"data: {error_payload}\n\n"
 
 
 @router.post(
@@ -48,24 +49,21 @@ async def _event_generator(
     dependencies=[Depends(require_unblocked_thread)],
 )
 async def send_message(
-    chat_id: uuid.UUID,
     body: MessageCreate,
     project: UserProject,
+    # Ownership пре-валидируется до создания стрима (контракт из feat-004)
+    thread: UserThread,
     user: CurrentUser,
     service: ChatServiceDep,
-    session: DBSession,
 ) -> StreamingResponse:
-    # Pre-validate before creating stream (contract from feat-004)
-    await _validate_thread_ownership(session, chat_id, project.id)
-
     # Bind thread_id and project_id to security context for logging
     bind_security_context(
-        thread_id=str(chat_id),
+        thread_id=str(thread.thread_id),
         project_id=str(project.id),
     )
 
     events = service.send_message(
-        thread_id=chat_id,
+        thread_id=thread.thread_id,
         project_id=project.id,
         user_id=user.id,
         content=body.content,
@@ -85,11 +83,8 @@ async def send_message(
     response_model=CancelResponse,
 )
 async def cancel_message(
-    chat_id: uuid.UUID,
-    project: UserProject,
+    thread: UserThread,
     service: ChatServiceDep,
-    session: DBSession,
 ) -> CancelResponse:
-    await _validate_thread_ownership(session, chat_id, project.id)
-    result = await service.cancel(thread_id=chat_id)
+    result = await service.cancel(thread_id=thread.thread_id)
     return CancelResponse(ok=result)

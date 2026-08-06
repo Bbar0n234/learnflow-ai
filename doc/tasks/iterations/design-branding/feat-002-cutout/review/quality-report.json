@@ -1,0 +1,410 @@
+[
+  {
+    "image": "empty-artifacts",
+    "theme": "light",
+    "estimated_bg": [
+      252,
+      238,
+      224
+    ],
+    "alpha_zero": 0.6047,
+    "alpha_partial": 0.1022,
+    "alpha_full": 0.2931,
+    "bg_leak": 0.00123,
+    "object_eaten": 0.03015,
+    "halo_bg_similarity": 230.4,
+    "suspicious_blobs": [],
+    "edge_crop_centers": [
+      [
+        922,
+        878
+      ],
+      [
+        730,
+        325
+      ],
+      [
+        488,
+        787
+      ],
+      [
+        335,
+        516
+      ]
+    ]
+  },
+  {
+    "image": "empty-chats",
+    "theme": "light",
+    "estimated_bg": [
+      253,
+      239,
+      223
+    ],
+    "alpha_zero": 0.6734,
+    "alpha_partial": 0.0659,
+    "alpha_full": 0.2607,
+    "bg_leak": 0.00123,
+    "object_eaten": 0.00303,
+    "halo_bg_similarity": 198.1,
+    "suspicious_blobs": [],
+    "edge_crop_centers": [
+      [
+        1103,
+        502
+      ],
+      [
+        241,
+        683
+      ],
+      [
+        605,
+        383
+      ],
+      [
+        777,
+        868
+      ]
+    ]
+  },
+  {
+    "image": "empty-sphere",
+    "theme": "light",
+    "estimated_bg": [
+      253,
+      241,
+      228
+    ],
+    "alpha_zero": 0.5923,
+    "alpha_partial": 0.096,
+    "alpha_full": 0.3118,
+    "bg_leak": 0.01546,
+    "object_eaten": 0.03981,
+    "halo_bg_similarity": 244.7,
+    "suspicious_blobs": [],
+    "edge_crop_centers": [
+      [
+        159,
+        825
+      ],
+      [
+        409,
+        335
+      ],
+      [
+        421,
+        803
+      ],
+      [
+        1124,
+        288
+      ]
+    ]
+  },
+  {
+    "image": "error-state",
+    "theme": "light",
+    "estimated_bg": [
+      253,
+      239,
+      225
+    ],
+    "alpha_zero": 0.7123,
+    "alpha_partial": 0.0543,
+    "alpha_full": 0.2334,
+    "bg_leak": 0.00025,
+    "object_eaten": 0.0476,
+    "halo_bg_similarity": 241.4,
+    "suspicious_blobs": [],
+    "edge_crop_centers": [
+      [
+        617,
+        914
+      ],
+      [
+        1092,
+        918
+      ],
+      [
+        397,
+        265
+      ],
+      [
+        286,
+        923
+      ]
+    ]
+  },
+  {
+    "image": "sidebar-vignette",
+    "theme": "light",
+    "estimated_bg": [
+      253,
+      244,
+      234
+    ],
+    "alpha_zero": 0.798,
+    "alpha_partial": 0.052,
+    "alpha_full": 0.15,
+    "bg_leak": 0.00076,
+    "object_eaten": 0.04299,
+    "halo_bg_similarity": 231.2,
+    "suspicious_blobs": [],
+    "edge_crop_centers": [
+      [
+        415,
+        625
+      ],
+      [
+        695,
+        625
+      ],
+      [
+        1099,
+        331
+      ],
+      [
+        1641,
+        594
+      ]
+    ]
+  },
+  {
+    "image": "welcome-hero",
+    "theme": "light",
+    "estimated_bg": [
+      252,
+      240,
+      228
+    ],
+    "alpha_zero": 0.7949,
+    "alpha_partial": 0.0731,
+    "alpha_full": 0.132,
+    "bg_leak": 0.001,
+    "object_eaten": 0.0175,
+    "halo_bg_similarity": 185.4,
+    "suspicious_blobs": [],
+    "edge_crop_centers": [
+      [
+        1147,
+        247
+      ],
+      [
+        1160,
+        796
+      ],
+      [
+        1424,
+        296
+      ],
+      [
+        959,
+        522
+      ]
+    ]
+  },
+  {
+    "image": "empty-artifacts",
+    "theme": "dark",
+    "estimated_bg": [
+      252,
+      236,
+      222
+    ],
+    "alpha_zero": 0.5957,
+    "alpha_partial": 0.0948,
+    "alpha_full": 0.3094,
+    "bg_leak": 0.00151,
+    "object_eaten": 0.02803,
+    "halo_bg_similarity": 209.1,
+    "suspicious_blobs": [],
+    "edge_crop_centers": [
+      [
+        930,
+        528
+      ],
+      [
+        974,
+        840
+      ],
+      [
+        1234,
+        928
+      ],
+      [
+        782,
+        262
+      ]
+    ]
+  },
+  {
+    "image": "empty-chats",
+    "theme": "dark",
+    "estimated_bg": [
+      253,
+      237,
+      222
+    ],
+    "alpha_zero": 0.6258,
+    "alpha_partial": 0.0665,
+    "alpha_full": 0.3077,
+    "bg_leak": 0.00101,
+    "object_eaten": 0.00325,
+    "halo_bg_similarity": 181.0,
+    "suspicious_blobs": [],
+    "edge_crop_centers": [
+      [
+        208,
+        825
+      ],
+      [
+        515,
+        818
+      ],
+      [
+        1129,
+        194
+      ],
+      [
+        775,
+        922
+      ]
+    ]
+  },
+  {
+    "image": "empty-sphere",
+    "theme": "dark",
+    "estimated_bg": [
+      251,
+      236,
+      223
+    ],
+    "alpha_zero": 0.5868,
+    "alpha_partial": 0.0891,
+    "alpha_full": 0.3241,
+    "bg_leak": 0.00076,
+    "object_eaten": 0.03839,
+    "halo_bg_similarity": 240.6,
+    "suspicious_blobs": [],
+    "edge_crop_centers": [
+      [
+        618,
+        774
+      ],
+      [
+        409,
+        331
+      ],
+      [
+        171,
+        755
+      ],
+      [
+        1124,
+        284
+      ]
+    ]
+  },
+  {
+    "image": "error-state",
+    "theme": "dark",
+    "estimated_bg": [
+      251,
+      235,
+      224
+    ],
+    "alpha_zero": 0.6635,
+    "alpha_partial": 0.0752,
+    "alpha_full": 0.2613,
+    "bg_leak": 0.00063,
+    "object_eaten": 0.04571,
+    "halo_bg_similarity": 241.4,
+    "suspicious_blobs": [],
+    "edge_crop_centers": [
+      [
+        1065,
+        965
+      ],
+      [
+        354,
+        871
+      ],
+      [
+        614,
+        934
+      ],
+      [
+        373,
+        252
+      ]
+    ]
+  },
+  {
+    "image": "sidebar-vignette",
+    "theme": "dark",
+    "estimated_bg": [
+      252,
+      238,
+      227
+    ],
+    "alpha_zero": 0.7559,
+    "alpha_partial": 0.0598,
+    "alpha_full": 0.1842,
+    "bg_leak": 0.00043,
+    "object_eaten": 0.04,
+    "halo_bg_similarity": 229.5,
+    "suspicious_blobs": [],
+    "edge_crop_centers": [
+      [
+        543,
+        594
+      ],
+      [
+        1558,
+        599
+      ],
+      [
+        803,
+        445
+      ],
+      [
+        229,
+        563
+      ]
+    ]
+  },
+  {
+    "image": "welcome-hero",
+    "theme": "dark",
+    "estimated_bg": [
+      252,
+      236,
+      222
+    ],
+    "alpha_zero": 0.7952,
+    "alpha_partial": 0.0583,
+    "alpha_full": 0.1465,
+    "bg_leak": 0.00125,
+    "object_eaten": 0.00598,
+    "halo_bg_similarity": 197.4,
+    "suspicious_blobs": [],
+    "edge_crop_centers": [
+      [
+        1142,
+        555
+      ],
+      [
+        1424,
+        297
+      ],
+      [
+        1148,
+        278
+      ],
+      [
+        787,
+        543
+      ]
+    ]
+  }
+]

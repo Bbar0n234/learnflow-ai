@@ -2,57 +2,128 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Response, status
 
-from app.api.deps import ArtifactServiceDep, ChatServiceDep, CurrentUser, UserProject
+from app.api.deps import (
+    ArtifactServiceDep,
+    ChatServiceDep,
+    CurrentUser,
+    Pagination,
+    UserProject,
+    UserThread,
+)
 from app.api.schemas.artifacts import ArtifactListItem
 from app.api.schemas.chats import (
-    ChatCreate,
     ChatDetailResponse,
     ChatListResponse,
     ChatRecentItem,
     ChatRecentResponse,
     ChatResponse,
+    ChatUpdate,
     MessageOut,
+    MessagePartOut,
+    ReasoningPartOut,
+    TextPartOut,
+    ToolCallPartOut,
 )
+from app.services.agent_runner import Part, ReasoningPart, TextPart, ToolCallPart
+from app.services.exceptions import EntityNotFoundError
 
 router = APIRouter(tags=["chats"])
 
 
-@router.post("/projects/{project_id}/chats", response_model=ChatResponse)
+def _part_out(part: Part) -> MessagePartOut:
+    """Map the internal typed ``Part`` (services layer) to its API shape."""
+    if isinstance(part, ReasoningPart):
+        return ReasoningPartOut(content=part.content)
+    if isinstance(part, TextPart):
+        return TextPartOut(content=part.content)
+    if isinstance(part, ToolCallPart):
+        return ToolCallPartOut(
+            call_id=part.call_id,
+            tool=part.tool,
+            args=part.args,
+            args_truncated=part.args_truncated,
+            status=part.status,
+            result_preview=part.result_preview,
+            result_truncated=part.result_truncated,
+        )
+    raise AssertionError(f"unhandled part type: {type(part).__name__}")
+
+
+@router.post(
+    "/projects/{project_id}/chats",
+    response_model=ChatResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_chat(
-    body: ChatCreate,
     project: UserProject,
     service: ChatServiceDep,
 ) -> ChatResponse:
-    title = body.title or "New Chat"
-    thread_view = await service.create_chat(project_id=project.id, title=title)
+    thread_view = await service.create_chat(project_id=project.id)
     return ChatResponse.model_validate(thread_view)
+
+
+@router.put("/projects/{project_id}/chats/{chat_id}", response_model=ChatResponse)
+async def rename_chat(
+    body: ChatUpdate,
+    thread: UserThread,
+    service: ChatServiceDep,
+) -> ChatResponse:
+    updated = await service.rename_chat(thread.thread_id, title=body.title)
+    return ChatResponse.model_validate(updated)
+
+
+@router.delete(
+    "/projects/{project_id}/chats/{chat_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_chat(
+    chat_id: uuid.UUID,
+    project: UserProject,
+    service: ChatServiceDep,
+) -> Response:
+    # Idempotent DELETE (api.md): ownership resolved manually here instead of
+    # via the UserThread dependency, which would 404 an already-deleted chat
+    # and break idempotency. Mirrors delete_project's manual pattern
+    # (routes/projects.py) — a documented, deliberate exception to "ownership
+    # only through dependencies" (design-brief § Rename и delete).
+    try:
+        thread_view = await service.get_thread_view(chat_id)
+    except EntityNotFoundError:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    if thread_view.project_id != project.id:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    await service.delete_chat(thread_view.thread_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/projects/{project_id}/chats", response_model=ChatListResponse)
 async def list_chats(
     project: UserProject,
     service: ChatServiceDep,
+    page: Pagination,
 ) -> ChatListResponse:
-    chats = await service.list_chats(project.id)
-    return ChatListResponse(items=[ChatResponse.model_validate(c) for c in chats])
+    chats, total = await service.list_chats(
+        project.id, limit=page.limit, offset=page.offset
+    )
+    return ChatListResponse(
+        items=[ChatResponse.model_validate(c) for c in chats],
+        total=total,
+        limit=page.limit,
+        offset=page.offset,
+    )
 
 
 @router.get("/projects/{project_id}/chats/{chat_id}", response_model=ChatDetailResponse)
 async def get_chat(
-    chat_id: uuid.UUID,
-    project: UserProject,
+    thread: UserThread,
     service: ChatServiceDep,
     artifact_service: ArtifactServiceDep,
 ) -> ChatDetailResponse:
-    chat_detail = await service.get_chat(chat_id)
-    # Verify chat belongs to this project
-    if chat_detail.thread_view.project_id != project.id:
-        raise HTTPException(status_code=404, detail="Chat not found")
+    chat_detail = await service.get_chat(thread.thread_id)
 
     # Get artifacts for this thread, group by message_id
-    artifacts = await artifact_service.list_by_thread(chat_id)
+    artifacts = await artifact_service.list_by_thread(thread.thread_id)
     artifacts_by_msg: dict[str | None, list[ArtifactListItem]] = {}
     for a in artifacts:
         artifacts_by_msg.setdefault(a.message_id, []).append(
@@ -79,6 +150,7 @@ async def get_chat(
                 trace_id=chat_detail.trace_ids.get(m.id),
                 feedback_score=_feedback_for(m.id),
                 redacted=m.redacted,
+                parts=[_part_out(p) for p in m.parts],
             )
             for m in chat_detail.messages
         ],
@@ -89,9 +161,11 @@ async def get_chat(
 async def list_recent_chats(
     user: CurrentUser,
     service: ChatServiceDep,
-    limit: int = Query(default=10, ge=1, le=100),
+    page: Pagination,
 ) -> ChatRecentResponse:
-    thread_views = await service.list_recent(user.id, limit=limit)
+    thread_views, total = await service.list_recent(
+        user.id, limit=page.limit, offset=page.offset
+    )
     return ChatRecentResponse(
         items=[
             ChatRecentItem(
@@ -103,5 +177,8 @@ async def list_recent_chats(
                 security_blocked=tv.security_blocked,
             )
             for tv in thread_views
-        ]
+        ],
+        total=total,
+        limit=page.limit,
+        offset=page.offset,
     )

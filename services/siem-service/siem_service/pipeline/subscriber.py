@@ -9,11 +9,41 @@ import redis.asyncio as redis
 import structlog
 from pydantic import ValidationError
 from siem_contracts import SecurityEvent
+from sqlalchemy.exc import DBAPIError, OperationalError
 
 from siem_service.config import Settings
 from siem_service.pipeline.event_writer import EventWriter
 
 logger = structlog.get_logger()
+
+# Transient DB-infra failures on the write path → keep in PEL for re-delivery
+# (D-ERR-7), do NOT XACK. Two layers:
+#   1. SQLAlchemy-wrapped DB errors (OperationalError/DBAPIError) — raised when a
+#      live connection drops mid-statement; SQLAlchemy also wraps asyncpg's
+#      server-side connect errors (CannotConnectNowError/ConnectionDoesNotExistError)
+#      into OperationalError when they surface through session.execute.
+#   2. Raw connect-time failures. When the DB is fully down, asyncpg/uvloop raises
+#      a raw builtin ConnectionRefusedError (a ConnectionError → OSError subclass)
+#      while opening the socket — BEFORE the Postgres protocol runs, so SQLAlchemy
+#      never wraps it (root cause of stand finding F-SIEM-T4.13). ConnectionError
+#      also covers reset/aborted/broken-pipe.
+# ConnectionError is preferred over the broader OSError so unrelated OS failures
+# (DNS gaierror, FileNotFoundError, PermissionError) are NOT swallowed as transient.
+_TRANSIENT_DB_ERRORS: tuple[type[BaseException], ...] = (
+    OperationalError,
+    DBAPIError,
+    ConnectionError,
+)
+
+
+def is_transient_db_error(exc: BaseException) -> bool:
+    """Return True if exc is a transient DB-infra failure (re-deliver via PEL).
+
+    Pure predicate — categorizes write-path failures so the subscriber can keep
+    the message unacked (transient) instead of crashing the task. Poison
+    (ValidationError) and unexpected bugs are NOT transient.
+    """
+    return isinstance(exc, _TRANSIENT_DB_ERRORS)
 
 
 class Subscriber:
@@ -121,8 +151,8 @@ class Subscriber:
             if messages:
                 logger.info("processing pending messages", count=len(messages))
             return messages
-        except redis.ResponseError:
-            logger.warning("failed to read pending messages")
+        except redis.ResponseError as e:
+            logger.warning("failed to read pending messages", error=str(e))
             return []
 
     async def _read_group(self, last_id: str | int) -> list[tuple[str, dict[str, Any]]]:
@@ -152,11 +182,66 @@ class Subscriber:
         for message_id, payload_dict in messages:
             await self._process_single_message(message_id, payload_dict)
 
+    async def _get_delivery_count(self, message_id: str) -> int:
+        """Get PEL delivery count for a message via XPENDING range query.
+
+        Returns 1 as fallback (treat as first delivery) if the query fails or
+        the message is not found in PEL (e.g. race between delivery and ACK).
+        """
+        try:
+            entries = await self._redis.xpending_range(
+                name=self.STREAM_NAME,
+                groupname=self.CONSUMER_GROUP,
+                min=message_id,
+                max=message_id,
+                count=1,
+            )
+            if entries:
+                return int(entries[0]["times_delivered"])
+        except Exception:
+            # XPENDING failed (Redis degradation): fall back to "first delivery"
+            # so processing continues, but do NOT swallow silently — if this
+            # persists, the bounded-retry guard is effectively disabled.
+            logger.warning(
+                "failed to read delivery count, assuming first delivery",
+                message_id=message_id,
+                exc_info=True,
+            )
+        return 1
+
     async def _process_single_message(
         self, message_id: str, payload_dict: dict[str, Any]
     ) -> None:
-        """Process a single message: validate, write, ack."""
-        event_id_str = str(payload_dict.get("event_id", "unknown"))
+        """Process a single message: validate, write, ack.
+
+        Barrier separation (D-ERR-7, OQ-E):
+        - bounded delivery-count: after max_delivery_attempts → terminal drop+XACK.
+        - ValidationError (poison): drop + XACK + metric siem_events_invalid.
+        - Transient infra (is_transient_db_error: SQLAlchemy DB errors AND raw
+          connect-time ConnectionError/asyncpg connect errors): NO XACK (stays in
+          PEL for _read_pending to re-deliver) + metric siem_events_transient.
+        - Other unhandled: re-raise to run() outer barrier (supervisor restarts).
+        """
+        # event_id_str is "unknown" until we parse the JSON below; we set a
+        # fallback to message_id so logs always carry a stable identifier.
+        event_id_str = message_id
+
+        # --- Bounded delivery-count check (OQ-E) ---
+        delivery_count = await self._get_delivery_count(message_id)
+        if delivery_count > self._settings.max_delivery_attempts:
+            self._metrics["siem_events_failed_terminal"] += 1
+            data_json = payload_dict.get("data", "")
+            if isinstance(data_json, bytes):
+                data_json = data_json.decode("utf-8")
+            logger.error(
+                "security event terminal drop after max delivery attempts",
+                message_id=message_id,
+                delivery_count=delivery_count,
+                max_delivery_attempts=self._settings.max_delivery_attempts,
+                raw_payload=str(data_json)[:500],
+            )
+            await self._redis.xack(self.STREAM_NAME, self.CONSUMER_GROUP, message_id)
+            return
 
         try:
             # Parse JSON payload
@@ -164,19 +249,27 @@ class Subscriber:
             if isinstance(data_json, bytes):
                 data_json = data_json.decode("utf-8")
 
-            event_dict = json.loads(data_json)
-
-            # Validate with SecurityEvent (strict)
+            # Parse + validate. Both malformed JSON (JSONDecodeError) and
+            # schema-invalid JSON (ValidationError) are poison → drop + XACK
+            # (no retry). Handling them symmetrically prevents a non-JSON
+            # payload from escaping to the run() barrier and crash-looping the
+            # supervisor until terminal drop (D-ERR-7).
             try:
+                event_dict = json.loads(data_json)
+                # Extract real event_id from parsed dict; fallback to message_id
+                raw_event_id = event_dict.get("event_id")
+                event_id_str = (
+                    str(raw_event_id) if raw_event_id is not None else message_id
+                )
                 event = SecurityEvent.model_validate(event_dict)
-            except ValidationError:
+            except (json.JSONDecodeError, ValidationError):
+                # Poison: malformed or schema-invalid → drop + XACK (no retry)
                 self._metrics["siem_events_invalid"] += 1
                 logger.warning(
                     "validation error on security event",
                     event_id=event_id_str,
                     raw_payload=data_json[:500],  # Truncate for logging
                 )
-                # XACK to prevent redelivery loop
                 await self._redis.xack(
                     self.STREAM_NAME, self.CONSUMER_GROUP, message_id
                 )
@@ -202,20 +295,34 @@ class Subscriber:
             # Acknowledge after successful write
             await self._redis.xack(self.STREAM_NAME, self.CONSUMER_GROUP, message_id)
 
-        except Exception:
-            logger.exception(
-                "error processing message",
+        except Exception as exc:
+            if not is_transient_db_error(exc):
+                # Unexpected bug → re-raise to run() outer barrier (supervisor
+                # restarts the task). Keeps poison/terminal/generic separation.
+                raise
+            # Transient infra failure: do NOT XACK — leave in PEL so
+            # _read_pending can re-deliver after DB recovers (D-ERR-7). This
+            # includes the raw ConnectionRefusedError asyncpg raises when the DB
+            # is fully down (it is not wrapped into SQLAlchemy OperationalError).
+            self._metrics["siem_events_transient"] += 1
+            logger.warning(
+                "transient database error processing security event",
                 message_id=message_id,
                 event_id=event_id_str,
+                exc_info=True,
             )
-            self._metrics["siem_processing_errors"] += 1
-            # XACK anyway to prevent infinite redelivery
-            await self._redis.xack(self.STREAM_NAME, self.CONSUMER_GROUP, message_id)
+            # No XACK — message stays in PEL for re-delivery.
 
     def _is_known_event_type(self, event_type: str) -> bool:
-        """Check if event_type is in known vocabulary.
+        """Check if event_type is in known vocabulary (vocabulary-soft mode).
 
-        For T2, accept all types (vocabulary-soft mode).
+        Deliberate defense-in-depth scaffolding per ADR-020 (strict-on-vocabulary):
+        today ``SecurityEvent.event_type`` is a strict ``Literal``, so unknown
+        types are rejected as poison at ``model_validate`` before this check ever
+        runs — this branch is intentionally inert. It activates only if the
+        contract is ever loosened from ``Literal`` to ``str``. Not dead code; do
+        not remove (nor the ``siem_unknown_event_type`` metric) without revising
+        ADR-020.
         """
         return True
 

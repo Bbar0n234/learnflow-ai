@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel
 
 
-class Checkpoint(str, Enum):
+class Checkpoint(StrEnum):
     USER_INPUT = "user_input"
     TOOL_RESULT = "tool_result"
     TOOL_CALL_ARG = "tool_call_arg"
@@ -14,9 +14,10 @@ class Checkpoint(str, Enum):
     MCP_METADATA = "mcp_metadata"
     CUSTOM_INSTRUCTIONS_WRITE = "custom_instructions_write"
     KS_WRITE_REST = "ks_write_rest"
+    SKILL_CONTEXT_WRITE = "skill_context_write"
 
 
-class Direction(str, Enum):
+class Direction(StrEnum):
     INBOUND = "inbound"
     OUTBOUND = "outbound"
 
@@ -27,6 +28,7 @@ _DIRECTION_MAP: dict[Checkpoint, Direction] = {
     Checkpoint.MCP_METADATA: Direction.INBOUND,
     Checkpoint.CUSTOM_INSTRUCTIONS_WRITE: Direction.INBOUND,
     Checkpoint.KS_WRITE_REST: Direction.INBOUND,
+    Checkpoint.SKILL_CONTEXT_WRITE: Direction.INBOUND,
     Checkpoint.TOOL_CALL_ARG: Direction.OUTBOUND,
     Checkpoint.FINAL_OUTPUT: Direction.OUTBOUND,
 }
@@ -36,7 +38,7 @@ def direction_of(checkpoint: Checkpoint) -> Direction:
     return _DIRECTION_MAP[checkpoint]
 
 
-class DetectionLayer(str, Enum):
+class DetectionLayer(StrEnum):
     CANARY = "canary"
     UNICODE = "unicode"
     FRAGMENT = "fragment"
@@ -45,7 +47,7 @@ class DetectionLayer(str, Enum):
     GRACEFUL_DEGRADATION = "graceful_degradation"
 
 
-class Verdict(str, Enum):
+class Verdict(StrEnum):
     CLEAN = "CLEAN"
     SUSPICIOUS = "SUSPICIOUS"
     INJECTION = "INJECTION"
@@ -72,6 +74,7 @@ class ClassifierResult(BaseModel):
     verdict: Verdict
     reasoning: str | None = None
     retries: int = 0
+    degraded: bool = False
 
 
 class PairedDetectorConfig(BaseModel):
@@ -98,6 +101,7 @@ class CheckpointConfig(BaseModel):
 
 class ReasoningOptions(BaseModel):
     effort: str | None = None
+    exclude: bool | None = None
 
 
 class LLMExtraBody(BaseModel):

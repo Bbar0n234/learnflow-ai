@@ -6,26 +6,130 @@
 
 ### Слои
 
+Слои показаны цветными подложками поверх компонентов и их связей; внизу — внешние системы:
+
 ```mermaid
 graph TD
-    API["API Layer — FastAPI routes, schemas, SSE transport"]
-    SVC["Service Layer — оркестрация, бизнес-правила"]
-    AGT["Agent Layer — LangGraph граф, GraphFactory, tools, skills, context, memory"]
-    REPO["Repository Layer"]
-    INFRA["Infra — DB engine/sessions, LLM client, MCP client, PromptProvider, EncryptionService"]
+    subgraph COMP["Composition Root"]
+        MAIN["main.py — lifespan,<br>синглтоны в app.state"]
+        CONFIG["config.py — Settings"]
+    end
 
-    API --> SVC
-    SVC --> AGT
-    SVC --> REPO
-    AGT --> REPO
-    REPO --> INFRA
-    AGT --> INFRA
+    subgraph APIL["API Layer — app/api/"]
+        ROUTES["routes/ — роутеры по ресурсам"]
+        SCHEMAS["schemas/ — Pydantic-контракты"]
+        DEPS["deps.py — DI-фабрики per-request"]
+    end
+
+    subgraph SVCL["Service Layer — app/services/"]
+        CHATSVC["ChatService — thread mapping,<br>делегирование в AgentRunner"]
+        TITLESVC["ChatTitleGenerator — fire-and-forget<br>auto-title, own DB session"]
+        CRUD["CRUD-сервисы — Project, Artifact,<br>Sphere, UserMemory, SkillContext, MCPServer"]
+        RESOLVER["ModelConfigResolver ·<br>MCPToolResolver"]
+        ENC["EncryptionService — Fernet"]
+    end
+
+    subgraph AGTL["Agent Layer — app/agent/"]
+        RUNNER["AgentRunner — runner.py"]
+        FACTORY["GraphFactory — graph_factory.py"]
+        GRAPH["StateGraph — graph.py"]
+        TOOLS["tools/ — KS, artifacts,<br>user memory, skill context, skills"]
+        GUARD["security/ — SecurityGuard:<br>detectors + LLM classifier"]
+        PB["prompt_builder.py"]
+    end
+
+    subgraph DATAL["Data Layer"]
+        REPOS["repositories/ — по репозиторию<br>на сущность (ORM CRUD)"]
+        STORAGE["storage/ — BlobStorage (Pg) ·<br>TraceStore (Redis)"]
+        MODELS["models/ — SQLAlchemy ORM"]
+    end
+
+    subgraph INFRAL["Infra — app/infra/"]
+        DBE["db.py — engine/sessions"]
+        LG["langgraph.py —<br>Checkpointer + Store"]
+        LLM["llm.py — LLM-клиенты"]
+        IMG["image_generation.py —<br>OpenRouter Image API"]
+        MCPC["mcp.py — MultiServerMCPClient"]
+        PP["PromptProvider"]
+        RL["rate_limit.py"]
+    end
+
+    subgraph SECPL["Security Pipeline — app/security_pipeline/"]
+        PROC["SecurityEventProcessor — structlog"]
+        TRANS["RedisEventTransport"]
+    end
+
+    PG[("PostgreSQL learnflow")]
+    REDIS[("Redis")]
+    LLMAPI["LLM API —<br>OpenAI-compatible"]
+    LF["Langfuse"]
+    MCPEXT["Внешние MCP-серверы"]
+
+    MAIN -. "синглтоны через app.state" .-> DEPS
+    CONFIG --- MAIN
+    ROUTES --> SCHEMAS
+    ROUTES --> DEPS
+    ROUTES --> RL
+    ROUTES -.->|"exception: thin<br>read-only DI"| STORAGE
+    DEPS --> CHATSVC
+    DEPS --> CRUD
+    CHATSVC --> RUNNER
+    CHATSVC --> REPOS
+    CHATSVC --> STORAGE
+    CHATSVC --> TITLESVC
+    TITLESVC --> REPOS
+    TITLESVC --> LLM
+    TITLESVC --> PP
+    CRUD --> REPOS
+    CRUD --> GUARD
+    CRUD --> ENC
+    RUNNER --> RESOLVER
+    RESOLVER --> MCPC
+    RUNNER --> FACTORY
+    FACTORY --> GRAPH
+    FACTORY --> LLM
+    FACTORY --> LG
+    GRAPH --> TOOLS
+    GRAPH --> GUARD
+    GRAPH --> PB
+    GUARD --> LLM
+    PB --> PP
+    TOOLS --> REPOS
+    TOOLS --> STORAGE
+    TOOLS --> IMG
+    REPOS --> MODELS
+    REPOS --> DBE
+    STORAGE --> MODELS
+    STORAGE --> DBE
+    STORAGE -->|TraceStore| REDIS
+    DBE --> PG
+    LG --> PG
+    LLM --> LLMAPI
+    IMG --> LLMAPI
+    PP --> LF
+    MCPC --> MCPEXT
+    RUNNER -. "tracing — CallbackHandler" .-> LF
+    ROUTES -. "structlog: auth, rate limit" .-> PROC
+    GUARD -. "structlog: guard verdicts" .-> PROC
+    PROC --> TRANS
+    TRANS -->|XADD| REDIS
+
+    style COMP fill:#8b949e1a,stroke:#8b949e,color:#8b949e
+    style APIL fill:#58a6ff1a,stroke:#58a6ff,color:#58a6ff
+    style SVCL fill:#3fb9501a,stroke:#3fb950,color:#3fb950
+    style AGTL fill:#bc8cff1a,stroke:#bc8cff,color:#bc8cff
+    style DATAL fill:#d299221a,stroke:#d29922,color:#d29922
+    style INFRAL fill:#39c5cf1a,stroke:#39c5cf,color:#39c5cf
+    style SECPL fill:#f851491a,stroke:#f85149,color:#f85149
 ```
 
+Composition root — `app/main.py`: lifespan инициализирует синглтоны (engine, AgentRunner, guard и т.д.) в `app.state`; `app/api/deps.py` — per-request фабрики поверх `app.state`.
+
 - **API Layer** — HTTP/SSE-интерфейс, Pydantic-валидация, маршрутизация. Не содержит бизнес-логики.
-- **Service Layer** — CRUD-сервисы (ProjectService, ArtifactService, UserMemoryService, MCPServerService, SphereService) + thin ChatService для chat-операций. ChatService оркестрирует взаимодействие с AgentRunner (маппинг chat_id → thread_id, model resolution, обновление thread_views, формирование config). Write-методы для persistent storage (MCP-серверы, custom instructions, KS write через REST) первыми вызывают security guard — INJECTION → HTTP 422, до endpoint-специфичных валидаций ([security/architecture.md](../security/architecture.md)). ModelConfigResolver — каскадное разрешение модели per-request.
+- **Service Layer** — CRUD-сервисы (ProjectService, ArtifactService, UserMemoryService, SkillContextService, MCPServerService, SphereService) + thin ChatService для chat-операций. ChatService оркестрирует взаимодействие с AgentRunner (маппинг chat_id → thread_id, model resolution, обновление thread_views, формирование config), а также rename/delete чата и каскад удаления (полиморфные MCP-disables → удаление строки → commit → best-effort очистка LangGraph checkpoints через `AgentRunner.delete_thread`). Отдельный сервис `ChatTitleGenerator` — fire-and-forget генерация auto-title дешёвой LLM: реестр задач по `thread_id` держится в самом объекте (создаётся в lifespan, живёт в `app.state.chat_title_generator`, с `shutdown()`-teardown), задача работает в собственной DB-сессии и атомарно-условно пишет title (не перезаписывает ручной rename или заблокированный чат). Write-методы для persistent storage (MCP-серверы, custom instructions, KS write через REST, skill context write через REST) первыми вызывают security guard — INJECTION → HTTP 422, до endpoint-специфичных валидаций ([security/architecture.md](../security/architecture.md)). ModelConfigResolver — каскадное разрешение модели per-request.
 - **Agent Layer** — LangGraph-граф, GraphFactory (per-request build+compile), tools, skills, context engineering, memory, security (inline-проверки в графе и стриминге — [architecture.md](../security/architecture.md)). LangGraph-связанность сдержана внутри этого слоя: наружу выходят только доменные типы, не LangGraph-специфичные.
-- **Repository Layer** — SQLAlchemy, доступ к app-managed таблицам.
+- **Repository Layer** — SQLAlchemy, CRUD-доступ к app-managed таблицам, по репозиторию на ORM-сущность.
+- **Storage Layer** — абстракции хранилища с заменяемым бэкендом или не-ORM семантикой (blob, key-value); независимый сосед Repository Layer, не наследует и не оборачивает его. `BlobStorage` (`typing.Protocol`, реализация `PgBlobStorage`) и `TraceStore` (Redis) — нейминг и граница с Repository Layer см. [conventions.md § Именование](conventions.md#именование).
 - **Infra** — не слой с правилами вызовов, а утилитарный пакет с сконфигурированными клиентами внешних сервисов.
 
 ### Правила вызовов
@@ -34,13 +138,47 @@ graph TD
 |-------|----------|
 | API → Service | ✅ всегда (включая chat через ChatService) |
 | Service → Repository | ✅ |
+| Service → Storage | ✅ (`ChatService` → `TraceStore`) |
 | Service → Agent Layer | ✅ (ChatService → AgentRunner) |
 | Agent tools → Repository | ✅ прямой доступ |
+| Agent tools → Storage | ✅ прямой доступ (`image_generation`-tool → `PgBlobStorage`) |
 | Agent → LangGraph Store / Checkpointer | ✅ нативно |
-| Repository / Agent → Infra | ✅ клиенты |
+| Repository / Storage / Agent → Infra | ✅ клиенты |
 | Repository → Service | ❌ |
-| API → Repository | ❌ |
+| API → Repository | ❌, кроме тонкого read-only исключения (см. ниже) |
+| API → Storage | ❌, кроме тонкого read-only исключения (см. ниже) |
 | API → Agent Layer | ❌ (только через Service) |
+
+Известное локализованное исключение: `services/mcp_server.py` импортирует схему из `api/schemas/mcp_servers.py` — против направления, без цикла.
+
+Известное расхождение стиля DI: `ProjectService` получает `MCPServerRepository` обязательным конструкторским параметром, а `ChatService.delete_chat` инстанцирует его inline от собственной сессии — стили разошлись независимо, унификация не форсирована.
+
+**Исключение — тонкий read-only инжект в route-handler.** API → Repository/Storage в обход Service-слоя допустим, когда выполнены все три условия: (1) только чтение; (2) ноль бизнес-логики в handler'е — он только достаёт данные и отдаёт их; (3) авторизация уже выполнена существующими dependencies (ownership-проверки и т.п.) до обращения к хранилищу. Появление бизнес-логики или записи требует Service-слоя.
+
+Прецеденты:
+- `get_artifact_media` (`GET /projects/{id}/artifacts/{aid}/media`, `api/routes/artifacts.py`) — после ownership-проверки через `ArtifactServiceDep` читает блоб напрямую через `BlobStorageDep`.
+- `list_user_servers` и симметричные list-хендлеры (`GET /users/me/mcp-servers` и project/thread-эквиваленты, `api/routes/mcp_servers.py`) — листинг напрямую через `MCPServerRepository`, без бизнес-логики.
+
+Write-хендлеры `mcp_servers.py` (create/update/delete) под это исключение не попадают — там есть бизнес-логика (guard, лимиты на scope, инвалидация резолвера); они остаются известным долгом R1 ([arch-checker.md](arch-checker.md#известные-исключения-allowlist)).
+
+### Сквозной поток: сообщение в чат
+
+Главный сценарий системы через все слои. Протокол SSE и lifecycle стрима — [streaming.md](streaming.md), внутренности графа — [agent-runtime.md](agent-runtime.md).
+
+```mermaid
+flowchart TD
+    FE["Frontend"] -->|"POST /chats/{chat_id}/messages"| RT["api/routes/messages.py"]
+    RT --> CS["ChatService<br>chat_id → thread_id · ModelConfigResolver · config"]
+    CS --> TV["ThreadView — обновление метаданных чата"]
+    CS --> AR["AgentRunner.stream()"]
+    AR --> GF["GraphFactory — build + compile per-request"]
+    GF --> G["StateGraph: agent ⇄ tools (ReAct)<br>+ inline security checkpoints"]
+    G <--> TOOLS["tools/ — KS, artifacts, memory, skills, MCP"]
+    G --> CKPT[("Checkpointer<br>полный state + история")]
+    G -->|"события графа"| AR
+    AR -->|"SSE events"| RT
+    RT -->|"StreamingResponse"| FE
+```
 
 ## API Layer
 
@@ -66,10 +204,12 @@ JWT + Refresh Token. Access token (short-lived, localStorage) для API-зап�
 
 | Метод | Путь | Назначение |
 |-------|------|-----------|
-| POST | `/projects/{id}/chats` | Создать чат в проекте |
+| POST | `/projects/{id}/chats` | Создать чат в проекте (без тела — сервер ставит плейсхолдер названия) |
 | GET | `/projects/{id}/chats` | Список чатов проекта |
 | GET | `/projects/{id}/chats/{cid}` | История чата (сообщения) |
-| GET | `/chats/recent?limit=10` | Недавние чаты пользователя (across projects, для sidebar) |
+| PUT | `/projects/{id}/chats/{cid}` | Переименовать чат |
+| DELETE | `/projects/{id}/chats/{cid}` | Удалить чат (идемпотентно, каскад) |
+| GET | `/chats/recent` | Недавние чаты пользователя (across projects, для sidebar) |
 
 #### Messages (ядро)
 
@@ -96,8 +236,11 @@ JWT + Refresh Token. Access token (short-lived, localStorage) для API-зап�
 | GET | `/projects/{id}/artifacts` | Список артефактов проекта |
 | GET | `/projects/{id}/artifacts/{aid}` | Получить артефакт (метаданные + content) |
 | GET | `/projects/{id}/artifacts/{aid}/download?format=md\|pdf` | Скачать в формате |
+| GET | `/projects/{id}/artifacts/{aid}/media` | Бинарные данные image-артефакта (bytes + `Content-Type` из `mime_type`) |
 
-PDF — конвертация из Markdown на бэкенде (pandoc / weasyprint).
+PDF — конвертация из Markdown на бэкенде (pdfkit + wkhtmltopdf); блокирующий вызов уводится из event loop через `anyio.to_thread`.
+
+Media endpoint отдаёт содержимое `artifact_blobs` (404, если блоба нет — артефакт не типа `image` либо запись не залита). Ответ несёт `Cache-Control: private, max-age=31536000, immutable`: блоб иммутабелен по построению (редактирования нет, перегенерация создаёт новый артефакт = новый id = новый URL), поэтому браузер кэширует агрессивно без риска устаревания. `X-Content-Type-Options: nosniff` — `mime_type` приходит от внешнего провайдера и echo-нится в заголовок без валидации.
 
 #### Models & Settings
 
@@ -124,6 +267,17 @@ PDF — конвертация из Markdown на бэкенде (pandoc / weasy
 
 Инструкции включаются в system message каждого чата. Записи памяти создаются агентом через `save_user_memory` / `delete_user_memory` tools, удаляются пользователем через UI.
 
+#### Skill Context
+
+| Метод | Путь | Назначение |
+|-------|------|-----------|
+| GET | `/users/me/skill-contexts` | Список документов, сгруппированных по скиллу (`in_library` на группе) |
+| GET | `/users/me/skill-contexts/{skill_name}/{key}` | Получить документ |
+| PUT | `/users/me/skill-contexts/{skill_name}/{key}` | Заменить существующий документ (404, если ещё не создан) |
+| DELETE | `/users/me/skill-contexts/{skill_name}/{key}` | Удалить документ |
+
+Создание документа — только агент (`save_skill_context` tool, upsert); REST правит и удаляет существующие. Подробнее о модели и доставке в контекст агента — [user-memory.md § Skill Context](user-memory.md#skill-context).
+
 #### MCP Servers
 
 | Метод | Путь | Назначение |
@@ -144,8 +298,9 @@ Cascade visibility: project/thread list endpoints поддерживают `?inc
 
 Pydantic request/response модели. Сквозные соглашения:
 - **ID** — UUID для всех app-managed сущностей (включая ThreadView.thread_id). При вызовах LangGraph API — `str(thread_id)`.
-- **Списки** — обёртка `{ items: [...] }`, расширяемая пагинацией позже.
-- **Ошибки** — дефолт FastAPI (`{ detail: "..." }`, 422 с полями валидации).
+- **Списки** — единый envelope `{ items, total, limit, offset }` (generic `Page[T]` в `app/api/schemas/common.py`); query-параметры `limit` (default 50, max 200) и `offset` через общий dependency `Pagination`.
+- **Ошибки** — RFC 9457 Problem Details (`application/problem+json`): `{ type, title, status, detail, …extensions }`; глобальные handlers в `app/api/problem.py`. Детали — [conventions/api.md](conventions/api.md#rest-api).
+- **Ownership** — path-цепочка валидируется зависимостями `UserProject` / `UserThread` (404 на чужой ресурс).
 
 #### Projects
 
@@ -172,7 +327,7 @@ DELETE /projects/{id}
 
 ```
 POST /projects/{id}/chats
-  Request:  { title?: str }
+  Request:  (без тела)
   Response: { thread_id: UUID, title: str, created_at: datetime, updated_at: datetime }
 
 GET /projects/{id}/chats
@@ -181,6 +336,13 @@ GET /projects/{id}/chats
 GET /projects/{id}/chats/{cid}
   Response: { thread_id: UUID, title, messages: [{ id, role, content, created_at?, artifacts: [{ id, title, type, created_at }] }] }
 
+PUT /projects/{id}/chats/{cid}
+  Request:  { title: str }
+  Response: { thread_id: UUID, title, created_at, updated_at }
+
+DELETE /projects/{id}/chats/{cid}
+  Response: 204 No Content (идемпотентно — повторный DELETE тоже 204)
+
 GET /chats/recent?limit=10
   Response: { items: [{ thread_id: UUID, title, project_id, project_name, updated_at }] }
 ```
@@ -188,6 +350,8 @@ GET /chats/recent?limit=10
 `role`: `"user" | "assistant"`. Messages достаются из checkpointer. Tool-сообщения на фронт не отдаются.
 
 Recents — последние чаты пользователя across all projects, сортировка по `updated_at` desc. Для sidebar.
+
+Название чата пользователь нигде не вводит: `POST /chats` ставит плейсхолдер `DEFAULT_CHAT_TITLE` («Новый чат»), дешёвая LLM переписывает его по первому сообщению (см. ниже), `PUT` позволяет переименовать вручную в любой момент, включая заблокированные (`security_blocked`) чаты. `DELETE` каскадно подчищает связанные записи и best-effort удаляет LangGraph checkpoints этого треда — детали см. в описании `ChatService` ниже.
 
 #### Messages
 
@@ -222,9 +386,12 @@ GET /projects/{id}/artifacts/{aid}
 
 GET /projects/{id}/artifacts/{aid}/download?format=md|pdf
   Response: файл (Content-Disposition: attachment)
+
+GET /projects/{id}/artifacts/{aid}/media
+  Response: bytes, Content-Type = mime_type блоба (404 без блоба)
 ```
 
-В списке — только метаданные, без content.
+В списке — только метаданные, без content. `type` включает `image` — у image-артефактов `content` несёт prompt генерации (alt-текст/caption), а бинарь доступен отдельно через `/media`.
 
 ### SSE Streaming Protocol
 
@@ -252,34 +419,72 @@ app/
 │
 ├── repositories/        # Repository Layer
 │
+├── storage/             # Storage Layer
+│
 ├── models/              # SQLAlchemy ORM-модели (app-managed таблицы)
 │
-└── infra/               # Клиенты внешних сервисов, DB engine/sessions
+├── infra/               # Клиенты внешних сервисов, DB engine/sessions
+│
+└── security_pipeline/   # SecurityEventProcessor + Redis-транспорт (→ siem-service.md)
 ```
 
 **api/** — HTTP/SSE-интерфейс. Роутеры сгруппированы по ресурсам, каждый вызывает соответствующий сервис. Schemas — Pydantic-контракт с фронтендом. deps.py — FastAPI dependencies для инъекции зависимостей в роутеры.
 
-**services/** — Оркестрация и бизнес-правила. CRUD-сервисы (Project, Artifact, UserMemory, MCPServer) + thin ChatService для chat-операций (маппинг chat_id → thread_id, model resolution, делегирование в AgentRunner, управление ThreadView). ModelConfigResolver — каскадное разрешение модели. Зависимости (repositories, AgentRunner) — через конструктор, wiring в deps.py.
+**services/** — Оркестрация и бизнес-правила. CRUD-сервисы (Project, Artifact, UserMemory, SkillContext, MCPServer) + thin ChatService для chat-операций (маппинг chat_id → thread_id, model resolution, делегирование в AgentRunner, управление ThreadView, rename/delete чата с каскадом). `ChatTitleGenerator` — отдельный fire-and-forget сервис auto-title (реестр задач в `app.state`, собственная DB-сессия, teardown в lifespan). ModelConfigResolver — каскадное разрешение модели; MCPToolResolver — резолв MCP-инструментов per-request (оба инжектятся в AgentRunner). EncryptionService (Fernet) — шифрование API-ключей user MCP-серверов. Зависимости (repositories, AgentRunner) — через конструктор, wiring в deps.py.
 
-**agent/** — LangGraph-граф, GraphFactory (per-request build+compile), tools, context engineering, промпт. Публичный интерфейс — AgentRunner (stream, get_history, cancel). LangGraph-типы не выходят за пределы этого пакета. tools/ — суб-пакет с внутренней группировкой (KS, artifacts, user memory, skills).
+**agent/** — LangGraph-граф, GraphFactory (per-request build+compile), tools, context engineering, промпт. Публичный интерфейс — AgentRunner (stream, get_history, get_last_ai_message_id, cancel, delete_thread — best-effort удаление checkpoints по `thread_id`). LangGraph-типы не выходят за пределы этого пакета. tools/ — суб-пакет с внутренней группировкой (KS, artifacts, user memory, skill context, skills).
 
 **skills/** — директория в корне репозитория (`skills/`, рядом с `backend/`, `configs/`). Каждый skill — поддиректория с `SKILL.md` (Claude Code compatible формат). Вынесены из backend, чтобы пользователь мог добавлять skills без необходимости лезть в код приложения.
 
 **repositories/** — CRUD-доступ к app-managed таблицам через SQLAlchemy async session. По репозиторию на сущность.
 
+**storage/** — абстракции хранилища с заменяемым бэкендом или не-ORM семантикой: `BlobStorage` (`typing.Protocol`, реализация `PgBlobStorage`) для бинарей артефактов, `TraceStore` (Redis) для маппинга trace_id/feedback. Независимый сосед `repositories/` — ни один из двух пакетов не импортирует другой; нейминг и граница между ними — [conventions.md § Именование](conventions.md#именование).
+
 **models/** — SQLAlchemy ORM-модели для app-managed таблиц (User, Project, ThreadView, Artifact).
 
-**infra/** — Сконфигурированные клиенты и сервисы: DB engine/session factory, LLM client, MCP client (`MultiServerMCPClient`), MCPToolResolver, PromptProvider (Langfuse SDK wrapper), EncryptionService (Fernet), HTTP client. Импортируется из Repository Layer и Agent Layer.
+**infra/** — Сконфигурированные клиенты внешних сервисов: DB engine/session factory, Checkpointer + Store (`langgraph.py`), LLM-клиенты, клиент OpenRouter Image API (`image_generation.py` — голый `httpx`, без LangChain-обёртки), MCP client (`MultiServerMCPClient`), PromptProvider (Langfuse SDK wrapper), rate limiting, Redis client. Импортируется из Repository Layer, Service Layer и Agent Layer. MCPToolResolver и EncryptionService живут в `services/`, не здесь.
 
 ## Agent Runtime
 
 LangGraph-граф с ReAct-паттерном, context engineering, tools, skills, MCP-интеграция, security. Детальное описание — [agent-runtime.md](agent-runtime.md). Связанные концепты: [knowledge-sphere.md](knowledge-sphere.md), [user-memory.md](user-memory.md), [prompt-management.md](prompt-management.md), [observability.md](observability.md), [architecture.md](../security/architecture.md).
 
-Ключевые ADR: [ADR-001](adr/ADR-001-general-agent.md) (General Agent), [ADR-002](adr/ADR-002-skills-system.md) (Skills), [ADR-003](adr/ADR-003-knowledge-sphere.md) (KS), [ADR-004](adr/ADR-004-progressive-disclosure.md) (Progressive Disclosure), [ADR-005](adr/ADR-005-ks-update-mechanism.md) (KS Updates), [ADR-006](adr/ADR-006-custom-stategraph.md) (Custom StateGraph), [ADR-007](adr/ADR-007-mcp-external-tools.md) (MCP), [ADR-013](adr/ADR-013-per-scope-settings-storage.md) (Settings Storage), [ADR-014](adr/ADR-014-dynamic-model-resolution.md) (Graph Factory), [ADR-015](adr/ADR-015-langgraph-store-unified-memory.md) (Store Memory), [ADR-016](adr/ADR-016-per-scope-mcp-servers.md) (MCP Servers), [ADR-017](adr/ADR-017-prompt-injection-defense.md) (Sec 1.0), [ADR-018](adr/ADR-018-siem-service-topology.md) (SIEM Topology), [ADR-020](adr/ADR-020-security-event-contract.md) (Event Contract), [ADR-022](adr/ADR-022-protected-disclosable-boundary.md) (Confidentiality Boundary), [ADR-023](adr/ADR-023-two-level-detection.md) (Detection Layers), [ADR-024](adr/ADR-024-streaming-security-guard.md) (Streaming Guard).
+Ключевые ADR: [ADR-001](adr/ADR-001-general-agent.md) (General Agent), [ADR-002](adr/ADR-002-skills-system.md) (Skills), [ADR-003](adr/ADR-003-knowledge-sphere.md) (KS), [ADR-004](adr/ADR-004-progressive-disclosure.md) (Progressive Disclosure), [ADR-005](adr/ADR-005-ks-update-mechanism.md) (KS Updates), [ADR-006](adr/ADR-006-custom-stategraph.md) (Custom StateGraph), [ADR-007](adr/ADR-007-mcp-external-tools.md) (MCP), [ADR-013](adr/ADR-013-model-settings-storage.md) (Settings Storage), [ADR-014](adr/ADR-014-dynamic-model-resolution.md) (Graph Factory), [ADR-015](adr/ADR-015-unified-memory-backend.md) (Store Memory), [ADR-016](adr/ADR-016-per-scope-mcp-servers.md) (MCP Servers), [ADR-017](adr/ADR-017-prompt-injection-defense.md) (Sec 1.0), [ADR-018](adr/ADR-018-siem-service-topology.md) (SIEM Topology), [ADR-020](adr/ADR-020-security-event-contract.md) (Event Contract), [ADR-022](adr/ADR-022-protected-disclosable-boundary.md) (Confidentiality Boundary), [ADR-023](adr/ADR-023-two-level-detection.md) (Detection Layers), [ADR-024](adr/ADR-024-streaming-security-guard.md) (Streaming Guard).
 
 ## Persistence
 
 Одна PostgreSQL база, два механизма управления: LangGraph-managed и app-managed. Миграции app-managed таблиц — через Alembic (async engine).
+
+```mermaid
+graph LR
+    AGENT["Agent Layer —<br>Checkpointer + Store, нативно LangGraph"]
+    REPOS["repositories/ —<br>SQLAlchemy async"]
+    STORAGE["storage/ —<br>PgBlobStorage (session-scoped)"]
+
+    subgraph PG["PostgreSQL learnflow"]
+        subgraph LGM["LangGraph-managed — схема создаётся фреймворком"]
+            CPT["checkpoints · checkpoint_blobs<br>checkpoint_writes · checkpoint_migrations"]
+            STORET["store — KS per-project,<br>User Memory per-user"]
+        end
+        subgraph APPM["App-managed — миграции Alembic"]
+            CORE["User · Project · ThreadView · Artifact · RefreshToken"]
+            BLOB["ArtifactBlob — bytea"]
+            SETT["UserSettings · ProjectSettings · ThreadSettings"]
+            MCPS["User/Project/ThreadMCPServer · MCPServerDisable"]
+        end
+    end
+
+    AGENT --> CPT
+    AGENT --> STORET
+    REPOS --> CORE
+    REPOS --> SETT
+    REPOS --> MCPS
+    STORAGE --> BLOB
+    CORE -. "ThreadView.thread_id = str(UUID) →<br>LangGraph thread_id" .- CPT
+
+    style PG fill:#8b949e12,stroke:#8b949e,color:#8b949e
+    style LGM fill:#bc8cff1a,stroke:#bc8cff,color:#bc8cff
+    style APPM fill:#d299221a,stroke:#d29922,color:#d29922
+```
 
 ### LangGraph-managed
 
@@ -287,7 +492,7 @@ LangGraph-граф с ReAct-паттерном, context engineering, tools, skil
 
 **Checkpointer** — полный state агента, включая историю сообщений. Сообщения не дублируются в отдельную app-таблицу: checkpointer хранит полную историю, доступную через `get_state()`. Таблицы: `checkpoints`, `checkpoint_blobs`, `checkpoint_writes`, `checkpoint_migrations`.
 
-**Store** — Knowledge Sphere (per-project) и User Memory (per-user: custom instructions, agent memory). Таблицы: `store`, `store_vectors` (будущее: embeddings). Namespace-based изоляция — [user-memory.md](user-memory.md#storage).
+**Store** — Knowledge Sphere (per-project) и User Memory (per-user: custom instructions, agent memory, skill context). Таблицы: `store`, `store_vectors` (будущее: embeddings). Namespace-based изоляция — [user-memory.md](user-memory.md#storage).
 
 ### App-managed
 
@@ -295,7 +500,10 @@ LangGraph-граф с ReAct-паттерном, context engineering, tools, skil
 
 ```
 User
-├── id, name, created_at
+├── id, name, password_hash, is_admin, created_at
+
+RefreshToken
+├── id (UUID PK), user_id (FK CASCADE), token_hash (indexed), expires_at, created_at, revoked_at
 
 Project
 ├── id, user_id, name, created_at, updated_at
@@ -304,7 +512,10 @@ ThreadView
 ├── thread_id (PK, UUID — при вызовах LangGraph конвертируется в str), project_id, title, security_blocked (bool), created_at, updated_at
 
 Artifact
-├── id, project_id, thread_id, message_id, title, type (markdown | ...), content, created_at
+├── id, project_id, thread_id, message_id, title, type (markdown | image | ...), content, created_at
+
+ArtifactBlob
+├── id (UUID PK), artifact_id (FK CASCADE, unique — 1:1 к Artifact), mime_type, data (bytea)
 
 UserSettings / ProjectSettings / ThreadSettings
 ├── user_id|project_id|thread_id (PK, FK CASCADE), model_name, extra_body (JSONB), created_at, updated_at
@@ -319,12 +530,15 @@ MCPServerDisable
 
 **ThreadView** — легковесная индексная таблица для UI (листинг чатов, заголовки, даты). OSS LangGraph не предоставляет API для листинга threads, поэтому метаданные чатов хранятся отдельно. `security_blocked` маркируется при INJECTION на любом runtime checkpoint'е; FastAPI-зависимость на POST `/messages` отдаёт 403 пока флаг стоит ([security/architecture.md](../security/architecture.md)).
 
+**ArtifactBlob** — бинарные данные артефактов (сейчас — сгенерированные изображения), отдельная таблица от `Artifact`, чтобы обычный select/listing артефактов не тянул мегабайты. Доступ — за протоколом `BlobStorage` (`app/storage/blob_storage.py`, `put`/`get`/`delete`), единственная реализация — `PgBlobStorage`, конструируется вокруг сессии как репозитории (не принимает `session` параметром метода) — атомарность «артефакт + блоб одной транзакцией» получается естественным образом при записи. Таблица рассчитана на переиспользование будущими потребителями бинарей (file attachments, референсные изображения). Обоснование выбора PostgreSQL вместо S3/файловой системы — [ADR-027](adr/ADR-027-artifact-blob-storage.md).
+
 ### Связи
 
 ```
 User 1 → N Project
 Project 1 → N ThreadView
 Project 1 → N Artifact
+Artifact 1 → 0..1 ArtifactBlob (только type="image")
 ThreadView.thread_id = str(UUID) → LangGraph thread_id (связь с checkpointer)
 Artifact.thread_id → ThreadView.thread_id (артефакт создаётся в контексте чата)
 ```
@@ -369,64 +583,15 @@ logger.warning(
 
 ## SIEM Service
 
-Отдельный FastAPI backend-сервис, работающий на порту 8001, с собственной PostgreSQL БД (siem-db). Назначение: сбор, хранение, корреляция security-событий, генерация алертов, REST API для мониторинга UI.
+Отдельный FastAPI backend-сервис (порт 8001, собственная PostgreSQL siem-db): потребляет security-события из Redis Stream, коррелирует, генерирует алерты, отдаёт admin-only REST API для мониторинга. Main app — producer событий (см. Security Event Logging Convention выше); процессная изоляция и blast radius — [ADR-018](adr/ADR-018-siem-service-topology.md).
 
-**Architecture:**
-```
-Redis Stream (security.events)
-    ↓
-[Subscriber: XREADGROUP + Validation]
-    ↓
-[EventWriter: INSERT siem_events]
-    ↓
-[CorrelationEngine: polling, 10s]
-    ↓
-[Strategies: Threshold/Sequence/Aggregate] → [Deduper] → [AlertWriter: INSERT siem_alerts]
-    ↓
-[REST API: /security/events, /security/alerts, /security/rules] — admin-only via JWT is_admin claim
-```
-
-**Package structure:**
-- `services/siem-service/` — monorepo workspace member
-- `services/siem-service/siem_service/` — app package
-  - `main.py` — FastAPI app + lifespan (startup: subscriber + correlation engine tasks)
-  - `config.py` — Settings (DATABASE_URL, REDIS_URL, JWT_SECRET, poll intervals)
-  - `domain/models.py` — ORM (SiemEvent, SiemAlert, CorrelationRule)
-  - `domain/schemas.py` — Pydantic response + request DTOs
-  - `infra/db.py` — engine + session factory
-  - `infra/auth.py` — JWT validation + `require_admin` dependency
-  - `pipeline/event_writer.py` — Single INSERT entry point
-  - `pipeline/subscriber.py` — XREADGROUP consumer with at-least-once semantics
-  - `pipeline/meta_emitter.py` — Back-channel meta-event publication
-  - `pipeline/supervisor.py` — Exponential backoff restart wrapper
-  - `repositories.py` — Database queries (list, filters, pagination)
-  - `services.py` — Business logic (AlertService, RuleService)
-  - `correlation/` — Engine, strategies, deduper
-  - `api/routes.py` — REST endpoints
-
-**Database tables:**
-- `siem_events` — immutable event storage (event_id PK, JSONB identifiers/metadata, dual timestamps)
-- `siem_alerts` — alert instances from rules (status: new/acknowledged/resolved, open-alert policy dedup)
-- `correlation_rules` — rule definitions with JSONB config (Threshold/Sequence/Aggregate per rule_type)
-
-**REST Endpoints (all admin-only):**
-- `GET /security/events` — list events, filters (event_type, severity, timestamp range), pagination
-- `GET /security/alerts` — list alerts, filters (severity, status), pagination
-- `PATCH /security/alerts/:id` — update status (acknowledge/resolve) → emit meta-event
-- `GET /security/rules` — list rules
-- `POST /security/rules` — create rule → emit meta-event
-- `PATCH /security/rules/:id` — update rule → emit meta-event
-- `DELETE /security/rules/:id` — delete rule → emit meta-event
-
-**Deployment:** Docker (siem-service container), separate PostgreSQL instance (siem-db). Env vars: `SIEM_DATABASE_URL`, `SIEM_REDIS_URL`, `SIEM_JWT_SECRET` (shared with main app), `SIEM_FRONTEND_ORIGIN` (CORS).
-
-**Idempotency:** Event deduplication by `event_id` (UNIQUE constraint + ON CONFLICT DO NOTHING). Baseline correlation rules seeded idempotently.
-
-Подробнее: [ADR-018](adr/ADR-018-siem-service-topology.md) (topology), [ADR-019](adr/ADR-019-security-event-transport.md) (transport), [ADR-020](adr/ADR-020-security-event-contract.md) (contract), [ADR-021](adr/ADR-021-siem-correlation-engine.md) (correlation engine).
+Полное описание сервиса (слои, pipeline, correlation engine, persistence, API, конфигурация) — [siem-service.md](siem-service.md).
 
 ## Error Handling
 
-Основные сценарии покрываются фреймворками: ToolNode возвращает ошибку как ToolMessage (агент видит и решает сам в ReAct loop), FastAPI — стандартные HTTP-ошибки, SSE — терминальный `error` event. Детали (retry policy для LLM, поведение при disconnect, cancel semantics) — определяются при реализации.
+Конвенции выбора сигнала, барьерный стек, graceful degradation vs fail-fast, таймауты — [conventions.md](conventions.md#обработка-ошибок).
+
+Main app реализует: иерархию `AppError` в `services/exceptions.py` (доменные исключения без знания о HTTP-транспорте); барьерный стек на `app/api/problem.py` (3 слоя: `AppError` → инфра-исключения → generic 500); SSE-барьер в `api/routes/messages.py` (терминальный `error`-event для непойманных исключений в стриме агента).
 
 ## Configuration
 
@@ -437,5 +602,8 @@ Redis Stream (security.events)
 - `LANGFUSE_PROMPT_LABEL` — label для фетча промптов (default: `development`)
 - `LANGFUSE_PROMPT_CACHE_TTL` — TTL кэша промптов в секундах (default: `60`)
 - `CANARY_SECRET` — HMAC secret для canary token (→ [architecture.md](../security/architecture.md))
+- `LLM_DEFENSE_ENABLED` — операционный тумблер inline LLM-защиты (guard + security-часть промпта); default `true`, в проде `false` (→ [architecture.md](../security/architecture.md))
+- `SIEM_ENABLED` — операционный тумблер эмиссии security-событий в Redis Stream; default `true`, в проде `false` (→ [siem-service.md](siem-service.md#kill-switch))
+- `CLIENT_IP_SOURCE` / `CLIENT_IP_XFF_HOPS` — источник клиентского IP (`socket` / `x-real-ip` / `x-forwarded-for`) и отступ справа для XFF; default `socket`, в проде `x-real-ip` (→ [conventions.md](conventions.md#logging-conventions), [setup/production.md](setup/production.md))
 
 Agent-специфичная конфигурация (модель, контекст, промпт, summarization, MCP) — отдельный YAML-файл, не env vars. Prompt management — [prompt-management.md](prompt-management.md).

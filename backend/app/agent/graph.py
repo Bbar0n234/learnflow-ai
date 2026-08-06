@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -12,20 +11,28 @@ from langchain_core.messages import (
     AIMessage,
     RemoveMessage,
     SystemMessage,
-    ToolMessage,
 )
 from langchain_core.messages.utils import count_tokens_approximately, trim_messages
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.runtime import Runtime
 
+from app.agent.agent_events import emit_agent_event
 from app.agent.config import AgentConfig, PromptFragmentsConfig
 from app.agent.prompt_builder import build_system_message, compose_for_llm
 from app.agent.security.guard import SecurityGuard
-from app.agent.security.types import Checkpoint, SecurityMessages, Verdict
+from app.agent.security.types import SecurityMessages
+from app.agent.stream_events import make_tool_result_reporter
+from app.agent.tool_guards import (
+    execute_tools_guarded,
+    guard_tool_call_args,
+    handle_tool_error,
+)
 from app.agent.tools.ks_helpers import build_namespace, format_index
 from app.agent.tools.store_helpers import format_index as fmt_index
+from app.agent.tracing import observe_compaction
 from app.infra.llm import extract_usage
 from app.infra.prompt_provider import PromptProvider
 
@@ -66,17 +73,64 @@ async def _reduce_context(
     try:
         prompt_text = prompt_provider.get_prompt("summarization")
         prompt = SystemMessage(content=prompt_text)
-        response = await summarization_model.ainvoke([prompt, *old_messages])
-        summary_text = str(response.content)
+        # Detach from the parent runnable's callback chain, same as the guard
+        # classifier (security/classifier.py): keeps compaction generations out
+        # of ``stream_mode="messages"`` so its tokens don't leak into the
+        # user-facing text_chunk stream (event-map.md попутная находка №1).
+        summarization_config: RunnableConfig = {
+            "callbacks": [],
+            "tags": ["context_summarization"],
+            "run_name": "context-summarization",
+        }
+        summarization_cfg = agent_config.summarization
+        # Detaching the callbacks also detaches Langfuse (tracing rides the
+        # LangChain handler), so the generation is recorded by hand — the same
+        # compensation the guard classifier makes. Pricing is matched by model
+        # name, so it is taken from the model object that answers the call.
+        model_name = getattr(summarization_model, "model_name", None) or (
+            summarization_cfg.model if summarization_cfg else None
+        )
+        with observe_compaction(
+            input_payload=[
+                {"role": m.type, "content": str(m.content)}
+                for m in (prompt, *old_messages)
+            ],
+            model=model_name,
+            model_parameters=(
+                {"max_tokens": summarization_cfg.max_summary_tokens}
+                if summarization_cfg
+                else {}
+            ),
+            metadata={
+                "messages_compacted": len(old_messages),
+                "messages_kept": keep_count,
+                "context_tokens_before": total_tokens,
+            },
+        ) as generation:
+            response = await summarization_model.ainvoke(
+                [prompt, *old_messages], config=summarization_config
+            )
+            summary_text = str(response.content)
+            generation.record_summary(
+                summary=summary_text, token_usage=extract_usage(response)
+            )
 
         ops_prefix: list[Any] = [
             RemoveMessage(id=m.id) for m in old_messages if m.id is not None
         ]
         summary_msg = AIMessage(
-            content=f"[Previous conversation summary]\n{summary_text}"
+            content=f"[Previous conversation summary]\n{summary_text}",
+            # Marks the message as a context digest, not a turn of the
+            # conversation: it feeds the model but must never reach the user —
+            # ``CheckpointHistory.history`` drops it out of the API history by
+            # this flag. Position can't be used instead: the message carries no
+            # ``id``, so ``add_messages`` appends it to the *end* of the state
+            # (next to the real answer), not in front of the thread.
+            additional_kwargs={"context_summary": True},
         )
         ops_prefix.append(summary_msg)
 
+        emit_agent_event("compaction", {})
         return [summary_msg, *recent_messages], ops_prefix
     except Exception:
         logger.warning("summarization failed, falling back to trim-only", exc_info=True)
@@ -104,72 +158,6 @@ async def _invoke_llm(
     return response, duration_ms
 
 
-async def _guard_tool_results(
-    messages: list[Any],
-    guard: SecurityGuard,
-    canary_token: str,
-    tool_result_stub: str,
-) -> list[ToolMessage]:
-    """Scan the current batch of ToolMessages; return replace-by-id updates for injections."""
-    if not messages:
-        return []
-    anchor = -1
-    for i, m in enumerate(messages):
-        if isinstance(m, AIMessage) and getattr(m, "tool_calls", None):
-            anchor = i
-    if anchor < 0:
-        return []
-    batch = [
-        m
-        for m in messages[anchor + 1 :]
-        if isinstance(m, ToolMessage)
-        and not m.additional_kwargs.get("security_redacted")
-    ]
-    if not batch:
-        return []
-
-    updates: list[ToolMessage] = []
-    for tm in batch:
-        content = tm.content if isinstance(tm.content, str) else str(tm.content)
-        result = await guard.check(
-            content,
-            Checkpoint.TOOL_RESULT,
-            history=messages[: anchor + 1],
-            canary_token=canary_token,
-        )
-        if result.verdict == Verdict.INJECTION:
-            updates.append(
-                ToolMessage(
-                    id=tm.id,
-                    tool_call_id=tm.tool_call_id,
-                    name=tm.name,
-                    content=tool_result_stub,
-                    additional_kwargs={
-                        **tm.additional_kwargs,
-                        "security_redacted": True,
-                        "original_detection_layer": (
-                            result.detection_layer.value
-                            if result.detection_layer
-                            else Checkpoint.TOOL_RESULT.value
-                        ),
-                    },
-                )
-            )
-            logger.warning(
-                "tool_result injection blocked",
-                security_event=True,
-                checkpoint=Checkpoint.TOOL_RESULT.value,
-                verdict=Verdict.INJECTION.value,
-                metadata={
-                    "detection_layer": (
-                        result.detection_layer.value if result.detection_layer else None
-                    ),
-                    "tool": tm.name,
-                },
-            )
-    return updates
-
-
 def build_graph(
     model: BaseChatModel,
     tools: list[Any],
@@ -193,26 +181,12 @@ def build_graph(
         tools_by_name[name] = getattr(t, "description", "") or ""
 
     async def agent_node(state: MessagesState, runtime: Runtime[AgentContext]) -> dict:
+        # No TOOL_RESULT pre-guard here: that check belongs to the ``tools``
+        # node, whose output is what both the wire and the checkpoint see
+        # (``execute_tools_guarded``). By the time a batch reaches this node it
+        # is already checked.
         messages = state["messages"]
         result_prefix: list[Any] = []
-
-        # 0. Pre-guard: TOOL_RESULT on any ToolMessage from the current batch
-        #    (after the last HumanMessage / last AIMessage that issued tool_calls).
-        if security_guard is not None:
-            tool_result_updates = await _guard_tool_results(
-                messages,
-                security_guard,
-                runtime.context.canary_token,
-                tool_result_stub,
-            )
-            if tool_result_updates:
-                result_prefix.extend(tool_result_updates)
-                by_id: dict[str, Any] = {
-                    m.id: m for m in tool_result_updates if m.id is not None
-                }
-                messages = [
-                    by_id.get(m.id, m) if m.id is not None else m for m in messages
-                ]
 
         # 1. Compaction
         if summarization_model is not None and prompt_provider is not None:
@@ -291,56 +265,41 @@ def build_graph(
         response.additional_kwargs["created_at"] = datetime.now(UTC).isoformat()
 
         # 5. Post-guard: TOOL_CALL_ARG — check serialized tool_call args.
-        if security_guard is not None and getattr(response, "tool_calls", None):
-            args_payload = json.dumps(
-                [tc.get("args", {}) for tc in response.tool_calls],
-                ensure_ascii=False,
+        if security_guard is not None:
+            response = await guard_tool_call_args(
+                response, security_guard, runtime.context.canary_token, list(messages)
             )
-            arg_result = await security_guard.check(
-                args_payload,
-                Checkpoint.TOOL_CALL_ARG,
-                history=list(messages),
-                canary_token=runtime.context.canary_token,
-            )
-            if arg_result.verdict == Verdict.INJECTION:
-                redacted = AIMessage(
-                    id=response.id,
-                    content=response.content
-                    if isinstance(response.content, str)
-                    else "",
-                    tool_calls=[],
-                    additional_kwargs={
-                        **response.additional_kwargs,
-                        "security_redacted": True,
-                        "original_detection_layer": (
-                            arg_result.detection_layer.value
-                            if arg_result.detection_layer
-                            else Checkpoint.TOOL_CALL_ARG.value
-                        ),
-                    },
-                )
-                logger.warning(
-                    "tool_call_arg injection blocked",
-                    security_event=True,
-                    checkpoint=Checkpoint.TOOL_CALL_ARG.value,
-                    verdict=Verdict.INJECTION.value,
-                    metadata={
-                        "detection_layer": (
-                            arg_result.detection_layer.value
-                            if arg_result.detection_layer
-                            else None
-                        ),
-                    },
-                )
-                return {"messages": [*result_prefix, redacted]}
 
         return {"messages": [*result_prefix, response]}
 
-    tool_node = ToolNode(tools)
+    tool_node = ToolNode(tools, handle_tool_errors=handle_tool_error)
+
+    async def tools_node(state: MessagesState, runtime: Runtime[AgentContext]) -> Any:
+        """``ToolNode`` + the TOOL_RESULT guard + the report, as one node named ``tools``.
+
+        The node keeps its name because ``tools_condition`` (routing) and
+        ``StreamEventMapper``'s pending-call ledger (``"tools" in data``)
+        address it by that name.
+
+        It also *reports* every result it checks, on this run's own writer —
+        the same mechanism the subagent uses for its nested calls. That is not
+        a detour around the updates channel but the only way to be timely: a
+        node update reaches the runner when the node returns, i.e. when the
+        slowest call of the turn is done, whereas the writer carries each
+        result the instant its own call clears the guard.
+        """
+        return await execute_tools_guarded(
+            tool_node,
+            state,
+            guard=security_guard,
+            canary_token=runtime.context.canary_token,
+            tool_result_stub=tool_result_stub,
+            on_result=make_tool_result_reporter(runtime.stream_writer),
+        )
 
     builder = StateGraph(MessagesState, context_schema=AgentContext)
     builder.add_node("agent", agent_node)
-    builder.add_node("tools", tool_node)
+    builder.add_node("tools", tools_node)
     builder.add_edge(START, "agent")
     builder.add_conditional_edges("agent", tools_condition)
     builder.add_edge("tools", "agent")

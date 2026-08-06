@@ -232,6 +232,7 @@ doc/.obsidian-source
 # Personal/local docs
 doc/diagrams/
 doc/lab
+doc/strategy.local.md
 
 # IDE
 .idea/
@@ -249,5 +250,11 @@ doc/lab
 
 # Claude Code internals
 .claude/commands/
+
+# Артефакты браузерной автоматизации: снимки страниц и скриншоты ручных
+# UI-прогонов. Транзиентная диагностика — появляется у любого, кто гоняет
+# браузерные кейсы, и в репозиторий не идёт.
+/.playwright-mcp/
+/*.png
 
 team-report/

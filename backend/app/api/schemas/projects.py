@@ -3,7 +3,10 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.api.schemas.common import Page
+from app.services.constants import MAX_TITLE_LENGTH
 
 
 class ProjectCreate(BaseModel):
@@ -11,7 +14,7 @@ class ProjectCreate(BaseModel):
 
 
 class ProjectUpdate(BaseModel):
-    name: str
+    name: str = Field(max_length=MAX_TITLE_LENGTH)
 
 
 class ProjectResponse(BaseModel):
@@ -23,5 +26,5 @@ class ProjectResponse(BaseModel):
     updated_at: datetime
 
 
-class ProjectListResponse(BaseModel):
-    items: list[ProjectResponse]
+class ProjectListResponse(Page[ProjectResponse]):
+    pass

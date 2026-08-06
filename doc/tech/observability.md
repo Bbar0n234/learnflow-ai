@@ -12,7 +12,7 @@ graph TD
     AGT -->|span.trace_id| SVC["ChatService"]
     SVC -->|"save(thread_id, message_id, trace_id)"| REDIS["Redis"]
     SVC -->|"SSE done event"| FE["Frontend"]
-    FE -->|"POST /feedback"| FB["Feedback Endpoint"]
+    FE -->|"PUT/DELETE …/feedback/{trace_id}"| FB["Feedback Endpoint"]
     FB -->|create_score| LF
     FB -->|save_feedback| REDIS
     FE -->|"GET /chats/{id}"| CHAT["Chat Detail"]
@@ -25,7 +25,9 @@ graph TD
 
 **Root span:** `agent-run` — создаётся через `start_as_current_observation()` context manager на время всего стрима. Input — сообщение пользователя, output — полный ответ агента.
 
-**Automatic capture:** `CallbackHandler` инжектируется в `config["callbacks"]` графа — автоматически ловит все LLM calls (модель, токены, latency), tool executions, node transitions. Никакой ручной инструментации внутри графа не требуется.
+**Automatic capture:** `CallbackHandler` инжектируется в `config["callbacks"]` графа — автоматически ловит все LLM calls (модель, токены, latency), tool executions, node transitions. Ручная инструментация нужна только там, где вызов сознательно уходит мимо этой цепочки (§ [Ручной cost-учёт вне CallbackHandler](#ручной-cost-учёт-вне-callbackhandler)).
+
+Вложенные вызовы субагентов (`run_subagent`, → [agent-runtime.md § Субагенты](agent-runtime.md#субагенты)) видны в trace tree как вложенные spans — callbacks пробрасываются во вложенный `StateGraph` автоматически через contextvars, независимо от режима `persistence` субагента.
 
 **Attribute propagation:** `propagate_attributes()` пушит metadata на все вложенные observations:
 
@@ -74,12 +76,13 @@ Frontend получает trace_id двумя путями: из SSE `done` even
 sequenceDiagram
     participant U as User
     participant FE as Frontend
-    participant API as POST /feedback
+    participant API as PUT /projects/{id}/chats/{cid}/feedback/{trace_id}
     participant LF as Langfuse
     participant REDIS as Redis
 
     U->>FE: Click 👍 on message
-    FE->>API: {trace_id, score: true}
+    FE->>API: {score: true}
+    API->>REDIS: проверка trace_id ∈ trace:{thread_id}
     API->>LF: create_score("user-feedback", value=1)
     API->>REDIS: SET feedback:{trace_id} "1"
     API-->>FE: 200 OK
@@ -88,10 +91,12 @@ sequenceDiagram
 **UI:** FeedbackButtons (ThumbsUp / ThumbsDown) на каждом AI-сообщении, имеющем trace_id.
 
 **Toggle-поведение:**
-- Click like → score = true
-- Click like повторно → score = null (удаление)
-- Click dislike → score = false
-- Click dislike повторно → score = null (удаление)
+- Click like → `PUT {score: true}`
+- Click like повторно → `DELETE` (снятие оценки)
+- Click dislike → `PUT {score: false}`
+- Click dislike повторно → `DELETE` (снятие оценки)
+
+Feedback — подресурс чата: `PUT | DELETE /projects/{id}/chats/{cid}/feedback/{trace_id}`. Ownership-цепочка (user → project → chat) валидируется зависимостями, принадлежность trace чату — по Redis-маппингу `trace:{thread_id}`.
 
 **Score config:** `user-feedback` (data type BOOLEAN, 1=like / 0=dislike). Создаётся idempotently при старте приложения через `_ensure_score_config()`.
 
@@ -99,11 +104,11 @@ sequenceDiagram
 - **Langfuse:** `create_score()` с `score_id = "{trace_id}-user-feedback"` — idempotent upsert, queryable в Langfuse dashboard
 - **Redis:** persistence между перезагрузками страницы (feedback_score возвращается в chat detail)
 
-**Удаление feedback:** при score = null — DELETE score в Langfuse API + DEL key в Redis.
+**Удаление feedback:** `DELETE`-endpoint — удаление score в Langfuse API (404 проглатывается, идемпотентно) + DEL key в Redis, ответ 204.
 
 ## Security Observability: Langfuse Tracing
 
-Мониторинг security incidents и detector-действий через Langfuse. Архитектура защиты — [architecture.md](../security/architecture.md).
+Мониторинг security incidents и detector-действий через Langfuse. Архитектура защиты — [architecture.md](../security/architecture.md). Вся эта секция описывает наблюдаемость `SecurityGuard` — она существует только при `LLM_DEFENSE_ENABLED=true`. При выключенном тумблере guard не строится: score `security_verdict` не создаётся ни для одного trace, guardrail observation'ов `guard-<checkpoint>` нет, cost tracking guard-модели не идёт — не деградация, а следствие отсутствующего guard'а.
 
 **Score:** `security_verdict` (CATEGORICAL: `CLEAN` / `SUSPICIOUS` / `INJECTION`) на уровне trace. Создаётся при старте через `ensure_security_score_config()`. Применяется и к agent-trace (runtime checkpoints), и к top-level traces `security.<checkpoint>` (add-time checkpoints в service-слое).
 
@@ -156,9 +161,10 @@ Guard LLM generation регистрируется внутри guardrail-observa
 | `producer_drop_newest` | Producer | События, выброшенные из bounded queue при overflow |
 | `siem_events_ingested` | Consumer | Новые события, успешно inserted |
 | `siem_events_duplicate` | Consumer | Повторно-пришедшие события (на основе event_id дедупа) |
-| `siem_events_invalid` | Consumer | Validation failures (dropped, logged) |
+| `siem_events_invalid` | Consumer | Validation failures — poison-события, dropped + XACK |
+| `siem_events_transient` | Consumer | Транзиентные инфра-сбои (OperationalError); сообщение не XACK'd, остаётся в PEL |
+| `siem_events_failed_terminal` | Consumer | Терминальные сбои: drop + XACK после исчерпания `max_delivery_attempts` |
 | `siem_unknown_event_type` | Consumer | События с неизвестным event_type (accepted, monitored) |
-| `siem_processing_errors` | Consumer | Ошибки при обработке (отправлены в retry) |
 | `alerts_created_total` | CorrelationEngine | Всего сгенерировано alerts |
 
 Метрики собираются в памяти (встроенные counters), возможен export в `/metrics` endpoint для Prometheus.
@@ -181,19 +187,27 @@ SIEM не заменяет Langfuse; они ортогональны. Langfuse �
 
 | Поле | Назначение | Пример |
 |------|------------|--------|
-| `name` | Имя модели | `z-ai/glm-5` |
-| `match_pattern` | Regex для matching | `(?i)^z-ai/glm-5` |
+| `name` | Имя модели | `z-ai/glm-5.2` |
+| `match_pattern` | Regex для matching (уникальность на активные slug обязательна — префиксные коллизии между версиями одного семейства снимаются негативным lookahead) | `(?i)^z-ai/glm-5\.2` |
 | `unit` | Единица биллинга | `TOKENS` |
 | `prices` | Цены за единицу: `input`, `output`, `output_reasoning`, `input_cache_read` | `{input: 0.000001, output: 0.0000032, ...}` |
 
 Регистрация в Langfuse при старте (`ensure_model_definitions()`): сравнивает зарегистрированную definition с ожидаемой; при diff — пересоздаёт. Langfuse считает cost per trace на основе token usage из `CallbackHandler` + зарегистрированных prices. Reasoning-токены учитываются через `usage.completion_tokens_details.reasoning_tokens` и поле `output_reasoning` в pricing — подробнее о reasoning-моделях см. [conventions.md](conventions.md).
+
+### Ручной cost-учёт вне CallbackHandler
+
+Схема выше покрывает вызовы через LLM-клиент графа. Вызовы, идущие мимо него (сейчас — генерация изображений: голый `httpx` на OpenRouter Image API, без LangChain-обёртки, чтобы не тянуть SDK ради одного endpoint'а), не проходят через `CallbackHandler` и выпали бы из cost-учёта без явной записи.
+
+Такой tool сам открывает generation-observation внутри текущего spanʼа (`start_as_current_observation(as_type="generation", name=..., model=..., input=..., output=..., cost_details={"total": ...})`) с ценой, которую вернул провайдер (`usage.cost` в ответе), а не производным расчётом по `pricing.yaml` — фактическая цена от провайдера точнее. Блок — fail-safe (`contextlib.suppress(Exception)`, паттерн `security/observer.py`): сбой записи в Langfuse не должен ронять tool. Если провайдер не вернул `usage.cost` — `cost_details` не передаётся вовсе, а не подставляется нулём (нуль читался бы как «генерация бесплатна», что неверно).
+
+Вторая группа мимо `CallbackHandler` — вызовы, намеренно отвязанные от callback-цепочки родительского рана (`"callbacks": []`) ради изоляции их токенов от пользовательского стрима: guard-классификатор (`security/classifier.py`) и компакция контекста (`_reduce_context` в `agent/graph.py`). Отвязка от callbacks — это одновременно и отвязка от Langfuse, поэтому каждый такой вызов компенсирует её собственной generation-observation на текущем контексте: классификатор — через `ObservationHandle.record_classifier_generation` (`security/observer.py`), компакция — через `observe_compaction` (`agent/tracing.py`, generation `context-summarization`). Цену здесь считает Langfuse по `pricing.yaml`, поэтому в `update()` уходит `usage_details`, нормализованный `normalize_usage_for_langfuse()` под ключи цен, а `model` — тот, что реально отвечал на вызов. Телеметрия fail-safe на всех шагах: сбой записи не влияет ни на вердикт guard'а, ни на компакцию.
 
 ## Graceful Degradation
 
 | Компонент | При отказе | Поведение |
 |-----------|-----------|-----------|
 | Langfuse credentials missing | `langfuse_enabled = false` | No-op span, приложение работает без трейсинга |
-| Langfuse API unavailable | Callback буферизирует async | Стрим не блокируется; POST /feedback → 503 |
+| Langfuse API unavailable | Callback буферизирует async | Стрим не блокируется; PUT/DELETE feedback → 503 |
 | Redis unavailable | `trace_store = None` | Trace persistence отключена, feedback только в Langfuse |
 
 Каждый компонент деградирует изолированно. Отсутствие Langfuse не влияет на основную функциональность агента.

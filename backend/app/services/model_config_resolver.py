@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 import structlog
 
@@ -35,7 +36,7 @@ class ModelConfigResolver:
             if thread_settings and thread_settings.model_name:
                 return ResolvedModelConfig(
                     model=thread_settings.model_name,
-                    extra_body=thread_settings.extra_body,
+                    extra_body=self._resolve_extra_body(thread_settings.extra_body),
                     source="thread",
                 )
 
@@ -45,7 +46,7 @@ class ModelConfigResolver:
             if project_settings and project_settings.model_name:
                 return ResolvedModelConfig(
                     model=project_settings.model_name,
-                    extra_body=project_settings.extra_body,
+                    extra_body=self._resolve_extra_body(project_settings.extra_body),
                     source="project",
                 )
 
@@ -54,7 +55,7 @@ class ModelConfigResolver:
         if user_settings and user_settings.model_name:
             return ResolvedModelConfig(
                 model=user_settings.model_name,
-                extra_body=user_settings.extra_body,
+                extra_body=self._resolve_extra_body(user_settings.extra_body),
                 source="user",
             )
 
@@ -68,7 +69,21 @@ class ModelConfigResolver:
             )
 
         # agent.yaml fallback
+        return self.default()
+
+    def default(self) -> ResolvedModelConfig:
+        """Resolve the agent.yaml base model config (no per-scope overrides)."""
         return self._from_llm_config(self._llm_config)
+
+    def _resolve_extra_body(
+        self, scope_extra_body: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
+        """Fall back to the agent.yaml ``llm.extra_body`` when the scope-override carries none."""
+        if scope_extra_body:
+            return scope_extra_body
+        return (
+            dict(self._llm_config.extra_body) if self._llm_config.extra_body else None
+        )
 
     @staticmethod
     def _from_llm_config(llm: LLMConfig) -> ResolvedModelConfig:

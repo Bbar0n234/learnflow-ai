@@ -1,5 +1,10 @@
 import { Outlet, NavLink, useParams, useMatch } from "react-router";
-import { useProject } from "@/features/projects/hooks/useProject";
+import { useProject } from "@/shared/api/projects";
+import { SHOW_GROUP_B_STUBS } from "@/shared/config/feature-flags";
+
+// T6b mock — чип состояния сферы (L0.5, без бэкенд-контракта, group B stub)
+const SPHERE_CHIP_VERSION = "v2.4.1";
+const SPHERE_CHIP_STATUS = "растёт";
 
 export function ProjectLayout() {
   const { id } = useParams();
@@ -18,41 +23,67 @@ export function ProjectLayout() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="border-b border-border px-6 py-4">
-        <h1 className="mb-3 text-xl font-semibold">{projectName}</h1>
-        <nav className="flex gap-4">
+      <header className="flex h-[56px] items-center gap-6 border-b border-border px-6">
+        <div className="flex shrink-0 items-center gap-2.5">
+          <h1 className="font-serif text-sm font-semibold text-foreground">
+            {projectName}
+          </h1>
+          {/* Чип состояния сферы — T6b (mock, L0.5, без бэкенд-контракта, group B stub) */}
+          {SHOW_GROUP_B_STUBS && (
+            <span className="rounded-full bg-secondary px-2 py-0.5 font-mono text-[10px] text-secondary-foreground">
+              {SPHERE_CHIP_VERSION} · {SPHERE_CHIP_STATUS}
+            </span>
+          )}
+        </div>
+        <nav className="flex h-full gap-1">
           <NavLink
             to={`/projects/${id}`}
             end
             className={({ isActive }) =>
-              `rounded-md px-3 py-1.5 text-sm ${isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`
+              `flex h-full items-center px-3 text-sm transition-colors ${
+                isActive
+                  ? "text-primary [box-shadow:inset_0_-2px_0_var(--ring)]"
+                  : "text-muted-foreground hover:text-foreground"
+              }`
             }
           >
-            Chats
+            Чаты
           </NavLink>
           <NavLink
             to={`/projects/${id}/sphere`}
             className={({ isActive }) =>
-              `rounded-md px-3 py-1.5 text-sm ${isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`
+              `flex h-full items-center px-3 text-sm transition-colors ${
+                isActive
+                  ? "text-primary [box-shadow:inset_0_-2px_0_var(--ring)]"
+                  : "text-muted-foreground hover:text-foreground"
+              }`
             }
           >
-            Sphere
+            Сфера
           </NavLink>
           <NavLink
             to={`/projects/${id}/artifacts`}
             className={({ isActive }) =>
-              `rounded-md px-3 py-1.5 text-sm ${isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`
+              `flex h-full items-center px-3 text-sm transition-colors ${
+                isActive
+                  ? "text-primary [box-shadow:inset_0_-2px_0_var(--ring)]"
+                  : "text-muted-foreground hover:text-foreground"
+              }`
             }
           >
-            Artifacts
+            Артефакты
           </NavLink>
           <NavLink
             to={`/projects/${id}/settings`}
             className={({ isActive }) =>
-              `rounded-md px-3 py-1.5 text-sm ${isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`
+              `flex h-full items-center px-3 text-sm transition-colors ${
+                isActive
+                  ? "text-primary [box-shadow:inset_0_-2px_0_var(--ring)]"
+                  : "text-muted-foreground hover:text-foreground"
+              }`
             }
           >
-            Settings
+            Настройки
           </NavLink>
         </nav>
       </header>

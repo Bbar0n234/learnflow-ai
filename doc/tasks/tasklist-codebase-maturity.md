@@ -20,26 +20,28 @@
 ## Принципы работы по фазе
 
 - **Slice-формат.** Каждая итерация — отдельный домен (REST, DB, FastAPI, Agent runtime, Frontend). Отдельная сессия, отдельный агент, отдельная feature-ветка.
-- **Skill first, code second.** Внутри slice'а: сначала прокачиваем теорию через skill, потом смотрим код. Не наоборот.
-- **Skill discovery — обязательный первый шаг.** Релевантные skill'ы подбираем заранее через web search по доменам кодовой базы. Если skill нашёлся — почти наверняка нужен; беглое ознакомление → решаем, берём или нет.
+- **Skill first, code second.** Скиллы отобраны и разобраны с архитектором в feat-001 (см. [skill-map.md](../tech/skill-map.md)) — внутри slice'а skill не пересказывается как теория, а применяется: агент читает его сам и показывает, как принципы выливаются на конкретном коде репозитория. Отложенные кандидаты из skill-map ставятся при заходе в соответствующий slice.
+- **Ревью шире скилла.** Аудит не ограничивается чек-листом скилла: общие паттерны чистого кода, читаемость, очевидные некорректности — тоже в скоупе slice'а.
 - **Точки остановки на теорию.** На любом шаге slice'а можно (и нужно) остановиться, чтобы архитектор разобрался в теории. Это не отвлечение от задачи — это часть задачи. Мини-подпункты «здесь стоит разобраться в теории» явно отмечены в DoD каждой итерации.
-- **Интерактивный формат.** Агент изучает кусочек кодовой базы автономно; архитектор спрашивает, уточняет, обучается, направляет.
-- **Конвенции — continuous.** Каждый slice добавляет в `doc/tech/conventions.md` по факту найденного. Финализирующий pass (feat-007) не первая запись, а сборка/уточнение накопленного.
-- **Тесты — естественное завершение.** Понимаем код → понимаем, что и как тестировать.
+- **Интерактивный формат + согласование на ключевых шагах.** Первичный аудит и изучение кода агент ведёт автономно; findings приносит архитектору на разбор. Перед написанием тест-кейсов и перед рефакторингом аутлайн согласуется с архитектором — правки только после апрува. Развилки решает архитектор.
+- **Конвенции — continuous, без дублирования скиллов.** Каждый slice добавляет в `doc/tech/conventions.md` по факту найденного, но содержимое скиллов туда не копируется: фиксируются только проектные решения — выбранные развилки, отступления от skill-дефолтов, специфика репозитория. Финализирующий pass (feat-007) не первая запись, а сборка/уточнение накопленного.
+- **Тесты — естественное завершение.** Понимаем код → понимаем, что и как тестировать. Системная тестовая философия и инфраструктура — feat-009.
+- **Рефакторинг со страховкой.** Ручные тест-кейсы — норма slice'а: перед правками составляется список кейсов на затронутые участки, после правок — прогон (руками, curl'ом, через UI). Точечные автотесты до feat-009 допустимы, когда правка трогает критичный путь (auth, security guard, SIEM pipeline); позже они вливаются в общую рамку feat-009.
 
 ## Overview
 
 | Итерация | Статус | Scope | Закрывает |
 |----------|--------|-------|-----------|
-| feat-001 | 📋 Planned | foundation | Skill Discovery + Layers & Abstractions Diagram |
-| feat-002 | 📋 Planned | backend / REST | REST API slice: api-design-principles skill + поглощение REST API cleanup (8 пунктов аудита 2026-04-04) |
-| feat-003 | 📋 Planned | db | DB slice: postgresql skill, индексы, constraints, типы, паттерны миграций |
-| feat-004 | 📋 Planned | backend / fastapi | Backend/FastAPI slice: fastapi skill + поглощение точечных техдолгов (SIEM MetaEmitter, дубль SecurityEvent, CORS_ORIGINS, SIEM follow-ups) |
-| feat-005 | 📋 Planned | agent | Agent runtime slice: langchain-architecture + langgraph-patterns skills + поглощение Reasoning ChatOpenAI everywhere |
-| feat-006 | 📋 Planned | frontend | Frontend slice: skill discovery for frontend, ручной slice если skill отсутствует |
-| feat-007 | 📋 Planned | cross-cutting | Кросс-резрезные конвенции: error return types + error handling philosophy (graceful degradation vs fail-fast) |
-| feat-008 | 📋 Planned | enforcement | Arch-checker (детерминированные проверки) + Reviewer-промпты (logging, error returns, doc-first) |
-| feat-009 | 📋 Planned | testing | Test philosophy + test engineering + покрытие критичных участков |
+| feat-001 | ✅ Done | foundation | Skill Discovery + Layers & Abstractions Diagram |
+| feat-002 | ✅ Done | backend / REST | REST API slice: api-design-principles skill + поглощение REST API cleanup (8 пунктов аудита 2026-04-04) |
+| feat-003 | ✅ Done | db | DB slice: postgresql skill, индексы, constraints, типы, паттерны миграций |
+| feat-004 | ✅ Done | backend / fastapi | Backend/FastAPI slice: fastapi skill + поглощение точечных техдолгов (SIEM MetaEmitter, дубль SecurityEvent, CORS_ORIGINS, SIEM follow-ups) |
+| feat-005 | ✅ Done | agent | Agent runtime slice: langgraph-patterns (авторский) + кандидаты langgraph-* от langchain-ai + поглощение Reasoning ChatOpenAI everywhere (langchain-architecture отклонён в feat-001) |
+| feat-006 | ✅ Done | frontend | Frontend slice: `feature-sliced-design` skill + миграция на канон FSD (pages/features), фабрика query keys, ось состояния в conventions |
+| feat-007 | ✅ Done | cross-cutting | Кросс-резрезные конвенции: error return types + error handling philosophy (graceful degradation vs fail-fast) |
+| feat-008 | ✅ Done | enforcement | Arch-checker (детерминированные проверки) + 2 ревьюера A/B + harvest-механизм + дробление конвенций |
+| feat-009 | ✅ Done | testing | Test philosophy + test engineering + покрытие критичных участков |
+| feat-010 | ✅ Done | orchestrator / harness | Context bus (per-track документы) + двунаправленная SOFA-петля (consume/write-back/Question/Blueprint) + fan-out |
 
 ## Параллелизация
 
@@ -74,7 +76,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** подготовить каркас для slice-аудитов: подобрать релевантные skill'ы и зафиксировать карту слоёв.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done — итоги в [summary.md](iterations/codebase-maturity/feat-001-foundation/summary.md)
 **Scope:** foundation
 **Зависимости:** —
 
@@ -99,10 +101,13 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 #### Definition of Done
 
-- [ ] Документ со списком skill'ов по доменам — какие применимы, что покрывают, в какой slice идут.
-- [ ] Layers & abstractions diagram в `doc/tech/` — Mermaid, тёмная тема, без `fill:`.
-- [ ] Диаграмма ссылается на конкретные директории/модули кодовой базы (не абстрактные «слой A → слой B»).
-- [ ] В `doc/index.md` добавлена ссылка на диаграмму.
+- [x] Skill discovery проведён: установленные скиллы + внешняя охота по каталогам, решения по каждому домену зафиксированы (артефакт итерации: `skill-discovery-draft.md`, заморожен).
+- [x] `doc/tech/skill-map.md` создан — постоянная карта скиллов: принципы, роли, отклонённые, пробелы, отложенные кандидаты.
+- [x] Таблица скиллов в `CLAUDE.md` дополнена принятыми скиллами + ссылка на skill-map.
+- [x] Принятые скиллы лежат в `.claude/skills/` репозитория.
+- [x] Layers & abstractions diagrams — по согласованному принципу «карта сервисов в `vision.md`, слои сервиса в документе сервиса»: `vision.md` (общесистемная, добавлен SIEM-контур), `backend.md` (детальная послойная + сквозной chat-поток + карта persistence), `frontend.md` (послойная + поток данных по осям состояния), `doc/tech/siem-service.md` (новый полный документ: топология, послойная с границей сервиса, event pipeline, lifecycle алерта; секция в backend.md сжата до ссылки). Стиль: Mermaid, слои — полупрозрачные цветные подложки (subgraph с alpha-заливкой и цветным stroke/заголовком), рендер каждой проверен на тёмной теме (запрет светлых сплошных заливок остаётся).
+- [x] Диаграммы ссылаются на конкретные директории/модули кодовой базы (не абстрактные «слой A → слой B»).
+- [x] В `doc/index.md` добавлены ссылки на `siem-service.md` и `skill-map.md`.
 
 ---
 
@@ -110,7 +115,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** привести REST API к best practices через `api-design-principles` skill, закрыть существующий аудит 2026-04-04.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done — итоги в [summary.md](iterations/codebase-maturity/feat-002-rest-api/summary.md)
 **Scope:** backend / REST
 **Зависимости:** feat-001
 
@@ -135,12 +140,13 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 #### Definition of Done
 
-- [ ] Skill `api-design-principles` изучен, ключевые принципы зафиксированы.
-- [ ] Все 8 пунктов аудита 2026-04-04 либо закрыты, либо явно отложены с обоснованием.
-- [ ] Status codes везде корректны (201 на POST create, 204 на DELETE без body, и т.д.).
-- [ ] List responses везде имеют единый envelope с pagination metadata.
-- [ ] REST-конвенции добавлены в `doc/tech/conventions.md`.
-- [ ] Точки остановки на теорию пройдены и (если решено архитектурно) зафиксированы.
+- [x] Skill `api-design-principles` применён к коду проекта: аудит endpoints против его принципов, findings на конкретных примерах (включая 4 ownership/authz-дыры сверх бэклога).
+- [x] Все 8 пунктов аудита 2026-04-04 либо закрыты, либо явно отложены с обоснованием (полный список из 8 не был сохранён; 4 зафиксированных закрыты, остальное перекрыто повторным аудитом — см. summary).
+- [x] Status codes везде корректны (201 на POST create, 204 на DELETE без body, 409 на конфликт лимита; auth-endpoints — RPC-исключение по решению архитектора).
+- [x] List responses везде имеют единый envelope с pagination metadata (`Page[T]`: items/total/limit/offset, оба сервиса).
+- [x] REST-конвенции добавлены в `doc/tech/conventions.md` (§ REST API).
+- [x] Тест-кейсы на затронутые endpoints составлены до правок и прогнаны после — 57 pass / 1 fail (environmental, PDF) / 2 deferred 👤 ([test-cases.md](iterations/codebase-maturity/feat-002-rest-api/test-cases.md)).
+- [x] Точки остановки на теорию пройдены: pagination offset/limit vs cursor, RFC 9457 vs custom envelope, versioning policy — решения зафиксированы в conventions.md.
 
 ---
 
@@ -148,7 +154,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** аудит схемы БД и query-паттернов через `postgresql` skill, формирование DB-конвенций.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done — итоги в [summary.md](iterations/codebase-maturity/feat-003-db/summary.md)
 **Scope:** db
 **Зависимости:** feat-001
 
@@ -173,11 +179,12 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 #### Definition of Done
 
-- [ ] Skill `postgresql` изучен.
-- [ ] Аудит схемы и query-паттернов проведён, findings зафиксированы.
-- [ ] Критичные индексы добавлены (если выявлены пропуски).
-- [ ] DB-конвенции добавлены в `doc/tech/conventions.md`.
-- [ ] Точки остановки на теорию пройдены.
+- [x] Skill `postgresql` применён к коду проекта: аудит схемы и запросов против его принципов, findings на конкретных примерах.
+- [x] Аудит схемы и query-паттернов проведён, findings зафиксированы.
+- [x] Критичные индексы добавлены (если выявлены пропуски).
+- [x] DB-конвенции добавлены в `doc/tech/conventions.md`.
+- [x] Тест-кейсы на затронутые участки составлены и прогнаны (миграции применяются и откатываются, затронутые запросы возвращают прежние результаты).
+- [x] Точки остановки на теорию пройдены.
 
 ---
 
@@ -185,7 +192,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** аудит backend-инфраструктуры через `fastapi` skill, закрытие точечных техдолгов в SIEM и конфиге.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done — итоги в [summary.md](iterations/codebase-maturity/feat-004-fastapi/summary.md)
 **Scope:** backend / fastapi
 **Зависимости:** feat-001
 
@@ -212,32 +219,34 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 #### Definition of Done
 
-- [ ] Skill `fastapi` изучен.
-- [ ] SIEM `MetaEmitter` singleton устранён (state в app.state, инициализация в lifespan, route'ы через Depends).
-- [ ] Дубль `SecurityEvent` в siem-service удалён, импорт из `siem_contracts.events`.
-- [ ] `CORS_ORIGINS` парсится надёжно (CSV или `NoDecode`).
-- [ ] SIEM follow-ups закрыты (UP042 + uv pin + line-length 100 + DDL миграции через autogenerate).
-- [ ] FastAPI-конвенции добавлены в `doc/tech/conventions.md`.
-- [ ] Точки остановки на теорию пройдены.
+- [x] Skill `fastapi` применён к коду проекта: аудит infra-слоя против его принципов, findings на конкретных примерах.
+- [x] SIEM `MetaEmitter` singleton устранён (state в app.state, инициализация в lifespan, route'ы через Depends).
+- [x] Дубль `SecurityEvent` в siem-service удалён, импорт из `siem_contracts.events`.
+- [x] `CORS_ORIGINS` парсится надёжно (CSV или `NoDecode`).
+- [x] SIEM follow-ups закрыты частично по решению архитектора: UP042 ✅ (аудит `str()`-семантики чистый), uv pin ✅ (0.10.2 → 0.11.21); line-length 100 — отклонено, остаёмся на 88 (пункт в backlog: bump = project-wide reformat, конфликты с параллельными slice'ами); пересоздание DDL-миграций — отклонено («пусть как есть», переписывание истории миграций не оправдано).
+- [x] FastAPI-конвенции добавлены в `doc/tech/conventions.md`.
+- [x] Тест-кейсы на затронутые участки составлены и прогнаны (33 кейса, независимый агент-тестировщик на docker-стенде; 30 PASS / 3 SKIP без LLM-ключей; + пост-merge прогон 14/14). Точечные автотесты (17 шт.) написаны и отработали (поймали circular import), но по решению архитектора перенесены из `backend/tests/` в архив итерации — живую тестовую инфраструктуру проектирует feat-009.
+- [x] Точки остановки на теорию пройдены (app.state vs module-level singletons, CSV vs NoDecode, anyio.to_thread vs def-handlers vs asyncer, StrEnum `str()`-семантика).
 
 ---
 
 ### feat-005: Agent Runtime Slice
 
-**Цель:** аудит agent runtime через `langchain-architecture` + `langgraph-patterns` skills, миграция на единые паттерны.
+**Цель:** аудит agent runtime через `langgraph-patterns` skill (+ официальные кандидаты `langgraph-*` от langchain-ai — подтверждение при заходе), миграция на единые паттерны. `langchain-architecture` отклонён в feat-001 (LangChain-обёртки при raw LangGraph), см. `doc/tech/skill-map.md`.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done — итоги в [summary.md](iterations/codebase-maturity/feat-005-agent-runtime/summary.md)
 **Scope:** agent
 **Зависимости:** feat-001
 
 #### Из backlog
 
-- **P2** LangGraph / LangChain audit via langchain-architecture skill *(перенесено из Tech Debt & Competency)*.
+- **P2** LangGraph / LangChain audit via agent-скиллы (изначально langchain-architecture — отклонён в feat-001, заменён на `langgraph-patterns` + кандидаты от langchain-ai) *(перенесено из Tech Debt & Competency)*.
 - **P2** Reasoning ChatOpenAI everywhere — convention + migration. Все модели проекта используют `ReasoningChatOpenAI`, не plain `ChatOpenAI`. Добить summarizer, guard на `ReasoningChatOpenAI`; зафиксировать convention в `conventions.md` *(перенесено из Agent)*.
+- **P3** `langfuse_enabled` module-level флаг (`backend/app/infra/langfuse.py`) — поднимается через `global` в `init_langfuse()`, читается lazy-импортами в `agent/runner.py` и `agent/security/observer.py` (вне request scope). Единственное намеренное отступление от правила «никаких module-level синглтонов» (conventions.md § FastAPI). Владение флагом перевести в агентную инструментацию (closure/DI) *(перенесено из Tech Debt & Competency)*.
 
 #### Скоуп работы
 
-- Изучение skill `langchain-architecture` (общие LLM-app паттерны) + `langgraph-patterns` (raw LangGraph: StateGraph, Command, HITL, streaming, checkpointing).
+- Скилл `langgraph-patterns` (raw LangGraph: StateGraph, Command, HITL, streaming, checkpointing) + подтверждение кандидатов `langgraph-*` (langchain-ai/langchain-skills) — сверить на дубль с авторским.
 - Аудит agent runtime: ноды графа, tools, skills layer, context engineering, checkpointer, streaming protocol.
 - Миграция summarizer и guard на `ReasoningChatOpenAI`.
 - Обновление `doc/tech/conventions.md` — LangGraph-конвенции + reasoning convention.
@@ -252,11 +261,13 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 #### Definition of Done
 
-- [ ] Skill'ы `langchain-architecture` и `langgraph-patterns` изучены.
-- [ ] Summarizer и guard переведены на `ReasoningChatOpenAI`.
-- [ ] Reasoning convention зафиксирован в `conventions.md` (раздел Reasoning LLMs уже есть, обновить формулировкой «все модели проекта используют ReasoningChatOpenAI by default»).
-- [ ] LangGraph-конвенции добавлены в `conventions.md`.
-- [ ] Точки остановки на теорию пройдены.
+- [x] Skill `langgraph-patterns` применён к коду проекта: аудит runtime против его паттернов, findings на конкретных примерах (подтверждения: pre-defined edges для ReAct, shared checkpointer/store через `async with`, multi-mode streaming).
+- [x] Summarizer и guard на `ReasoningChatOpenAI` — все модели создаются как `ReasoningChatOpenAI` безусловно (единый билдер `_build_chat_model`).
+- [x] Reasoning convention зафиксирован в `conventions.md § Reasoning LLMs` («все модели проекта создаются как ReasoningChatOpenAI — безусловно»).
+- [x] LangGraph-конвенции добавлены в `conventions.md § Agent Runtime` (топология графа, runner-оркестратор + коллаборáторы).
+- [x] Тест-кейсы составлены; точечные автотесты прогнаны (46 PASS, критичный путь guard покрыт, независимо отревьюены, заархивированы). Ручной smoke агентного потока отложен — стенд занят параллельным slice'ом feat-006 + нет LLM-ключей (см. summary).
+- [x] Точки остановки на теорию пройдены (langfuse `tracing_enabled`/no-op vs наш auth-флаг; Command API vs pre-defined edges; reasoning-надкласс).
+- [x] Доп. findings закрыты: `langfuse_enabled` module-global → DI; runner расщеплён (separation of concerns); `ModelConfigResolver.default()`; user_memory `RuntimeError`; удалён мёртвый код; пойман и пофикшен циклический импорт llm↔agent.
 
 ---
 
@@ -264,7 +275,7 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** аудит фронтенд-кода, формирование frontend-конвенций.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done — итоги в [summary.md](iterations/codebase-maturity/feat-006-frontend/summary.md)
 **Scope:** frontend
 **Зависимости:** feat-001
 
@@ -288,11 +299,12 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 #### Definition of Done
 
-- [ ] Frontend-skill найден (или зафиксировано, что подходящего нет — slice идёт ручным).
-- [ ] Аудит структуры проведён, findings зафиксированы.
-- [ ] Точечные правки применены.
-- [ ] Frontend-конвенции добавлены в `conventions.md`.
-- [ ] Точки остановки на теорию пройдены.
+- [x] Frontend-skill — `feature-sliced-design` (принят в feat-001), применён к коду; ось состояния закрыта конвенцией (ядро отклонённого `react-state-management`).
+- [x] Аудит структуры проведён, findings зафиксированы и разобраны с архитектором (FSD-отступления, ось состояния, чистый код, дрейф доки).
+- [x] Точечные правки применены: миграция на канон FSD (`pages/`/`features/`), консолидация `shared/api` (дробление типов, data-хуки, фабрика query keys), публичные API слайсов, B3-селекторы, C4 MarkdownRenderer→`shared/ui`, C1 удалён мёртвый `__init__.ts`.
+- [x] Frontend-конвенции добавлены в `conventions.md` (§ Frontend); дрейф `frontend.md` исправлен (Module Structure + таблица query keys).
+- [x] Тест-кейсы составлены до правок, прошли ревью полноты, прогнаны независимым тестировщиком на стенде в два захода (без LLM + на реальном ключе) — поведение-сохраняющий, регрессий нет ([test-cases.md](iterations/codebase-maturity/feat-006-frontend/test-cases.md)).
+- [x] Точки остановки на теорию пройдены (pages vs features-as-sections, публичные API, ось состояния Zustand/TanStack Query, optimistic vs пессимистик).
 
 ---
 
@@ -300,13 +312,14 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** формализовать кросс-резрезные конвенции, которые не привязаны к одному slice'у.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done — итоги в [summary.md](iterations/codebase-maturity/feat-007-cross-cutting/summary.md)
 **Scope:** cross-cutting
 **Зависимости:** feat-002, feat-003, feat-004, feat-005, feat-006 (нужны накопленные примеры)
 
 #### Из backlog
 
 - **P2** Error return types conventions — exceptions / Result-Either / Optional + None, границы применимости *(перенесено из Agent Harness & Workflow)*.
+- **P3** 5xx-ответы не в RFC 9457 — необработанные исключения проходят мимо problem-handlers через Starlette `ServerErrorMiddleware` и отдаются как `text/plain "Internal Server Error"` (4xx уже problem+json). Распространить единый формат на 500: generic `Exception`-handler → минимальный problem+json без internal details (`{type: about:blank, title, status: 500}`) + обязательное логирование `exc_info`. Форма ответа решается здесь вместе с философией обработки (где ловить, graceful degradation vs fail-fast) *(перенесено из Backend, finding feat-002)*.
 
 #### Скоуп работы
 
@@ -315,8 +328,9 @@ feat-001 (foundation) ── обязательное предусловие д�
   - Result/Either — для ожидаемых бизнес-ошибок (если решим так);
   - Optional — для отсутствия значения без ошибки.
 - **Error handling philosophy.** Где graceful degradation, где fail-fast: какие сервисы и слои деградируют (LLM провайдер недоступен → fallback), какие падают (БД недоступна → 503). На каком уровне принимается решение (handler / service / infra).
+  - *Конкретный пример из feat-005 (решить здесь):* агентные tools при отсутствии инфраструктуры (`runtime.store is None`) — fail-fast или graceful? Сейчас и KS, и user_memory **бросают `RuntimeError`** (выровнено в feat-005); из-за дефолтного `_default_handle_tool_errors` в `ToolNode` (глотает только `ToolInvocationError`) такое исключение пробрасывается из графа → SSE `error`, ход рвётся. Альтернатива — обе тулзы возвращают error-строку (status=success, агент продолжает). Это защитный путь (`store` в проде всегда есть), но направление políticy нужно зафиксировать.
 - Что ещё всплыло по ходу slice'ов и достойно кросс-резрезной фиксации — записать.
-- Обновление `doc/tech/conventions.md` — раздел про error handling.
+- Обновление `doc/tech/conventions.md` — раздел про error handling (пишется в лаконичном стиле, обоснование «почему» сжато; систематический анти-раздувочный проход по всему документу — feat-008).
 
 #### Точки остановки на теорию
 
@@ -326,52 +340,75 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 #### Definition of Done
 
-- [ ] Error return types conventions зафиксированы в `conventions.md`.
-- [ ] Error handling philosophy зафиксирована в `conventions.md`.
-- [ ] Конвенции иллюстрированы примерами из реального кода проекта (не абстрактные снippets).
-- [ ] Точки остановки на теорию пройдены.
+- [x] Error return types conventions зафиксированы в `conventions.md` (§ «Сигнал: исключения + Optional», § «Модель ошибок»).
+- [x] Error handling philosophy зафиксирована в `conventions.md` (§ «Восстановление: fail-fast / graceful / fail-safe», § «Барьерный стек», § «Агентные tools», § «SIEM event pipeline», § «Frontend»).
+- [x] Конвенции иллюстрированы примерами из реального кода проекта (ссылки на реальные файлы, карта «источник → статус», callable-обработчик `ToolNode`).
+- [x] Точки остановки на теорию пройдены (Result/Either анализ — D-ERR-4; graceful degradation vs circuit breaker — D-ERR-6; fail-safe vs fail-secure для guard — D-ERR-6; барьер vs middleware vs exception handler — D-ERR-2).
+
+Артефакты итерации: [decisions.md](iterations/codebase-maturity/feat-007-cross-cutting/decisions.md) · [summary.md](iterations/codebase-maturity/feat-007-cross-cutting/summary.md) · [test-cases.md](iterations/codebase-maturity/feat-007-cross-cutting/test-cases.md)
 
 ---
 
 ### feat-008: Enforcement — Arch-Checker + Reviewer Prompts
 
-**Цель:** автоматизировать проверку конвенций, сформированных в slice-аудитах и feat-007.
+**Цель:** автоматизировать многоуровневое ревью изменений — детерминированные арх-проверки + LLM-reviewer по чек-листам (проектные конвенции + фундаментальное качество кода + соответствие документации) — и привести сам `conventions.md` в поддерживаемую форму (анти-раздувание). Предварительный шаг — deep research по состоянию инструментов code review.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done — итоги в [summary.md](iterations/codebase-maturity/feat-008-enforcement/summary.md); проработка в [design-brief.md](iterations/codebase-maturity/feat-008-enforcement/design-brief.md)
 **Scope:** enforcement (workflow / CI)
 **Зависимости:** feat-007 (нужны зафиксированные конвенции для enforcement'а)
+
+> **Скоуп расширился по ходу проработки с архитектором** (зафиксировано в design-brief): итерация выросла из «enforcement кода» в «надёжность петель обратной связи». Добавлены: harvest-механизм (систематический сбор хвостов → backlog/конвенции), норма ре-верификации, формат тест-кейсов (run-log) + шаблон, два ревьюера (A/B по когнитивным режимам, не один). Граница: tester-review и полная активация детерминированной ре-верификации → feat-009; обобщённая вставка ревью-шага, рычаг-3 (удаление норм из текста) → backlog.
 
 #### Из backlog
 
 - **P2** Arch-checker (deterministic layer rules) — детерминированные проверки архитектурных инвариантов: направление зависимостей, отсутствие module-level singletons, запрет cross-slice imports, запрет прямого DB-доступа из handlers. Tentative инструменты: `import-linter`, AST-чекеры, комбинация *(перенесено из Agent Harness & Workflow)*.
 - **P2** Logging conventions enforcement in code reviewer — проверка соответствия logging conventions из `conventions.md` встраивается в промпт code reviewer как отдельный чек-лист *(перенесено из Agent Harness & Workflow)*.
+- **P2** Анти-раздувание конвенций — формат записи `conventions.md`. Документ копится с каждым slice'ом (backend, agent, frontend) → риск разрастись до объёма, который реализатор-агенту тяжело удержать и соблюсти, и сам инструмент обесценится. Три направления: **(1) лаконичнее** — сжать/вынести развёрнутое «почему» из тела норм; **(2) опускать «трудноломаемые» нормы** — структурно выстроенное агент не сломает, держим норму там, где отклонение легко допустить и трудно заметить; **(3) Progressive disclosure / per-service** — не монолит, а подгрузка конвенций по домену/сервису в момент работы (по аналогии со скиллами). Направление 2 — естественный побочный продукт arch-checker'а (норма ушла в детерминированную проверку → удаляется из текста); направление 3 — мета-решение по формату, принимается здесь *(перенесено из Documentation Quality & Architecture)*.
+- **P1** Doc-first execution discipline (review-time часть) — документация в `doc/` как единый источник правды; reviewer-чек-лист проверяет, что изменение согласовано с документацией, а дрейф помечен. Generation-time часть (правила doc-first в промптах ролей planner/implementer, `aidd-orchestrator`) остаётся в backlog — другая плоскость *(перенесено частично из Agent Harness & Workflow)*.
 
 #### Скоуп работы
 
+- **Deep research состояния code review (предварительный шаг).** Разбор наработок вендоров (Cursor, OpenAI, Anthropic / Claude Code, известные code-review скиллы и промпты): какие фундаментальные принципы ревью кода они проверяют *безотносительно* проектных конвенций — читаемость, сложность, мёртвый код, нейминг, корректность, безопасность. Цель — собрать базу для reviewer-промптов, чтобы ревьюилось всё: код по общим принципам + соответствие конвенциям + соответствие документации. Аналог skill discovery (feat-001), но по оси review-инструментов. Findings фиксируются как артефакт итерации.
 - **Arch-checker:**
   - Выбор инструмента (`import-linter` vs свои AST-чекеры vs комбинация).
   - Конфигурация правил на основе Layers & abstractions diagram (feat-001).
   - Правила, заведомо нужные: направление зависимостей по слоям, запрет module-level singleton, запрет import'ов вне допустимых направлений.
+  - Кандидаты из feat-007: (а) generic-`Exception` handler должен быть **внутри** `CORSMiddleware` (иначе 500 без CORS-заголовков — системный баг feat-007, ловится только эмпирически); (б) консистентность зеркал `problem.py` + иерархии `AppError` между main app и siem-service (зеркала разъезжались).
+  - Область правил — production-пакеты; тест-дерево вне контрактов (тесты легально лезут во внутренности ради фикстур).
   - Интеграция в pre-commit hook или CI (`make check`).
-- **Reviewer-промпты:**
+- **Reviewer-промпты (многоуровневое ревью):**
   - Чек-лист по logging conventions (structlog keyword-args, level semantics, security events).
   - Чек-лист по error return types (из feat-007).
   - Чек-лист по error handling philosophy (из feat-007).
+  - Чек-лист по фундаментальному качеству кода (из deep research выше): читаемость, сложность, мёртвый код, нейминг, корректность — общие принципы, не привязанные к проектным конвенциям.
+  - Чек-лист по соответствию документации (doc-first): изменение согласовано с `doc/`, дрейф документации помечен.
   - Точная точка встраивания — на этапе реализации (отдельный reviewer-агент, инструкция в `.claude/skills/`, секция в `CLAUDE.md` — варианты).
+- **Конвенции — формат и анти-раздувание (направления 1–3):**
+  - Сжать развёрнутые «почему» в `conventions.md`, где они избыточны (направление 1).
+  - Нормы, ушедшие в arch-checker (направления зависимостей, module-level state, cross-slice imports), удалить из текста — их теперь держит детерминированная проверка, дублировать прозой незачем (направление 2).
+  - Принять решение по формату ведения конвенций: монолит против progressive disclosure / per-service (направление 3). При выборе per-service — определить раскладку (конвенции по домену/сервису, подгрузка в момент работы, по аналогии со скиллами) и мигрировать. Кандидат на ADR, т.к. меняет, *куда* пишут результат feat-007 и сами slice'ы.
 
 #### Точки остановки на теорию
 
+- Code review state-of-art: какие принципы проверяют вендорские скиллы/промпты, где граница «общий принцип» vs «проектная конвенция», что отдать детерминированному чекеру, а что LLM-reviewer'у.
 - `import-linter` vs AST-чекеры: что покрывает, что нет, цена поддержки.
 - pre-commit hook architecture: что в hook, что в CI.
 - Reviewer-prompt design: как формулировать чек-листы, чтобы reviewer-агент стабильно их применял.
+- Формат ведения конвенций: монолит vs per-service/progressive disclosure — где граница «трудноломаемой» нормы (что в arch-checker, что в тексте, что опускаем).
 
 #### Definition of Done
 
-- [ ] Arch-checker настроен, минимум 3-5 правил активны (направления зависимостей + module-level state + cross-slice imports).
-- [ ] Arch-checker запускается в pre-commit или CI, нарушения блокируют merge.
-- [ ] Reviewer-промпты содержат чек-листы по logging / error returns / error handling.
-- [ ] Документация: как добавлять новые правила в arch-checker, как обновлять reviewer-чек-листы.
-- [ ] Точки остановки на теорию пройдены.
+- [x] Deep research по code review проведён, findings зафиксированы ([research-code-review.md](iterations/codebase-maturity/feat-008-enforcement/research-code-review.md): 13 источников, классы режима A, граница детерминированное/LLM, severity-модель).
+- [x] Arch-checker настроен: 9 контрактов import-linter (слои backend/siem, транспорт-в-домене, изоляция packages), 3 AST-ассерта (порядок middleware, зеркала `problem.py`, module-singletons), eslint-boundaries (FSD). Системный реестр инвариантов — [arch-checker.md](../tech/arch-checker.md).
+- [x] Arch-checker в gate: `make check` / `make check-fe` + pre-commit + CI; нарушения блокируют (проверено sanity-инъекцией: запрещённый импорт → BROKEN, откат → 0 broken).
+- [x] R1-нарушения (3 роута API→Repository) — все нетривиальны, в allowlist + карточки в backlog (harvest-proposals).
+- [x] Два LLM-ревьюера A/B (режим A качество / режим B контракт) в `.claude/skills/aidd-orchestrator/prompts/`; чек-листы по logging / error returns / error handling / фундаментальному качеству / doc-first; разрешение конфликтов A↔B; FSM-встройка в CODE_REVIEW.
+- [x] Harvest-механизм: роль `harvester`, рубрика (backlog/конвенции/known-trivial), проверка «не закрыто ли уже», канон секции `## Follow-ups`, гейт архитектора; в workflow.md + FSM.
+- [x] Норма ре-верификации + формат тест-кейсов (run-log) + шаблон с инлайн-конвенциями.
+- [x] Документация: реестр arch-checker.md + README `tools/arch-checker/`; harvest и ре-верификация в workflow.md.
+- [x] Конвенции: § Enforcement добавлен; рычаг-1 (плотность) — лёгкий проход при дроблении; рычаг-2 (per-domain дробление) применён, решение — ADR-025; рычаг-3 (удаление норм, ушедших в checker) — **отложен явно** (страховка на период обкатки).
+- [x] Точки остановки на теорию пройдены (граница детерминированное/LLM, import-linter vs AST, severity-модели, формат конвенций).
+- [x] Pre-commit gate архитектора пройден; PR #73 смержен в develop → 🚧→✅.
 
 ---
 
@@ -379,13 +416,24 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 **Цель:** сформировать тестовую культуру проекта и покрыть критичные участки.
 
-**Статус:** 📋 Planned
+**Статус:** ✅ Done
 **Scope:** testing
 **Зависимости:** feat-002 — feat-007 (понимаем код → понимаем что тестировать)
 
 #### Из backlog
 
 - *(нет точечных пунктов из бэклога — итерация заведена как логическое завершение фазы)*
+
+#### Контекст из slice-аудитов
+
+- **Тестируемость LLM-guard и agent-flow путей (находка feat-006).** Прогон feat-006 на стенде
+  показал: целый класс путей нельзя проверить без реального LLM-ключа — add-time security blocks
+  (custom instructions / sphere editor / MCP form, HTTP 422), runtime `security_block` в чате,
+  запись в Knowledge Sphere через checkpoint `ks_write_rest` (без ключа guard деградирует в CLEAN
+  и контент не персистится), весь агентный SSE-стрим. Инфраструктура **не адаптирована под мок/
+  фейк LLM**. Это прямой вход для «Test engineering → моки LLM в тестах агента»: нужен способ
+  гонять guard- и agent-пути без живого провайдера (мок LLM/LangGraph, возможно replay-from-trace),
+  иначе security-критичные пути остаются вне автотестов.
 
 #### Скоуп работы
 
@@ -400,9 +448,11 @@ feat-001 (foundation) ── обязательное предусловие д�
   - моки LLM в тестах агента;
   - тесты SSE-стриминга и async-кода;
   - frontend testing (Vitest / Testing Library / e2e — что используем).
+  - **smoke-boot в gate** — инстанцирование `create_app()` обоих сервисов как минимальная проверка старта: статика (`make check` = ruff+mypy) не ловит startup-ломающие изменения. Пример из feat-007: регрессия аннотации `/health` (union-return под FastAPI ≥0.135) прошла мимо `make check`, приложение не поднялось бы — поймана только на реальном `create_app()`. Дёшево, ловит целый класс «не стартует».
 - **Покрытие критичных участков.** На основе findings из slice-аудитов — точечно дописать тесты:
   - критичные пути auth, security guard, SIEM pipeline;
-  - business invariants, выявленные в slice-аудитах.
+  - business invariants, выявленные в slice-аудитах;
+  - точечные автотесты, написанные в slice-итерациях, привести к общей рамке (структура, фикстуры, naming).
 - Обновление `doc/tech/conventions.md` — раздел про тесты.
 
 #### Точки остановки на теорию
@@ -414,11 +464,43 @@ feat-001 (foundation) ── обязательное предусловие д�
 
 #### Definition of Done
 
-- [ ] Test philosophy зафиксирована в `conventions.md`.
-- [ ] Test engineering conventions зафиксированы (фикстуры, моки, структура тестов).
-- [ ] Критичные участки покрыты тестами (точный список — на этапе реализации).
-- [ ] `make test` запускается локально и в CI, проходит без падений.
-- [ ] Точки остановки на теорию пройдены.
+- [x] Test philosophy зафиксирована в `conventions.md`.
+- [x] Test engineering conventions зафиксированы (фикстуры, моки, структура тестов).
+- [x] Критичные участки покрыты тестами (точный список — на этапе реализации).
+- [x] `make test` запускается локально и в CI, проходит без падений.
+- [x] Точки остановки на теорию пройдены.
+
+---
+
+### feat-010: Harness context bus, SOFA loop, fan-out
+
+**Статус:** ✅ Done — итоги в [summary.md](iterations/codebase-maturity/feat-010-harness-sofa-loop/tracks/T1/summary.md); дизайн в [design-brief.md](iterations/codebase-maturity/feat-010-harness-sofa-loop/design-brief.md)
+**Scope:** orchestrator / agent harness (промпты ролей, скиллы, процессные документы — не код продукта)
+**Зависимости:** feat-008 (роли reviewer/harvester, формат run-log тест-ролей), feat-009 (тестовая инфра, run-log fixer)
+
+> **Зонтичная итерация harness** — продолжает линию feat-008/009. Делает SOFA двунаправленным (consume + write-back) и укрепляет оркестратор двумя несущими механизмами. Четыре слоя; **Слой 0 (context bus) — keystone, делается первым** (предусловие и write-back, и fan-out). Полная проработка, матрица consume/produce, точки интеграции и модель реализации — в design-brief.
+
+#### Из backlog
+
+- **P2** SOFA как потребитель в AIDD-пайплайне (109) — добавить consume-вход (дизайн: blueprint; цикл фикса: TIL) + write-back (verify/vote/reply), замыкание петли доверия.
+- **P2** Параллельный запуск сабагентов в `aidd-orchestrator` (107) — обобщить fan-out: DAG непересекающихся треков, барьеры; **общая ветка без worktree-на-агента** (изоляция через непересечение файлов от planner'а — отступление от backlog:107, решение архитектора).
+- **P2** Per-subagent context persistence (108) — run-log на все мутирующие роли; **предусловие fan-out и write-back**.
+- **P3** SOFA producer: освоить blueprint-формат (61) — производство Blueprint (два источника) + **реверс**: Question становится целевым форматом (open-problem из follow-ups).
+
+#### Слои (фазы итерации)
+
+- **Слой 0 — context bus.** Per-track документы (`tracks/<id>/`: plan, summary, test-cases — три; прежние runlog+test-findings схлопнуты в `test-cases`) вместо single; имя по продукту, не по агенту; партиция треков — в design-brief (оркестратор + general-purpose ревью, без апрув-гейта). Секции «Решения и обоснования» и «SOFA-посты» — в `summary`. Keystone.
+- **Слой 1 — consume + write-back.** TIL-зонд в `fixer` (2-й заход); правило blueprint-ресёрча на дизайне в `conventions.md`; `planner` SOFA не потребляет; write-back из `summary`/design-brief через `sofa-contributor`; guardrail недоверенности.
+- **Слой 2 — producer ext.** Question с классификатором open-problem (источник — `## Follow-ups`); Blueprint producer (a по горячим следам, b периодический свип по `doc/tech/` + design-brief'ам с дедупом).
+- **Слой 3 — fan-out.** Детектор конфликтов файлов/контрактов в `planner`; механика + барьеры в FSM; **общая ветка без worktree-на-агента**; глубину параллелизации определяет вердикт planner'а.
+
+#### Модель реализации
+
+На каждый слой — пара субагентов: implementer (правит промпты/скиллы/доки) + reviewer («сухой прогон»: полнота по брифу + **замыкание потока данных** writer↔reader, нет осиротевших артефактов). Порядок 0 → 1 → 3; Слой 2 независим.
+
+#### Definition of Done
+
+Полный DoD по слоям — в [design-brief.md](iterations/codebase-maturity/feat-010-harness-sofa-loop/design-brief.md#definition-of-done). Кратко: per-track документы (plan/summary/test-cases) с секциями «Решения» и «SOFA-посты» в summary; consume-зонды (fixer TIL, conventions blueprint) + write-back; Question-классификатор + Blueprint producer/sweep; fan-out (партиция оркестратором + general-purpose ревью, барьеры); модельные тиры новых ролей → Opus; read-smoke SOFA прогнан (verify — при первом реальном consume); каждый слой прошёл reviewer-субагента; `workflow.md`/`backlog.md` обновлены.
 
 ## Что НЕ входит в фазу
 

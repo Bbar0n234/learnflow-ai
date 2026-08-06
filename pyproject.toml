@@ -6,18 +6,28 @@ requires-python = ">=3.12"
 
 [dependency-groups]
 dev = [
+    "import-linter>=2.0",
     "mypy>=1.19",
     "pre-commit>=4.5",
     "pytest>=9.0",
+    "pytest-asyncio>=1.0",
+    "pytest-cov>=5.0",
+    "pytest-xdist>=3.6",
     "ruff>=0.15",
     "types-Markdown>=3.5",
+    "learnflow-testing",
 ]
+
+[tool.uv.sources]
+learnflow-testing = { workspace = true }
 
 [tool.uv.workspace]
 members = [
     "backend",
     "packages/siem-contracts",
+    "packages/testing",
     "services/siem-service",
+    "tools/arch-checker",
     "tools/security-scan",
 ]
 
@@ -45,7 +55,151 @@ ignore_missing_imports = true
 module = "fuzzysearch"
 ignore_missing_imports = true
 
+# Test-only libraries without bundled type stubs (same class as the entries
+# above). Used by the shared test harness in packages/testing.
+[[tool.mypy.overrides]]
+module = ["factory.*", "async_factory_boy.*", "testcontainers.*"]
+ignore_missing_imports = true
+
 [tool.pydantic-mypy]
 init_forbid_extra = true
 init_typed = true
 warn_required_dynamic_aliases = true
+
+# ---------------------------------------------------------------------------
+# import-linter: deterministic layer-dependency contracts (arch-checker, feat-008).
+# Runner sets PYTHONPATH=backend:services/siem-service so Grimp can locate the
+# `app` and `siem_service` source roots (neither is pip-installed as a package);
+# `siem_contracts` is resolved from the editable workspace install.
+# Invoked via `make check` and the pre-commit hook. Rationale per contract is in
+# doc/tech/arch-checker.md (the invariant registry).
+# ---------------------------------------------------------------------------
+[tool.importlinter]
+root_packages = ["app", "siem_service", "siem_contracts"]
+# Required so the "no fastapi in domain" contracts can name an external package.
+include_external_packages = true
+
+# Backend layered architecture (doc/tech/backend.md § Правила вызовов).
+# Higher layers may import lower ones; the reverse is forbidden. This catches
+# repositories/storage/models → services/api and services → api. `repositories`
+# and `storage` are independent siblings (`|`) at the same level: repositories
+# are ORM-CRUD, storage is swappable-backend abstractions (BlobStorage,
+# TraceStore) — neither imports the other. The single known localized exception
+# (services/mcp_server.py → api/schemas) is allow-listed.
+[[tool.importlinter.contracts]]
+name = "Backend layers: api > services > repositories|storage > models"
+type = "layers"
+containers = ["app"]
+layers = ["api", "services", "repositories | storage", "models"]
+ignore_imports = [
+    # Known localized exception (backend.md § Правила вызовов): the MCP service
+    # imports its request schema against the layer direction, without a cycle.
+    "app.services.mcp_server -> app.api.schemas.mcp_servers",
+]
+
+# API must reach data/agent only through the service layer. A plain layers
+# contract permits api → repositories/storage (downward skip), so the
+# prohibition is expressed separately and scoped to api/routes — api/deps.py
+# legally wires repositories/storage for DI.
+[[tool.importlinter.contracts]]
+name = "Backend: api/routes must not import repositories, storage or agent directly"
+type = "forbidden"
+source_modules = ["app.api.routes"]
+forbidden_modules = ["app.repositories", "app.storage", "app.agent"]
+# Only direct imports are violations: api → repositories/storage/agent *through
+# the service layer* is the sanctioned path, so indirect chains must be allowed.
+allow_indirect_imports = "true"
+ignore_imports = [
+    # R1 — pre-existing API→Repository violations, backlog (feat-008 report).
+    # Removing an entry resurfaces the violation once the route is refactored.
+    "app.api.routes.settings -> app.repositories.settings",
+    "app.api.routes.mcp_servers -> app.repositories.mcp_server",
+    "app.api.routes.feedback -> app.storage.trace_store",
+]
+
+# ORM models stay pure: no transport, no infra clients (conventions.md § Схема БД).
+[[tool.importlinter.contracts]]
+name = "Backend: models must not import infra"
+type = "forbidden"
+source_modules = ["app.models"]
+forbidden_modules = ["app.infra"]
+
+# Transport must not leak into the domain (conventions.md § Обработка ошибок →
+# «доменные исключения, не транспорт»). Services/repositories/storage/agent
+# raise AppError, never fastapi.HTTPException — so they must not import
+# fastapi at all.
+[[tool.importlinter.contracts]]
+name = "Backend: domain layers must not import fastapi (no transport leak)"
+type = "forbidden"
+source_modules = [
+    "app.services",
+    "app.repositories",
+    "app.storage",
+    "app.agent",
+    "app.models",
+]
+forbidden_modules = ["fastapi"]
+# Only a *direct* `import fastapi` in a domain module is a transport leak; the
+# indirect chain via the allow-listed mcp_server → api.schemas import is fine.
+allow_indirect_imports = "true"
+
+[[tool.importlinter.contracts]]
+name = "SIEM: domain layers must not import fastapi (no transport leak)"
+type = "forbidden"
+source_modules = [
+    "siem_service.services",
+    "siem_service.repositories",
+    "siem_service.pipeline",
+    "siem_service.correlation",
+    "siem_service.domain",
+]
+forbidden_modules = ["fastapi"]
+allow_indirect_imports = "true"
+
+# SIEM domain is the bottom of the stack — imports nothing internal upward
+# (siem-service.md § Layered Architecture, "infra/domain не вверх").
+[[tool.importlinter.contracts]]
+name = "SIEM: domain must not import upward"
+type = "forbidden"
+source_modules = ["siem_service.domain"]
+forbidden_modules = [
+    "siem_service.api",
+    "siem_service.services",
+    "siem_service.pipeline",
+    "siem_service.correlation",
+    "siem_service.repositories",
+    "siem_service.infra",
+]
+
+# SIEM infra is a utility package: configured clients, no upward dependency.
+[[tool.importlinter.contracts]]
+name = "SIEM: infra must not import upward"
+type = "forbidden"
+source_modules = ["siem_service.infra"]
+forbidden_modules = [
+    "siem_service.api",
+    "siem_service.services",
+    "siem_service.pipeline",
+    "siem_service.correlation",
+    "siem_service.repositories",
+]
+
+# Workers and data access never reach the presentation layer (api > workers/data).
+[[tool.importlinter.contracts]]
+name = "SIEM: services/pipeline/correlation/repositories must not import api"
+type = "forbidden"
+source_modules = [
+    "siem_service.services",
+    "siem_service.pipeline",
+    "siem_service.correlation",
+    "siem_service.repositories",
+]
+forbidden_modules = ["siem_service.api"]
+
+# Shared contracts are a leaf library — they must not depend on either service
+# (conventions.md § Структура проекта; packages/ are imported, never import back).
+[[tool.importlinter.contracts]]
+name = "Packages: siem-contracts must not import service code"
+type = "forbidden"
+source_modules = ["siem_contracts"]
+forbidden_modules = ["app", "siem_service"]

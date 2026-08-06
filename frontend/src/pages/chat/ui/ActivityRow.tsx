@@ -4,6 +4,7 @@ import {
   ChevronRight,
   Layers,
   Sparkles,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -154,7 +155,12 @@ function StatusMeta({ status }: { status: FeedItemStatus }) {
         </>
       );
     case "error":
-      return <span className="text-destructive">ошибка</span>;
+      return (
+        <>
+          <X aria-hidden="true" className="size-3.5 text-destructive" />
+          <span className="sr-only">ошибка</span>
+        </>
+      );
     case "pending":
       return <span>не завершён</span>;
     case "cancelled":

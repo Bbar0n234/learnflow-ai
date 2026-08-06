@@ -121,10 +121,14 @@ describe("лента в истории", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /Ищу/ }));
 
-    expect(screen.getByText("обрезано сервером")).toBeInTheDocument();
+    // Бейджа усечения нет (решение архитектора на приёмке) — честность несёт
+    // формулировка кнопки: она не обещает недостающего.
     expect(
-      screen.getByRole("button", { name: /Показать всё, что пришло/ }),
+      screen.getByRole("button", { name: "Показать всё, что пришло" }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Показать полностью" }),
+    ).not.toBeInTheDocument();
   });
 
   it("усечение аргументов не метит зону результата", async () => {
@@ -145,7 +149,6 @@ describe("лента в истории", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /Ищу/ }));
 
-    expect(screen.getAllByText("обрезано сервером")).toHaveLength(1);
     expect(
       screen.getByText("Аргументы оборваны сервером — не разобраны."),
     ).toBeInTheDocument();
@@ -353,10 +356,7 @@ describe("большие и обрезанные данные", () => {
     await userEvent.click(screen.getByRole("button", { name: /Ищу/ }));
 
     // Обрезки нет — кнопка обещает ровно то, что покажет.
-    const expand = screen.getByRole("button", {
-      name: /Показать полностью · ~\d/,
-    });
-    expect(screen.queryByText("обрезано сервером")).not.toBeInTheDocument();
+    const expand = screen.getByRole("button", { name: "Показать полностью" });
 
     await userEvent.click(expand);
     expect(
@@ -371,8 +371,10 @@ describe("большие и обрезанные данные", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /Ищу/ }));
 
-    // Ровно один маркер — у зоны результата; аргументы целы и разобраны.
-    expect(screen.getAllByText("обрезано сервером")).toHaveLength(1);
+    // Усечение результата видно по кнопке его зоны; аргументы целы и разобраны.
+    expect(
+      screen.getByRole("button", { name: "Показать всё, что пришло" }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/query: langgraph/)).toBeInTheDocument();
   });
 });

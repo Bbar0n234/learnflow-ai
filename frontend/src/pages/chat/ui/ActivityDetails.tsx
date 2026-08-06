@@ -19,40 +19,15 @@ import { cn } from "@/shared/lib/utils";
 /** Длина, с которой текст сворачивается в три строки с кнопкой раскрытия. */
 const CLAMP_THRESHOLD_CHARS = 160;
 
-/**
- * Грубая оценка объёма на клиенте: числа токенов сервер не отдаёт, а усечение и
- * разметка — клиентские (аннотация мокапа). ~3 знака на токен — компромисс между
- * кириллицей (2–3) и латиницей с JSON (~4); оценка и подписана «~».
- */
-const CHARS_PER_TOKEN = 3;
-
-function estimateTokens(text: string): string {
-  const tokens = Math.max(1, Math.round(text.length / CHARS_PER_TOKEN));
-  return tokens.toLocaleString("ru-RU");
-}
-
-/**
- * Заголовок зоны. При усечении рядом с ним стоит маркер: показанное — не всё,
- * иначе кнопка раскрытия обещает больше, чем есть. Полные данные отдавать
- * нельзя (scope), обозначить факт — обязательно.
- */
-function ZoneTitle({
-  title,
-  truncated,
-}: {
-  title: string;
-  truncated: boolean;
-}) {
+/** Заголовок зоны. Факт серверного усечения бейджем не выносится (решение
+ * архитектора на приёмке): честность раскрытия несёт формулировка кнопки —
+ * «Показать всё, что пришло» не обещает недостающего. */
+function ZoneTitle({ title }: { title: string }) {
   return (
     <div className="mb-0.5 flex items-center gap-2">
       <span className="text-[9.5px] uppercase tracking-[0.08em] opacity-60">
         {title}
       </span>
-      {truncated && (
-        <span className="rounded-full bg-muted px-1.5 py-px text-[10px] text-muted-foreground">
-          обрезано сервером
-        </span>
-      )}
     </div>
   );
 }
@@ -84,8 +59,8 @@ function BigText({ text, truncated = false, mono = false }: BigTextProps) {
   }
 
   const expandLabel = truncated
-    ? `Показать всё, что пришло · ~${estimateTokens(text)} токенов`
-    : `Показать полностью · ~${estimateTokens(text)} токенов`;
+    ? "Показать всё, что пришло"
+    : "Показать полностью";
 
   return (
     <div>
@@ -149,7 +124,7 @@ export function ToolCallDetails({ item }: { item: ToolCallFeedItem }) {
   return (
     <div className="divide-y divide-border/60">
       <Zone>
-        <ZoneTitle title="Вызов" truncated={item.argsTruncated} />
+        <ZoneTitle title="Вызов" />
         <p className="font-mono text-[11px] opacity-85">{item.tool}</p>
         {args !== null ? (
           <BigText mono text={formatArgs(args)} />
@@ -159,10 +134,7 @@ export function ToolCallDetails({ item }: { item: ToolCallFeedItem }) {
       </Zone>
       {(hasResult || item.status === "pending") && (
         <Zone>
-          <ZoneTitle
-            title="Результат"
-            truncated={hasResult && item.resultTruncated}
-          />
+          <ZoneTitle title="Результат" />
           {hasResult ? (
             <BigText text={result} truncated={item.resultTruncated} />
           ) : (
@@ -209,7 +181,7 @@ export function SubagentDetails({
   return (
     <div className="flex flex-col gap-1">
       <Zone>
-        <ZoneTitle title="Вызов" truncated={item.argsTruncated} />
+        <ZoneTitle title="Вызов" />
         <p className="font-mono text-[11px] opacity-85">{item.tool}</p>
         {rest !== null && Object.keys(rest).length > 0 && (
           <BigText mono text={formatArgs(rest)} />
@@ -220,10 +192,7 @@ export function SubagentDetails({
       {children}
       {(hasVerdict || item.status === "pending") && (
         <Zone>
-          <ZoneTitle
-            title="Ответ субагента"
-            truncated={hasVerdict && item.resultTruncated}
-          />
+          <ZoneTitle title="Ответ субагента" />
           {hasVerdict ? (
             <BigText text={verdict} truncated={item.resultTruncated} />
           ) : (

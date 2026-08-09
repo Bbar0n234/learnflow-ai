@@ -32,7 +32,7 @@
 | feat-008 | I | 📋 Planned | cross-cutting | OAuth (Google/GitHub) + дизайн auth-экранов + 404-экран |
 | feat-009 | J | 📋 Planned | infra | Self-hosted web search MCP |
 | feat-010 | K | 📋 Planned | cross-cutting | Voice input (STT) |
-| feat-011 | L | 📋 Planned | cross-cutting | Execution runtime: изолированное выполнение кода/CLI — общий фундамент PDF (F), слайдов (G), ГОСТ-скилла (M) |
+| feat-011 | L | 🚧 In Progress | cross-cutting | Execution runtime: изолированное выполнение кода/CLI — общий фундамент PDF (F), слайдов (G), ГОСТ-скилла (M) |
 | feat-012 | M | 📋 Planned | agent | ГОСТ-скилл: bundle-скилл оформления студенческих работ по ГОСТ 7.32 (.docx) — оффер для студенческой волны |
 
 ## Порядок и приоритеты
@@ -308,7 +308,8 @@
 
 **Цель:** выполнение кода/CLI из графа агента в изолированном окружении — общий фундамент выходных форматов: PDF-экспорт (F), слайды (G), ГОСТ-скилл (M) и будущие скиллы, которым нужен shell. Проектируется один раз как переиспользуемый контракт, не точечное решение под фичу.
 
-**Статус:** 📋 Planned
+**Статус:** 🚧 In Progress
+**Ветка:** `dogf/feat-011-execution-runtime`
 **Scope:** cross-cutting (Agent + Backend + Infra + Security)
 **Before:** feat-005 (F), feat-006 (G), feat-012 (M) — строятся на контракте runtime
 

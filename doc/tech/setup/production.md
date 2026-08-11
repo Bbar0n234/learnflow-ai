@@ -44,21 +44,28 @@ flowchart LR
 
 ## Референс nginx-конфига
 
-Ниже — санитизированная копия боевого файла `/etc/nginx/sites-enabled/learnflow` (обычный файл, не симлинк). Плейсхолдеры — вместо `server_name` и путей к TLS-сертификатам; содержимое ключей не переносится и никогда не переносилось. Это копия as-is, снятая read-only с одобрения архитектора, а не желаемое состояние — фактические расхождения с контрактом фиксируются пометками рядом, без предложений «как исправить».
+Ниже — копия боевого файла `/etc/nginx/sites-available/learnflow` (в `sites-enabled` — симлинк на него). Содержимое TLS-ключей не переносится и никогда не переносилось; сами пути к сертификату — стандартные certbot'овские, секретов не содержат. Это копия as-is, снятая read-only с одобрения архитектора, а не желаемое состояние — фактические расхождения с контрактом фиксируются пометками рядом, без предложений «как исправить». Блоки и строки с пометкой `# managed by Certbot` вписаны certbot'ом при выпуске сертификата и обновляются им же при продлении — руками их не редактировать.
 
 ```nginx
 server {
+    if ($host = www.learnflow.me) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+    if ($host = learnflow.me) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
     listen 80;
-    server_name <SERVER_NAME>;
+    server_name learnflow.me www.learnflow.me;
     return 301 https://$host$request_uri;
 }
 
 server {
     listen 443 ssl;
-    server_name <SERVER_NAME>;
-
-    ssl_certificate     <PATH_TO_CERT>;
-    ssl_certificate_key <PATH_TO_KEY>;
+    server_name learnflow.me www.learnflow.me;
+    ssl_certificate /etc/letsencrypt/live/learnflow.me/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/learnflow.me/privkey.pem; # managed by Certbot
 
     location = /health {
         proxy_pass http://127.0.0.1:8000/health;
@@ -96,7 +103,7 @@ server {
 - **`location = /health` не ставит ни одного `proxy_set_header`.** Health-запросы, прошедшие через nginx, приходят без `X-Real-IP` и без `X-Forwarded-For` — факт, а не недосмотр: `get_client_ip()` для health-пути IP не резолвит и WARNING не пишет вообще (см. `app.infra.client_ip.is_health_path`), поэтому отсутствие заголовков здесь безопасно.
 - **`location /siem/` срезает префикс**: `proxy_pass http://127.0.0.1:8001/` с завершающим слэшем переписывает `/siem/<путь>` в `/<путь>` на upstream. Факт с VM: при выключенном SIEM-сервисе (`COMPOSE_PROFILES` без `siem`, upstream не поднят) этот location отдаёт `502 Bad Gateway` — фиксируется здесь как наблюдаемое поведение; рекомендация, что с этим делать, — в [§ SIEM](#siem) runbook'а ниже.
 
-**Дрейф `sites-available` vs `sites-enabled`.** На прод-VM `/etc/nginx/sites-available/learnflow` расходится с боевым `sites-enabled/learnflow` — в `available` лежит устаревшая топология (фронтенд на `:3000`, префикс `/api/`, `location /api/health`). Это повторный дрейф: та же пара файлов уже расходилась и была синхронизирована вручную ранее (зафиксировано в `doc/tasks/iterations/production/chore-001-ci-cd/summary.md`, находка 5), и `sites-enabled/learnflow` уже тогда оказался обычным файлом, а не симлинком на `sites-available`. Поскольку симлинк не восстановлен, конфиги продолжают жить независимо и снова разошлись. Ручной шаг по приведению в порядок — в runbook ниже.
+**Пара `sites-available` / `sites-enabled` приведена в порядок.** Канонический конфиг живёт в `/etc/nginx/sites-available/learnflow`, `sites-enabled/learnflow` — симлинк на него (восстановлен по шагу 3 runbook «Клиентский IP» ниже). Дисциплина: правки nginx-конфига на VM вносятся в `sites-available`; появление в `sites-enabled` обычного файла вместо симлинка — сигнал нового дрейфа (пара уже дважды расходилась, история — `doc/tasks/iterations/production/chore-001-ci-cd/summary.md`, находка 5).
 
 ## Режимы `CLIENT_IP_SOURCE` в эксплуатации
 
@@ -136,6 +143,22 @@ server {
 
    `nginx -t` разбирает конфиг и не даёт применить сломанный (при ошибке `reload` не выполнится из-за `&&`, а nginx продолжит работать на старом конфиге). Именно `reload`, а не `restart`: reload поднимает новые worker'ы и даёт старым дожить свои соединения, restart рвёт живые запросы, включая открытые SSE-стримы. Если `nginx -t` ругается — восстановить конфиг из резервной копии (`cp /root/learnflow.nginx.bak /etc/nginx/sites-available/learnflow`) и разобраться до применения.
 5. После деплоя (`docker compose up -d` из `deploy.yml`) проверить, что переменная действительно попала в контейнер: `docker compose exec app env | grep CLIENT_IP_SOURCE` должен показать `x-real-ip`.
+
+### TLS и домен
+
+Продакшн живёт на домене **learnflow.me** (регистратор Porkbun, WHOIS privacy включён, auto-renew включён). DNS хостится у Porkbun: две A-записи — `@` и `www` — указывают на публичный IP прод-VM. Nameserver'ы Porkbun'овские, отдельного DNS-провайдера нет.
+
+TLS — Let's Encrypt, сертификат один на оба имени (SAN: `learnflow.me`, `www.learnflow.me`), выпущен и обслуживается certbot'ом с nginx-плагином:
+
+- Пути: `/etc/letsencrypt/live/learnflow.me/{fullchain,privkey}.pem` — на них ссылается nginx-конфиг (строки `# managed by Certbot` в референсе выше).
+- Авто-продление: systemd-таймер `certbot.timer` (ставится пакетом, два прогона в сутки); при фактическом продлении certbot перезагружает nginx сам (nginx-installer в renewal-конфиге). Ручных шагов в цикле продления нет.
+- Проверка здоровья продления: `systemctl list-timers certbot.timer` (таймер активен) и `sudo certbot renew --dry-run` (полный прогон без выпуска).
+- Добавление имени в сертификат (например, поддомена): `sudo certbot --nginx -d learnflow.me -d www.learnflow.me -d <new> --expand`.
+
+Смежные факты периметра:
+
+- **Доступ по голому IP VM остаётся работать** — server-блок единственный и потому default: запрос по IP обслуживается, но с браузерным предупреждением о несовпадении имени сертификата. Это служебный путь (диагностика «жив ли nginx, когда DNS сломан»), не пользовательский; инвариант доверия из § Топология он не ломает — трафик всё равно идёт через nginx.
+- **`CORS_ORIGINS` в боевом `.env`** — `https://learnflow.me,https://www.learnflow.me`. Формат — CSV без кавычек и скобок: `parse_cors_origins` в `Settings` сплитит строку по запятой, JSON-запись превращается в мусорный origin. Практического эффекта CORS сейчас не имеет (фронт отдаётся same-origin из того же приложения), значение поддерживается корректным на случай появления cross-origin потребителей.
 
 ### SIEM
 

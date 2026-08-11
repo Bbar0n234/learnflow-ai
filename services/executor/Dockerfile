@@ -68,6 +68,14 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 RUN useradd -u 10001 -m -d /home/executor executor \
     && chown -R executor:executor /app
 
+# Pre-create the named-volume mount point owned by uid 10001: a fresh
+# `workspaces` volume otherwise gets created root:root on first use (Docker
+# copies ownership of the image path at mount time), and this non-root user
+# can't mkdir under it. Both app and executor images must do this — whichever
+# container starts first stamps the volume's owner (architect escalation,
+# tracks/T1/summary.md § T1.11).
+RUN mkdir -p /workspaces && chown 10001:10001 /workspaces
+
 USER 10001
 
 ENV PYTHONUNBUFFERED=1

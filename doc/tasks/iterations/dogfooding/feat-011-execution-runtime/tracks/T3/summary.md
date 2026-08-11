@@ -13,6 +13,8 @@ uid 10001, не тянет `pytest`, PID 1 — `tini` (init жнёт bwrap-си�
 и цель `make smoke-executor`, гоняемая одной командой внутри собранного образа с переключаемым
 `RUNTIME` (`runc` — гейт релиза по умолчанию, `runsc` — шаг чек-листа деплоя).
 
+`services/executor/Dockerfile` дополнительно правлен по итогам T1.11 (эскалация к архитектору, разрешена): запекает `/workspaces` с `chown` на uid 10001 до `USER 10001` — фикс ownership именованного volume, см. T1/summary.md § «Решения → T1.11».
+
 **Находка T3.6 про необходимость `--privileged` закрыта в T3.7** — решением архитектора
 (эскалация 2026-08-11) `docker run` для смоука несёт три флага
 (`--security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt

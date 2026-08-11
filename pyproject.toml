@@ -26,6 +26,7 @@ members = [
     "backend",
     "packages/siem-contracts",
     "packages/testing",
+    "services/executor",
     "services/siem-service",
     "tools/arch-checker",
     "tools/security-scan",

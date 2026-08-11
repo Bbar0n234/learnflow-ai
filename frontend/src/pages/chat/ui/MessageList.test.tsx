@@ -168,12 +168,12 @@ describe("MessageList — живость ленты", () => {
         {
           type: "tool_call_started",
           call_id: "call-1",
-          tool: "firecrawl_search",
+          tool: "search_web",
         },
         {
           type: "tool_result",
           call_id: "call-1",
-          tool: "firecrawl_search",
+          tool: "search_web",
           status: "success",
           content: "нашлось",
           truncated: false,
@@ -192,7 +192,7 @@ describe("MessageList — живость ленты", () => {
       {
         type: "tool_call_started",
         call_id: "step-1",
-        tool: "firecrawl_scrape",
+        tool: "read_url",
         parent_call_id: "sub-1",
       },
     ];
@@ -209,7 +209,7 @@ describe("MessageList — живость ленты", () => {
           {
             type: "tool_result",
             call_id: "step-1",
-            tool: "firecrawl_scrape",
+            tool: "read_url",
             status: "success",
             content: "страница",
             truncated: false,
@@ -238,12 +238,12 @@ describe("MessageList — живость ленты", () => {
         {
           type: "tool_call_started",
           call_id: "call-1",
-          tool: "firecrawl_search",
+          tool: "search_web",
         },
         {
           type: "tool_result",
           call_id: "call-1",
-          tool: "firecrawl_search",
+          tool: "search_web",
           status: "success",
           content: "нашлось",
           truncated: false,
@@ -414,7 +414,7 @@ describe("MessageList — живость ленты", () => {
         {
           type: "tool_call_started",
           call_id: "call-1",
-          tool: "firecrawl_search",
+          tool: "search_web",
         },
       ]),
     );
@@ -430,7 +430,7 @@ describe("MessageList — живость ленты", () => {
         {
           type: "tool_call_started",
           call_id: "call-1",
-          tool: "firecrawl_search",
+          tool: "search_web",
         },
       ]);
       renderFeed(feed);
@@ -475,7 +475,7 @@ describe("MessageList — вложенная лента субагента", () 
         {
           type: "tool_call_started",
           call_id: "step-1",
-          tool: "firecrawl_scrape",
+          tool: "read_url",
           parent_call_id: "sub-1",
         },
         {
@@ -531,7 +531,7 @@ describe("живая лента совпадает с историей", () => {
   const events: SSEEvent[] = [
     { type: "reasoning_chunk", content: "Надо " },
     { type: "reasoning_chunk", content: "поискать" },
-    { type: "tool_call_started", call_id: "c1", tool: "firecrawl_search" },
+    { type: "tool_call_started", call_id: "c1", tool: "search_web" },
     {
       type: "tool_call_args",
       call_id: "c1",
@@ -541,7 +541,7 @@ describe("живая лента совпадает с историей", () => {
     {
       type: "tool_result",
       call_id: "c1",
-      tool: "firecrawl_search",
+      tool: "search_web",
       status: "success",
       content: "нашлось",
       truncated: false,
@@ -569,7 +569,7 @@ describe("живая лента совпадает с историей", () => {
     {
       type: "tool_call",
       call_id: "c1",
-      tool: "firecrawl_search",
+      tool: "search_web",
       args: JSON.stringify({ query: "изоляция контекста" }),
       args_truncated: false,
       status: "success",
@@ -654,7 +654,7 @@ describe("MessageList — автопрокрутка за ростом лент�
 
   it("догоняет новую строку действия", () => {
     const first = feedFrom([
-      { type: "tool_call_started", call_id: "c1", tool: "firecrawl_search" },
+      { type: "tool_call_started", call_id: "c1", tool: "search_web" },
     ]);
     const { rerender } = renderFeed(first);
     const before = scrollCount();
@@ -665,7 +665,7 @@ describe("MessageList — автопрокрутка за ростом лент�
           {
             type: "tool_call_started",
             call_id: "c1",
-            tool: "firecrawl_search",
+            tool: "search_web",
           },
           { type: "tool_call_started", call_id: "c2", tool: "update_section" },
         ]),
@@ -726,7 +726,7 @@ describe("MessageList — автопрокрутка за ростом лент�
           {
             type: "tool_call_started",
             call_id: "sub-1-step",
-            tool: "firecrawl_search",
+            tool: "search_web",
             parent_call_id: "sub-1",
           },
         ]),

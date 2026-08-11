@@ -45,7 +45,7 @@ function toolCallPart(
   return {
     type: "tool_call",
     call_id: "c-1",
-    tool: "firecrawl_search",
+    tool: "search_web",
     args: '{"query": "langgraph"}',
     args_truncated: false,
     status: "success",
@@ -62,7 +62,7 @@ describe("лента в истории", () => {
         {
           type: "tool_call",
           call_id: "c-1",
-          tool: "firecrawl_search",
+          tool: "search_web",
           args: '{"query": "изоляция контекста"}',
           args_truncated: false,
           status: "success",
@@ -84,7 +84,7 @@ describe("лента в истории", () => {
         {
           type: "tool_call",
           call_id: "c-1",
-          tool: "firecrawl_search",
+          tool: "search_web",
           args: '{"query": "изоляция контекста"}',
           args_truncated: false,
           status: "success",
@@ -96,7 +96,7 @@ describe("лента в истории", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /Искал/ }));
 
-    expect(screen.getByText("firecrawl_search")).toBeInTheDocument();
+    expect(screen.getByText("search_web")).toBeInTheDocument();
     expect(screen.getByText(/query: изоляция контекста/)).toBeInTheDocument();
     expect(screen.getByText("нашлось восемь источников")).toBeInTheDocument();
     expect(screen.getByText("Вызов")).toBeInTheDocument();
@@ -109,7 +109,7 @@ describe("лента в истории", () => {
         {
           type: "tool_call",
           call_id: "c-1",
-          tool: "firecrawl_search",
+          tool: "search_web",
           args: '{"query": "x"}',
           args_truncated: false,
           status: "success",
@@ -137,7 +137,7 @@ describe("лента в истории", () => {
         {
           type: "tool_call",
           call_id: "c-1",
-          tool: "firecrawl_search",
+          tool: "search_web",
           args: '{"query": "очень длинный запр',
           args_truncated: true,
           status: "success",
@@ -236,7 +236,7 @@ describe("лента в истории", () => {
         {
           type: "tool_call",
           call_id: "c-1",
-          tool: "firecrawl_search",
+          tool: "search_web",
           args: '{"query": "a"}',
           args_truncated: false,
           status: "success",
@@ -321,7 +321,7 @@ describe("большие и обрезанные данные", () => {
     expect(
       screen.getByText("Аргументы оборваны сервером — не разобраны."),
     ).toBeInTheDocument();
-    expect(screen.getByText("firecrawl_search")).toBeInTheDocument();
+    expect(screen.getByText("search_web")).toBeInTheDocument();
   });
 
   it("аргументы нештатной формы показываются сырыми — обрезки в них нет", async () => {

@@ -10,7 +10,7 @@ and a title) to ground or narrow the search.
 </task>
 
 <process>
-Use your search, scrape, and extract tools to find and read the
+Use your web search and page-reading tools to find and read the
 sources you need. Read enough pages to answer the question with
 confidence; do not stop at the first plausible-looking result, and do
 not pad the research by reading pages that clearly do not add

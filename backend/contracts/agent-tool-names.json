@@ -20,10 +20,6 @@
     "origin": "internal"
   },
   {
-    "name": "firecrawl_extract",
-    "origin": "builtin_mcp"
-  },
-  {
     "name": "firecrawl_scrape",
     "origin": "builtin_mcp"
   },

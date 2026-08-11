@@ -3,7 +3,6 @@ import {
   BookOpen,
   Brain,
   FilePlus,
-  FileSearch,
   FileText,
   Globe,
   ImagePlus,
@@ -37,7 +36,7 @@ import type { FeedItemStatus } from "@/shared/lib/agent-feed";
  * самому себе и на забытую подпись не покраснел бы.
  *
  * Реестр полной ширины — все имена фикстура, включая read-only (`get_section`,
- * `get_skill_context`) и объявленный, но выключенный сервер (`tavily_*`):
+ * `get_skill_context`) и объявленный, но выключенный сервер (`firecrawl_*`):
  * read-only порождают обычные `tool_call_*` и видны в ленте наравне с
  * пишущими, а выключенный сервер может включиться на бэкенде без правок фронта.
  */
@@ -88,13 +87,6 @@ function text(args: ToolArgs, key: string): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed === "" ? null : trimmed;
-}
-
-function firstUrl(args: ToolArgs): string | null {
-  const urls = args.urls;
-  if (!Array.isArray(urls)) return text(args, "url");
-  const first = urls.find((item) => typeof item === "string" && item.trim());
-  return typeof first === "string" ? first.trim() : null;
 }
 
 function quoted(value: string | null): string | null {
@@ -180,15 +172,6 @@ export const AGENT_TOOL_SIGNATURES: Record<string, ToolSignature> = {
     icon: Trash2,
     argTemplate: (args) => quoted(text(args, "key")),
   },
-  firecrawl_extract: {
-    label: "Извлекаю данные со страницы",
-    pastLabels: {
-      done: "Извлёк данные со страницы",
-      interrupted: "Извлекал данные со страницы",
-    },
-    icon: FileSearch,
-    argTemplate: firstUrl,
-  },
   firecrawl_scrape: {
     label: "Читаю страницу",
     pastLabels: { done: "Прочитал страницу", interrupted: "Читал страницу" },
@@ -234,6 +217,12 @@ export const AGENT_TOOL_SIGNATURES: Record<string, ToolSignature> = {
     icon: Sparkles,
     argTemplate: (args) => quoted(text(args, "skill_name")),
   },
+  read_url: {
+    label: "Читаю страницу",
+    pastLabels: { done: "Прочитал страницу", interrupted: "Читал страницу" },
+    icon: Globe,
+    argTemplate: (args) => text(args, "url"),
+  },
   run_subagent: {
     label: "Субагент",
     icon: Bot,
@@ -260,16 +249,7 @@ export const AGENT_TOOL_SIGNATURES: Record<string, ToolSignature> = {
     icon: Brain,
     argTemplate: (args) => quoted(text(args, "key")),
   },
-  tavily_extract: {
-    label: "Извлекаю данные со страницы",
-    pastLabels: {
-      done: "Извлёк данные со страницы",
-      interrupted: "Извлекал данные со страницы",
-    },
-    icon: FileSearch,
-    argTemplate: firstUrl,
-  },
-  tavily_search: {
+  search_web: {
     label: "Ищу в интернете",
     pastLabels: { done: "Искал в интернете", interrupted: "Искал в интернете" },
     icon: Search,

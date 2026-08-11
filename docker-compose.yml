@@ -85,8 +85,8 @@ services:
       PDF_CONVERSION_TIMEOUT_SECONDS: ${PDF_CONVERSION_TIMEOUT_SECONDS:-30}
       # MCP external tools — api_key_env from configs/agent.yaml, read directly
       # via os.environ (not through Settings).
+      JINA_API_KEY: ${JINA_API_KEY:-}
       FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
-      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
     volumes:
       - ./configs:/app/configs:ro
       - ./skills:/app/skills:ro

@@ -46,26 +46,20 @@ pytestmark = pytest.mark.unit
 
 
 @tool
-def firecrawl_search(query: str) -> str:
-    """Fake firecrawl_search standing in for the built-in MCP tool."""
+def search_web(query: str) -> str:
+    """Fake search_web standing in for the built-in MCP tool."""
     return f"results for {query}"
 
 
 @tool
-def firecrawl_scrape(url: str) -> str:
-    """Fake firecrawl_scrape standing in for the built-in MCP tool."""
+def read_url(url: str) -> str:
+    """Fake read_url standing in for the built-in MCP tool."""
     return f"page at {url}"
 
 
-@tool
-def firecrawl_extract(url: str) -> str:
-    """Fake firecrawl_extract standing in for the built-in MCP tool."""
-    return f"data from {url}"
-
-
-def _fake_firecrawl_pool() -> dict[str, Any]:
+def _fake_search_pool() -> dict[str, Any]:
     """A pool resolving the real registry's tool names (all specs use these)."""
-    return {t.name: t for t in (firecrawl_search, firecrawl_scrape, firecrawl_extract)}
+    return {t.name: t for t in (search_web, read_url)}
 
 
 def _make_runner(
@@ -83,8 +77,8 @@ def _make_runner(
     ``create_llm_from_config`` is replaced so ``run`` gets ``model`` instead of
     a live client; ``captured["model_config"]`` records the resolved config the
     Runner passed, so the default-vs-override cascade is observable. The tool
-    pool defaults to fake firecrawl tools so the real registry's specs (all of
-    which declare the firecrawl trio) resolve.
+    pool defaults to fake search tools so the real registry's specs (all of
+    which declare the search_web/read_url duo) resolve.
     """
 
     def _fake_create_llm(_settings: Any, model_config: ResolvedModelConfig) -> Any:
@@ -100,7 +94,7 @@ def _make_runner(
         prompt_fragments=prompt_fragments,
         prompt_provider=prompt_provider,
         settings=cast(Any, object()),  # only forwarded to the (faked) model factory
-        tool_pool=tool_pool if tool_pool is not None else _fake_firecrawl_pool(),
+        tool_pool=tool_pool if tool_pool is not None else _fake_search_pool(),
     )
 
 
@@ -264,7 +258,7 @@ async def test_run_uses_per_spec_model_override_when_present(
                     description="d",
                     prompt="subagent-judge",
                     model="override-model",
-                    tools=["firecrawl_search"],
+                    tools=["search_web"],
                 ),
             ],
         ),

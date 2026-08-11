@@ -29,7 +29,7 @@
 | feat-005 | F | 📋 Planned | backend | PDF-экспорт: замена wkhtmltopdf, рендер формул, фирменный стиль |
 | feat-006 | G | 📋 Planned | agent | Генерация слайдов: spike → скилл/интеграция (паттерн ADR-026) |
 | feat-007 | H | 📋 Planned | cross-cutting | Кастомные скиллы пользователя + страница библиотеки скиллов |
-| feat-008 | I | 🚧 In Progress | cross-cutting | OAuth (Google/GitHub) + дизайн auth-экранов |
+| feat-008 | I | 🚧 In Progress | cross-cutting | OAuth (Яндекс ID/VK ID для РФ, Google/GitHub вне РФ — гео-разделение по 149-ФЗ) + auth-экраны |
 | feat-009 | J | ✅ Done | infra | Web search MCP: замена Firecrawl на Jina AI (hosted) |
 | feat-010 | K | 📋 Planned | cross-cutting | Voice input (STT) |
 | feat-011 | L | 🚧 In Progress | cross-cutting | Execution runtime: изолированное выполнение кода/CLI — общий фундамент PDF (F), слайдов (G), ГОСТ-скилла (M) |
@@ -264,7 +264,7 @@
 
 ### feat-008 (I): OAuth + auth-экраны
 
-**Цель:** авторизация через Google/GitHub + брендовые auth-экраны (одна связка — тот же экран, не красим дважды). До показа преподавателям: вход без заведения отдельного пароля. 404-экран перенесён в feat-013 (решение архитектора: полировочный пакет закрывает его целиком, включая бренд).
+**Цель:** авторизация через внешних провайдеров — вход без заведения отдельного пароля — + auth-экраны. Состав провайдеров пересмотрен архитектором при взятии в работу: Яндекс ID и VK ID для пользователей из РФ, Google и GitHub для остальных — гео-разделение по ч. 10 ст. 8 149-ФЗ (запрет иностранной авторизации для РФ-пользователей; штрафы по ст. 13.55 КоАП действуют с 07.07.2026). 404-экран перенесён в feat-013 (решение архитектора: полировочный пакет закрывает его целиком, включая бренд).
 
 **Статус:** 🚧 In Progress
 **Ветка:** `dogf/feat-008-oauth-auth-screens`
@@ -272,8 +272,29 @@
 
 #### Из backlog
 
-- **P1** OAuth authentication (Google, GitHub) — сейчас только логин/пароль; требование хранить отдельный пароль сильно снижает конверсию. Именно OAuth, не email confirmation code. Затрагивает backend (провайдерская интеграция, token exchange, user linking), frontend (социальные кнопки, OAuth callback flow), `tech/auth.md`. Может потребовать ADR по user identity model при нескольких провайдерах на одного пользователя *(Frontend + Backend)*
+- **P1** OAuth authentication (Google, GitHub — состав провайдеров пересмотрен, см. Цель) — сейчас только логин/пароль; требование хранить отдельный пароль сильно снижает конверсию. Именно OAuth, не email confirmation code. Затрагивает backend (провайдерская интеграция, token exchange, user linking), frontend (социальные кнопки, OAuth callback flow), `tech/auth.md`. Может потребовать ADR по user identity model при нескольких провайдерах на одного пользователя *(Frontend + Backend)*
 - **P2** Дизайн экранов авторизации (login/register) — `app/components/AuthGate.tsx` сейчас generic shadcn-модалка с англоязычным копирайтом («Sign In»/«Create Account») в полностью русском UI, без wordmark/иллюстрации/бренда «Электрик». Первый экран каждого пользователя *(Frontend, cross: Design-branding)*
+
+#### Решения архитектора (взятие в работу; детализация и контракты — design-brief)
+
+- **Провайдеры и порядок:** вертикаль целиком на Яндекс ID первым (самый простой для dev: обычный code flow, localhost без модерации) → затем конвейером VK ID → Google → GitHub на готовой абстракции.
+- **Гео-enforcement серверный:** страна по IP оффлайн-базой (IPinfo Lite MMDB + `geoip2`-reader, регулярное обновление, атрибуция CC BY-SA); для РФ-IP отклоняются и инициация, и callback Google/GitHub — скрытие кнопок только в UI юридически недостаточно. Парольный вход остаётся для всех (иностранный email как логин не запрещён — осознанное допущение, зафиксировано в ресёрче). Пользователь за VPN выглядит как не-РФ — добросовестная best-effort позиция, методики регулятора не существует.
+- **Модель данных:** отдельная таблица `oauth_accounts` (`unique(provider, provider_account_id)`, `email` nullable — GitHub может скрывать, timestamps, CHECK по списку провайдеров), `users.password_hash` → nullable; `users.email` в v1 не вводится; токены провайдера не хранятся (используются одноразово на входе). `refresh_tokens` и сессионная механика не меняются — OAuth заканчивается на выдаче обычной пары access/refresh.
+- **Идентичность и линковка:** пользователь = `(provider, provider_account_id)`; авто-линковка по email запрещена (pre-account-takeover при неверифицированном email); ручная линковка нескольких провайдеров — вне scope v1, схема таблицы ей не мешает.
+- **Провайдер-слой:** собственная тонкая абстракция на httpx, без authlib — двое из четырёх провайдеров не OIDC (Яндекс, VK), VK ID нестандартен (обязательные PKCE и `device_id` в token-обмене, `state` в теле token-запроса, `service_token` вместо client_secret), SessionMiddleware authlib чужд JWT-бэкенду. State + PKCE S256 во всех флоу.
+- **Вход страницей:** блокирующая модалка `AuthGate` над роутером перестраивается на страницу `/login` под роутером (OAuth-флоу требует маршрутов; заодно auth-экран становится обычной страницей).
+- **Dev-окружение:** отдельные dev-приложения у провайдеров (пары client_id/secret dev/prod, до 8 регистраций — ручные шаги архитектора по инструкции из брифа); для VK ID localhost непригоден (только порт 80/443, туннели блокируются) — dev-поддомен `dev.learnflow.me` → 127.0.0.1 + локальный TLS.
+
+#### Открытые вопросы (на design-brief)
+
+- Хранение `state`/PKCE-verifier между редиректами (кандидат — короткоживущая httpOnly-cookie, без таблицы в БД).
+- Точный shape callback-пути: redirect_uri ведёт на backend; как результат доезжает до SPA (redirect + refresh-cookie → `/api/auth/refresh`).
+- Граница с feat-013 по дизайну auth-экранов — на пересмотре у архитектора (кандидат: функциональная страница здесь, брендовая стилизация в feat-013).
+- Контракт выдачи доступных способов входа по гео (например `GET /api/auth/providers`) — форма и потребители.
+
+#### Артефакты
+
+- Ресёрч-выжимки взятия в работу: [research-legal-geo.md](iterations/dogfooding/feat-008-oauth-auth-screens/research-legal-geo.md) (149-ФЗ, ст. 13.55 КоАП, геодетекция), [research-data-model.md](iterations/dogfooding/feat-008-oauth-auth-screens/research-data-model.md) (эталонные схемы, DDL-эскиз, postgresql-ревью), [research-provider-libs.md](iterations/dogfooding/feat-008-oauth-auth-screens/research-provider-libs.md) (authlib vs httpx, политики провайдеров, dev/prod-окружения)
 
 ---
 

@@ -12,9 +12,9 @@
 data: {"type": "stream_started"}\n\n
 data: {"type": "reasoning_chunk", "content": "Нужно проверить..."}\n\n
 data: {"type": "text_chunk", "content": "Вот что я нашёл"}\n\n
-data: {"type": "tool_call_started", "call_id": "abc-123", "tool": "firecrawl_search"}\n\n
+data: {"type": "tool_call_started", "call_id": "abc-123", "tool": "search_web"}\n\n
 data: {"type": "tool_call_args", "call_id": "abc-123", "args": "{\"query\": \"...\"}", "truncated": false}\n\n
-data: {"type": "tool_result", "call_id": "abc-123", "tool": "firecrawl_search", "status": "success", "content": "...", "truncated": false}\n\n
+data: {"type": "tool_result", "call_id": "abc-123", "tool": "search_web", "status": "success", "content": "...", "truncated": false}\n\n
 data: {"type": "done", "message_id": "msg-uuid", "trace_id": "trace-uuid"}\n\n
 ```
 

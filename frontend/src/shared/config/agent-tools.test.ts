@@ -280,6 +280,108 @@ describe("грамматика подписи по статусу вызова",
   });
 });
 
+// Файловый и исполняющий слой (feat-011, T2.6). Ожидания — из мокапа
+// `mockups/attachments-artifacts.html` блок 1 («Прочитал файл · uploads/notes.md»,
+// «Записал файл · artifacts/lecture-1/konspekt.md», «Выполнил команду · pandoc …»),
+// а не из самого реестра.
+describe("подписи файловых и исполняющих инструментов", () => {
+  it.each([
+    {
+      tool: "read_file",
+      args: { path: "uploads/notes.md" },
+      label: "Прочитал файл",
+      arg: "uploads/notes.md",
+    },
+    {
+      tool: "write_file",
+      args: { path: "artifacts/lecture-1/konspekt.md", content: "текст" },
+      label: "Записал файл",
+      arg: "artifacts/lecture-1/konspekt.md",
+    },
+    {
+      tool: "list_files",
+      args: { path: "artifacts" },
+      label: "Просмотрел файлы",
+      arg: "artifacts",
+    },
+    {
+      tool: "run_command",
+      args: { cmd: "pandoc lecture.pdf -t plain" },
+      label: "Выполнил команду",
+      arg: "pandoc lecture.pdf -t plain",
+    },
+  ])(
+    "завершённый $tool читается как «$label · $arg»",
+    ({ tool, args, label, arg }) => {
+      const described = describeToolCall(tool, {
+        args: JSON.stringify(args),
+        status: "success",
+      });
+
+      expect(described).toMatchObject({ label, arg, known: true });
+    },
+  );
+
+  it("путь в подписи идёт голым, без кавычек свободного текста", () => {
+    // Кавычки в реестре маркируют введённый человеком/моделью текст (ключ
+    // памяти, поисковый запрос); путь — структурный идентификатор, и мокап
+    // показывает его тем же голым моноширинным стилем, что URL.
+    const described = describeToolCall("read_file", {
+      args: JSON.stringify({ path: "uploads/notes.md" }),
+    });
+
+    expect(described.arg).toBe("uploads/notes.md");
+  });
+
+  it("запись файла подписана одинаково и при создании, и при перезаписи", () => {
+    // Строка ленты о результате записи ничего не знает: «создано» против
+    // «обновлено» несёт бейдж карточки артефакта, а не подпись вызова.
+    const running = describeToolCall("write_file", {
+      args: JSON.stringify({ path: "artifacts/konspekt.md" }),
+      status: "running",
+    });
+    const done = describeToolCall("write_file", {
+      args: JSON.stringify({ path: "artifacts/konspekt.md" }),
+      status: "success",
+    });
+
+    expect(running.label).toBe("Записываю файл");
+    expect(done.label).toBe("Записал файл");
+  });
+
+  it("обход корня воркспейса дополнением не становится", () => {
+    // `list_files` дефолтит путь на «.» — показывать точку в строке ленты
+    // бессмысленно, это не адресное дополнение.
+    const described = describeToolCall("list_files", {
+      args: JSON.stringify({ path: "." }),
+    });
+
+    expect(described.label).toBe("Просматриваю файлы");
+    expect(described.arg).toBeNull();
+  });
+
+  it("исполнение кода остаётся без дополнения — код виден только в развороте", () => {
+    const described = describeToolCall("execute_code", {
+      args: JSON.stringify({
+        code: "import pandas as pd\nprint(pd.__version__)",
+      }),
+      status: "success",
+    });
+
+    expect(described.label).toBe("Выполнил код");
+    expect(described.arg).toBeNull();
+  });
+
+  it("упразднённый create_artifact подписи больше не имеет", () => {
+    // Инструмент снят на бэкенде (`write_file` в `artifacts/` — его замена):
+    // запись в реестре пережила бы его и врала бы о доступном инструменте.
+    const described = describeToolCall("create_artifact");
+
+    expect(described.known).toBe(false);
+    expect(described.label).toBe("create_artifact");
+  });
+});
+
 describe("разбор аргументов вызова", () => {
   it("возвращает объект аргументов на целой JSON-строке", () => {
     expect(parseToolArgs('{"query": "langgraph", "limit": 10}', false)).toEqual(

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useCreateChat } from "@/shared/api/chats";
+import { uploadFile } from "@/shared/api/uploads";
 import { getApiErrorMessage } from "@/shared/lib/api-error";
 import { logger } from "@/shared/lib/logger";
 import { ChatHeader } from "./ChatHeader";
@@ -20,21 +21,40 @@ export function ChatDraft() {
   const [draftText, setDraftText] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
 
-  function handleSend(content: string) {
-    if (!projectId) return;
+  // Скрепка есть и в draft-композере (решение архитектора, T2.8 OQ-6): upload
+  // идёт в проект (`project_id` уже известен на этом экране, чат — ещё нет),
+  // а созданному чату передаются готовые пути через router state — тот же
+  // `{path, title}[]`, что несёт `Message.attachments`. Upload — до
+  // `createChat`: провалившийся upload не должен заводить пустой чат без
+  // сообщения.
+  async function handleSend(content: string, files: File[] = []) {
+    if (!projectId) return false;
     setCreateError(null);
-    createChat.mutate(projectId, {
-      onSuccess: (created) => {
-        navigate(`/projects/${projectId}/chats/${created.thread_id}`, {
-          replace: true,
-          state: { initialMessage: content },
-        });
-      },
-      onError: (err) => {
-        logger.error("[Create chat error]", err);
-        setCreateError(getApiErrorMessage(err));
-      },
-    });
+    try {
+      // Пары «файл → загруженный путь» держим вместе, а не индексируем два
+      // параллельных массива по `i`: `noUncheckedIndexedAccess` тогда типизирует
+      // `files[i]` как возможный `undefined`, хотя длины равны по построению.
+      const uploaded = await Promise.all(
+        files.map(async (file) => ({
+          file,
+          result: await uploadFile(projectId, file),
+        })),
+      );
+      const attachments = uploaded.map(({ file, result }) => ({
+        path: result.path,
+        title: file.name,
+      }));
+      const created = await createChat.mutateAsync(projectId);
+      navigate(`/projects/${projectId}/chats/${created.thread_id}`, {
+        replace: true,
+        state: { initialMessage: content, attachments },
+      });
+      return true;
+    } catch (err) {
+      logger.error("[Create chat error]", err);
+      setCreateError(getApiErrorMessage(err));
+      return false;
+    }
   }
 
   return (

@@ -2,31 +2,59 @@ import { Link } from "react-router";
 import { useEffect, useState } from "react";
 import { FileText, ImageOff } from "lucide-react";
 import { useArtifactMedia } from "@/shared/api/artifacts";
+import { getArtifactCategory } from "@/shared/lib/artifact-category";
 import { cn } from "@/shared/lib/utils";
 
+/**
+ * Карточка артефакта чата (`ArtifactPart`, ADR-032). Рендерится из блока
+ * ленты по завершении хода (`groupFeedBlocks` — `shared/lib/agent-feed`), не
+ * из `message.artifacts` (поле снято). Идентичность — путь: ссылка ведёт на
+ * `?path=`, подпись — сам путь (уже относителен `artifacts/`).
+ */
+interface ArtifactCardArtifact {
+  path: string;
+  title: string;
+  artifactType: string;
+  kind: "created" | "updated";
+  diff: { added: number; removed: number } | null;
+}
+
 interface ArtifactCardProps {
-  artifact: { id: string; title: string; type: string };
+  artifact: ArtifactCardArtifact;
   projectId: string;
 }
 
+function artifactHref(projectId: string, path: string): string {
+  return `/projects/${projectId}/artifacts?${new URLSearchParams({ path })}`;
+}
+
 export function ArtifactCard({ artifact, projectId }: ArtifactCardProps) {
-  const isImage = artifact.type === "image";
+  const isImage = getArtifactCategory(artifact.artifactType) === "image";
 
   return (
     <Link
-      to={`/projects/${projectId}/artifacts/${artifact.id}`}
+      to={artifactHref(projectId, artifact.path)}
       className="mt-2 flex items-center gap-3 rounded-md bg-card p-3 transition-colors hover:bg-accent"
       style={{ borderLeft: "3px solid var(--ring)" }}
     >
       {isImage ? (
-        <ArtifactThumbnail projectId={projectId} artifactId={artifact.id} />
+        <ArtifactThumbnail projectId={projectId} path={artifact.path} />
       ) : (
         <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
       )}
       <div className="min-w-0">
         <p className="truncate text-sm font-medium">{artifact.title}</p>
-        <p className="text-xs text-muted-foreground">{artifact.type}</p>
+        <p className="truncate text-xs text-muted-foreground">
+          {artifact.path}
+        </p>
       </div>
+      {artifact.kind === "updated" && (
+        <span className="ml-auto shrink-0 rounded-full bg-secondary px-2.5 py-0.5 text-[0.66rem] font-medium text-secondary-foreground">
+          обновлён
+          {artifact.diff !== null &&
+            ` · +${artifact.diff.added} −${artifact.diff.removed}`}
+        </span>
+      )}
     </Link>
   );
 }
@@ -40,12 +68,12 @@ export function ArtifactCard({ artifact, projectId }: ArtifactCardProps) {
  */
 function ArtifactThumbnail({
   projectId,
-  artifactId,
+  path,
 }: {
   projectId: string;
-  artifactId: string;
+  path: string;
 }) {
-  const { data: blob, isError } = useArtifactMedia(projectId, artifactId);
+  const { data: blob, isError } = useArtifactMedia(projectId, path);
 
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   useEffect(() => {

@@ -594,7 +594,6 @@ describe("живая лента совпадает с историей", () => {
     role: "assistant",
     content: "Вот что нашлось.",
     created_at: null,
-    artifacts: [],
     parts,
   };
 

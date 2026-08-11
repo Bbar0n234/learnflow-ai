@@ -2,15 +2,19 @@ import {
   Bot,
   BookOpen,
   Brain,
+  Code,
   FilePlus,
   FileSearch,
   FileText,
+  FolderOpen,
   Globe,
   ImagePlus,
+  Pen,
   PenLine,
   Save,
   Search,
   Sparkles,
+  Terminal,
   Trash2,
   Wrench,
   type LucideIcon,
@@ -107,6 +111,18 @@ function section(args: ToolArgs): string | null {
 }
 
 /**
+ * Путь файлового аргумента (`read_file`/`write_file`/`list_files`) — без
+ * кавычек (мокап показывает пути голыми: «uploads/notes.md»). `list_files`
+ * дефолтит `path` на `"."` (корень воркспейса) — это не дополнение, которое
+ * стоит показывать в строке ленты, поэтому корень трактуется как отсутствие
+ * аргумента, как и незаданный путь.
+ */
+function filePath(args: ToolArgs): string | null {
+  const path = text(args, "path");
+  return path === null || path === "." ? null : path;
+}
+
+/**
  * Вызов, чьи шаги приезжают вложенной лентой: события субагента отличаются от
  * событий основного агента только `parent_call_id` = `call_id` этого вызова.
  */
@@ -138,12 +154,6 @@ const SUBAGENT_LABELS: Record<string, string> = {
 };
 
 export const AGENT_TOOL_SIGNATURES: Record<string, ToolSignature> = {
-  create_artifact: {
-    label: "Сохраняю артефакт",
-    pastLabels: { done: "Сохранил артефакт", interrupted: "Сохранял артефакт" },
-    icon: FileText,
-    argTemplate: (args) => quoted(text(args, "title")),
-  },
   create_section: {
     label: "Создаю раздел памяти проекта",
     pastLabels: {
@@ -179,6 +189,12 @@ export const AGENT_TOOL_SIGNATURES: Record<string, ToolSignature> = {
     },
     icon: Trash2,
     argTemplate: (args) => quoted(text(args, "key")),
+  },
+  execute_code: {
+    label: "Выполняю код",
+    pastLabels: { done: "Выполнил код", interrupted: "Выполнял код" },
+    icon: Code,
+    // Многострочный код в подпись не влезает — он виден в развороте вызова.
   },
   firecrawl_extract: {
     label: "Извлекаю данные со страницы",
@@ -228,11 +244,35 @@ export const AGENT_TOOL_SIGNATURES: Record<string, ToolSignature> = {
     icon: BookOpen,
     argTemplate: (args) => quoted(text(args, "key")),
   },
+  list_files: {
+    label: "Просматриваю файлы",
+    pastLabels: {
+      done: "Просмотрел файлы",
+      interrupted: "Просматривал файлы",
+    },
+    icon: FolderOpen,
+    argTemplate: filePath,
+  },
   load_skill: {
     label: "Загружаю навык",
     pastLabels: { done: "Загрузил навык", interrupted: "Загружал навык" },
     icon: Sparkles,
     argTemplate: (args) => quoted(text(args, "skill_name")),
+  },
+  read_file: {
+    label: "Читаю файл",
+    pastLabels: { done: "Прочитал файл", interrupted: "Читал файл" },
+    icon: FileText,
+    argTemplate: filePath,
+  },
+  run_command: {
+    label: "Выполняю команду",
+    pastLabels: {
+      done: "Выполнил команду",
+      interrupted: "Выполнял команду",
+    },
+    icon: Terminal,
+    argTemplate: (args) => text(args, "cmd"),
   },
   run_subagent: {
     label: "Субагент",
@@ -283,6 +323,15 @@ export const AGENT_TOOL_SIGNATURES: Record<string, ToolSignature> = {
     },
     icon: PenLine,
     argTemplate: section,
+  },
+  write_file: {
+    label: "Записываю файл",
+    pastLabels: { done: "Записал файл", interrupted: "Записывал файл" },
+    icon: Pen,
+    argTemplate: filePath,
+    // Одна подпись на создание и перезапись (OQ-8): семантику "создано" /
+    // "обновлено" несёт бейдж карточки артефакта из `ArtifactPart`, не строка
+    // ленты — вариативности created/updated здесь нет.
   },
 };
 

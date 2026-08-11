@@ -113,6 +113,11 @@ function rowView(item: AgentFeedItem, active: boolean): RowView | null {
       // Текст ассистента — отдельный блок прозы (`groupFeedBlocks`), строкой
       // ленты он не рендерится: строки «Ответил» ради симметрии нет.
       return null;
+    case "artifact":
+      // Артефакт — отдельный блок карточки (`groupFeedBlocks`), строкой ленты
+      // не рендерится и сюда доходить не должен; ветка — для исчерпанности
+      // switch по `AgentFeedItem`.
+      return null;
   }
 }
 

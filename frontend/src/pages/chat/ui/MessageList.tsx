@@ -203,12 +203,21 @@ export function MessageList({
                   показывает ровно то, что пользователь уже видел. */}
               {liveBlocks.length > 0 && (
                 <div className="flex flex-col gap-2">
-                  {liveBlocks.map((block, index) =>
-                    block.type === "text" ? (
-                      <MarkdownRenderer key={block.item.id} isStreaming>
-                        {block.item.content}
-                      </MarkdownRenderer>
-                    ) : (
+                  {liveBlocks.map((block, index) => {
+                    if (block.type === "text") {
+                      return (
+                        <MarkdownRenderer key={block.item.id} isStreaming>
+                          {block.item.content}
+                        </MarkdownRenderer>
+                      );
+                    }
+                    if (block.type === "artifact") {
+                      // Живого артефактного блока не бывает: `applyStreamEvent`
+                      // события артефактов не обрабатывает (T2.4) — ветка
+                      // только ради исчерпанности типа `AgentFeedBlock`.
+                      return null;
+                    }
+                    return (
                       <ActivityFeed
                         key={block.items[0]?.id ?? `feed-${index}`}
                         items={block.items}
@@ -216,8 +225,8 @@ export function MessageList({
                         activeLive={!silent}
                         pause={pauseInFeed && index === liveBlocks.length - 1}
                       />
-                    ),
-                  )}
+                    );
+                  })}
                 </div>
               )}
               {/* Строка-пауза вне ленты: до первого события её ещё не к чему

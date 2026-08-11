@@ -2,39 +2,32 @@ import { useEffect, useState } from "react";
 import { Download, ImageOff, Minus, Plus, Maximize2 } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import { cn } from "@/shared/lib/utils";
-import {
-  useArtifactMedia,
-  isArtifactMediaNotFound,
-} from "@/shared/api/artifacts";
+import { useArtifactMedia, isArtifactNotFound } from "@/shared/api/artifacts";
 
 interface ImageViewerProps {
   projectId?: string;
-  artifactId?: string;
+  path?: string;
   title?: string;
-  createdAt?: string;
-  content?: string;
+  type?: string;
+  updatedAt?: string;
 }
 
 const ZOOM_STEPS = [50, 75, 100, 125, 150, 200];
 
 export function ImageViewer({
   projectId,
-  artifactId,
+  path,
   title,
-  createdAt,
-  content,
+  type,
+  updatedAt,
 }: ImageViewerProps) {
   const [zoomIndex, setZoomIndex] = useState(2); // 100% default
   const zoom = ZOOM_STEPS[zoomIndex];
 
-  const {
-    data: blob,
-    isError,
-    error,
-  } = useArtifactMedia(projectId, artifactId);
+  const { data: blob, isError, error } = useArtifactMedia(projectId, path);
 
-  // Blob иммутабелен по построению (перегенерация даёт новый артефакт/id) —
-  // objectURL живёт, пока жив компонент, и освобождается на unmount/смену blob.
+  // Blob-идентичность живёт, пока путь перезаписываем: objectURL держится,
+  // пока жив компонент, и освобождается на unmount/смену blob.
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   useEffect(() => {
     if (!blob) {
@@ -46,7 +39,7 @@ export function ImageViewer({
     return () => URL.revokeObjectURL(url);
   }, [blob]);
 
-  const notFound = isError && isArtifactMediaNotFound(error);
+  const notFound = isError && isArtifactNotFound(error);
   const isReady = !!objectUrl;
   const isEmpty = isError && !isReady;
 
@@ -70,13 +63,14 @@ export function ImageViewer({
             {title}
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            image · {createdAt}
+            {type}
+            {" · изменён "}
+            {updatedAt}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button size="sm" disabled={!isReady} onClick={handleDownload}>
-            <Download className="h-3.5 w-3.5" />
-            .png
+            <Download className="h-3.5 w-3.5" />.{type ?? "png"}
           </Button>
         </div>
       </div>
@@ -94,7 +88,7 @@ export function ImageViewer({
           {isReady ? (
             <img
               src={objectUrl}
-              alt={content}
+              alt={title ?? ""}
               className="h-full w-full object-cover"
             />
           ) : isEmpty ? (
@@ -156,11 +150,6 @@ export function ImageViewer({
             </button>
           </div>
         )}
-      </div>
-
-      {/* Caption — content артефакта (prompt) */}
-      <div className="shrink-0 border-t border-border px-6 py-3">
-        <p className="text-xs text-muted-foreground">{content}</p>
       </div>
     </div>
   );

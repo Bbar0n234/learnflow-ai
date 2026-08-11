@@ -30,7 +30,7 @@
 | feat-006 | G | 📋 Planned | agent | Генерация слайдов: spike → скилл/интеграция (паттерн ADR-026) |
 | feat-007 | H | 📋 Planned | cross-cutting | Кастомные скиллы пользователя + страница библиотеки скиллов |
 | feat-008 | I | 📋 Planned | cross-cutting | OAuth (Google/GitHub) + дизайн auth-экранов + 404-экран |
-| feat-009 | J | 📋 Planned | infra | Self-hosted web search MCP |
+| feat-009 | J | 🚧 In Progress | infra | Web search MCP: замена Firecrawl на Jina AI (hosted) |
 | feat-010 | K | 📋 Planned | cross-cutting | Voice input (STT) |
 | feat-011 | L | 🚧 In Progress | cross-cutting | Execution runtime: изолированное выполнение кода/CLI — общий фундамент PDF (F), слайдов (G), ГОСТ-скилла (M) |
 | feat-012 | M | 📋 Planned | agent | ГОСТ-скилл: bundle-скилл оформления студенческих работ по ГОСТ 7.32 (.docx) — оффер для студенческой волны |
@@ -276,18 +276,24 @@
 
 ---
 
-### feat-009 (J): Self-hosted web search MCP
+### feat-009 (J): Web search MCP — замена Firecrawl на Jina AI
 
-**Цель:** масштабируемый безлимитный веб-поиск для агента вместо ограниченного Firecrawl free tier.
+**Цель:** рабочий веб-поиск и чтение URL для агента вместо исчерпанного Firecrawl free tier. Решение архитектора по итогам ресёрча: hosted Jina AI MCP (`search_web` + `read_url`) — минимальная цена при достаточном качестве; self-hosted стек (SearXNG + Crawl4AI) отложен до масштаба реального продакшна. Ресёрч и trade-offs зафиксированы в design-brief итерации.
 
-**Статус:** 📋 Planned
+**Статус:** 🚧 In Progress
 **Scope:** infra (cross: Agent, Backend)
+
+**Ветка:** `dogf/feat-009-web-search-mcp`
 
 #### Из backlog
 
 - **P2** Self-hosted web search MCP — найти self-hosted аналог Tavily/Firecrawl для веб-поиска агентом. Кандидаты: SearxNG + MCP-адаптер, open-webSearch. Текущий Firecrawl free tier ограничен по кредитам *(cross: Agent, Backend)*
 
-Триггер может сработать раньше плана: активный догфудинг способен выесть кредиты Firecrawl — тогда итерация сдвигается вперёд.
+Триггер «активный догфудинг выест кредиты Firecrawl» сработал — итерация сдвинута вперёд относительно плана.
+
+#### Артефакты
+
+- [design-brief.md](iterations/dogfooding/feat-009-web-search-mcp/design-brief.md)
 
 ---
 

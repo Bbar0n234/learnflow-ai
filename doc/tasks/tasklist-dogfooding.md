@@ -30,7 +30,7 @@
 | feat-006 | G | 📋 Planned | agent | Генерация слайдов: spike → скилл/интеграция (паттерн ADR-026) |
 | feat-007 | H | 📋 Planned | cross-cutting | Кастомные скиллы пользователя + страница библиотеки скиллов |
 | feat-008 | I | 📋 Planned | cross-cutting | OAuth (Google/GitHub) + дизайн auth-экранов + 404-экран |
-| feat-009 | J | 🚧 In Progress | infra | Web search MCP: замена Firecrawl на Jina AI (hosted) |
+| feat-009 | J | ✅ Done | infra | Web search MCP: замена Firecrawl на Jina AI (hosted) |
 | feat-010 | K | 📋 Planned | cross-cutting | Voice input (STT) |
 | feat-011 | L | 🚧 In Progress | cross-cutting | Execution runtime: изолированное выполнение кода/CLI — общий фундамент PDF (F), слайдов (G), ГОСТ-скилла (M) |
 | feat-012 | M | 📋 Planned | agent | ГОСТ-скилл: bundle-скилл оформления студенческих работ по ГОСТ 7.32 (.docx) — оффер для студенческой волны |
@@ -280,7 +280,7 @@
 
 **Цель:** рабочий веб-поиск и чтение URL для агента вместо исчерпанного Firecrawl free tier. Решение архитектора по итогам ресёрча: hosted Jina AI MCP (`search_web` + `read_url`) — минимальная цена при достаточном качестве; self-hosted стек (SearXNG + Crawl4AI) отложен до масштаба реального продакшна. Ресёрч и trade-offs зафиксированы в design-brief итерации.
 
-**Статус:** 🚧 In Progress
+**Статус:** ✅ Done
 **Scope:** infra (cross: Agent, Backend)
 
 **Ветка:** `dogf/feat-009-web-search-mcp`
@@ -294,6 +294,7 @@
 #### Артефакты
 
 - [design-brief.md](iterations/dogfooding/feat-009-web-search-mcp/design-brief.md)
+- [summary.md](iterations/dogfooding/feat-009-web-search-mcp/summary.md)
 
 ---
 

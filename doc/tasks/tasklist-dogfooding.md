@@ -25,24 +25,24 @@
 | chore-001 | B | ✅ Done | cross-cutting | Prod-closing: kill-switch LLM-защиты + SIEM kill-switch, X-Forwarded-For, прод-образы без dev-deps; merge develop → main + деплой |
 | feat-002 | C | ✅ Done | cross-cutting | Chat UX: первое сообщение вместо title, auto-title отдельным модулем, удаление и переименование чатов |
 | feat-003 | D | ✅ Done | agent | Модели: cost-optimal подбор по внешним бенчмаркам, whitelist 5+, pricing seed в Langfuse |
-| feat-004 | E | 📋 Planned | cross-cutting | File attachments: вход файлов агенту (критический путь догфудинга) |
+| feat-004 | E | 🔀 Merged → feat-011 | cross-cutting | File attachments: поглощена feat-011 — workspace снял хранение, runtime снял ingestion; контракт в design-brief feat-011 § Вложения пользователя |
 | feat-005 | F | 📋 Planned | backend | PDF-экспорт: замена wkhtmltopdf, рендер формул, фирменный стиль |
 | feat-006 | G | 📋 Planned | agent | Генерация слайдов: spike → скилл/интеграция (паттерн ADR-026) |
 | feat-007 | H | 📋 Planned | cross-cutting | Кастомные скиллы пользователя + страница библиотеки скиллов |
 | feat-008 | I | 📋 Planned | cross-cutting | OAuth (Google/GitHub) + дизайн auth-экранов + 404-экран |
 | feat-009 | J | 📋 Planned | infra | Self-hosted web search MCP |
 | feat-010 | K | 📋 Planned | cross-cutting | Voice input (STT) |
-| feat-011 | L | 🚧 In Progress | cross-cutting | Execution runtime: изолированное выполнение кода/CLI — общий фундамент PDF (F), слайдов (G), ГОСТ-скилла (M) |
+| feat-011 | L | 🚧 In Progress | cross-cutting | Execution runtime: изолированное выполнение кода/CLI + файловый workspace + file attachments (поглотила E) — общий фундамент PDF (F), слайдов (G), ГОСТ-скилла (M) |
 | feat-012 | M | 📋 Planned | agent | ГОСТ-скилл: bundle-скилл оформления студенческих работ по ГОСТ 7.32 (.docx) — оффер для студенческой волны |
 
 ## Порядок и приоритеты
 
 ```
 Авг W1     Финал A/B/C → merge develop → main → ДЕПЛОЙ (прод живой)
-Авг W1–W2  feat-011 (L, runtime — фундамент F/G/M) ── feat-004 (E, attachments)
-           ► СТАРТ ДОГФУДИНГА (лекция №1 мини-курса) — как только E готова
+Авг W1–W2  feat-011 (L, runtime + workspace + attachments — фундамент F/G/M; поглотила E)
+           ► СТАРТ ДОГФУДИНГА (лекция №1 мини-курса) — как только L готова
 Авг W2     feat-005 (F, PDF — на runtime) ── feat-006 (G, слайды — на runtime)
-Авг W2–W3  feat-012 (M, ГОСТ-скилл — на L+E) ── feat-008 (I, OAuth)
+Авг W2–W3  feat-012 (M, ГОСТ-скилл — на L) ── feat-008 (I, OAuth)
            → предпоказная полировка + бренд-кит (design-branding feat-005)
            → ПОКАЗ ПРЕПОДАВАТЕЛЯМ (~середина августа)
 Далее      студенческая волна (оффер ГОСТ; гейт — потолок затрат, backlog Backend)
@@ -71,7 +71,7 @@
 
 #### Из backlog
 
-- **P1** Live-обратная связь в чате — серверный остаток. SSE-стрим не шлёт ни байта до первого события LangGraph: замерено 13–15 с тишины до первого `text_chunk` на тривиальном ответе (reasoning-модель + guard) и 47 с до первого события при tool-first ходе. Клиентский минимум закрыт в post-mvp feat-011 (`ThinkingIndicator` — черновой, перерабатывается здесь; first-byte-таймаут 30с→300с). Остаётся: (а) ack-событие при открытии стрима + периодический heartbeat в тишине — новый контракт в `streaming.md`; (б) фазовые состояния индикатора (guard → рассуждает → инструмент → review); (в) пересмотр таймаута — считать от heartbeat, не от первого байта; (г) ранний `tool_start` — эмитить из token-level стрима (`tool_call_chunks` в `stream_mode="messages"`), не дожидаясь завершения узла графа *(cross: Backend, Agent)*
+- **P1** Live-обратная связь в чате — серверный остаток. Heartbeat-контур закрыт: `stream_started` + heartbeat 5с (`HeartbeatPacer`, `app/agent/heartbeat.py`) и клиентский таймаут «3 пропущенных heartbeat» вместо first-byte — контракт в `streaming.md`. Остаётся: (б) фазовые состояния индикатора (guard → рассуждает → инструмент → review); (г) ранний `tool_start` — эмитить из token-level стрима (`tool_call_chunks` в `stream_mode="messages"`), не дожидаясь завершения узла графа *(cross: Backend, Agent)*
 - **P3** Стриминг reasoning-токенов в UI — отдельный SSE event type для рассуждений модели + сворачиваемая секция «агент рассуждает» в чате; закрывает основную долю воспринимаемой тишины на reasoning-моделях *(cross: Backend, Agent)*
 - **P3** Системная проработка интерактивности вывода агента (зонт) — трансляция работы агента сделана примитивно: единственная плашка с сырым именем инструмента (`run_subagent`) на время выполнения — не видно, что это инструмент, не видно тип субагента, после завершения не остаётся следа в истории. Сюда: персистентный рендер tool-вызовов в истории сообщений, различимость субагентов (`agent_type` в payload + рендер), человекочитаемые названия инструментов *(Frontend, cross: Backend, Agent, Design-branding)*
 - **P2** `security_block` SSE — тройной дрейф контракта (вскрыт усилением S5 feat-009): `streaming.md:30,34` документирует payload `{checkpoint, detection_layer}`; прод (`runner.py` + `block_reason`) эмитит `{reason}`; фронт `useAgentStream` не читает ни одного поля `security_block`. Возможный реальный UX/security-пробел: блокировка не доходит до пользователя. Согласовать контракт (док↔прод↔фронт) и довести событие до UI *(Frontend, Agent, cross: docs)*
@@ -193,20 +193,9 @@
 
 ---
 
-### feat-004 (E): File attachments
+### feat-004 (E): File attachments — 🔀 Merged → feat-011
 
-**Цель:** загрузка файлов агенту — документы, презентации, картинки; продуманная и надёжная работа с файлами. Критический путь догфудинга: агент изучает заметки/лекции/материалы пользователя — без ingestion на вход подготовка контента не работает, а выходные инструменты (слайды/PDF/картинки) без входа половинчаты.
-
-**Статус:** 📋 Planned
-**Scope:** cross-cutting (Frontend + Backend + Agent)
-
-#### Из backlog
-
-- **P1** File attachments (вход агента) — must-have baseline для dogfooding *(Frontend + Backend + Agent)*
-
-#### Примечания к проектированию
-
-Самая крупная фича тасклиста, требует полноценного design-brief: форматы (PDF/DOCX/MD/изображения?), ingestion-путь, размещение в контексте агента, хранение (смежно с `artifact_blobs` / `BlobStorage` из post-mvp feat-010), security (файл — untrusted вход: место в модели checkpoint'ов Sec 2.0).
+**Поглощена feat-011 (execution runtime).** Файловый workspace снял вопрос хранения (вложение = файл в `uploads/` проекта), runtime снял вопрос ingestion (извлечение текста из PDF/DOCX агент делает сам через executor — конвертации при загрузке нет). Оставшийся тонкий контракт (двухфазная загрузка «чип клиентский → upload при отправке», пометка в user-сообщении + metadata для UI-чипа, мокап) зафиксирован в design-brief feat-011 § Вложения пользователя. Отдельная итерация не проводится.
 
 ---
 
@@ -324,6 +313,16 @@
 - Механика изоляции: контейнер per-request vs warm pool; docker-in-docker vs соседний сервис-executor.
 - Состав образа v1 — минимум под F/G/M, расширение по потребности.
 - Граница API: только «файлы → тулчейн-рецепт → файлы» или произвольный shell для агента (склоняемся к рецептам — уже поверхность, проще ревьюить).
+
+#### Документация (дизайн финализирован 2026-08-11)
+
+- [design-brief.md](iterations/dogfooding/feat-011-execution-runtime/design-brief.md) — полная картина: executor-сервис под gVisor + bwrap per job, файловый workspace и переезд артефактов, вложения (поглощённая E), контракты инструментов, безопасность; два прогона независимого ревью решены и вписаны
+- [acceptance.md](iterations/dogfooding/feat-011-execution-runtime/acceptance.md) — сквозные сценарии приёмки архитектора (способности, границы изоляции, регрессии)
+- [mockups/attachments-artifacts.html](iterations/dogfooding/feat-011-execution-runtime/mockups/attachments-artifacts.html) — интерактивный мокап (вложения, «артефакт обновлён», дерево артефактов), утверждён архитектором
+- [spikes/spike-bwrap-gvisor.md](iterations/dogfooding/feat-011-execution-runtime/spikes/spike-bwrap-gvisor.md) — спайк bwrap под gVisor (зелёный): рабочий префикс, два следствия в контракт реализации
+- ADR: [ADR-031](../tech/adr/ADR-031-execution-runtime-isolation.md) — изоляция execution runtime; [ADR-032](../tech/adr/ADR-032-project-workspace-file-model.md) — workspace и файловая модель артефактов
+
+Предпроектные открытые вопросы решены брифом: изоляция — соседний сервис-executor (не DinD, не per-request контейнеры) + bwrap per job; образ — толстый, состав финализируют спайки feat-005/006, смоук-набор — ворота релиза; граница API — общие инструменты (`execute_code`/`run_command`), не рецепты (рамка «одна способность, не три режима»); артефакты — файлы workspace, не blob-хранилище (пересмотр раннего наброска, ADR-032).
 
 ---
 

@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>feat-011 · Вложения и артефакты workspace — мокап</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@600;700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* ===== Токены 1:1 из frontend/src/index.css («Чернила / Электрик») ===== */
+:root {
+  --background: #faf7f1;
+  --foreground: #2e2a24;
+  --card: #fffefa;
+  --card-foreground: #2e2a24;
+  --primary: #7434f4;
+  --primary-foreground: #f6f1ff;
+  --secondary: #efe7fe;
+  --secondary-foreground: #5b21ce;
+  --muted: #f1ede3;
+  --muted-foreground: #8b8370;
+  --accent: #efe7fe;
+  --accent-foreground: #5b21ce;
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: #e2dcd0;
+  --input: #d8d1c2;
+  --ring: #7434f4;
+  --radius: 0.7rem;
+  --brand-lavender: #c5a9f9;
+  --bubble-user: #ede7da;
+  --shadow-input: 0 2px 10px rgba(80, 70, 50, 0.06);
+  --content-max-w: 680px;
+}
+.dark {
+  --background: #181420;
+  --foreground: #ede8e2;
+  --card: #221c30;
+  --card-foreground: #ede8e2;
+  --primary: #8a5cf6;
+  --primary-foreground: #f7f4ff;
+  --secondary: rgba(177, 148, 255, 0.15);
+  --secondary-foreground: #cdb6ff;
+  --muted: #1e1929;
+  --muted-foreground: #9a90a8;
+  --accent: rgba(177, 148, 255, 0.15);
+  --accent-foreground: #cdb6ff;
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: #322a44;
+  --input: #3a3150;
+  --ring: #b194ff;
+  --brand-lavender: #b194ff;
+  --bubble-user: #262031;
+  --shadow-input: 0 2px 10px rgba(0, 0, 0, 0.25);
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Instrument Sans", system-ui, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+button { font-family: inherit; }
+svg { display: block; }
+
+/* ===== Обвязка мокапа (не продукт) ===== */
+.mock-toolbar {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.6rem 1.5rem;
+  background: color-mix(in srgb, var(--background) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.mock-toolbar .ttl { font-family: "IBM Plex Mono", monospace; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground); }
+.theme-btn {
+  border: 1px solid var(--input); background: var(--card); color: var(--foreground);
+  border-radius: 999px; padding: 0.3rem 0.9rem; font-size: 0.78rem; cursor: pointer;
+}
+.wrap { max-width: 860px; margin: 0 auto; padding: 1.5rem 1.5rem 3rem; }
+.block-title {
+  font-family: "IBM Plex Mono", monospace; font-size: 0.72rem; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--muted-foreground); margin: 2.2rem 0 0.8rem;
+}
+.block-title:first-of-type { margin-top: 1rem; }
+.mock-controls {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.8rem;
+  border: 1px dashed var(--input); border-radius: var(--radius);
+  padding: 0.6rem 0.9rem; margin-bottom: 1rem; font-size: 0.78rem; color: var(--muted-foreground);
+}
+.seg { display: inline-flex; border: 1px solid var(--input); border-radius: 999px; padding: 2px; gap: 2px; background: var(--card); }
+.seg button { border: none; background: none; padding: 0.25rem 0.8rem; border-radius: 999px; font-size: 0.75rem; color: var(--muted-foreground); cursor: pointer; }
+.seg button.on { background: var(--secondary); color: var(--secondary-foreground); }
+.note { font-size: 0.8rem; color: var(--muted-foreground); margin: 0.5rem 0 0; }
+.note b { color: var(--foreground); font-weight: 600; }
+.mk { display: inline-flex; align-items: center; justify-content: center; width: 1.05rem; height: 1.05rem; border-radius: 50%; background: var(--primary); color: var(--primary-foreground); font-size: 0.66rem; font-weight: 600; vertical-align: text-bottom; }
+ul.legend { list-style: none; padding: 0; margin: 0.6rem 0 0; font-size: 0.8rem; color: var(--muted-foreground); }
+ul.legend li { margin: 0.25rem 0; }
+
+/* ===== Продукт: рамка чата ===== */
+.chatframe { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--background); }
+.chat-header {
+  height: 56px; display: flex; flex-direction: column; justify-content: center;
+  border-bottom: 1px solid var(--border); padding: 0 1rem;
+}
+.chat-header .crumb { display: flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; color: var(--muted-foreground); }
+.chat-header .crumb svg { width: 12px; height: 12px; }
+.chat-header .titlerow { display: flex; align-items: center; gap: 0.5rem; }
+.chat-header .ct { font-family: "Source Serif 4", serif; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-header .chips { margin-left: auto; display: flex; gap: 0.375rem; flex-shrink: 0; }
+.hchip-hdr { display: inline-flex; align-items: center; gap: 0.25rem; border-radius: 999px; background: var(--secondary); color: var(--secondary-foreground); padding: 0.25rem 0.625rem; font-size: 0.75rem; }
+.hchip-hdr svg { width: 12px; height: 12px; }
+
+.messages { padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; max-width: var(--content-max-w); margin: 0 auto; width: 100%; }
+
+/* Сообщение пользователя */
+.msg-user { display: flex; justify-content: flex-end; }
+.msg-user .bubble {
+  max-width: 80%; border-radius: 14px 4px 14px 14px; background: var(--bubble-user);
+  padding: 0.75rem 1rem; font-size: 0.875rem; white-space: pre-wrap;
+}
+.dark .msg-user .bubble { border: 1px solid var(--border); }
+.msg-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.5rem; }
+.hchip { display: inline-flex; align-items: center; gap: 0.35rem; background: var(--card); border: 1px solid var(--border); border-radius: 0.56rem; padding: 0.28rem 0.55rem; font-size: 0.75rem; }
+.hchip svg { width: 13px; height: 13px; color: var(--muted-foreground); flex-shrink: 0; }
+.hchip .sz { color: var(--muted-foreground); font-size: 0.69rem; }
+
+/* Ход ассистента */
+.msg-assist { display: flex; justify-content: flex-start; }
+.msg-assist .body { width: 100%; display: flex; flex-direction: column; gap: 0.5rem; }
+.msg-assist .mdtext { font-size: 0.875rem; }
+.msg-assist .mdtext p { margin: 0 0 0.6rem; } .msg-assist .mdtext p:last-child { margin-bottom: 0; }
+
+/* Лента активности */
+.feed { display: flex; flex-direction: column; }
+.rowwrap { position: relative; }
+.rowwrap:not(:last-child)::before { content: ""; position: absolute; left: 9px; top: 26px; bottom: -2px; width: 1px; background: var(--border); }
+.arow { display: flex; width: 100%; align-items: center; gap: 0.625rem; padding: 0.25rem 0.375rem 0.25rem 0; }
+.arow .ic { z-index: 1; display: flex; width: 19px; height: 19px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 50%; background: var(--background); color: var(--muted-foreground); }
+.arow .ic svg { width: 15px; height: 15px; }
+.arow .lb { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; color: var(--muted-foreground); }
+.arow .meta { margin-left: auto; display: flex; flex-shrink: 0; align-items: center; gap: 7px; font-size: 0.75rem; color: var(--muted-foreground); }
+.arow .meta .dur { font-family: "IBM Plex Mono", monospace; font-size: 11px; }
+.arow .meta svg { width: 14px; height: 14px; }
+.dots { display: flex; align-items: center; gap: 3px; margin-left: 2px; }
+.feed-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--muted-foreground); animation: feed-dot-bounce 1.2s ease-in-out infinite; }
+.feed-dot:nth-child(2) { animation-delay: 0.15s; }
+.feed-dot:nth-child(3) { animation-delay: 0.3s; }
+@keyframes feed-dot-bounce { 0%, 60%, 100% { opacity: 0.35; transform: translateY(0); } 30% { opacity: 0.9; transform: translateY(-3px); } }
+
+/* Карточка артефакта */
+.acard {
+  display: flex; align-items: center; gap: 0.75rem; margin-top: 0.5rem; padding: 0.75rem;
+  border-radius: 0.56rem; background: var(--card); border-left: 3px solid var(--ring);
+  cursor: pointer; transition: background 0.15s; text-decoration: none; color: inherit;
+}
+.acard:hover { background: var(--accent); }
+.acard > svg { width: 20px; height: 20px; flex-shrink: 0; color: var(--muted-foreground); }
+.acard .tt { min-width: 0; }
+.acard .tt .t { font-size: 0.875rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; }
+.acard .tt .ty { font-size: 0.75rem; color: var(--muted-foreground); margin: 0; }
+.badge-upd { margin-left: auto; flex-shrink: 0; background: var(--secondary); color: var(--secondary-foreground); border-radius: 999px; padding: 2px 9px; font-size: 0.66rem; font-weight: 500; }
+
+/* Композер */
+.composer-outer { padding: 0.75rem 1rem 1rem; }
+.composer { position: relative; margin: 0 auto; max-width: var(--content-max-w); border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow-input); }
+.composer .chips-row { display: flex; flex-wrap: wrap; gap: 0.375rem; padding: 0.75rem 0.75rem 0; }
+.composer .chips-row:empty { display: none; }
+.chip { position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 0.4rem; background: var(--muted); border: 1px solid var(--border); border-radius: 0.56rem; padding: 0.3rem 0.45rem 0.3rem 0.5rem; font-size: 0.75rem; max-width: 230px; }
+.chip svg.fic { width: 14px; height: 14px; color: var(--muted-foreground); flex-shrink: 0; }
+.chip .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip .sz { color: var(--muted-foreground); font-size: 0.69rem; flex-shrink: 0; }
+.chip .rm { border: none; background: none; padding: 2px; margin: 0; cursor: pointer; color: var(--muted-foreground); border-radius: 4px; display: flex; }
+.chip .rm:hover { color: var(--foreground); background: color-mix(in srgb, var(--muted-foreground) 14%, transparent); }
+.chip .rm svg { width: 12px; height: 12px; }
+.chip .prog { position: absolute; left: 0; bottom: 0; height: 2px; width: 0; background: var(--primary); transition: width 0.7s ease; }
+.chip.up { opacity: 0.75; }
+.chip.up .prog { width: 100%; }
+.chip.up .rm { pointer-events: none; opacity: 0.4; }
+.composer .inrow { display: flex; align-items: flex-end; gap: 0.5rem; padding: 0.75rem; }
+.attach-btn {
+  display: flex; height: 34px; width: 34px; flex-shrink: 0; align-items: center; justify-content: center;
+  border-radius: 999px; border: none; background: transparent; color: var(--muted-foreground); cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.attach-btn:hover { background: var(--muted); color: var(--foreground); }
+.attach-btn svg { width: 16px; height: 16px; }
+.composer textarea {
+  flex: 1; min-height: 40px; max-height: 160px; width: 100%; resize: none; border: 0; background: transparent;
+  padding: 0.5rem 0.625rem; font: inherit; font-size: 0.875rem; color: var(--foreground); outline: none;
+}
+.composer textarea::placeholder { color: var(--muted-foreground); }
+.send-btn {
+  display: flex; height: 34px; width: 34px; flex-shrink: 0; align-items: center; justify-content: center;
+  border-radius: 999px; border: none; background: var(--primary); color: var(--primary-foreground); cursor: pointer;
+  transition: background 0.15s;
+}
+.send-btn:hover { background: color-mix(in srgb, var(--primary) 90%, transparent); }
+.send-btn:disabled { pointer-events: none; opacity: 0.4; }
+.send-btn svg { width: 14px; height: 14px; }
+
+/* Drag-состояние */
+.drag-overlay {
+  position: absolute; inset: 0; z-index: 5; display: none; align-items: center; justify-content: center; gap: 0.5rem;
+  border: 2px dashed var(--ring); border-radius: var(--radius);
+  background: color-mix(in srgb, var(--background) 82%, transparent);
+  color: var(--secondary-foreground); font-size: 0.85rem; font-weight: 500;
+}
+.drag-overlay svg { width: 18px; height: 18px; }
+.composer.dragging .drag-overlay { display: flex; }
+
+/* Список артефактов (дерево) */
+.alist-frame { display: flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--background); }
+.alist { width: 318px; flex-shrink: 0; border-right: 1px solid var(--border); }
+.alist .hd { height: 56px; display: flex; align-items: center; border-bottom: 1px solid var(--border); padding: 0 1rem; }
+.alist .hd h2 { font-family: "Source Serif 4", serif; font-size: 1rem; font-weight: 600; margin: 0; }
+.alist .bd { padding: 0.5rem; display: flex; flex-direction: column; gap: 2px; }
+.dir-row { display: flex; width: 100%; align-items: center; gap: 0.5rem; border: none; background: none; text-align: left; padding: 0.5rem 0.75rem; border-radius: var(--radius); cursor: pointer; color: var(--foreground); transition: background 0.15s; }
+.dir-row:hover { background: var(--muted); }
+.dir-row svg.chev { width: 13px; height: 13px; color: var(--muted-foreground); transition: transform 0.15s; }
+.dir-row.open svg.chev { transform: rotate(90deg); }
+.dir-row svg.fld { width: 17px; height: 17px; color: var(--muted-foreground); }
+.dir-row .dn { font-size: 0.875rem; font-weight: 500; }
+.dir-row .cnt { margin-left: auto; font-size: 0.72rem; color: var(--muted-foreground); }
+.dir-children { display: flex; flex-direction: column; gap: 2px; padding-left: 1.35rem; }
+.dir-row:not(.open) + .dir-children { display: none; }
+.afile {
+  display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 0.75rem; border-radius: var(--radius);
+  cursor: pointer; transition: background 0.15s; text-decoration: none; color: inherit; border: 1px solid transparent;
+}
+.afile:hover { background: var(--muted); }
+.afile.sel { border-color: var(--secondary); background: color-mix(in srgb, var(--secondary) 30%, transparent); border-left: 3px solid var(--ring); }
+.afile .ib { display: flex; height: 36px; width: 36px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 0.56rem; background: var(--muted); }
+.afile .ib svg { width: 18px; height: 18px; color: var(--muted-foreground); }
+.afile .tx { min-width: 0; flex: 1; }
+.afile .tx .t { font-size: 0.875rem; font-weight: 500; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.afile .tx .d { font-size: 0.75rem; color: var(--muted-foreground); margin: 2px 0 0; }
+.alist-view { flex: 1; display: flex; align-items: center; justify-content: center; padding: 2rem; color: var(--muted-foreground); font-size: 0.85rem; text-align: center; }
+</style>
+</head>
+<body>
+<div class="mock-toolbar">
+  <span class="ttl">feat-011 · вложения + артефакты workspace · мокап</span>
+  <button class="theme-btn" id="themeBtn">Тёмная тема</button>
+</div>
+
+<div class="wrap">
+
+<!-- ================= БЛОК 1: чат с вложениями ================= -->
+<div class="block-title">1 · Чат: прикрепление → отправка → история</div>
+<div class="mock-controls">
+  <span>Скрепка открывает системный диалог выбора файлов · можно перетащить файлы прямо в композер · ✕ убирает чип · Enter / стрелка — отправка: прогресс загрузки → сообщение в истории → ответ агента</span>
+</div>
+
+<div class="chatframe">
+  <div class="chat-header">
+    <div class="crumb">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+      <span>Матанализ, 2 курс</span>
+    </div>
+    <div class="titlerow">
+      <span class="ct">Конспект лекции о пределах</span>
+      <div class="chips">
+        <span class="hchip-hdr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>Модель</span>
+        <span class="hchip-hdr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>Инструменты</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="messages" id="messages">
+    <!-- Пользователь: сообщение с вложениями (из истории; чипы из metadata) -->
+    <div class="msg-user">
+      <div class="bubble">
+        <div class="msg-chips">
+          <span class="hchip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>lecture.pdf<span class="sz">2,4 МБ</span></span>
+          <span class="hchip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>notes.md<span class="sz">8 КБ</span></span>
+        </div>Сделай конспект по этой лекции, мои заметки приложил — учти их.</div>
+    </div>
+
+    <!-- Ассистент: лента активности + текст + карточка -->
+    <div class="msg-assist">
+      <div class="body">
+        <div class="feed">
+          <div class="rowwrap"><div class="arow">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg></span>
+            <span class="lb">Рассуждал</span>
+            <span class="meta"><span class="dur">4,1 с</span></span>
+          </div></div>
+          <div class="rowwrap"><div class="arow">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span>
+            <span class="lb">Прочитал файл<span style="color:var(--muted-foreground)"> · uploads/notes.md</span></span>
+            <span class="meta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          </div></div>
+          <div class="rowwrap"><div class="arow">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg></span>
+            <span class="lb">Выполнил команду<span style="color:var(--muted-foreground)"> · pandoc uploads/lecture.pdf …</span></span>
+            <span class="meta"><span class="dur">6,8 с</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          </div></div>
+          <div class="rowwrap"><div class="arow">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></svg></span>
+            <span class="lb">Записал файл<span style="color:var(--muted-foreground)"> · artifacts/lecture-1/konspekt.md</span></span>
+            <span class="meta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          </div></div>
+        </div>
+        <div class="mdtext"><p>Готово — собрал конспект лекции, объединив слайды с твоими заметками. Ключевые определения выделил, примеры с ε-δ оставил в полном виде.</p></div>
+        <a class="acard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+          <div class="tt"><p class="t">konspekt.md</p><p class="ty">lecture-1/konspekt.md</p></div>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Композер -->
+  <div class="composer-outer">
+    <div class="composer" id="composer">
+      <div class="drag-overlay">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        Отпустите, чтобы прикрепить
+      </div>
+      <div class="chips-row" id="chipsRow"></div>
+      <div class="inrow">
+        <button class="attach-btn" id="attachBtn" aria-label="Прикрепить файл" title="Прикрепить файл">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        </button>
+        <input type="file" id="fileInput" multiple hidden />
+        <textarea id="ta" rows="1" placeholder="Сообщение..."></textarea>
+        <button class="send-btn" id="sendBtn" aria-label="Отправить">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.714 3.048a.498.498 0 0 0-.683.627l2.843 7.627a2 2 0 0 1 0 1.396l-2.842 7.627a.498.498 0 0 0 .682.627l18-8.5a.5.5 0 0 0 0-.904z"/><path d="M6 12h16"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="note"><span class="mk">1</span> Чип в композере — <b>чисто клиентский</b>: до отправки на сервер не уходит ничего, ✕ просто выбрасывает файл из состояния. <span class="mk">2</span> При отправке чипы получают полосу прогресса (multipart-upload), затем сообщение появляется в истории с чипами из metadata. <span class="mk">3</span> Чип в истории в v1 не кликается — это индикатор, не ссылка.</p>
+
+<!-- ================= БЛОК 2: артефакт обновлён ================= -->
+<div class="block-title">2 · «Артефакт обновлён»: два варианта отображения</div>
+<div class="mock-controls">
+  <span>Вариант:</span>
+  <div class="seg" id="updSeg">
+    <button data-v="a" class="on">A · карточка с бейджем</button>
+    <button data-v="b">B · только строка в ленте</button>
+  </div>
+</div>
+
+<div class="chatframe" style="padding: 1.5rem;">
+  <div class="messages" style="padding: 0;">
+    <div class="msg-user"><div class="bubble">Поправь конспект: добавь раздел про односторонние пределы.</div></div>
+    <div class="msg-assist">
+      <div class="body">
+        <div class="feed">
+          <div class="rowwrap"><div class="arow">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span>
+            <span class="lb">Прочитал файл<span style="color:var(--muted-foreground)"> · artifacts/lecture-1/konspekt.md</span></span>
+            <span class="meta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          </div></div>
+          <div class="rowwrap"><div class="arow">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></svg></span>
+            <span class="lb">Обновил артефакт<span style="color:var(--muted-foreground)"> · lecture-1/konspekt.md</span></span>
+            <span class="meta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          </div></div>
+        </div>
+        <div class="mdtext"><p>Добавил раздел про односторонние пределы с примерами — после определения предела по Коши.</p></div>
+        <a class="acard" id="updCard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+          <div class="tt"><p class="t">konspekt.md</p><p class="ty">lecture-1/konspekt.md</p></div>
+          <span class="badge-upd">обновлён · +12 −3</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="note"><b>A:</b> карточка рендерится и для обновления — с бейджем «обновлён»; клик открывает текущую версию. <b>B:</b> карточки нет, факт обновления несёт только строка ленты «Обновил артефакт» (карточка была бы дублем строки). Бейдж несёт компактную дельту строк <b>+добавлено −удалено</b> — backend считает её в момент перезаписи, хранить версии для этого не нужно. Полный визуальный дифф-просмотр — backlog «Версии артефактов» (диффать не с чем: старая версия перезаписана).</p>
+
+<!-- ================= БЛОК 3: список артефактов (дерево) ================= -->
+<div class="block-title">3 · Артефакты проекта: вложенность (id = путь)</div>
+
+<div class="alist-frame">
+  <aside class="alist">
+    <div class="hd"><h2>Артефакты</h2></div>
+    <div class="bd">
+      <button class="dir-row open">
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        <svg class="fld" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+        <span class="dn">lecture-1</span><span class="cnt">2</span>
+      </button>
+      <div class="dir-children">
+        <a class="afile sel">
+          <span class="ib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span>
+          <span class="tx"><p class="t">konspekt.md</p><p class="d">md · изменён 11.08.2026</p></span>
+        </a>
+        <a class="afile">
+          <span class="ib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></span>
+          <span class="tx"><p class="t">grafik-predela.png</p><p class="d">png · изменён 11.08.2026</p></span>
+        </a>
+      </div>
+      <button class="dir-row">
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        <svg class="fld" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+        <span class="dn">lecture-2</span><span class="cnt">3</span>
+      </button>
+      <div class="dir-children">
+        <a class="afile"><span class="ib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg></span><span class="tx"><p class="t">konspekt.md</p><p class="d">md · изменён 10.08.2026</p></span></a>
+      </div>
+      <a class="afile">
+        <span class="ib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span>
+        <span class="tx"><p class="t">plan-kursa.md</p><p class="d">md · изменён 02.08.2026</p></span>
+      </a>
+    </div>
+  </aside>
+  <div class="alist-view">Справа — существующий вьюер (ArtifactView).<br/>Меняется только: кнопка «.pdf» уходит (до feat-005),<br/>дата = mtime файла, категория вьюера — по расширению.</div>
+</div>
+
+<p class="note"><span class="mk">4</span> Директории — раскрывающиеся группы; сортировка внутри — по mtime. Плоский список остаётся для файлов в корне <b>artifacts/</b>. Панель и правый вьюер в остальном не меняются.</p>
+
+</div>
+
+<script>
+/* ===== Обвязка мокапа ===== */
+const themeBtn = document.getElementById("themeBtn");
+themeBtn.addEventListener("click", () => {
+  const dark = document.documentElement.classList.toggle("dark");
+  themeBtn.textContent = dark ? "Светлая тема" : "Тёмная тема";
+});
+
+/* Прикрепление — настоящий file picker */
+let attached = [];
+const chipsRow = document.getElementById("chipsRow");
+const ta = document.getElementById("ta");
+const fileInput = document.getElementById("fileInput");
+
+function fmtSize(b) {
+  if (b < 1024) return b + " Б";
+  if (b < 1048576) return Math.round(b / 1024) + " КБ";
+  return (b / 1048576).toFixed(1).replace(".", ",") + " МБ";
+}
+function addFiles(fileList) {
+  for (const f of fileList) attached.push({ name: f.name, size: fmtSize(f.size) });
+  renderChips();
+}
+
+const FILE_SVG = '<svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>';
+const X_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+const CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+
+function renderChips() {
+  chipsRow.innerHTML = "";
+  attached.forEach((f, i) => {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.innerHTML = FILE_SVG + '<span class="nm">' + f.name + '</span><span class="sz">' + f.size + '</span><button class="rm" aria-label="Убрать">' + X_SVG + '</button><span class="prog"></span>';
+    chip.querySelector(".rm").addEventListener("click", () => { attached.splice(i, 1); renderChips(); });
+    chipsRow.appendChild(chip);
+  });
+}
+document.getElementById("attachBtn").addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", () => { addFiles(fileInput.files); fileInput.value = ""; });
+
+/* Настоящий drag&drop */
+const composer = document.getElementById("composer");
+let dragDepth = 0;
+document.addEventListener("dragover", e => e.preventDefault());
+document.addEventListener("drop", e => e.preventDefault());
+composer.addEventListener("dragenter", e => { e.preventDefault(); dragDepth++; composer.classList.add("dragging"); });
+composer.addEventListener("dragover", e => e.preventDefault());
+composer.addEventListener("dragleave", () => { if (--dragDepth <= 0) { dragDepth = 0; composer.classList.remove("dragging"); } });
+composer.addEventListener("drop", e => {
+  e.preventDefault(); dragDepth = 0; composer.classList.remove("dragging");
+  if (e.dataTransfer && e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+});
+
+/* Отправка: прогресс на чипах → сообщение в истории → симуляция ответа агента */
+const SPARKLES_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>';
+const FILEDOC_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>';
+
+function sendMessage() {
+  const text = ta.value.trim();
+  if (!text && attached.length === 0) return;
+  const finish = () => {
+    const sentFiles = attached.slice();
+    const messages = document.getElementById("messages");
+    const wrap = document.createElement("div");
+    wrap.className = "msg-user";
+    let chipsHtml = "";
+    if (sentFiles.length) {
+      chipsHtml = '<div class="msg-chips">' + sentFiles.map(f =>
+        '<span class="hchip">' + FILE_SVG.replace('class="fic"', "") + f.name + '<span class="sz">' + f.size + "</span></span>"
+      ).join("") + "</div>";
+    }
+    wrap.innerHTML = '<div class="bubble">' + chipsHtml + (text || "Разбери приложенные файлы.") + "</div>";
+    messages.appendChild(wrap);
+    attached = [];
+    renderChips();
+    ta.value = "";
+    wrap.scrollIntoView({ behavior: "smooth", block: "end" });
+
+    // симуляция хода агента: пауза с точками → лента + текст
+    const assist = document.createElement("div");
+    assist.className = "msg-assist";
+    assist.innerHTML = '<div class="body"><div class="arow"><span class="ic">' + SPARKLES_SVG +
+      '</span><span class="dots"><span class="feed-dot"></span><span class="feed-dot"></span><span class="feed-dot"></span></span></div></div>';
+    messages.appendChild(assist);
+    assist.scrollIntoView({ behavior: "smooth", block: "end" });
+    setTimeout(() => {
+      const rows = ['<div class="rowwrap"><div class="arow"><span class="ic">' + SPARKLES_SVG +
+        '</span><span class="lb">Рассуждал</span><span class="meta"><span class="dur">2,1 с</span></span></div></div>'];
+      sentFiles.forEach(f => rows.push(
+        '<div class="rowwrap"><div class="arow"><span class="ic">' + FILEDOC_SVG +
+        '</span><span class="lb">Прочитал файл<span style="color:var(--muted-foreground)"> · uploads/' + f.name +
+        '</span></span><span class="meta">' + CHECK_SVG + "</span></div></div>"));
+      assist.innerHTML = '<div class="body"><div class="feed">' + rows.join("") + '</div><div class="mdtext"><p>' +
+        (sentFiles.length
+          ? "Файлы в workspace, прочитал — работаю с ними дальше <i>(симуляция ответа)</i>."
+          : "Принял <i>(симуляция ответа)</i>.") + "</p></div></div>";
+      assist.scrollIntoView({ behavior: "smooth", block: "end" });
+    }, 1200);
+  };
+  if (attached.length) {
+    chipsRow.querySelectorAll(".chip").forEach(c => c.classList.add("up"));
+    setTimeout(finish, 850);
+  } else {
+    finish();
+  }
+}
+document.getElementById("sendBtn").addEventListener("click", sendMessage);
+ta.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+/* Вариант A/B для «обновлён» */
+const updSeg = document.getElementById("updSeg");
+const updCard = document.getElementById("updCard");
+updSeg.querySelectorAll("button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    updSeg.querySelectorAll("button").forEach(b => b.classList.remove("on"));
+    btn.classList.add("on");
+    updCard.style.display = btn.dataset.v === "a" ? "" : "none";
+  });
+});
+
+/* Дерево артефактов */
+document.querySelectorAll(".dir-row").forEach(row => {
+  row.addEventListener("click", () => row.classList.toggle("open"));
+});
+document.querySelectorAll(".afile").forEach(f => {
+  f.addEventListener("click", e => {
+    e.preventDefault();
+    document.querySelectorAll(".afile").forEach(x => x.classList.remove("sel"));
+    f.classList.add("sel");
+  });
+});
+</script>
+</body>
+</html>

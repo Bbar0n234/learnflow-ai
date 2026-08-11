@@ -83,9 +83,9 @@ async def test_a_full_v2_turn_reaches_the_wire_with_documented_payloads(
         stream_started_event(),
         heartbeat_event(),
         reasoning_chunk_event("let me search"),
-        tool_call_started_event("c1", "firecrawl_search"),
+        tool_call_started_event("c1", "search_web"),
         tool_call_args_event("c1", '{"query": "cats"}'),
-        tool_result_event("c1", "firecrawl_search", content="10 hits"),
+        tool_result_event("c1", "search_web", content="10 hits"),
         agent_event_event("sphere_write", {"section_id": "s1"}),
         text_chunk_event("Here you go"),
     ]
@@ -96,7 +96,7 @@ async def test_a_full_v2_turn_reaches_the_wire_with_documented_payloads(
         {"type": "stream_started"},
         {"type": "heartbeat"},
         {"type": "reasoning_chunk", "content": "let me search"},
-        {"type": "tool_call_started", "call_id": "c1", "tool": "firecrawl_search"},
+        {"type": "tool_call_started", "call_id": "c1", "tool": "search_web"},
         {
             "type": "tool_call_args",
             "call_id": "c1",
@@ -106,7 +106,7 @@ async def test_a_full_v2_turn_reaches_the_wire_with_documented_payloads(
         {
             "type": "tool_result",
             "call_id": "c1",
-            "tool": "firecrawl_search",
+            "tool": "search_web",
             "status": "success",
             "content": "10 hits",
             "truncated": False,
@@ -135,7 +135,7 @@ async def test_nested_subagent_steps_carry_parent_call_id_on_the_wire(
     project, thread = await _make_thread(db_session, current_user)
     nested_started = StreamEvent(
         type="tool_call_started",
-        data={"call_id": "i1", "tool": "firecrawl_search", "parent_call_id": "c1"},
+        data={"call_id": "i1", "tool": "search_web", "parent_call_id": "c1"},
     )
     wired_runner.events = [
         tool_call_started_event("c1", "run_subagent"),
@@ -148,7 +148,7 @@ async def test_nested_subagent_steps_carry_parent_call_id_on_the_wire(
     assert payloads[1] == {
         "type": "tool_call_started",
         "call_id": "i1",
-        "tool": "firecrawl_search",
+        "tool": "search_web",
         "parent_call_id": "c1",
     }
     assert payloads[2]["parent_call_id"] == "c1"

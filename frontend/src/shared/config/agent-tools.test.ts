@@ -103,7 +103,7 @@ describe("реестр подписей инструментов", () => {
 describe("подпись вызова из имени и аргументов", () => {
   it.each([
     {
-      tool: "firecrawl_search",
+      tool: "search_web",
       args: { query: "изоляция контекста субагентов" },
       label: "Ищу в интернете",
       arg: "«изоляция контекста субагентов»",
@@ -115,16 +115,10 @@ describe("подпись вызова из имени и аргументов", 
       arg: "раздел «Субагенты»",
     },
     {
-      tool: "firecrawl_scrape",
+      tool: "read_url",
       args: { url: "docs.langchain.com/subagents" },
       label: "Читаю страницу",
       arg: "docs.langchain.com/subagents",
-    },
-    {
-      tool: "firecrawl_extract",
-      args: { urls: ["arxiv.org/2606.01441", "example.com"] },
-      label: "Извлекаю данные со страницы",
-      arg: "arxiv.org/2606.01441",
     },
     {
       tool: "load_skill",
@@ -186,7 +180,7 @@ describe("подпись вызова из имени и аргументов", 
   });
 
   it("вызов без аргументов подписан без дополнения", () => {
-    const described = describeToolCall("firecrawl_search");
+    const described = describeToolCall("search_web");
 
     expect(described.label).toBe("Ищу в интернете");
     expect(described.arg).toBeNull();
@@ -195,7 +189,7 @@ describe("подпись вызова из имени и аргументов", 
   it("усечённые аргументы не разбираются — подпись остаётся без дополнения", () => {
     // Обрезанная сервером строка не парсится по контракту: она оборвана
     // посреди JSON, и подпись из неё собрать нечем.
-    const described = describeToolCall("firecrawl_search", {
+    const described = describeToolCall("search_web", {
       args: '{"query": "изоляция конте',
       truncated: true,
     });
@@ -205,7 +199,7 @@ describe("подпись вызова из имени и аргументов", 
   });
 
   it("аргументы нештатной формы не роняют подпись", () => {
-    const described = describeToolCall("firecrawl_search", {
+    const described = describeToolCall("search_web", {
       args: "не json вовсе",
     });
 
@@ -214,7 +208,7 @@ describe("подпись вызова из имени и аргументов", 
   });
 
   it("пустое значение аргумента не даёт пустого дополнения", () => {
-    const described = describeToolCall("firecrawl_search", {
+    const described = describeToolCall("search_web", {
       args: JSON.stringify({ query: "   " }),
     });
 
@@ -246,12 +240,12 @@ describe("грамматика подписи по статусу вызова",
   it("у глагола без видовой пары обе прошедшие формы совпадают", () => {
     // «Искать» естественной пары вида не имеет: успех и прерывание читаются
     // одинаково — «Искал в интернете».
-    expect(
-      describeToolCall("firecrawl_search", { status: "success" }).label,
-    ).toBe("Искал в интернете");
-    expect(
-      describeToolCall("firecrawl_search", { status: "error" }).label,
-    ).toBe("Искал в интернете");
+    expect(describeToolCall("search_web", { status: "success" }).label).toBe(
+      "Искал в интернете",
+    );
+    expect(describeToolCall("search_web", { status: "error" }).label).toBe(
+      "Искал в интернете",
+    );
   });
 
   it("субагент остаётся именем действующего лица во всех статусах", () => {

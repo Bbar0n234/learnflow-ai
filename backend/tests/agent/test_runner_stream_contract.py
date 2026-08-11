@@ -290,7 +290,7 @@ async def test_subagent_lifecycle_events_pass_through_as_their_own_types() -> No
     # ``agent_event`` (streaming.md § «Вложенность субагента»).
     payload = {
         "call_id": "inner-1",
-        "tool": "firecrawl_search",
+        "tool": "search_web",
         "parent_call_id": "outer-1",
     }
     runner = _runner_for([("custom", {"type": "tool_call_started", "data": payload})])
@@ -320,7 +320,7 @@ async def test_a_call_cut_by_the_guard_is_reported_as_cancelled() -> None:
     # wired together. Without it the feed keeps a row spinning forever.
     runner = _runner_for(
         [
-            _tool_call_chunk("c1", "firecrawl_search", '{"query": "x"}'),
+            _tool_call_chunk("c1", "search_web", '{"query": "x"}'),
             (
                 "updates",
                 {

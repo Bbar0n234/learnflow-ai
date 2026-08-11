@@ -11,7 +11,7 @@ the same message, each wrapped with an id and a title.
 </task>
 
 <fact_checking>
-You have web search, scrape, and extract tools. Use them when the
+You have web search and page-reading tools. Use them when the
 verdict depends on verifiable facts — a version number, an API
 behavior, a dated event, a quoted source. Do not use them to research
 matters of style or structure; those you judge from the document

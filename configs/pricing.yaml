@@ -22,7 +22,7 @@ models:
     input: 2.0e-06
     output: 1.2e-05
     output_reasoning: 1.2e-05
-    input_cache_read: 5.0e-07
+    input_cache_read: 2.0e-07
 - name: google/gemini-3-flash-preview
   match_pattern: (?i)^google/gemini-3-flash-preview
   unit: TOKENS
@@ -30,7 +30,7 @@ models:
     input: 5.0e-07
     output: 3.0e-06
     output_reasoning: 3.0e-06
-    input_cache_read: 1.25e-07
+    input_cache_read: 5.0e-08
 - name: google/gemini-3.5-flash-lite
   match_pattern: (?i)^google/gemini-3\.5-flash-lite
   unit: TOKENS
@@ -43,10 +43,10 @@ models:
   match_pattern: (?i)^z-ai/glm-5\.2
   unit: TOKENS
   prices:
-    input: 5.6e-07
-    output: 1.76e-06
-    output_reasoning: 1.76e-06
-    input_cache_read: 1.04e-07
+    input: 4.886e-07
+    output: 1.5356e-06
+    output_reasoning: 1.5356e-06
+    input_cache_read: 9.074e-08
 - name: google/gemini-3.6-flash
   match_pattern: (?i)^google/gemini-3\.6-flash
   unit: TOKENS
@@ -59,10 +59,10 @@ models:
   match_pattern: (?i)^deepseek/deepseek-v4-pro
   unit: TOKENS
   prices:
-    input: 4.35e-07
-    output: 8.7e-07
-    output_reasoning: 8.7e-07
-    input_cache_read: 3.625e-09
+    input: 6.3168e-07
+    output: 1.26336e-06
+    output_reasoning: 1.26336e-06
+    input_cache_read: 5.3298e-08
 - name: x-ai/grok-4.5
   match_pattern: (?i)^x-ai/grok-4\.5
   unit: TOKENS
@@ -83,15 +83,15 @@ models:
   match_pattern: (?i)^deepseek/deepseek-v4-flash
   unit: TOKENS
   prices:
-    input: 8.82e-08
-    output: 1.764e-07
-    output_reasoning: 1.764e-07
-    input_cache_read: 1.764e-08
+    input: 1.4e-07
+    output: 2.8e-07
+    output_reasoning: 2.8e-07
+    input_cache_read: 2.8e-08
 - name: minimax/minimax-m2.5
   match_pattern: (?i)^minimax/minimax-m2\.5
   unit: TOKENS
   prices:
-    input: 1.5e-07
+    input: 2.2e-07
     output: 9.0e-07
     output_reasoning: 9.0e-07
     input_cache_read: 5.0e-08

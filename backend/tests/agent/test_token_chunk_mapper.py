@@ -113,13 +113,13 @@ def test_first_tool_call_fragment_announces_the_call_before_args_are_done(
     events = mapper.map_chunk(
         _chunk(
             tool_calls=[
-                _fragment(name="firecrawl_search", args='{"query": ', id="c1", index=0)
+                _fragment(name="search_web", args='{"query": ', id="c1", index=0)
             ]
         )
     )
 
     assert _typed(events) == [
-        ("tool_call_started", {"call_id": "c1", "tool": "firecrawl_search"})
+        ("tool_call_started", {"call_id": "c1", "tool": "search_web"})
     ]
 
 

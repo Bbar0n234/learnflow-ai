@@ -52,37 +52,42 @@ subagents:
       fact-check claims when the verdict depends on verifiable facts.
     prompt: subagent-judge
     tools:
-    - firecrawl_search
-    - firecrawl_scrape
-    - firecrawl_extract
+    - search_web
+    - read_url
     persistence: none
   - name: web-research
     description: >-
-      Researcher with web search/scrape/extract tools and a clean
+      Researcher with web search/read tools and a clean
       context. Give it a research task (and optional reference
       artifact ids); it returns a distilled summary with sources —
       the pages it reads never enter your context.
     prompt: subagent-web-research
     tools:
-    - firecrawl_search
-    - firecrawl_scrape
-    - firecrawl_extract
+    - search_web
+    - read_url
     persistence: none
   - name: general-purpose
     description: >-
       Generic executor for an isolated subtask with a clean context
-      (no session history) and web search/scrape/extract tools. Use
+      (no session history) and web search/read tools. Use
       for self-contained work that should not inherit conversation
       context.
     prompt: subagent-general-purpose
     tools:
-    - firecrawl_search
-    - firecrawl_scrape
-    - firecrawl_extract
+    - search_web
+    - read_url
     persistence: none
 mcp_servers:
-  firecrawl:
+  jina:
     enabled: true
+    transport: http
+    url: https://mcp.jina.ai/v1?include_tools=search_web,read_url
+    api_key_env: JINA_API_KEY
+    allowed_tools:
+    - search_web
+    - read_url
+  firecrawl:
+    enabled: false
     transport: http
     url: https://mcp.firecrawl.dev/mcp
     api_key_env: FIRECRAWL_API_KEY
@@ -90,11 +95,3 @@ mcp_servers:
     - firecrawl_search
     - firecrawl_scrape
     - firecrawl_extract
-  tavily:
-    enabled: false
-    transport: http
-    url: https://mcp.tavily.com/mcp/
-    api_key_env: TAVILY_API_KEY
-    allowed_tools:
-    - tavily_search
-    - tavily_extract

@@ -174,7 +174,7 @@ def test_oversized_tool_result_is_truncated_and_flagged() -> None:
     message = ToolMessage(
         content="y" * (TRUNCATION_LIMIT * 3),
         tool_call_id="c1",
-        name="firecrawl_scrape",
+        name="read_url",
     )
 
     data = tool_result_envelope(message)["data"]

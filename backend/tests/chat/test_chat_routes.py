@@ -131,7 +131,7 @@ async def test_get_chat_returns_typed_parts_of_the_assistant_turn(
                 ReasoningPart(content="I should search"),
                 ToolCallPart(
                     call_id="c1",
-                    tool="firecrawl_search",
+                    tool="search_web",
                     args='{"query": "cats"}',
                     args_truncated=False,
                     status="success",
@@ -153,7 +153,7 @@ async def test_get_chat_returns_typed_parts_of_the_assistant_turn(
         {
             "type": "tool_call",
             "call_id": "c1",
-            "tool": "firecrawl_search",
+            "tool": "search_web",
             "args": '{"query": "cats"}',
             "args_truncated": False,
             "status": "success",

@@ -48,6 +48,10 @@
     "origin": "internal"
   },
   {
+    "name": "read_url",
+    "origin": "builtin_mcp"
+  },
+  {
     "name": "run_subagent",
     "origin": "internal"
   },
@@ -60,11 +64,7 @@
     "origin": "internal"
   },
   {
-    "name": "tavily_extract",
-    "origin": "builtin_mcp"
-  },
-  {
-    "name": "tavily_search",
+    "name": "search_web",
     "origin": "builtin_mcp"
   },
   {

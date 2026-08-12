@@ -1,3 +1,4 @@
+import { useId } from "react";
 import {
   Select,
   SelectContent,
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export function ModelSelector({ scope, projectId, threadId }: Props) {
+  const labelId = useId();
   const { data: models } = useModels();
   const { data: settings } = useSettings(scope, projectId, threadId);
   const updateSettings = useUpdateSettings(scope, projectId, threadId);
@@ -29,11 +31,11 @@ export function ModelSelector({ scope, projectId, threadId }: Props) {
 
   const currentValue = settings?.model_name ?? "__default__";
 
+  const defaultChoiceLabel = scope === "user" ? "По умолчанию" : "Наследовать";
+
   const selectedDisplayName =
     currentValue === "__default__"
-      ? scope === "user"
-        ? "Default"
-        : "Inherit"
+      ? defaultChoiceLabel
       : (models?.items.find((m) => m.name === currentValue)?.display_name ??
         currentValue);
 
@@ -43,23 +45,29 @@ export function ModelSelector({ scope, projectId, threadId }: Props) {
 
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-medium text-foreground">
+      {/* Триггер Base UI — кнопка с `role="combobox"`, а не нативный контрол:
+          подпись связывается с ним через `aria-labelledby` (тот же приём, что
+          и у селекта транспорта в `features/mcp-servers/ui/MCPServerForm.tsx`).
+          Имя контрола — «Модель», текущее значение остаётся содержимым
+          триггера. */}
+      <span
+        id={labelId}
+        className="mb-1.5 block text-sm font-medium text-foreground"
+      >
         Модель
-      </label>
+      </span>
       <Select
         value={currentValue}
         onValueChange={handleChange}
         disabled={updateSettings.isPending}
       >
-        <SelectTrigger className="w-full">
+        <SelectTrigger className="w-full" aria-labelledby={labelId}>
           <SelectValue placeholder={selectedDisplayName}>
             {selectedDisplayName}
           </SelectValue>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="__default__">
-            {scope === "user" ? "По умолчанию" : "Наследовать"}
-          </SelectItem>
+          <SelectItem value="__default__">{defaultChoiceLabel}</SelectItem>
           {models?.items.map((m) => (
             <SelectItem key={m.name} value={m.name}>
               {m.display_name}
@@ -69,10 +77,7 @@ export function ModelSelector({ scope, projectId, threadId }: Props) {
       </Select>
       {settings && (
         <p className="mt-1 text-xs text-muted-foreground">
-          {scope === "project"
-            ? "Переопределяет модель пользователя для этого проекта."
-            : "Активная модель:"}{" "}
-          {scope === "project" ? "" : resolvedDisplayName}
+          Активная модель: {resolvedDisplayName}
         </p>
       )}
     </div>

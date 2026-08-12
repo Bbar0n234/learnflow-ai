@@ -54,7 +54,7 @@ Monorepo (uv workspace), Docker, окружение, code quality tooling (ruff 
 Рабочее ядро продукта:
 
 - **Backend Core** — app skeleton, конфигурация, ORM-модели + Alembic-миграции, repository / service / API слои, SSE-каркас.
-- **Agent Runtime** — LangGraph-граф (ReAct loop, AgentRunner, streaming), Knowledge Sphere, skills + artifacts, MCP-инструменты (Firecrawl), context engineering.
+- **Agent Runtime** — LangGraph-граф (ReAct loop, AgentRunner, streaming), Knowledge Sphere, skills + artifacts, MCP-инструменты (Jina), context engineering.
 - **Frontend** — chat-first SPA, sidebar + проекты, chat UI, SSE-стриминг, sphere + artifacts.
 - **Integration** — замена стабов реальными реализациями, SSE E2E, Docker full stack, E2E-сценарии.
 
@@ -171,7 +171,7 @@ flowchart TD
 
 - **OAuth** (Google / GitHub) — требование заводить отдельный пароль убивает конверсию.
 - **Cost-optimal модель** — оптимум качество/стоимость для массового использования; фронтир-модели не масштабируются по токенам.
-- **Дешёвый или self-hosted web search MCP** — Firecrawl free tier не выдержит нагрузку.
+- **Дешёвый или self-hosted web search MCP** — текущий hosted-провайдер (Jina) экономичен на нынешнем масштабе, но при кратном росте нагрузки потребует пересмотра экономики или перехода на self-hosted (SearXNG + Crawl4AI).
 - **Потолок затрат на пользователя** — без per-user budget любой аккаунт неограниченно жжёт LLM-бюджет владельца. → backlog § Backend
 
 Предусловия закрываются раньше открытия фазы: OAuth — плановая итерация [tasklist-dogfooding](../tasks/tasklist-dogfooding.md) (до показа), web search — за гейтом показа, cost-optimal модель подобрана (dogfooding feat-003) и валидируется догфудингом 5b, потолок затрат — гейт первой же внешней волны.

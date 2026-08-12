@@ -581,7 +581,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 # PairedToolIdentifierDetector/FragmentDetector also cover
                 # `run_subagent`'s own identifier/description, which is
                 # irrelevant to the checks a subagent's *own* tool loop runs
-                # (web-research's tools are firecrawl_*, never run_subagent
+                # (web-research's tools are search_web/read_url, never run_subagent
                 # — excluded from the pool by SubagentRunner's constructor
                 # invariant). Avoids a circular dependency: the final guard
                 # needs `run_subagent` in internal_tools, which needs this

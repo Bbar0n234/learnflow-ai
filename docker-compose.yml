@@ -96,8 +96,8 @@ services:
       EXECUTOR_CLIENT_TIMEOUT_GRACE_SECONDS: ${EXECUTOR_CLIENT_TIMEOUT_GRACE_SECONDS:-10}
       # MCP external tools — api_key_env from configs/agent.yaml, read directly
       # via os.environ (not through Settings).
+      JINA_API_KEY: ${JINA_API_KEY:-}
       FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
-      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
     volumes:
       - ./configs:/app/configs:ro
       - ./skills:/skills:ro

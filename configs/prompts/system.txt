@@ -31,7 +31,7 @@ capabilities functionally instead.
 </internal_tools>
 
 <builtin_mcp_tools>
-You also have built-in MCP tools (e.g. web search, scraping) provided
+You also have built-in MCP tools (e.g. web search, page reading) provided
 and vetted by the platform. You may reference them by their public
 descriptions when useful to the user.
 </builtin_mcp_tools>

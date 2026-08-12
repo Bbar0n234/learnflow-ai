@@ -12,6 +12,8 @@ import pytest
 from app.models.user import User
 from app.repositories.thread_view import ThreadViewRepository
 from app.services.agent_runner import (
+    ArtifactPart,
+    AttachmentRef,
     Message,
     ReasoningPart,
     TextPart,
@@ -220,3 +222,81 @@ async def test_recent_chats_lists_users_threads_with_project_name(
     assert body["total"] >= 1
     titles = {item["title"]: item["project_name"] for item in body["items"]}
     assert titles.get("Recent chat") == "Algebra"
+
+
+async def test_get_chat_ships_an_artifact_part_with_its_wire_field_names(
+    client: AsyncClient,
+    current_user: User,
+    db_session: AsyncSession,
+    wired_runner: FakeAgentRunner,
+) -> None:
+    # The chat <-> artifact link is a typed part now, not a PG join (ADR-032):
+    # this is what the feed rebuilds a card from after a reload. The file's own
+    # type ships as ``artifact_type`` — ``type`` is taken by the part
+    # discriminator, and colliding on it is exactly how a card would lose its
+    # kind on the wire.
+    project = await ProjectFactory.create(user=current_user)
+    thread = await ThreadViewRepository(db_session).create(
+        project_id=project.id, title="Chat"
+    )
+    wired_runner.history = [
+        Message(
+            id="m1",
+            role="assistant",
+            content="updated",
+            parts=[
+                ArtifactPart(
+                    path="lecture-1/slides.md",
+                    title="slides.md",
+                    type="md",
+                    kind="updated",
+                    diff={"added": 3, "removed": 1},
+                )
+            ],
+        )
+    ]
+
+    response = await client.get(f"/api/projects/{project.id}/chats/{thread.thread_id}")
+
+    assert response.json()["messages"][0]["parts"] == [
+        {
+            "type": "artifact",
+            "path": "lecture-1/slides.md",
+            "title": "slides.md",
+            "artifact_type": "md",
+            "kind": "updated",
+            "diff": {"added": 3, "removed": 1},
+        }
+    ]
+
+
+async def test_get_chat_ships_the_attachments_of_a_user_message(
+    client: AsyncClient,
+    current_user: User,
+    db_session: AsyncSession,
+    wired_runner: FakeAgentRunner,
+) -> None:
+    # The chip after a page reload comes from here, not from parsing the note
+    # out of the message text (the note never reaches the UI at all).
+    project = await ProjectFactory.create(user=current_user)
+    thread = await ThreadViewRepository(db_session).create(
+        project_id=project.id, title="Chat"
+    )
+    wired_runner.history = [
+        Message(
+            id="u1",
+            role="user",
+            content="summarize this",
+            attachments=[
+                AttachmentRef(path="uploads/lecture.pdf", title="lecture.pdf")
+            ],
+        )
+    ]
+
+    response = await client.get(f"/api/projects/{project.id}/chats/{thread.thread_id}")
+
+    message = response.json()["messages"][0]
+    assert message["content"] == "summarize this"
+    assert message["attachments"] == [
+        {"path": "uploads/lecture.pdf", "title": "lecture.pdf"}
+    ]

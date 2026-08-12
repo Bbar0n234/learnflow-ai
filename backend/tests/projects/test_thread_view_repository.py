@@ -11,16 +11,13 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
-import sqlalchemy as sa
-from app.models.artifact import Artifact
-from app.models.thread_view import ThreadView
 from app.models.user import User
 from app.repositories.thread_view import ThreadViewRepository
 from learnflow_testing.factories import ProjectFactory, UserFactory
 from sqlalchemy import inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.projects.conftest import ArtifactFactory, ThreadViewFactory
+from tests.projects.conftest import ThreadViewFactory
 
 pytestmark = pytest.mark.integration
 
@@ -205,29 +202,3 @@ async def test_delete_removes_row(db_session: AsyncSession) -> None:
     await repo.delete(thread)
 
     assert await repo.get_by_id(thread.thread_id) is None
-
-
-async def test_deleting_thread_nulls_artifact_thread_id(
-    db_session: AsyncSession,
-) -> None:
-    project = await ProjectFactory.create()
-    thread = await ThreadViewFactory.create(project=project)
-    artifact = await ArtifactFactory.create(project=project, thread_id=thread.thread_id)
-
-    # Delete the parent thread through Core (``sa.delete``), NOT the ORM
-    # ``session.delete`` the repo uses: the ORM unit-of-work would itself NULL
-    # the child FK in Python (no ``passive_deletes``), so an ORM delete would
-    # pass even if the ``ON DELETE SET NULL`` DB constraint were dropped. The
-    # Core statement bypasses the UoW and lets Postgres apply the constraint —
-    # this is what exercises it.
-    await db_session.execute(
-        sa.delete(ThreadView).where(ThreadView.thread_id == thread.thread_id)
-    )
-    await db_session.flush()
-    # Detach so the read issues a fresh async SELECT against Postgres rather
-    # than returning the now-stale child from the identity map.
-    db_session.expunge_all()
-
-    surviving = await db_session.get(Artifact, artifact.id)
-    assert surviving is not None
-    assert surviving.thread_id is None

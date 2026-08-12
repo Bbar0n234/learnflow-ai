@@ -17,7 +17,7 @@ import pytest
 from app.services.chat import ChatService
 from app.services.exceptions import EntityNotFoundError
 
-from tests.chat.conftest import FakeAgentRunner, FakeArtifactRepo, FakeThreadViewRepo
+from tests.chat.conftest import FakeAgentRunner, FakeThreadViewRepo
 
 pytestmark = pytest.mark.unit
 
@@ -28,7 +28,6 @@ def _build_service(
     return ChatService(
         thread_view_repo=thread_repo,  # type: ignore[arg-type]
         agent_runner=runner,  # AgentRunner is a Protocol — FakeAgentRunner fits
-        artifact_repo=FakeArtifactRepo(),  # type: ignore[arg-type]
         trace_store=None,
         session=None,
     )

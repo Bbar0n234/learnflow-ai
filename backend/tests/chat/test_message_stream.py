@@ -168,6 +168,58 @@ async def test_stream_accepts_empty_content(
     assert [e.json()["type"] for e in events] == ["text_chunk", "done"]
 
 
+async def test_stream_hands_the_requested_attachments_to_the_runner(
+    client: AsyncClient,
+    current_user: User,
+    db_session: AsyncSession,
+    wired_runner: FakeAgentRunner,
+) -> None:
+    # The upload paths are the one part of the call the client controls beyond
+    # the text, and the whole attachment feature hangs off them arriving: drop
+    # them anywhere between the request body and ``AgentRunner.stream`` and the
+    # turn still streams normally — the model simply never learns a file was
+    # attached. Nothing downstream of the runner can notice, so the delivery is
+    # pinned here, on the recorded call.
+    project, thread = await _make_thread(db_session, current_user)
+    wired_runner.events = [text_chunk_event("ok")]
+    attachments = ["uploads/lecture.md", "uploads/Лекция №1.md"]
+
+    url = f"/api/projects/{project.id}/chats/{thread.thread_id}/messages"
+    async with client.stream(
+        "POST", url, json={"content": "разбери", "attachments": attachments}
+    ) as response:
+        assert response.status_code == 200
+        await collect_sse(response)
+
+    call = wired_runner.stream_calls[0]
+    assert call.attachments == attachments
+    assert (call.thread_id, call.content, call.project_id, call.user_id) == (
+        thread.thread_id,
+        "разбери",
+        project.id,
+        current_user.id,
+    )
+
+
+async def test_stream_without_attachments_passes_an_empty_list(
+    client: AsyncClient,
+    current_user: User,
+    db_session: AsyncSession,
+    wired_runner: FakeAgentRunner,
+) -> None:
+    # The counterpart of the case above: an ordinary message must not acquire
+    # attachments out of nowhere, so the runner is told there are none.
+    project, thread = await _make_thread(db_session, current_user)
+    wired_runner.events = [text_chunk_event("ok")]
+
+    url = f"/api/projects/{project.id}/chats/{thread.thread_id}/messages"
+    async with client.stream("POST", url, json={"content": "hi"}) as response:
+        assert response.status_code == 200
+        await collect_sse(response)
+
+    assert wired_runner.stream_calls[0].attachments == []
+
+
 async def test_send_message_to_blocked_thread_returns_403(
     client: AsyncClient,
     current_user: User,

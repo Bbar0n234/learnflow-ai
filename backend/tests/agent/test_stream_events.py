@@ -7,10 +7,13 @@ payload, so both are exercised here:
   ``stream_mode="updates"`` output — today that channel carries exactly one
   event of its own (``tool_call_cancelled``) plus the ledger that decides when
   it fires;
-* ``tool_result_envelope``/``artifact_created_envelope`` over a single
-  ``ToolMessage`` — the ``custom``-channel envelopes the tools node writes
-  itself, per finished call, including the artifact ``type``->``artifact_type``
-  remap.
+* ``tool_result_envelope``/``artifact_envelopes`` over a single ``ToolMessage``
+  — the ``custom``-channel envelopes the tools node writes itself, per
+  finished call, including the artifact ``type``->``artifact_type`` remap.
+  ``artifact_envelopes`` reads ``ToolMessage.artifact`` as a *list* (one
+  element per file the call touched) and turns each element into its own
+  ``artifact_created``/``artifact_updated`` envelope, keyed by that element's
+  ``kind``.
 
 Which of the two carries ``tool_result`` is not cosmetic: a node update
 reaches the runner only when the *whole* batch is done, so a mapper-emitted
@@ -24,7 +27,7 @@ from __future__ import annotations
 import pytest
 from app.agent.stream_events import (
     StreamEventMapper,
-    artifact_created_envelope,
+    artifact_envelopes,
     make_tool_result_reporter,
     tool_result_envelope,
 )
@@ -121,15 +124,17 @@ def test_create_artifact_yields_an_artifact_envelope_with_remapped_type() -> Non
         content="ok",
         tool_call_id="c1",
         name="create_artifact",
-        artifact={"type": "note", "id": "a1", "title": "T"},
+        artifact=[{"type": "note", "id": "a1", "title": "T", "kind": "created"}],
     )
 
-    envelope = artifact_created_envelope(message)
+    envelopes = artifact_envelopes(message)
 
-    assert envelope is not None
+    assert len(envelopes) == 1
+    envelope = envelopes[0]
     assert envelope["type"] == "artifact_created"
     assert envelope["data"]["artifact_type"] == "note"
     assert "type" not in envelope["data"]
+    assert "kind" not in envelope["data"]
     assert envelope["data"]["id"] == "a1"
 
 
@@ -137,7 +142,65 @@ def test_create_artifact_yields_an_artifact_envelope_with_remapped_type() -> Non
 def test_create_artifact_without_artifact_payload_yields_no_artifact_envelope() -> None:
     message = ToolMessage(content="ok", tool_call_id="c1", name="create_artifact")
 
-    assert artifact_created_envelope(message) is None
+    assert artifact_envelopes(message) == []
+
+
+@pytest.mark.unit
+def test_an_updated_element_yields_an_artifact_updated_envelope_with_its_diff() -> None:
+    # A job/write_file overwrite reports kind="updated" with a line-count diff
+    # (design-brief § «Артефакты»); the event type carries the distinction, so
+    # kind itself is dropped from the payload rather than forwarded raw.
+    message = ToolMessage(
+        content="ok",
+        tool_call_id="c1",
+        name="write_file",
+        artifact=[
+            {
+                "type": "md",
+                "id": "a1",
+                "title": "notes.md",
+                "kind": "updated",
+                "diff": {"added": 3, "removed": 1},
+            }
+        ],
+    )
+
+    envelopes = artifact_envelopes(message)
+
+    assert len(envelopes) == 1
+    assert envelopes[0]["type"] == "artifact_updated"
+    assert envelopes[0]["data"] == {
+        "id": "a1",
+        "title": "notes.md",
+        "artifact_type": "md",
+        "diff": {"added": 3, "removed": 1},
+    }
+
+
+@pytest.mark.unit
+def test_multiple_elements_yield_one_envelope_each_in_order() -> None:
+    # A job touching several files -> N envelopes off one ToolMessage
+    # (design-brief: "джоба с N файлами -> N ArtifactPart").
+    message = ToolMessage(
+        content="ok",
+        tool_call_id="c1",
+        name="execute_code",
+        artifact=[
+            {"type": "png", "id": "a1", "title": "plot.png", "kind": "created"},
+            {
+                "type": "csv",
+                "id": "a2",
+                "title": "data.csv",
+                "kind": "updated",
+                "diff": {"added": 2, "removed": 0},
+            },
+        ],
+    )
+
+    envelopes = artifact_envelopes(message)
+
+    assert [e["type"] for e in envelopes] == ["artifact_created", "artifact_updated"]
+    assert [e["data"]["id"] for e in envelopes] == ["a1", "a2"]
 
 
 @pytest.mark.unit
@@ -196,13 +259,14 @@ def test_any_tool_returning_an_artifact_gets_an_artifact_envelope() -> None:
         content="ok",
         tool_call_id="c1",
         name="some_future_tool",
-        artifact={"type": "image", "id": "a9", "title": "Diagram"},
+        artifact=[{"type": "image", "id": "a9", "title": "Diagram", "kind": "created"}],
     )
 
-    envelope = artifact_created_envelope(message)
+    envelopes = artifact_envelopes(message)
 
-    assert envelope is not None
-    assert envelope["data"] == {
+    assert len(envelopes) == 1
+    assert envelopes[0]["type"] == "artifact_created"
+    assert envelopes[0]["data"] == {
         "artifact_type": "image",
         "id": "a9",
         "title": "Diagram",
@@ -218,12 +282,36 @@ def test_a_reporter_puts_the_result_before_its_artifact() -> None:
         content="ok",
         tool_call_id="c1",
         name="create_artifact",
-        artifact={"type": "note", "id": "a1", "title": "T"},
+        artifact=[{"type": "note", "id": "a1", "title": "T", "kind": "created"}],
     )
 
     make_tool_result_reporter(written.append)(message)
 
     assert [item["type"] for item in written] == ["tool_result", "artifact_created"]
+
+
+@pytest.mark.unit
+def test_a_reporter_emits_one_envelope_per_artifact_element() -> None:
+    # A job that touched two files reports its result once, then two artifact
+    # envelopes — the reporter, not the caller, fans the list out.
+    written: list[dict[str, object]] = []
+    message = ToolMessage(
+        content="ok",
+        tool_call_id="c1",
+        name="execute_code",
+        artifact=[
+            {"type": "png", "id": "a1", "title": "plot.png", "kind": "created"},
+            {"type": "csv", "id": "a2", "title": "data.csv", "kind": "created"},
+        ],
+    )
+
+    make_tool_result_reporter(written.append)(message)
+
+    assert [item["type"] for item in written] == [
+        "tool_result",
+        "artifact_created",
+        "artifact_created",
+    ]
 
 
 # --- tool_call_cancelled: a guard cut a generated call -----------------------

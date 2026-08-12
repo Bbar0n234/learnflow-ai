@@ -28,7 +28,6 @@ from app.services.constants import DEFAULT_CHAT_TITLE
 
 from tests.chat.conftest import (
     FakeAgentRunner,
-    FakeArtifactRepo,
     FakeThreadViewRepo,
     FakeTitleGenerator,
     cancelled_event,
@@ -63,7 +62,6 @@ def _build_service(
     return ChatService(
         thread_view_repo=thread_repo,  # type: ignore[arg-type]
         agent_runner=runner,  # AgentRunner is a Protocol — FakeAgentRunner fits
-        artifact_repo=FakeArtifactRepo(),  # type: ignore[arg-type]
         trace_store=None,
         session=None,
         title_generator=title_generator,  # type: ignore[arg-type]

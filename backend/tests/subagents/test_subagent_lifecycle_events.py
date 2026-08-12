@@ -440,7 +440,7 @@ async def test_run_subagent_hands_its_own_writer_and_call_id_to_the_runner() -> 
 
     writer = _RecordingWriter()
     subagent_tool = make_run_subagent_tool(
-        cast(Any, None),  # session factory: only used for input_artifact_ids
+        cast(Any, None),  # workspace: only used for input_artifact_paths
         cast(Any, _CapturingRunner()),
         [],
     )

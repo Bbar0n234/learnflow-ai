@@ -6,6 +6,7 @@ import time
 import uuid
 from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from datetime import UTC, datetime
+from pathlib import PurePosixPath
 from typing import Any
 
 import structlog
@@ -15,11 +16,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.agent_events import DOMAIN_AGENT_EVENT_KINDS
 from app.agent.checkpoint_history import CheckpointHistory
-from app.agent.config import ErrorMessagesConfig, ResolvedModelConfig
+from app.agent.config import (
+    ErrorMessagesConfig,
+    PromptFragmentsConfig,
+    ResolvedModelConfig,
+)
 from app.agent.error_mapper import normalize_error_message
 from app.agent.graph import AgentContext
 from app.agent.graph_factory import GraphFactory
 from app.agent.heartbeat import HeartbeatPacer
+from app.agent.prompt_builder import render_attachment_note
 from app.agent.runtime_security import RuntimeSecurityEnforcer
 from app.agent.security.canary import generate_canary_token
 from app.agent.stream_events import StreamEventMapper, TokenChunkMapper
@@ -60,6 +66,7 @@ class LangGraphAgentRunner:
         tool_resolver: Any | None = None,
         canary_secret: str = "",
         checkpointer: AsyncPostgresSaver | None = None,
+        prompt_fragments: PromptFragmentsConfig | None = None,
     ) -> None:
         self._graph_factory = graph_factory
         self._model_resolver = model_resolver
@@ -67,6 +74,11 @@ class LangGraphAgentRunner:
         self._enforcer = enforcer
         self._history = history
         self._error_messages = error_messages
+        # Only `headers.attachment_note` is read off this — an empty default
+        # config still renders a note (`render_attachment_note`'s own
+        # built-in fallback text), so a caller that doesn't pass one (tests
+        # constructing this class directly) degrades instead of breaking.
+        self._prompt_fragments = prompt_fragments or PromptFragmentsConfig()
         self._heartbeat_pacer = heartbeat_pacer or HeartbeatPacer()
         # Factories, not shared instances: both mappers accumulate per-run
         # state (``TokenChunkMapper`` — tool-call chunk assembly;
@@ -91,6 +103,7 @@ class LangGraphAgentRunner:
         user_id: uuid.UUID,
         session: AsyncSession | None = None,
         model_config: ResolvedModelConfig | None = None,
+        attachments: list[str] | None = None,
     ) -> AsyncIterator[StreamEvent]:
         cancel_event = asyncio.Event()
         self._cancel_events[thread_id] = cancel_event
@@ -188,13 +201,34 @@ class LangGraphAgentRunner:
                     canary_token=canary_token,
                     user_installed_tool_names=user_installed_tool_names,
                 )
+                # Attachment paths turn into an in-model note appended to the
+                # stored `HumanMessage.content` (the backend is the only side
+                # that knows the canonical `uploads/…` path, design-brief §
+                # «Вложения пользователя») — `additional_kwargs` keeps the
+                # clean text and the {path, title} list separately so the
+                # history endpoint can serve both without re-parsing the
+                # note back out of `content`.
+                attachment_refs = [
+                    {"path": path, "title": PurePosixPath(path).name}
+                    for path in (attachments or [])
+                ]
+                model_text = content
+                human_kwargs: dict[str, Any] = {
+                    "created_at": datetime.now(UTC).isoformat()
+                }
+                if attachment_refs:
+                    note = render_attachment_note(
+                        self._prompt_fragments, attachment_refs
+                    )
+                    model_text = f"{content}\n\n{note}" if content else note
+                    human_kwargs["text"] = content
+                    human_kwargs["attachments"] = attachment_refs
+
                 input_msg = {
                     "messages": [
                         HumanMessage(
-                            content=content,
-                            additional_kwargs={
-                                "created_at": datetime.now(UTC).isoformat()
-                            },
+                            content=model_text,
+                            additional_kwargs=human_kwargs,
                         )
                     ]
                 }
@@ -316,13 +350,18 @@ class LangGraphAgentRunner:
                                     type="agent_event", data=agent_event_data
                                 )
                             elif custom_type is not None:
-                                # Lifecycle types (tool_call_started /
-                                # tool_call_args / tool_result) written to the
-                                # custom channel by the subagent-step wrapper —
-                                # already shaped like the final wire event's
-                                # data, passed through unchanged rather than
-                                # wrapped in agent_event: on the wire these
-                                # must be "те же типы, что у основного агента"
+                                # Lifecycle types written straight to the custom
+                                # channel — already shaped like the final wire
+                                # event's data, passed through unchanged rather
+                                # than wrapped in agent_event. Two sources: the
+                                # tools node's own per-call reporter
+                                # (`stream_events.make_tool_result_reporter`,
+                                # `tool_result` + `artifact_created`/
+                                # `artifact_updated`), and lifecycle types
+                                # (tool_call_started / tool_call_args /
+                                # tool_result) the subagent-step wrapper writes
+                                # for a nested call — on the wire these must be
+                                # "те же типы, что у основного агента"
                                 # (design-brief § "Вложенность субагента").
                                 yield StreamEvent(
                                     type=custom_type, data=data.get("data", {})

@@ -96,6 +96,16 @@ class InvalidURLError(AppError):
         super().__init__(detail)
 
 
+class PayloadTooLargeError(AppError):
+    """An upload exceeds `Settings.upload_max_size_bytes` (design-brief § Вложения пользователя)."""
+
+    code = "payload-too-large"
+    status = 413
+
+    def __init__(self, detail: str = "Upload exceeds the size limit") -> None:
+        super().__init__(detail)
+
+
 class EntityNotFoundError(NotFoundError):
     """Backwards-compatible not-found error.
 

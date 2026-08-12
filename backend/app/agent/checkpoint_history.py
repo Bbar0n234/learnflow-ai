@@ -19,6 +19,8 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from app.agent.security.types import Checkpoint, DetectionLayer, SecurityMessages
 from app.agent.text_limits import truncate
 from app.services.agent_runner import (
+    ArtifactPart,
+    AttachmentRef,
     Message,
     Part,
     ReasoningPart,
@@ -40,6 +42,48 @@ def _parse_created_at(value: str | None) -> datetime | None:
     if value is None:
         return None
     return datetime.fromisoformat(value)
+
+
+def _attachment_refs(raw: Any) -> list[AttachmentRef]:
+    """``AttachmentRef`` per element of ``HumanMessage.additional_kwargs["attachments"]``.
+
+    Mirrors ``_artifact_parts`` on the input side — reads the ``{path,
+    title}`` list `agent/runner.py` stores verbatim, doesn't touch
+    ``content``/the in-model note (design-brief § «Вложения пользователя»:
+    the UI chip renders from this metadata, never by re-parsing the note).
+    """
+    if not raw:
+        return []
+    return [
+        AttachmentRef(path=item.get("path", ""), title=item.get("title", ""))
+        for item in raw
+    ]
+
+
+def _artifact_parts(tool_message: ToolMessage) -> list[ArtifactPart]:
+    """``ArtifactPart`` per element of ``tool_message.artifact`` (may be several).
+
+    Mirrors ``stream_events.artifact_envelopes``' reading of the same list —
+    this is the checkpoint-replay half, this module's one job (module
+    docstring: the single place that knows the ``channel_values["messages"]``
+    shape). ``write_file`` (T1.3) already keys its element as ``"path"``;
+    ``generate_image`` (pre-T1.7, still PG-backed) keys its own as ``"id"`` —
+    falling back to it here keeps the part's `path` populated rather than
+    empty until that tool's file-layer migration lands.
+    """
+    artifact = tool_message.artifact
+    if not artifact:
+        return []
+    return [
+        ArtifactPart(
+            path=item.get("path") or item.get("id", ""),
+            title=item.get("title", ""),
+            type=item.get("type", ""),
+            kind=item.get("kind", "created"),
+            diff=item.get("diff"),
+        )
+        for item in artifact
+    ]
 
 
 class CheckpointHistory:
@@ -110,10 +154,19 @@ class CheckpointHistory:
                 flush_segment()
                 segment = []
                 redacted = bool(m.additional_kwargs.get("security_redacted"))
+                # `additional_kwargs["text"]` is the clean text `agent/runner.py`
+                # stored alongside the model-facing note it appended to
+                # `content` — only present when the turn carried attachments;
+                # otherwise `content` itself already is the clean text.
+                raw_content = m.content if isinstance(m.content, str) else ""
+                clean_text = m.additional_kwargs.get("text", raw_content)
                 content = (
-                    self._messages.redacted_user_facing
+                    self._messages.redacted_user_facing if redacted else clean_text
+                )
+                attachments = (
+                    []
                     if redacted
-                    else (m.content if isinstance(m.content, str) else "")
+                    else _attachment_refs(m.additional_kwargs.get("attachments"))
                 )
                 result.append(
                     Message(
@@ -124,6 +177,7 @@ class CheckpointHistory:
                             m.additional_kwargs.get("created_at")
                         ),
                         redacted=redacted,
+                        attachments=attachments,
                     )
                 )
             else:
@@ -226,6 +280,8 @@ class CheckpointHistory:
                     result_truncated=result_truncated,
                 )
             )
+            if tool_message is not None:
+                parts.extend(_artifact_parts(tool_message))
         return parts
 
     async def last_ai_message_id(self, thread_id: uuid.UUID) -> str | None:

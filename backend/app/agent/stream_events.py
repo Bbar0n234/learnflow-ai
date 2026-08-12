@@ -7,7 +7,7 @@ reasoning, tool-call assembly). Either way the runner stays free of graph
 payload shape knowledge.
 
 The third road to the wire does not pass through the runner's mappers at all:
-:func:`tool_result_envelope`/:func:`artifact_created_envelope` build the
+:func:`tool_result_envelope`/:func:`artifact_envelopes` build the
 ``custom``-channel envelopes the tools node writes itself, one per finished
 tool call (``tool_guards.execute_tools_guarded``). They live here, next to the
 mappers, because this module is the one place that knows what a wire event
@@ -54,19 +54,36 @@ def tool_result_envelope(
     return {"type": "tool_result", "data": data}
 
 
-def artifact_created_envelope(message: ToolMessage) -> dict[str, Any] | None:
-    """Build the ``artifact_created`` envelope, or ``None`` when there is none.
+def artifact_envelopes(message: ToolMessage) -> list[dict[str, Any]]:
+    """Build the ``artifact_created``/``artifact_updated`` envelopes, or ``[]``.
 
     Emitted by attribute (``response_format="content_and_artifact"``), never by
     tool name, and always right after the ``tool_result`` of the same call —
-    which is why it is written by the same reporter rather than by a channel of
-    its own (streaming.md § «tool_result / artifact_created»).
+    which is why they are written by the same reporter rather than by a channel
+    of their own (streaming.md § «tool_result / artifact_created»).
+
+    ``message.artifact`` is a list, one element per file the call touched (a
+    job can write several) — each element's ``kind`` (``"created"`` /
+    ``"updated"``, default ``"created"``) picks the event type and is then
+    dropped from the payload, since the event ``type`` already carries that
+    distinction; ``diff`` (present only on an update) rides through unchanged.
+    Wire-name for the file's own type is ``artifact_type`` — the flat envelope
+    ``messages.py`` builds (``{"type": event.type, **event.data}``) would let a
+    payload key literally named ``type`` clobber the event's own.
     """
-    if message.artifact is None:
-        return None
-    artifact = dict(message.artifact)
-    artifact["artifact_type"] = artifact.pop("type", "")
-    return {"type": "artifact_created", "data": artifact}
+    if not message.artifact:
+        return []
+    envelopes: list[dict[str, Any]] = []
+    for item in message.artifact:
+        data = dict(item)
+        data["artifact_type"] = data.pop("type", "")
+        kind = data.pop("kind", "created")
+        if kind == "updated":
+            envelopes.append({"type": "artifact_updated", "data": data})
+        else:
+            data.pop("diff", None)
+            envelopes.append({"type": "artifact_created", "data": data})
+    return envelopes
 
 
 def make_tool_result_reporter(
@@ -76,13 +93,14 @@ def make_tool_result_reporter(
 
     Called the moment a single tool call's result clears the TOOL_RESULT
     guard — not when the batch does — so a fast call never inherits a slow
-    neighbour's duration in the activity feed.
+    neighbour's duration in the activity feed. Any artifact envelopes the call
+    produced follow right after, in order — a job touching N files reports N
+    of them.
     """
 
     def report(message: ToolMessage) -> None:
         writer(tool_result_envelope(message, parent_call_id=parent_call_id))
-        artifact = artifact_created_envelope(message)
-        if artifact is not None:
+        for artifact in artifact_envelopes(message):
             writer(artifact)
 
     return report
@@ -92,10 +110,10 @@ class StreamEventMapper:
     """Per-run ``stream_mode="updates"`` node payload -> updates-channel ``StreamEvent``s.
 
     The one event born here is ``tool_call_cancelled``. ``tool_result`` and
-    ``artifact_created`` are not: they are written by the tools node itself,
-    per finished call, because a node update only ever arrives once the *whole*
-    batch is done — which is precisely the wait that made a fast call inherit a
-    slow neighbour's duration in the feed.
+    ``artifact_created``/``artifact_updated`` are not: they are written by the
+    tools node itself, per finished call, because a node update only ever
+    arrives once the *whole* batch is done — which is precisely the wait that
+    made a fast call inherit a slow neighbour's duration in the feed.
 
     **Must be instantiated fresh per run**, same reasoning as ``TokenChunkMapper``
     (see below): it tracks which tool-call ``call_id``s the token channel has

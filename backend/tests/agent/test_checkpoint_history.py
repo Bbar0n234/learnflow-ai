@@ -19,7 +19,12 @@ import pytest
 from app.agent.checkpoint_history import CheckpointHistory
 from app.agent.security.types import Checkpoint, DetectionLayer, SecurityMessages
 from app.agent.text_limits import TRUNCATION_LIMIT
-from app.services.agent_runner import ReasoningPart, TextPart, ToolCallPart
+from app.services.agent_runner import (
+    ArtifactPart,
+    ReasoningPart,
+    TextPart,
+    ToolCallPart,
+)
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 
@@ -488,3 +493,181 @@ async def test_latest_redaction_none_when_no_redaction_present() -> None:
     ]
 
     assert await _history(messages).latest_redaction(THREAD) is None
+
+
+# --- artifact parts (feat-011: the chat <-> artifact link lives here now) ----
+
+
+@pytest.mark.unit
+async def test_history_replays_an_artifact_part_after_the_call_that_made_it() -> None:
+    """A tool that wrote a file replays as an ``ArtifactPart`` in the turn.
+
+    The link "artifact ↝ chat" has no PG row behind it any more (ADR-032): the
+    checkpoint's ``ToolMessage.artifact`` is the only record, and the path is
+    the identity the frontend re-fetches the file by. Order is contract — the
+    card belongs to the call that produced it, so the part follows its
+    ``ToolCallPart``.
+    """
+    messages = [
+        HumanMessage(content="save it", id="h1"),
+        AIMessage(
+            content="",
+            id="a1",
+            tool_calls=[
+                {"name": "write_file", "args": {"path": "artifacts/s.md"}, "id": "c"}
+            ],
+        ),
+        ToolMessage(
+            content="File written",
+            id="t1",
+            tool_call_id="c",
+            name="write_file",
+            artifact=[
+                {"path": "s.md", "title": "s.md", "type": "md", "kind": "created"}
+            ],
+        ),
+        AIMessage(content="saved", id="a2"),
+    ]
+
+    result = await _history(messages).history(THREAD)
+
+    parts = result[1].parts
+    assert [type(p).__name__ for p in parts] == [
+        "ToolCallPart",
+        "ArtifactPart",
+        "TextPart",
+    ]
+    assert parts[1] == ArtifactPart(
+        path="s.md", title="s.md", type="md", kind="created", diff=None
+    )
+
+
+@pytest.mark.unit
+async def test_history_replays_an_updated_artifact_with_its_line_counters() -> None:
+    messages = [
+        HumanMessage(content="fix it", id="h1"),
+        AIMessage(
+            content="",
+            id="a1",
+            tool_calls=[{"name": "write_file", "args": {}, "id": "c"}],
+        ),
+        ToolMessage(
+            content="File written",
+            id="t1",
+            tool_call_id="c",
+            name="write_file",
+            artifact=[
+                {
+                    "path": "s.md",
+                    "title": "s.md",
+                    "type": "md",
+                    "kind": "updated",
+                    "diff": {"added": 3, "removed": 1},
+                }
+            ],
+        ),
+        AIMessage(content="done", id="a2"),
+    ]
+
+    result = await _history(messages).history(THREAD)
+
+    artifact_parts = [p for p in result[1].parts if isinstance(p, ArtifactPart)]
+    assert artifact_parts[0].kind == "updated"
+    assert artifact_parts[0].diff == {"added": 3, "removed": 1}
+
+
+@pytest.mark.unit
+async def test_history_replays_one_artifact_part_per_file_a_job_touched() -> None:
+    # A render job writes several files in one call — each one is its own card.
+    messages = [
+        HumanMessage(content="render", id="h1"),
+        AIMessage(
+            content="",
+            id="a1",
+            tool_calls=[{"name": "run_command", "args": {}, "id": "c"}],
+        ),
+        ToolMessage(
+            content="exit_code: 0",
+            id="t1",
+            tool_call_id="c",
+            name="run_command",
+            artifact=[
+                {"path": "a.md", "title": "a.md", "type": "md", "kind": "created"},
+                {"path": "b.png", "title": "b.png", "type": "png", "kind": "created"},
+            ],
+        ),
+        AIMessage(content="done", id="a2"),
+    ]
+
+    result = await _history(messages).history(THREAD)
+
+    assert [p.path for p in result[1].parts if isinstance(p, ArtifactPart)] == [
+        "a.md",
+        "b.png",
+    ]
+
+
+@pytest.mark.unit
+async def test_history_gives_a_tool_call_without_files_no_artifact_part() -> None:
+    messages = [
+        HumanMessage(content="run", id="h1"),
+        AIMessage(
+            content="",
+            id="a1",
+            tool_calls=[{"name": "run_command", "args": {}, "id": "c"}],
+        ),
+        ToolMessage(
+            content="exit_code: 0", id="t1", tool_call_id="c", name="run_command"
+        ),
+        AIMessage(content="done", id="a2"),
+    ]
+
+    result = await _history(messages).history(THREAD)
+
+    assert not [p for p in result[1].parts if isinstance(p, ArtifactPart)]
+
+
+# --- attachments (the input-side mirror of ArtifactPart) --------------------
+
+
+@pytest.mark.unit
+async def test_history_returns_the_users_own_text_without_the_attachment_note() -> None:
+    """The note is model-facing only; the UI renders chips from metadata.
+
+    Backend appends "[Attached files: …]" to what the model sees and keeps the
+    clean text plus the ``{path, title}`` list in ``additional_kwargs`` — so a
+    reloaded chat shows neither a duplicated note nor a lost chip.
+    """
+    messages = [
+        HumanMessage(
+            content="summarize it\n\n[Attached files: uploads/lecture.pdf]",
+            id="h1",
+            additional_kwargs={
+                "text": "summarize it",
+                "attachments": [
+                    {"path": "uploads/lecture.pdf", "title": "lecture.pdf"}
+                ],
+            },
+        ),
+        AIMessage(content="sure", id="a1"),
+    ]
+
+    result = await _history(messages).history(THREAD)
+
+    assert result[0].content == "summarize it"
+    assert [(a.path, a.title) for a in result[0].attachments] == [
+        ("uploads/lecture.pdf", "lecture.pdf")
+    ]
+
+
+@pytest.mark.unit
+async def test_history_of_a_message_without_attachments_reports_none() -> None:
+    messages = [
+        HumanMessage(content="plain question", id="h1"),
+        AIMessage(content="answer", id="a1"),
+    ]
+
+    result = await _history(messages).history(THREAD)
+
+    assert result[0].content == "plain question"
+    assert result[0].attachments == []

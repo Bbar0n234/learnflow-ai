@@ -1,49 +1,115 @@
-"""Artifacts HTTP handlers — integration through the authenticated ASGI client.
+"""Artifacts REST on the file-backed model — integration through the ASGI client.
 
-Covers listing, detail, markdown and PDF download, the cross-project 404 guard,
-project ownership, and validation. The real wkhtmltopdf binary and the
-lifespan-populated ``app.state.settings`` are absent under ASGITransport (see
-conftest ``app`` docstring), so the PDF test stubs ``convert_md_to_pdf`` and
-injects the one setting the handler reads.
+Route -> ``ArtifactWorkspaceService`` -> real files on a throwaway workspace
+root, with ownership resolved against real Postgres. The contract that moved in
+this iteration is addressing: an artifact is identified by its path below
+``artifacts/``, carried in a ``path`` query parameter rather than a URL segment
+(a segment cannot hold the slashes a nested artifact needs), and the same
+route answers list (no ``path``) and detail (``path`` present).
+
+The suite pins the three answers a caller can get for a path — a file (200), a
+valid path with nothing behind it (404), and a path that escapes the workspace
+(422 problem+json, the adversarial case) — plus the caching contract ``media``
+now needs: the identity is rewritable, so the response must revalidate
+(``ETag``/``no-cache``) instead of being cached forever the way the old
+UUID-addressed immutable blob was.
 """
 
 from __future__ import annotations
 
+import os
 import uuid
-from types import SimpleNamespace
+from pathlib import Path
+from urllib.parse import unquote
 
 import pytest
 from app.models.user import User
-from fastapi import FastAPI
+from app.storage.workspace import Workspace
 from httpx import AsyncClient
 
 from tests.projects._builders import create_other_project, create_owned_project
-from tests.projects.conftest import ArtifactFactory
 
 pytestmark = pytest.mark.integration
 
 
-async def test_list_artifacts_returns_envelope_for_owned_project(
-    client: AsyncClient, current_user: User
+def _artifact(root: Path, project_id: uuid.UUID, relative: str, content: str) -> Path:
+    path = root / str(project_id) / "artifacts" / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    return path
+
+
+def _binary_artifact(
+    root: Path, project_id: uuid.UUID, relative: str, data: bytes
+) -> Path:
+    path = root / str(project_id) / "artifacts" / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    return path
+
+
+# --- list -------------------------------------------------------------------
+
+
+async def test_list_artifacts_of_an_untouched_project_is_empty(
+    client: AsyncClient, current_user: User, workspace: Workspace
 ) -> None:
+    # Workspace creation is lazy: a project nobody wrote to has no directory
+    # at all, and that must read as "no artifacts", not as an error.
     project = await create_owned_project(current_user)
-    await ArtifactFactory.create(project=project, title="One")
-    await ArtifactFactory.create(project=project, title="Two")
 
     response = await client.get(f"/api/projects/{project.id}/artifacts")
 
     assert response.status_code == 200
+    assert response.json() == {"items": [], "total": 0, "limit": 50, "offset": 0}
+
+
+async def test_list_artifacts_returns_nested_paths_newest_first(
+    client: AsyncClient,
+    current_user: User,
+    workspace: Workspace,
+    workspaces_root: Path,
+) -> None:
+    project = await create_owned_project(current_user)
+    older = _artifact(workspaces_root, project.id, "notes.md", "# Notes")
+    newer = _artifact(workspaces_root, project.id, "lecture-1/slides.md", "# Slides")
+    os.utime(older, (1_700_000_000, 1_700_000_000))
+    os.utime(newer, (1_700_000_100, 1_700_000_100))
+
+    response = await client.get(f"/api/projects/{project.id}/artifacts")
+
     body = response.json()
     assert body["total"] == 2
-    assert {item["title"] for item in body["items"]} == {"One", "Two"}
-    assert body["limit"] == 50 and body["offset"] == 0
-    # List items are the lightweight projection — no heavy ``content`` field
-    # (that is detail-only). Catches a leak of the full markdown into the list.
-    assert all("content" not in item for item in body["items"])
+    assert [item["path"] for item in body["items"]] == [
+        "lecture-1/slides.md",
+        "notes.md",
+    ]
+    assert body["items"][0]["title"] == "slides.md"
+    assert body["items"][0]["type"] == "md"
 
 
-async def test_list_artifacts_for_other_users_project_returns_404(
+async def test_list_artifacts_honours_limit_and_offset(
     client: AsyncClient,
+    current_user: User,
+    workspace: Workspace,
+    workspaces_root: Path,
+) -> None:
+    project = await create_owned_project(current_user)
+    for index in range(3):
+        path = _artifact(workspaces_root, project.id, f"a{index}.md", "x")
+        os.utime(path, (1_700_000_000 + index, 1_700_000_000 + index))
+
+    response = await client.get(
+        f"/api/projects/{project.id}/artifacts", params={"limit": 1, "offset": 1}
+    )
+
+    body = response.json()
+    assert [item["path"] for item in body["items"]] == ["a1.md"]
+    assert (body["total"], body["limit"], body["offset"]) == (3, 1, 1)
+
+
+async def test_list_artifacts_of_someone_elses_project_is_404(
+    client: AsyncClient, workspace: Workspace
 ) -> None:
     project = await create_other_project()
 
@@ -52,190 +118,347 @@ async def test_list_artifacts_for_other_users_project_returns_404(
     assert response.status_code == 404
 
 
-async def test_get_artifact_returns_detail_with_content(
-    client: AsyncClient, current_user: User
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        pytest.param("", id="detail"),
+        pytest.param("/media", id="media"),
+        pytest.param("/download", id="download"),
+    ],
+)
+async def test_reading_an_artifact_of_someone_elses_project_is_404(
+    client: AsyncClient,
+    workspace: Workspace,
+    workspaces_root: Path,
+    endpoint: str,
 ) -> None:
-    project = await create_owned_project(current_user)
-    artifact = await ArtifactFactory.create(
-        project=project, title="Notes", content="# Heading"
+    # Ownership is the outer gate on every one of the four routes, and it has
+    # to hold on the reading three as well as on list: the path parameter is
+    # attacker-chosen, so a route that forgot the dependency would happily
+    # serve a file that exists in a stranger's workspace. The file is real
+    # here on purpose — a 404 from "nothing to read" would prove nothing.
+    project = await create_other_project()
+    _artifact(workspaces_root, project.id, "notes.md", "их конспект")
+
+    response = await client.get(
+        f"/api/projects/{project.id}/artifacts{endpoint}", params={"path": "notes.md"}
     )
 
-    response = await client.get(f"/api/projects/{project.id}/artifacts/{artifact.id}")
+    assert response.status_code == 404
+    assert "их конспект".encode() not in response.content
+
+
+# --- detail -----------------------------------------------------------------
+
+
+async def test_get_artifact_returns_metadata_and_text_content(
+    client: AsyncClient,
+    current_user: User,
+    workspace: Workspace,
+    workspaces_root: Path,
+) -> None:
+    project = await create_owned_project(current_user)
+    _artifact(workspaces_root, project.id, "lecture-1/slides.md", "# Slides")
+
+    response = await client.get(
+        f"/api/projects/{project.id}/artifacts",
+        params={"path": "lecture-1/slides.md"},
+    )
 
     assert response.status_code == 200
     body = response.json()
-    assert body["title"] == "Notes"
-    assert body["content"] == "# Heading"
+    assert body["path"] == "lecture-1/slides.md"
+    assert body["title"] == "slides.md"
+    assert body["type"] == "md"
+    assert body["content"] == "# Slides"
+    assert "updated_at" in body
 
 
-async def test_get_artifact_missing_returns_404_entity_not_found(
-    client: AsyncClient, current_user: User
-) -> None:
-    project = await create_owned_project(current_user)
-
-    response = await client.get(f"/api/projects/{project.id}/artifacts/{uuid.uuid4()}")
-
-    assert response.status_code == 404
-    assert response.json()["type"] == "urn:learnflow:entity-not-found"
-
-
-async def test_get_artifact_from_another_project_returns_404(
-    client: AsyncClient, current_user: User
-) -> None:
-    project_a = await create_owned_project(current_user)
-    project_b = await create_owned_project(current_user)
-    artifact = await ArtifactFactory.create(project=project_b)
-
-    response = await client.get(f"/api/projects/{project_a.id}/artifacts/{artifact.id}")
-
-    assert response.status_code == 404
-    assert response.json()["detail"] == "Artifact not found"
-
-
-async def test_get_artifact_under_other_users_project_returns_404(
+async def test_get_a_binary_artifact_omits_the_content_field(
     client: AsyncClient,
+    current_user: User,
+    workspace: Workspace,
+    workspaces_root: Path,
 ) -> None:
-    project = await create_other_project()
-    artifact = await ArtifactFactory.create(project=project)
+    # Bytes travel through `media`, never inline in JSON — the field is absent
+    # rather than null, which is what the frontend DTO expects.
+    project = await create_owned_project(current_user)
+    _binary_artifact(workspaces_root, project.id, "chart.png", b"\x89PNG\r\n\x1a\n\xff")
 
-    response = await client.get(f"/api/projects/{project.id}/artifacts/{artifact.id}")
+    response = await client.get(
+        f"/api/projects/{project.id}/artifacts", params={"path": "chart.png"}
+    )
+
+    assert response.status_code == 200
+    assert "content" not in response.json()
+
+
+async def test_get_an_artifact_whose_path_is_not_ascii(
+    client: AsyncClient,
+    current_user: User,
+    workspace: Workspace,
+    workspaces_root: Path,
+) -> None:
+    # Cyrillic filenames are produced routinely — `generate_image` slugs a
+    # Russian title, uploads keep the name the user picked — so the path that
+    # identifies an artifact is regularly non-ASCII. It has to survive the
+    # round trip through `?path=` percent-encoding and come back as the same
+    # string, byte for byte, in `path` and `title`.
+    project = await create_owned_project(current_user)
+    _artifact(workspaces_root, project.id, "лекции/Лекция №1.md", "# Лекция")
+
+    response = await client.get(
+        f"/api/projects/{project.id}/artifacts",
+        params={"path": "лекции/Лекция №1.md"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["path"] == "лекции/Лекция №1.md"
+    assert body["title"] == "Лекция №1.md"
+    assert body["content"] == "# Лекция"
+
+
+async def test_get_a_missing_artifact_is_404(
+    client: AsyncClient, current_user: User, workspace: Workspace
+) -> None:
+    project = await create_owned_project(current_user)
+
+    response = await client.get(
+        f"/api/projects/{project.id}/artifacts", params={"path": "gone.md"}
+    )
 
     assert response.status_code == 404
 
 
-async def test_download_artifact_as_markdown_returns_file(
-    client: AsyncClient, current_user: User
+@pytest.mark.parametrize(
+    "path",
+    [
+        pytest.param("../../etc/passwd", id="traversal"),
+        pytest.param("../../../../../../etc/shadow", id="deep-traversal"),
+    ],
+)
+async def test_get_an_artifact_outside_the_workspace_is_422_problem(
+    client: AsyncClient, current_user: User, workspace: Workspace, path: str
 ) -> None:
+    # A path escape is a malformed/adversarial request, not a missing file —
+    # 422 keeps it distinguishable from the ordinary "not there" 404.
     project = await create_owned_project(current_user)
-    artifact = await ArtifactFactory.create(
-        project=project, title="Report", content="# Body"
-    )
 
     response = await client.get(
-        f"/api/projects/{project.id}/artifacts/{artifact.id}/download",
-        params={"format": "md"},
-    )
-
-    assert response.status_code == 200
-    assert response.headers["content-type"].startswith("text/markdown")
-    disposition = response.headers["content-disposition"]
-    assert "attachment" in disposition
-    # Filename derives from the artifact title with a ``.md`` suffix (RFC 5987
-    # ``filename*`` form). A regression that lost the title or extension shows
-    # up here, not just in a bare "attachment" check.
-    assert "filename*=UTF-8''Report.md" in disposition
-    assert response.text == "# Body"
-
-
-async def test_download_artifact_defaults_to_markdown_without_format(
-    client: AsyncClient, current_user: User
-) -> None:
-    """No ``format`` query → markdown branch (the handler default)."""
-    project = await create_owned_project(current_user)
-    artifact = await ArtifactFactory.create(
-        project=project, title="Plain", content="# Default"
-    )
-
-    response = await client.get(
-        f"/api/projects/{project.id}/artifacts/{artifact.id}/download"
-    )
-
-    assert response.status_code == 200
-    assert response.headers["content-type"].startswith("text/markdown")
-    assert "filename*=UTF-8''Plain.md" in response.headers["content-disposition"]
-    assert response.text == "# Default"
-
-
-async def test_download_artifact_invalid_format_returns_422(
-    client: AsyncClient, current_user: User
-) -> None:
-    project = await create_owned_project(current_user)
-    artifact = await ArtifactFactory.create(project=project)
-
-    response = await client.get(
-        f"/api/projects/{project.id}/artifacts/{artifact.id}/download",
-        params={"format": "txt"},
+        f"/api/projects/{project.id}/artifacts", params={"path": path}
     )
 
     assert response.status_code == 422
-    # The pattern-constraint rejection must surface as RFC 9457 problem+json,
-    # not FastAPI's raw ``{"detail": [...]}`` — the app installs a custom
-    # validation handler and the contract is the project-wide envelope.
     assert response.headers["content-type"].startswith("application/problem+json")
-    body = response.json()
-    assert body["type"] == "urn:learnflow:validation-error"
-    assert body["status"] == 422
-    # The narrowed error list pins the offending location (the ``format`` query).
-    assert any(err["loc"][-1] == "format" for err in body["errors"])
+    assert response.json()["type"] == "urn:learnflow:invalid-path"
 
 
-async def test_download_pdf_branch_converts_via_export(
-    client: AsyncClient,
-    current_user: User,
-    app: FastAPI,
-    monkeypatch: pytest.MonkeyPatch,
+async def test_get_an_absolute_path_reads_nothing_off_the_host(
+    client: AsyncClient, current_user: User, workspace: Workspace
 ) -> None:
-    """``format=pdf`` routes through ``convert_md_to_pdf`` and returns the bytes.
-
-    The real wkhtmltopdf binary and lifespan-populated ``app.state.settings`` are
-    absent under ASGITransport, so we stub the converter and inject the one
-    setting the handler reads (``pdf_conversion_timeout_seconds``).
-    """
+    # The zone prefix is prepended to the parameter, so an absolute path
+    # degrades into a relative one inside `artifacts/` — nothing off the host
+    # is reachable, and the answer is the ordinary "no such artifact".
     project = await create_owned_project(current_user)
-    artifact = await ArtifactFactory.create(
-        project=project, title="Export", content="# Source"
-    )
-
-    captured: dict[str, object] = {}
-
-    def _fake_convert(content: str, timeout: int = 30) -> bytes:
-        captured["content"] = content
-        captured["timeout"] = timeout
-        return b"%PDF-1.4 fake-bytes"
-
-    app.state.settings = SimpleNamespace(pdf_conversion_timeout_seconds=42)
-    monkeypatch.setattr("app.api.routes.artifacts.convert_md_to_pdf", _fake_convert)
 
     response = await client.get(
-        f"/api/projects/{project.id}/artifacts/{artifact.id}/download",
-        params={"format": "pdf"},
+        f"/api/projects/{project.id}/artifacts", params={"path": "/etc/passwd"}
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        pytest.param("", id="detail"),
+        pytest.param("/media", id="media"),
+        pytest.param("/download", id="download"),
+    ],
+)
+async def test_artifacts_endpoints_do_not_serve_files_outside_the_artifacts_zone(
+    client: AsyncClient,
+    current_user: User,
+    workspace: Workspace,
+    workspaces_root: Path,
+    endpoint: str,
+) -> None:
+    project = await create_owned_project(current_user)
+    upload = workspaces_root / str(project.id) / "uploads"
+    upload.mkdir(parents=True)
+    (upload / "lecture.txt").write_text("private upload", encoding="utf-8")
+
+    response = await client.get(
+        f"/api/projects/{project.id}/artifacts{endpoint}",
+        params={"path": "../uploads/lecture.txt"},
+    )
+
+    assert response.status_code in (404, 422)
+    assert b"private upload" not in response.content
+
+
+# --- media ------------------------------------------------------------------
+
+
+async def test_media_returns_bytes_with_revalidating_cache_headers(
+    client: AsyncClient,
+    current_user: User,
+    workspace: Workspace,
+    workspaces_root: Path,
+) -> None:
+    project = await create_owned_project(current_user)
+    _binary_artifact(workspaces_root, project.id, "chart.png", b"\x89PNG-data")
+
+    response = await client.get(
+        f"/api/projects/{project.id}/artifacts/media", params={"path": "chart.png"}
     )
 
     assert response.status_code == 200
-    assert response.headers["content-type"] == "application/pdf"
-    assert "filename*=UTF-8''Export.pdf" in response.headers["content-disposition"]
-    assert response.content == b"%PDF-1.4 fake-bytes"
-    # The artifact's markdown was handed to the converter with the injected
-    # timeout — proves the handler wires content and settings through, not a
-    # hard-coded default.
-    assert captured == {"content": "# Source", "timeout": 42}
+    assert response.content == b"\x89PNG-data"
+    assert response.headers["content-type"] == "image/png"
+    assert response.headers["cache-control"] == "no-cache"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["etag"]
+    assert response.headers["last-modified"]
 
 
-async def test_download_artifact_from_another_project_returns_404(
-    client: AsyncClient, current_user: User
-) -> None:
-    """The ``/download`` ownership guard (its own check) rejects cross-project."""
-    project_a = await create_owned_project(current_user)
-    project_b = await create_owned_project(current_user)
-    artifact = await ArtifactFactory.create(project=project_b)
-
-    response = await client.get(
-        f"/api/projects/{project_a.id}/artifacts/{artifact.id}/download"
-    )
-
-    assert response.status_code == 404
-    assert response.json()["detail"] == "Artifact not found"
-
-
-async def test_download_artifact_under_other_users_project_returns_404(
+async def test_media_answers_304_when_the_client_etag_still_matches(
     client: AsyncClient,
+    current_user: User,
+    workspace: Workspace,
+    workspaces_root: Path,
 ) -> None:
-    """An artifact under another user's project is not downloadable (404)."""
-    project = await create_other_project()
-    artifact = await ArtifactFactory.create(project=project)
+    project = await create_owned_project(current_user)
+    _binary_artifact(workspaces_root, project.id, "chart.png", b"\x89PNG-data")
+    url = f"/api/projects/{project.id}/artifacts/media"
+    first = await client.get(url, params={"path": "chart.png"})
+
+    second = await client.get(
+        url,
+        params={"path": "chart.png"},
+        headers={"If-None-Match": first.headers["etag"]},
+    )
+
+    assert second.status_code == 304
+    assert second.content == b""
+
+
+async def test_media_answers_200_after_the_file_was_rewritten(
+    client: AsyncClient,
+    current_user: User,
+    workspace: Workspace,
+    workspaces_root: Path,
+) -> None:
+    # The path is a rewritable identity — this is the whole reason the cache
+    # revalidates instead of being immutable.
+    project = await create_owned_project(current_user)
+    target = _binary_artifact(workspaces_root, project.id, "chart.png", b"old")
+    url = f"/api/projects/{project.id}/artifacts/media"
+    first = await client.get(url, params={"path": "chart.png"})
+    target.write_bytes(b"new-and-longer")
+
+    second = await client.get(
+        url,
+        params={"path": "chart.png"},
+        headers={"If-None-Match": first.headers["etag"]},
+    )
+
+    assert second.status_code == 200
+    assert second.content == b"new-and-longer"
+
+
+async def test_media_of_a_missing_artifact_is_404(
+    client: AsyncClient, current_user: User, workspace: Workspace
+) -> None:
+    project = await create_owned_project(current_user)
 
     response = await client.get(
-        f"/api/projects/{project.id}/artifacts/{artifact.id}/download"
+        f"/api/projects/{project.id}/artifacts/media", params={"path": "gone.png"}
     )
 
     assert response.status_code == 404
+
+
+# --- download ---------------------------------------------------------------
+
+
+async def test_download_returns_the_file_as_an_attachment(
+    client: AsyncClient,
+    current_user: User,
+    workspace: Workspace,
+    workspaces_root: Path,
+) -> None:
+    project = await create_owned_project(current_user)
+    _artifact(workspaces_root, project.id, "lecture-1/slides.md", "# Slides")
+
+    response = await client.get(
+        f"/api/projects/{project.id}/artifacts/download",
+        params={"path": "lecture-1/slides.md"},
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"# Slides"
+    assert response.headers["content-type"].startswith("text/markdown")
+    assert "attachment" in response.headers["content-disposition"]
+    assert "slides.md" in response.headers["content-disposition"]
+
+
+async def test_download_encodes_a_non_ascii_filename_in_the_disposition(
+    client: AsyncClient,
+    current_user: User,
+    workspace: Workspace,
+    workspaces_root: Path,
+) -> None:
+    # `Content-Disposition` is a latin-1 header, so a Cyrillic filename can
+    # only travel as RFC 5987 `filename*=UTF-8''<percent-encoded>`; the plain
+    # `filename=` form would either mangle the name or make the response
+    # unencodable. This is the one place a non-ASCII artifact path breaks
+    # visibly, and the browser's Save-as name comes straight out of it.
+    project = await create_owned_project(current_user)
+    _artifact(workspaces_root, project.id, "лекции/Лекция №1.md", "# Лекция")
+
+    response = await client.get(
+        f"/api/projects/{project.id}/artifacts/download",
+        params={"path": "лекции/Лекция №1.md"},
+    )
+
+    assert response.status_code == 200
+    assert response.content == "# Лекция".encode()
+    disposition = response.headers["content-disposition"]
+    assert disposition.startswith("attachment; filename*=UTF-8''")
+    assert unquote(disposition.split("''", 1)[1]) == "Лекция №1.md"
+
+
+async def test_download_of_a_missing_artifact_is_404(
+    client: AsyncClient, current_user: User, workspace: Workspace
+) -> None:
+    project = await create_owned_project(current_user)
+
+    response = await client.get(
+        f"/api/projects/{project.id}/artifacts/download", params={"path": "gone.md"}
+    )
+
+    assert response.status_code == 404
+
+
+async def test_download_no_longer_offers_pdf_conversion(
+    client: AsyncClient,
+    current_user: User,
+    workspace: Workspace,
+    workspaces_root: Path,
+) -> None:
+    # The wkhtmltopdf path was dropped with the PG model (PDF export becomes a
+    # skill over the runtime): `format` is not a parameter any more, and an
+    # unknown query parameter must not change what comes back.
+    project = await create_owned_project(current_user)
+    _artifact(workspaces_root, project.id, "notes.md", "# Notes")
+
+    response = await client.get(
+        f"/api/projects/{project.id}/artifacts/download",
+        params={"path": "notes.md", "format": "pdf"},
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"# Notes"
+    assert not response.headers["content-type"].startswith("application/pdf")

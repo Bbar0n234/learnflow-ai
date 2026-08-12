@@ -1,7 +1,7 @@
 """In-memory fakes for sociable-unit service tests (S4).
 
-Working ``dict``-backed stands-in for the repositories the project/artifact
-services collaborate with. They speak the same duck-typed interface as the real
+Working ``dict``-backed stands-in for the repositories the project service
+collaborates with. They speak the same duck-typed interface as the real
 repositories, so the service runs its real logic; tests assert the *result*
 (returned objects, raised branches), not which methods were called.
 """
@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import uuid
 
-from app.models.artifact import Artifact
 from app.models.project import Project
 
 
@@ -54,26 +53,3 @@ class FakeMCPServerRepository:
 
     async def cleanup_disables_for_project(self, project_id: uuid.UUID) -> None:
         self.cleaned_projects.append(project_id)
-
-
-class FakeArtifactRepository:
-    def __init__(self) -> None:
-        self.artifacts: dict[uuid.UUID, Artifact] = {}
-
-    def _add(self, artifact: Artifact) -> None:
-        self.artifacts[artifact.id] = artifact
-
-    async def get_by_id(self, artifact_id: uuid.UUID) -> Artifact | None:
-        return self.artifacts.get(artifact_id)
-
-    async def list_by_project(
-        self, project_id: uuid.UUID, *, limit: int = 50, offset: int = 0
-    ) -> list[Artifact]:
-        items = [a for a in self.artifacts.values() if a.project_id == project_id]
-        return items[offset : offset + limit]
-
-    async def count_by_project(self, project_id: uuid.UUID) -> int:
-        return len([a for a in self.artifacts.values() if a.project_id == project_id])
-
-    async def list_by_thread(self, thread_id: uuid.UUID) -> list[Artifact]:
-        return [a for a in self.artifacts.values() if a.thread_id == thread_id]

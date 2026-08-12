@@ -335,6 +335,34 @@ Cross-project доступ из джоб (чтение **и запись/уда�
 - В Langfuse-спан tool-вызова джобы кладутся `exit_code` и длительность (для дебага рендер-скиллов); LLM-стоимости у джобы нет.
 - Полный чек-лист сноса PG-цепочки артефактов (за пределами tools): `services/chat.py` (сбор `artifact_ids`, `set_message_id`), `routes/chats.py` (группировка), `deps.py` (`ArtifactServiceDep`, `BlobStorageDep`), `PgBlobStorage`, `export.py` (wkhtmltopdf), фронт `downloadArtifact(format)` и кнопка PDF во вьюере (снимается до feat-005), тесты `tests/chat/conftest.py` — детализация в `plan.md`.
 
+## Партиция треков
+
+Три трека с непересекающимися файловыми скоупами; все per-track фазы (PLAN → … → TEST(track)) идут параллельно, внутри трека роли строго последовательны. Барьер — перед INTEGRATION_TEST.
+
+| Трек | Содержание | Файловый скоуп (владение на запись) | Тестовый скоуп |
+|------|-----------|-------------------------------------|----------------|
+| T1 | Backend: файловый слой workspace, переезд артефактов (REST, drop-миграция, снос PG-цепочки), инструменты агента (`read_file`/`write_file`/`list_files`/`execute_code`/`run_command`, судьбы существующих), `ArtifactPart` + SSE `artifact_updated`, вложения (uploads POST + пометка + metadata), словарь security-событий, актуализация промптов/конфигов (`system.txt` — `<internal_tools>`/`<artifacts_guidelines>`, `agent.yaml` — описания субагентов на пути вместо UUID, `security.yaml`), перевод backend-образа на non-root uid (единый uid, см. контракт 4), бинд-маунты `services/executor/pyproject.toml` в обоих существующих Dockerfile | `backend/**` (app, tests, contracts, alembic, Dockerfile), `configs/**`, `packages/siem-contracts/**`, `services/siem-service/Dockerfile` (только строки mount/COPY executor-манифеста), `docker-compose.yml`, `.env.example`, `.env.local.example`, `.gitignore`/`.dockerignore` | `backend/tests/**` + `packages/siem-contracts/tests/**` (`make test-contracts`) |
+| T2 | Frontend: рендер артефактов на уровне `ArtifactPart`, бейдж «обновлён · +N −M», адресация path-query, ETag/инвалидации (media-ключ, список по завершении хода), состояние «файл больше не существует», дерево артефактов, вложения (чип композера, upload, чип истории), реестр подписей инструментов, снятие PDF-кнопки | `frontend/**` | vitest co-located (`frontend/src/**/*.test.ts*`) |
+| T3 | Executor-сервис: `services/executor/` (job runner `POST /jobs`, bwrap+unshare-префикс, kill-цепочка, scrubbed env, потолок вывода, healthcheck, `EXECUTOR_`-Settings, Dockerfile), смоук-набор `smoke/` + make-цель с параметром runtime | `services/executor/**`, `Makefile`, корневой `pyproject.toml` (workspace member), `uv.lock` | `services/executor/tests/` |
+
+**Вердикт непересечения:** файловые скоупы дизъюнктны (партиция прошла независимое ревью; правки внесены). Спорные файлы закреплены явно: `docker-compose.yml` и `.env*.example` — T1 (пишет и exec-сеть, и блок executor-сервиса по § Конвенции; T3 компоуз не трогает); `Makefile` — T3 (существующих целей T1/T2 достаточно); `uv.lock` + корневой `pyproject.toml` — T3; `backend/contracts/agent-tool-names.json` — T1 (генерируемая фикстура реестра, генератор `scripts/generate_tool_names_fixture.py`); `configs/**` — T1; `services/siem-service/Dockerfile` — T1 (единственная правка — bind-mount executor-манифеста, парная к регистрации workspace-члена).
+
+**Политика зависимостей (uv.lock — один писатель):** `uv lock` в per-track фазах запускает **только T3** (регистрация `services/executor` как workspace-члена, ранняя фаза). T1 манифесты зависимостей в per-track фазах **не трогает**: удаление осиротевших `pdfkit`/`markdown`/`python-markdown-math` из `backend/pyproject.toml`, уборка их mypy-overrides в корневом `pyproject.toml`, явное объявление `python-multipart` (сейчас приезжает транзитивно через `mcp` — uploads работает и без явной декларации) — отдельная фаза **после барьера** (перед CODE_REVIEW), одним агентом, с единственной регенерацией `uv.lock`.
+
+**Межтрековые контракты и read-зависимости (не пересечения — секвенирование):**
+
+1. `frontend/src/shared/config/agent-tools.test.ts` (T2) читает фикстуру `backend/contracts/agent-tool-names.json` (T1). Тесты T2 по реестру подписей зеленеют только после фазы T1, обновляющей реестр инструментов + фикстуру → T1 фронтлоадит эту фазу; GREEN/TEST трека T2 оркестратор пускает после её локального коммита.
+2. Tool-обвязка T1 ходит в executor по контракту `POST /jobs {project_id, code|cmd, timeout} → {stdout, stderr, exit_code}` (фиксирован здесь и в § Executor). В per-track тестах T1 executor фейкуется; живая связка — INTEGRATION_TEST.
+3. Контракты SSE/REST между T1 и T2 фиксированы брифом (`artifact_updated`, `ArtifactPart`, path-query, uploads); расхождения ловит INTEGRATION_TEST.
+4. **Единый uid = 10001** (app = executor = джоба, § Конвенции): T1 реализует в `backend/Dockerfile` (сейчас образ под root — перевод на non-root: владение `/app/.venv`, entrypoint с alembic) и `docker-compose.yml` (`user:`), T3 — в `services/executor/Dockerfile`. Расхождение uid ловится только записью в workspace под gVisor (EINVAL) — INTEGRATION_TEST проверяет явно.
+5. Executor-блок compose/env пишет T1, но его содержимое — предметная область T3: имена `EXECUTOR_*`-knobs, `runtime: runsc`, `cpus`/`mem_limit`/`pids_limit`, `stop_grace_period` ≥ deadline, точки монтирования. T3-planner фиксирует точный список knobs в `tracks/T3/plan.md`; оркестратор передаёт его T1 до фазы compose-wiring (T1 ставит её поздней фазой).
+6. Регистрация workspace-члена (T3: корневой `pyproject.toml` + `uv.lock`) и bind-mount его манифеста в двух Dockerfile (T1) — парная правка: `docker compose build` зелёный только когда есть обе; per-track гейты (`make check`/`make test`) образов не собирают, сборка проверяется на INTEGRATION_TEST.
+7. T3 работает без compose: смоук — прямой `docker build` + `docker run --runtime=…` make-целью; живая топология — INTEGRATION_TEST.
+
+**Вне партиции:** `doc/**` в трековые скоупы не входит — обновляется на DOC_UPDATE после барьера; implementer'ы доки не правят. `tools/**` (arch-checker), `.pre-commit-config.yaml`, `.github/**` в итерации не трогаются (покрытие executor'а arch-checker'ом — кандидат в harvest).
+
+Выход за заявленный скоуп (нужен файл чужого трека) — эскалация оркестратору, не молчаливая правка.
+
 ## Приёмка
 
 Верхнеуровневые сквозные сценарии приёмки архитектора (способности агента, границы изоляции, регрессии) — [acceptance.md](acceptance.md); `test-author` разворачивает их в `test-cases.md` при реализации.

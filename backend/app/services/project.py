@@ -6,6 +6,7 @@ from app.models.project import Project
 from app.repositories.mcp_server import MCPServerRepository
 from app.repositories.project import ProjectRepository
 from app.services.exceptions import EntityNotFoundError
+from app.storage.workspace import Workspace
 
 
 class ProjectService:
@@ -14,9 +15,14 @@ class ProjectService:
         *,
         project_repo: ProjectRepository,
         mcp_server_repo: MCPServerRepository,
+        workspace: Workspace | None = None,
     ) -> None:
         self._project_repo = project_repo
         self._mcp_server_repo = mcp_server_repo
+        # Optional with a None default: ASGI tests build the app without
+        # running the lifespan, so `app.state.workspace` never exists there
+        # (mirrors `ChatService.title_generator`'s same accommodation).
+        self._workspace = workspace
 
     async def create_project(self, *, user_id: uuid.UUID, name: str) -> Project:
         return await self._project_repo.create(user_id=user_id, name=name)
@@ -44,3 +50,5 @@ class ProjectService:
         project = await self.get_project(project_id)
         await self._mcp_server_repo.cleanup_disables_for_project(project_id)
         await self._project_repo.delete(project)
+        if self._workspace is not None:
+            self._workspace.delete_project(str(project_id))

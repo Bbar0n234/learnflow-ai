@@ -102,6 +102,37 @@ the cat's feet or wrapped around them, entirely in front of the door plane.
 
 После light-версии — dark-пара тем же режимом B. Результат кладётся поверх прежних файлов (`generated/{light,dark}/auth-hero.png`) — история остаётся в git.
 
+## Перегенерация: итерация 3 (фидбэк архитектора по итерации 2)
+
+Сцены 1 и 2 без изменений. **`auth-hero` переделывается с нуля: новый вариант композиции, та же идея.** Прошлые генерации больше НЕ являются composition reference — брать только binding-референсы стиля и кота из таблицы выше. Причины переделки, обе должны быть закрыты новой композицией:
+
+1. **Галлюцинация у головы кота.** В итерации 2 возле уха висит обрубок-«полуключ» — паразитная деталь. В новом варианте — никаких мелких предметов, подвесок и обрывков форм возле головы и морды кота: очки и цепочка с медальоном — единственные детали в этой зоне. Ключ, если он есть, живёт далеко от лица: торчит в замочной скважине двери или лежит на коврике.
+
+2. **Композиция должна переживать вырез фона.** Пайплайн удаления фона стабильно съедает: полупрозрачные лавандовые дымки-завитки, одиночные мелкие искры в пустом пространстве, полупрозрачные объекты. В новом варианте:
+   - все второстепенные объекты — плотные непрозрачные плоские формы (книги, чашка, орб — сплошной фиолетовый, не просвечивающий);
+   - объекты стоят на земле или примыкают к основному кластеру (дверь/кот/порог), ничего не парит в отрыве в пустой зоне;
+   - без полупрозрачных дымок и размытых ореолов вовсе; искры-ромбики — максимум 2–3 и только вплотную к объектам.
+
+```text
+Asset type: login-page hero illustration, approximately 4:3. Fresh composition,
+same idea as before: the adult scholar cat hospitably welcomes the viewer at
+the opened door of a small fairytale library-hut, warm golden light and book
+stacks inside, doormat page at the threshold. Character on the right, at least
+40 percent of the left side stays as free air for the login form.
+Constraints for this variant:
+- Nothing hangs near the cat's head or face: glasses and the thin chain with a
+  small round medallion are the only details there. If a key appears, it sits
+  in the door's keyhole or lies on the doormat — far from the face.
+- Every supporting object is a fully opaque flat shape, standing on the ground
+  or attached to the main door-and-cat cluster. No floating objects in empty
+  space, no translucent lavender smoke or washes, no blur. At most 2-3 small
+  diamond sparks placed directly beside objects.
+Mood: threshold and welcome — "come in, your projects are waiting" — calm and
+warm.
+```
+
+После light-версии — dark-пара режимом B. Класть поверх `generated/{light,dark}/auth-hero.png`.
+
 ## Куда класть результат
 
 `doc/tasks/iterations/dogfooding/feat-013-ui-polish/generated/{light,dark}/<имя-сцены>.png` — в ветку `dogf/feat-013-ui-polish`. Варианты (если несколько кандидатов на сцену) — с суффиксами `-v1/-v2`. Дальнейшие шаги вне этого контракта: отбор архитектором → BiRefNet-вырез → ручная доводка → вставка в мокап итерации → перенос в `frontend/src/shared/assets/illustrations/` при реализации.

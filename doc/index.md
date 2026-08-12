@@ -74,6 +74,7 @@ doc/
   - [ADR-025: Conventions per Domain](tech/adr/ADR-025-conventions-per-domain.md) — дробление conventions.md: ядро + доменные файлы, progressive disclosure
   - [ADR-029: Operational Kill-Switches](tech/adr/ADR-029-operational-kill-switches.md) — один env-тумблер на подсистему (`LLM_DEFENSE_ENABLED`, `SIEM_ENABLED`), гранулярность остаётся в существующих конфигах
   - [ADR-030: Per-Call Tool Result Guard](tech/adr/ADR-030-per-call-tool-result-guard.md) — проверка и отчёт о результате инструмента повызовно, внутри узла `tools`: правдивость ленты против стоимости классификатора
+  - [ADR-031: OAuth Identity Model](tech/adr/ADR-031-oauth-identity-model.md) — отдельная таблица `oauth_accounts`, запрет авто-линковки по email, nullable `password_hash`
 
 **Setup manuals:**
 - [tech/setup/codex-cloud.md](tech/setup/codex-cloud.md) — настройка ChatGPT Codex Environment для cloud-сессий

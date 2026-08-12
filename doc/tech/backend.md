@@ -428,21 +428,21 @@ app/
 └── security_pipeline/   # SecurityEventProcessor + Redis-транспорт (→ siem-service.md)
 ```
 
-**api/** — HTTP/SSE-интерфейс. Роутеры сгруппированы по ресурсам, каждый вызывает соответствующий сервис. Schemas — Pydantic-контракт с фронтендом. deps.py — FastAPI dependencies для инъекции зависимостей в роутеры.
+**api/** — HTTP/SSE-интерфейс. Роутеры сгруппированы по ресурсам, каждый вызывает соответствующий сервис. Schemas — Pydantic-контракт с фронтендом. deps.py — FastAPI dependencies для инъекции зависимостей в роутеры. `cookies.py` — set/delete refresh-cookie, общие для `routes/auth.py` и `routes/oauth.py` (оба роутера ставят одну и ту же cookie на разных путях входа).
 
-**services/** — Оркестрация и бизнес-правила. CRUD-сервисы (Project, Artifact, UserMemory, SkillContext, MCPServer) + thin ChatService для chat-операций (маппинг chat_id → thread_id, model resolution, делегирование в AgentRunner, управление ThreadView, rename/delete чата с каскадом). `ChatTitleGenerator` — отдельный fire-and-forget сервис auto-title (реестр задач в `app.state`, собственная DB-сессия, teardown в lifespan). ModelConfigResolver — каскадное разрешение модели; MCPToolResolver — резолв MCP-инструментов per-request (оба инжектятся в AgentRunner). EncryptionService (Fernet) — шифрование API-ключей user MCP-серверов. Зависимости (repositories, AgentRunner) — через конструктор, wiring в deps.py.
+**services/** — Оркестрация и бизнес-правила. CRUD-сервисы (Project, Artifact, UserMemory, SkillContext, MCPServer) + thin ChatService для chat-операций (маппинг chat_id → thread_id, model resolution, делегирование в AgentRunner, управление ThreadView, rename/delete чата с каскадом). `ChatTitleGenerator` — отдельный fire-and-forget сервис auto-title (реестр задач в `app.state`, собственная DB-сессия, teardown в lifespan). ModelConfigResolver — каскадное разрешение модели; MCPToolResolver — резолв MCP-инструментов per-request (оба инжектятся в AgentRunner). EncryptionService (Fernet) — шифрование API-ключей user MCP-серверов. `AuthService`/`OAuthService` — выдача и валидация сессии, парольный и OAuth-вход (детали — [auth.md](auth.md)). Зависимости (repositories, AgentRunner) — через конструктор, wiring в deps.py.
 
 **agent/** — LangGraph-граф, GraphFactory (per-request build+compile), tools, context engineering, промпт. Публичный интерфейс — AgentRunner (stream, get_history, get_last_ai_message_id, cancel, delete_thread — best-effort удаление checkpoints по `thread_id`). LangGraph-типы не выходят за пределы этого пакета. tools/ — суб-пакет с внутренней группировкой (KS, artifacts, user memory, skill context, skills).
 
 **skills/** — директория в корне репозитория (`skills/`, рядом с `backend/`, `configs/`). Каждый skill — поддиректория с `SKILL.md` (Claude Code compatible формат). Вынесены из backend, чтобы пользователь мог добавлять skills без необходимости лезть в код приложения.
 
-**repositories/** — CRUD-доступ к app-managed таблицам через SQLAlchemy async session. По репозиторию на сущность.
+**repositories/** — CRUD-доступ к app-managed таблицам через SQLAlchemy async session. По репозиторию на сущность (например, `OAuthAccountRepository` — lookup по `(provider, provider_account_id)`, см. [auth.md](auth.md)).
 
 **storage/** — абстракции хранилища с заменяемым бэкендом или не-ORM семантикой: `BlobStorage` (`typing.Protocol`, реализация `PgBlobStorage`) для бинарей артефактов, `TraceStore` (Redis) для маппинга trace_id/feedback. Независимый сосед `repositories/` — ни один из двух пакетов не импортирует другой; нейминг и граница между ними — [conventions.md § Именование](conventions.md#именование).
 
 **models/** — SQLAlchemy ORM-модели для app-managed таблиц (User, Project, ThreadView, Artifact).
 
-**infra/** — Сконфигурированные клиенты внешних сервисов: DB engine/session factory, Checkpointer + Store (`langgraph.py`), LLM-клиенты, клиент OpenRouter Image API (`image_generation.py` — голый `httpx`, без LangChain-обёртки), MCP client (`MultiServerMCPClient`), PromptProvider (Langfuse SDK wrapper), rate limiting, Redis client. Импортируется из Repository Layer, Service Layer и Agent Layer. MCPToolResolver и EncryptionService живут в `services/`, не здесь.
+**infra/** — Сконфигурированные клиенты внешних сервисов: DB engine/session factory, Checkpointer + Store (`langgraph.py`), LLM-клиенты, клиент OpenRouter Image API (`image_generation.py` — голый `httpx`, без LangChain-обёртки), MCP client (`MultiServerMCPClient`), PromptProvider (Langfuse SDK wrapper), rate limiting, Redis client, `oauth/` (Protocol `OAuthProvider` + реализации Яндекс/Google/GitHub + фабрика реестра — общий `httpx.AsyncClient` в `app.state`), `geoip.py` (MMDB reader для гео-gate). Импортируется из Repository Layer, Service Layer и Agent Layer. MCPToolResolver и EncryptionService живут в `services/`, не здесь. Детали OAuth/гео-gate — [auth.md](auth.md).
 
 ## Agent Runtime
 
@@ -500,10 +500,14 @@ graph LR
 
 ```
 User
-├── id, name, password_hash, is_admin, created_at
+├── id, name, password_hash (nullable — OAuth-only пользователь), is_admin, created_at
 
 RefreshToken
 ├── id (UUID PK), user_id (FK CASCADE), token_hash (indexed), expires_at, created_at, revoked_at
+
+OAuthAccount
+├── id (UUID PK), user_id (FK CASCADE, indexed), provider, provider_account_id, email (nullable), created_at, updated_at
+├── UNIQUE(provider, provider_account_id), CHECK(provider IN ('yandex', 'google', 'github'))
 
 Project
 ├── id, user_id, name, created_at, updated_at
@@ -532,10 +536,13 @@ MCPServerDisable
 
 **ArtifactBlob** — бинарные данные артефактов (сейчас — сгенерированные изображения), отдельная таблица от `Artifact`, чтобы обычный select/listing артефактов не тянул мегабайты. Доступ — за протоколом `BlobStorage` (`app/storage/blob_storage.py`, `put`/`get`/`delete`), единственная реализация — `PgBlobStorage`, конструируется вокруг сессии как репозитории (не принимает `session` параметром метода) — атомарность «артефакт + блоб одной транзакцией» получается естественным образом при записи. Таблица рассчитана на переиспользование будущими потребителями бинарей (file attachments, референсные изображения). Обоснование выбора PostgreSQL вместо S3/файловой системы — [ADR-027](adr/ADR-027-artifact-blob-storage.md).
 
+**OAuthAccount** — связка `(provider, provider_account_id)` на `User`, отдельная от `users` таблица (несколько провайдеров на пользователя, будущая ручная линковка не требует миграции). Токены провайдеров и сырой профиль не хранятся — OAuth используется одноразово на входе, дальше работает собственная сессионная машина (`RefreshToken`). Обоснование модели — [ADR-031](adr/ADR-031-oauth-identity-model.md), флоу — [auth.md](auth.md).
+
 ### Связи
 
 ```
 User 1 → N Project
+User 1 → N OAuthAccount
 Project 1 → N ThreadView
 Project 1 → N Artifact
 Artifact 1 → 0..1 ArtifactBlob (только type="image")
@@ -554,6 +561,8 @@ Artifact.thread_id → ThreadView.thread_id (артефакт создаётся
 Конфигурация:
 - `configs/logging.yaml` — формат вывода (`human-readable` / `json`), per-library overrides для шумных библиотек
 - `LOG_LEVEL` env var — уровень логирования (default: `info`)
+
+Инвариант человекочитаемого рендера (`format: human-readable`): rich-трейсбеки печатаются с `show_locals=False`. Дефолт `show_locals=True` печатал бы значения локальных переменных на любом `exc_info=True` — включая `Settings` со всеми секретами (`jwt_secret`, `llm_api_key`, OAuth-креды), если объект настроек оказывался в стеке вызовов исключения. JSON-формат locals не рендерит и инвариантом не затронут.
 
 ### Structlog + stdlib интеграция
 

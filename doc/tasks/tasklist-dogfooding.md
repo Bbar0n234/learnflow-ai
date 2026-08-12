@@ -275,6 +275,18 @@
 - **P2** Дизайн экранов авторизации (login/register) — `app/components/AuthGate.tsx` сейчас generic shadcn-модалка с англоязычным копирайтом («Sign In»/«Create Account») в полностью русском UI, без wordmark/иллюстрации/бренда «Электрик». Первый экран каждого пользователя *(Frontend, cross: Design-branding)*
 - **P2** 404 / Not-Found экран — отсутствует физически (нет catch-all `path="*"` в `router.tsx`): битый URL рендерит каркас с пустым `<Outlet/>`. Catch-all маршрут + брендовый экран. Дёшево, видимый прод-дефект *(Frontend, cross: Design-branding)*
 
+#### Документация
+
+- [design-brief.md](iterations/dogfooding/feat-008-oauth-auth-screens/design-brief.md) — OAuth-флоу (Яндекс ID/Google/GitHub), гео-разделение по 149-ФЗ, cookie `oauth_flow`, модель данных, каркас `/login` по мокапу feat-013, партиция треков T1/T2
+- [research-legal-geo.md](iterations/dogfooding/feat-008-oauth-auth-screens/research-legal-geo.md) / [research-data-model.md](iterations/dogfooding/feat-008-oauth-auth-screens/research-data-model.md) / [research-provider-libs.md](iterations/dogfooding/feat-008-oauth-auth-screens/research-provider-libs.md) — юридическая рамка гео-ограничения, ресёрч модели данных (эталоны Auth.js/allauth/better-auth/omniauth, база ADR-031), сравнение провайдерских библиотек
+- [tracks/T1/plan.md](iterations/dogfooding/feat-008-oauth-auth-screens/tracks/T1/plan.md) / [tracks/T2/plan.md](iterations/dogfooding/feat-008-oauth-auth-screens/tracks/T2/plan.md) — implementation plans (backend: модель + миграция, провайдер-абстракция, гео-gate, эндпоинты, SIEM-словарь; frontend: каркас `/login`, guard, бутстрап)
+- [tracks/T1/summary.md](iterations/dogfooding/feat-008-oauth-auth-screens/tracks/T1/summary.md) / [tracks/T2/summary.md](iterations/dogfooding/feat-008-oauth-auth-screens/tracks/T2/summary.md) — post-implementation summary: девять фаз бэкенд-вертикали (T1), каркас входа + фиксы доступности (T2)
+- [tracks/T1/test-cases.md](iterations/dogfooding/feat-008-oauth-auth-screens/tracks/T1/test-cases.md) / [tracks/T2/test-cases.md](iterations/dogfooding/feat-008-oauth-auth-screens/tracks/T2/test-cases.md) — тестовые кейсы и результаты прогонов
+- [review-a.md](iterations/dogfooding/feat-008-oauth-auth-screens/review-a.md) / [review-b.md](iterations/dogfooding/feat-008-oauth-auth-screens/review-b.md) — code review (независимый + соответствие контракту)
+- [harvest-proposals.md](iterations/dogfooding/feat-008-oauth-auth-screens/harvest-proposals.md) — кандидаты в backlog/конвенции, собранные по ходу итерации
+- Создан: [ADR-031](../tech/adr/ADR-031-oauth-identity-model.md) — отдельная таблица `oauth_accounts`, запрет авто-линковки по email, nullable `password_hash`
+- Обновлены по итогам: [auth.md](../tech/auth.md) (OAuth-вход целиком: флоу, cookie `oauth_flow`, гео-gate, реестр кодов ошибок, поверхность атаки, вход страницей `/login`), [backend.md](../tech/backend.md) (`infra/oauth`, `infra/geoip.py`, `AuthService`/`OAuthService`, `api/cookies.py`, таблица `OAuthAccount`, `show_locals=False`), [frontend.md](../tech/frontend.md) (маршрут `/login`, guard `RequireAuth`, `useAuthBootstrap`, дерево модулей), [security-events.md](../tech/security-events.md) (`auth.oauth.success`/`failed`, `rate_limit.oauth.exceeded`), [conventions/api.md](../tech/conventions/api.md) (исключение `/auth/providers` из list-envelope)
+
 ---
 
 ### feat-009 (J): Web search MCP — замена Firecrawl на Jina AI

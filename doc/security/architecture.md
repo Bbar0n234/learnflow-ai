@@ -138,9 +138,15 @@ Guard вызывается первым в service-методе, до endpoint-�
 
 Субагент — тот же trust-контур, что основной агент; отдельный периметр не строится (полное обоснование — [ADR-028](../tech/adr/ADR-028-product-subagents.md), исполняющее ядро — [agent-runtime.md § Субагенты](../tech/agent-runtime.md#субагенты)).
 
-- **На границе вызова** переиспользуются существующие checkpoint'ы: `task` + `input_artifact_ids` — аргументы tool-вызова `run_subagent`, проверяемые `tool_call_arg`; результат субагента становится `ToolMessage`, проверяемым `tool_result` до следующего вызова LLM.
+- **На границе вызова** переиспользуются существующие checkpoint'ы: `task` + `input_artifact_paths` — аргументы tool-вызова `run_subagent`, проверяемые `tool_call_arg`; результат субагента становится `ToolMessage`, проверяемым `tool_result` до следующего вызова LLM.
 - **Внутри цикла субагента** переиспользуется тот же guard-код (`backend/app/agent/tool_guards.py`), что в основном графе — та же fail-safe redact-семантика, не блокировка. Каждый субагент — ReAct-агент с инструментами, проверки стоят в тех же узлах: `tool_call_arg` — в llm-узле, `tool_result` — в узле `tools`; в прогоне без tool-вызовов они структурно бездействуют — untrusted-источников внутри цикла тогда нет, единственный вход уже проверен на границе.
 - **Toolset субагента** строится только из `internal_tools` + built-in MCP — user-installed MCP не резолвится в него ни при каких обстоятельствах, что сохраняет trust-границу между продуктовыми и пользовательскими интеграциями.
+
+## Execution runtime: workspace-файлы как недоверенный вход
+
+Файловый workspace проекта (ADR-032) вводит источник входа, ортогональный восьми checkpoint'ам выше: файл, записанный джобой (`execute_code`/`run_command`) или загруженный пользователем (`uploads/`), на следующем ходу читается агентом обратно как рабочая память — тот же класс входа, что MCP-контент или Knowledge Sphere, но без отдельного checkpoint'а в Coverage map. При включённой защите он покрывался бы так же, как остальной untrusted content; при выключенной (прод, `LLM_DEFENSE_ENABLED=false`) это канал prompt injection с самоусилением (джоба пишет → агент читает → исполняет). Мера не вводится — принятое ограничение v1: реалистичный вектор требует prompt injection при текущем составе пользователей (владелец + доверенные преподаватели), поверхность уже уменьшена отсутствием сети и pip у executor'а (вредоносный код не приходит из интернета, только из вложения пользователя или генерации модели). Пересмотр — по триггеру внешних пользователей. Подробности — design brief feat-011 § Безопасность.
+
+Граница, ограничивающая ущерб от такого входа, — не эта guard-система, а два независимых барьера ниже по стеку: резолв путей файлового слоя backend (два разрешённых корня, канонизация, отказ + security-лог `agent.runtime.path_denied` — [security-events.md](../tech/security-events.md)) и изоляция исполнения кода в отдельном сервисе `executor` под gVisor с per-job `bwrap`-песочницей (сетевая сегментация, non-root, mount-namespace на джобу) — [ADR-031](../tech/adr/ADR-031-execution-runtime-isolation.md), [ADR-032](../tech/adr/ADR-032-project-workspace-file-model.md).
 
 ## Observability
 
@@ -255,6 +261,9 @@ graph LR
 - [ADR-020](../tech/adr/ADR-020-security-event-contract.md) — event contract: vocabulary, identifiers, strictness
 - [ADR-028](../tech/adr/ADR-028-product-subagents.md) — субагенты: subagent-as-tool, переиспользование границы вместо нового периметра
 - [ADR-030](../tech/adr/ADR-030-per-call-tool-result-guard.md) — `TOOL_RESULT` внутри узла `tools`, повызовно: размен стоимости классификатора на непроверенный текст в ленте
+- [ADR-031](../tech/adr/ADR-031-execution-runtime-isolation.md) — execution runtime: executor-сервис под gVisor, bwrap per job, сетевая сегментация
+- [ADR-032](../tech/adr/ADR-032-project-workspace-file-model.md) — файловый workspace проекта, границы путей, `agent.runtime.path_denied`
 - [agent-runtime.md](../tech/agent-runtime.md) — ReAct-граф, system message, MCP integration
+- [security-events.md](../tech/security-events.md) — каталог security-событий (vocabulary)
 - [observability.md](../tech/observability.md) — Langfuse traces и scores
 - [streaming.md](../tech/streaming.md) — SSE-протокол, terminal events

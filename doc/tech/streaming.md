@@ -31,7 +31,8 @@ data: {"type": "done", "message_id": "msg-uuid", "trace_id": "trace-uuid"}\n\n
 | `tool_call_cancelled` | `{call_id}` | вызов срезан guard'ом `TOOL_CALL_ARG` после генерации, до исполнения | |
 | `tool_result` | `{call_id, tool, status, content, truncated, parent_call_id?}` | завершение **отдельного вызова**, custom-канал (узел `tools` отчитывается сам); `status`: `success` \| `error`; `content` усечён | |
 | `agent_event` | `{kind, payload, parent_call_id?}` | custom-канал (`get_stream_writer`): `sphere_write`, `memory_write`, `skill_context_write`, `compaction` | |
-| `artifact_created` | `{id, title, artifact_type}` | custom-канал, сразу за `tool_result` своего вызова; по наличию `ToolMessage.artifact` (не по имени инструмента) | |
+| `artifact_created` | `{path, title, artifact_type}` | custom-канал, сразу за `tool_result` своего вызова; по наличию `ToolMessage.artifact` (не по имени инструмента) | |
+| `artifact_updated` | `{path, title, artifact_type, diff}` | custom-канал, та же точка, что `artifact_created` — эмитится вместо него, когда вызов перезаписал существующий путь; `diff: {added, removed} \| null` — `null` для бинарных файлов и при превышении лимита размера снапшота | |
 | `final_output_review_started` / `final_output_review_complete` | `{}` | вокруг end-of-stream FINAL_OUTPUT-классификатора — только когда ход дал непустой `full_response` и LLM-защита включена (`LLM_DEFENSE_ENABLED=true`) | |
 | `title_updated` | `{title}` | `ChatService`: готов сгенерированный auto-title чата, не чаще одного раза за поток | |
 | `security_block` | `{}` | любой из четырёх runtime-чекпоинтов защиты выдал вердикт INJECTION (см. «Security-чекпоинты» ниже) | ✔ |
@@ -48,9 +49,11 @@ data: {"type": "done", "message_id": "msg-uuid", "trace_id": "trace-uuid"}\n\n
 
 **`tool_call_cancelled`.** Guard `TOOL_CALL_ARG` (`tool_guards.guard_tool_call_args`) может срезать `tool_calls` уже сгенерированного хода, если аргументы несут инъекцию. К моменту, когда отредактированный `AIMessage` доходит до updates-канала, `tool_calls` уже пусты — сигнал среза восстанавливается по признаку `AIMessage` (не `ToolMessage` — тот же флаг `security_redacted` независимо ставит `guard_tool_result` на TOOL_RESULT-редакции) без `tool_calls` и с `additional_kwargs["security_redacted"]`. `StreamEventMapper` ведёт per-run список анонсированных, но ещё не разрешённых `call_id` (`note_call_announced`, вызывается раннером на каждом `tool_call_started`) и эмитит `tool_call_cancelled` для всех, что остались непогашенными `tool_result`.
 
-**`tool_result` / `artifact_created`.** `status` берётся напрямую из `ToolMessage.status`. `artifact_created` эмитится по наличию `ToolMessage.artifact` (инструмент вернул его через `response_format="content_and_artifact"`) — не по whitelist имён; событие следует сразу за `tool_result` того же вызова, тем же writer'ом.
+**`tool_result` / `artifact_created` / `artifact_updated`.** `status` берётся напрямую из `ToolMessage.status`. Артефактные события эмитятся по наличию `ToolMessage.artifact` (инструмент вернул его через `response_format="content_and_artifact"`) — не по whitelist имён; `message.artifact` — **список**, по одному элементу на файл, которого коснулся вызов (джоба может затронуть несколько), каждый элемент несёт `kind: created | updated`, выбирающий тип события, и удаляемый из wire-payload (различие уже несёт `event.type`); за `tool_result` вызова следует по одному событию на элемент списка, в порядке списка, тем же writer'ом. Wire-имя типа файла — `artifact_type`, не `type`: плоский конверт SSE (`{"type": event.type, **event.data}` в `messages.py`) сделал бы ключ `type` из payload омонимом дискриминатора события.
 
-Оба события **повызовные**: узел `tools` (`tool_guards.execute_tools_guarded`) исполняет каждый вызов хода отдельно, проверяет его результат чекпоинтом `TOOL_RESULT` и тут же пишет конверт в custom-канал (`stream_events.make_tool_result_reporter`) — не дожидаясь соседей по ходу. Апдейт узла в updates-канале для этого не годится: он приходит, когда завершился *самый долгий* вызов хода, и поиск, отработавший за десять секунд рядом с трёхминутным `run_subagent`, стоял бы в ленте незаконченным все три минуты и получил бы чужую длительность. Цена решения осознанная: классификатор зовётся по разу на результат вместо раза на батч — больше токенов на параллельных вызовах в обмен на ленту, которая не врёт о завершённости. Обоснование размена и отвергнутые альтернативы — [ADR-030](adr/ADR-030-per-call-tool-result-guard.md).
+Оба типа события **повызовные**: узел `tools` (`tool_guards.execute_tools_guarded`) исполняет каждый вызов хода отдельно, проверяет его результат чекпоинтом `TOOL_RESULT` и тут же пишет конверт в custom-канал (`stream_events.make_tool_result_reporter`) — не дожидаясь соседей по ходу. Апдейт узла в updates-канале для этого не годится: он приходит, когда завершился *самый долгий* вызов хода, и поиск, отработавший за десять секунд рядом с трёхминутным `run_subagent`, стоял бы в ленте незаконченным все три минуты и получил бы чужую длительность. Цена решения осознанная: классификатор зовётся по разу на результат вместо раза на батч — больше токенов на параллельных вызовах в обмен на ленту, которая не врёт о завершённости. Обоснование размена и отвергнутые альтернативы — [ADR-030](adr/ADR-030-per-call-tool-result-guard.md).
+
+Эмиссия обоих типов остаётся in-process: пишущий tool-вызов и SSE-подписчик того же хода живут в одном процессе backend'а (custom-канал — обычный писатель в тот же генератор потока, не межпроцессная шина). Это держится, пока backend работает одним uvicorn-воркером; масштабирование на несколько воркеров без отдельного механизма доставки (например, Redis pub/sub между ними) сломает канал для запросов, которые обслуживает не тот воркер, что исполняет tool-вызов.
 
 Updates-канал за узлом `tools` остаётся ровно ради одной вещи — реестра анонсированных, но не разрешённых `call_id` (см. `tool_call_cancelled` выше); событий он с этого узла не порождает.
 
@@ -143,7 +146,7 @@ sequenceDiagram
         R-->>C: security_block {}
     else CLEAN / SUSPICIOUS
         loop graph.astream(messages · updates · custom)
-            R-->>C: text_chunk / reasoning_chunk / tool_call_started /<br/>tool_call_args / tool_result / tool_call_cancelled /<br/>artifact_created / agent_event
+            R-->>C: text_chunk / reasoning_chunk / tool_call_started /<br/>tool_call_args / tool_result / tool_call_cancelled /<br/>artifact_created / artifact_updated / agent_event
             opt на каждом text_chunk
                 R->>SEC: check_mid_stream(tail)
                 alt INJECTION
@@ -216,7 +219,7 @@ sequenceDiagram
 
 - **`messages`** — сырые `AIMessageChunk`; чанки с тегом `subagent` в metadata отбрасываются раньше любой другой обработки (см. «Изоляция токенов» выше), остальные разбираются `TokenChunkMapper` (`stream_events.py`) на `text_chunk` / `reasoning_chunk` / `tool_call_started` / `tool_call_args`. Только `text_chunk` копится в `full_response` и уходит на canary/mid-stream проверку — reasoning и tool-call-события идут live без участия guard'а (осознанная граница: reasoning-модели отдают уже суммированные рассуждения, а не сырой ввод пользователя).
 - **`updates`** — апдейты узлов `agent`/`tools`; разбираются `StreamEventMapper` в `tool_call_cancelled` (единственное событие этого канала; апдейт узла `tools` только гасит реестр анонсированных вызовов).
-- **`custom`** — конверты от writer'а рана: доменные `kind` из `agent_events.DOMAIN_AGENT_EVENT_KINDS` оборачиваются в `agent_event`; `tool_result` / `artifact_created` от узла `tools` и lifecycle-конверты субагентской обёртки пробрасываются как готовые wire-события (см. «Вложенность субагента»).
+- **`custom`** — конверты от writer'а рана: доменные `kind` из `agent_events.DOMAIN_AGENT_EVENT_KINDS` оборачиваются в `agent_event`; `tool_result` / `artifact_created` / `artifact_updated` от узла `tools` и lifecycle-конверты субагентской обёртки пробрасываются как готовые wire-события (см. «Вложенность субагента»).
 
 Коллабораторы (инжектируются в конструктор, у каждого — фабрика, а не общий инстанс, там где нужно per-run состояние — module-level shared state между параллельными пользовательскими стримами запрещено):
 
@@ -236,10 +239,10 @@ sequenceDiagram
 `send_message()` — relay + post-hoc:
 
 1. Валидирует существование чата (defense in depth — `require_unblocked_thread`/ownership-зависимости уже проверили это на уровне API), обновляет `updated_at` и **коммитит это обновление до входа в relay-цикл** ([conventions/db.md](conventions/db.md#db-сессии-и-commit)): эффект должен пережить весь стрим, а не только запрос. Незакоммиченный `touch` держит row-lock на строке чата на всё время рана — фоновая задача auto-title (своя сессия) виснет на ней и на длинном ране умирает по `DB_STATEMENT_TIMEOUT_SECONDS`.
-2. Проксирует события `AgentRunner.stream()` клиенту; перехватывает `trace_id` (не форвардит), копит `artifact_created.id` в список.
+2. Проксирует события `AgentRunner.stream()` клиенту; перехватывает `trace_id` (не форвардит).
 3. Ведёт auto-title: на первом событии вне пролога запускает fire-and-forget генерацию (если title всё ещё плейсхолдер и это событие не `security_block`), между последующими событиями опрашивает её готовность и эмитит `title_updated` — см. «Уточнения по отдельным событиям» выше.
 4. `stream_ended_without_done`: `True`, если раннер уже отдал `error` / `security_block` / `cancelled` — три терминальных события взаимоисключающи с `done`; с этого момента `title_updated` больше не эмитится, а post-hoc и синтетический `done` пропускаются целиком.
-5. Иначе — post-hoc: `get_last_ai_message_id()`, привязка артефактов к сообщению (`ArtifactRepository.set_message_id`), сохранение `trace_id` в Redis (для feedback loop, подробнее — [observability](observability.md)), эмиссия `done {message_id, trace_id}`.
+5. Иначе — post-hoc: `get_last_ai_message_id()`, сохранение `trace_id` в Redis (для feedback loop, подробнее — [observability](observability.md)), эмиссия `done {message_id, trace_id}`. Привязки артефактов к сообщению больше нет — путь сам идентичность, `ArtifactPart` в чекпоинте несёт связь без PG-маппинга (см. «История: typed parts»).
 
 ### API Layer
 
@@ -262,12 +265,19 @@ sequenceDiagram
 | `reasoning` | `content` | `AIMessage.additional_kwargs["reasoning"]` |
 | `text` | `content` | `AIMessage.content` |
 | `tool_call` | `call_id, tool, args, args_truncated, status, result_preview, result_truncated` | `AIMessage.tool_calls` + парный `ToolMessage` по `tool_call_id` (`status`: `success` \| `error` \| `pending`) |
+| `artifact` | `path, title, artifact_type, kind, diff` | `ToolMessage.artifact` — по одному `artifact`-part на каждый элемент списка (джоба с N файлами → N parts), сразу за `tool_call`-part вызова, который их произвёл; `diff: {added, removed} \| null` |
 
 Аргументы и результат усекаются независимо, поэтому у каждого свой флаг — как на проводе, где `tool_call_args` и `tool_result` приходят разными событиями со своими `truncated`. Один общий флаг схлопывал бы два факта в один: потребитель не мог бы понять, обрезаны ли аргументы, результат или оба, и помечал бы усечённой нетронутую зону.
 
-Один ход агента = один `MessageOut` с последовательностью `parts`, а не сообщение на каждое сырое LangChain-сообщение чекпоинта: границы хода — от `HumanMessage` до следующего `HumanMessage`; всё между ними (tool-calling `AIMessage`, `ToolMessage`, финальный `AIMessage`) складывается в один ассистентский `Message`. `id`/`created_at` берутся у финального `AIMessage` без `tool_calls` (тот же якорь, на который резолвятся `trace_id`/`feedback_score`/`artifacts`), а если ход оборвался на tool-вызове — у последнего доступного `AIMessage`; непарный `ToolMessage` в этом случае даёт `tool_call`-part со `status="pending"` — третье значение статуса, которого нет в SSE-контракте (там `tool_result` всегда либо `success`, либо `error`, потому что живой стрим либо разрешает вызов, либо обрывает ран целиком).
+Один ход агента = один `MessageOut` с последовательностью `parts`, а не сообщение на каждое сырое LangChain-сообщение чекпоинта: границы хода — от `HumanMessage` до следующего `HumanMessage`; всё между ними (tool-calling `AIMessage`, `ToolMessage`, финальный `AIMessage`) складывается в один ассистентский `Message`. `id`/`created_at` берутся у финального `AIMessage` без `tool_calls` (тот же якорь, на который резолвятся `trace_id`/`feedback_score`), а если ход оборвался на tool-вызове — у последнего доступного `AIMessage`; непарный `ToolMessage` в этом случае даёт `tool_call`-part со `status="pending"` — третье значение статуса, которого нет в SSE-контракте (там `tool_result` всегда либо `success`, либо `error`, потому что живой стрим либо разрешает вызов, либо обрывает ран целиком).
 
 Служебная сводка компакции в `parts` не попадает: `_reduce_context` помечает свой `summary_msg` флагом `additional_kwargs["context_summary"]`, `CheckpointHistory.history()` отбрасывает помеченные сообщения. Позиция для этого не годится — `summary_msg` создаётся без `id`, поэтому редьюсер `add_messages` дописывает его в **конец** состояния, рядом с настоящим ответом того хода, на котором сработала компакция, а не в начало треда. Отдельно от этого в `parts` не попадают сообщения до первого `HumanMessage` треда: строка ленты без хода пользователя, на который она отвечает, бессмысленна. `redacted`-сообщение (любой из четырёх runtime-чекпоинтов) отдаёт единственный `text`-part с redaction-заглушкой, без `reasoning` — даже если исходный `AIMessage` (случай `guard_tool_call_args`) нёс настоящий `reasoning`: показ «безобидной» половины сообщения, вызвавшего блокировку, был бы более узкой политикой, чем действующая для `content` (полная замена на заглушку).
+
+Идентичность артефакта — путь (не UUID): `ArtifactPart`/`artifact_created`/`artifact_updated` не несут PG-привязки к сообщению — путь сам сквозная идентичность между записью (диф-снапшот джобы или `write_file` кладёт `ArtifactPart` в чекпоинт) и чтением (реплей чекпоинта → карточка по пути → файл по пути). Чекпоинты, записанные до перехода на файловую модель, несли `ToolMessage.artifact` как одиночный `dict`, не список — эта форма распознаётся и молча пропускается (ход рендерится без артефактных `part`, без падения истории).
+
+### Вложения пользователя
+
+`POST /messages` принимает `attachments: string[]` — пути, полученные от `POST /projects/{id}/uploads` (загрузка вне SSE-контракта — обычный multipart-запрос до отправки сообщения). Это не SSE-событие: backend дописывает пометку с путями в текст, который видит модель, а сам список — в `MessageOut.attachments: {path, title}[]` (поле сообщения, симметричное `ArtifactPart` на выходе — UI рисует чип из metadata, не парсит текст).
 
 Осознанная граница: вложенная хронология субагента (его `tool_call_*`/`tool_result`/`agent_event` с `parent_call_id`) и факт компакции в `parts` не попадают — оба live-only, эфемерны для custom-канала и не пишутся в чекпоинт основного графа. В истории субагентский ход виден как один `tool_call`-part вызова `run_subagent` (task в `args`, вердикт в `result_preview`), без вложенных строк. Детальная хронология остаётся в Langfuse.
 
@@ -285,9 +295,10 @@ TanStack Query invalidation на ключевых событиях:
 
 | Событие | Invalidated queries | Зачем |
 |---------|-------------------|-------|
-| `artifact_created` | `["projects", projectId, "artifacts"]` | Новый артефакт в списке |
+| `artifact_created` / `artifact_updated` | `["projects", projectId, "artifacts", path]` (задевает и `artifactMedia` — иерархия ключей), `["projects", projectId, "artifacts"]` (`exact: true`) | Точечно свежит открытый вьюер/миниатюру по пути; список — с `exact: true`, иначе префиксная инвалидация снесла бы только что обновлённые detail/media-ключи |
 | `title_updated` | — (`setQueryData`-патч, не инвалидация) | Точечно патчит поле `title` в трёх кэшах: `["projects", projectId, "chats"]` (список), `["chats", "recent"]`, `["projects", projectId, "chats", chatId]` (detail открытого чата). Инвалидация вместо патча зарефетчила бы detail мид-стрим и задвоила optimistic-копию user-сообщения в `localMessages` |
-| `done` | `["projects", projectId, "chats", chatId]`, `["projects", projectId, "chats"]` (`exact: true`), `["chats", "recent"]` | Полное сообщение с сервера (включая `parts`), обновление списков чатов; инвалидация списка проекта — fallback на случай, если `title_updated` не успел прийти до конца рана |
+| `done` / `cancelled` | `["projects", projectId, "chats", chatId]`, `["projects", projectId, "chats"]` (`exact: true`), `["chats", "recent"]`, `["projects", projectId, "artifacts"]` (`exact: true`) | Полное сообщение с сервера (включая `parts`), обновление списков чатов; инвалидация списка проекта — fallback на случай, если `title_updated` не успел прийти до конца рана. Список артефактов довозится на каждой терминальной ветке хода (кроме `security_block`, где исполнение инструментов не запускалось): контракт не даёт событий удаления/переименования, поэтому это единственный способ подчистить карточки-призраки отменённой/оборвавшейся джобы |
+| `error` | `["projects", projectId, "chats"]` (`exact: true`), `["chats", "recent"]`, `["projects", projectId, "artifacts"]` (`exact: true`) | Та же fallback-инвалидация списков и артефактов, что на `done`/`cancelled` — без detail чата (сообщение при ошибке не гарантированно сохранено) |
 
 ## API Endpoints
 

@@ -38,8 +38,7 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 | `/projects/:id/chats/new` | Композер: draft-режим чата до отправки первого сообщения (записи в БД ещё нет) |
 | `/projects/:id/chats/:cid` | Чат: ChatHeader (← project, model selector, tools dialog) + сообщения + SSE-стриминг + input |
 | `/projects/:id/sphere` | Knowledge Sphere: просмотр и редактирование (Markdown) |
-| `/projects/:id/artifacts` | Список артефактов проекта |
-| `/projects/:id/artifacts/:aid` | Просмотр артефакта + скачивание (md/pdf) |
+| `/projects/:id/artifacts` | Дерево артефактов проекта; выбранный файл (`?path=`) — во вложенном `index`-роуте |
 | `/projects/:id/settings` | Настройки проекта: model override, MCP серверы |
 | `/security` | Мониторинг безопасности (admin-only, RBAC guard): Events / Alerts / Rules |
 
@@ -89,7 +88,8 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 - Лента активности (`ActivityFeed` / `ActivityRow` / `ActivityDetails`) — след работы агента: строки рассуждений, вызовов инструментов и доменных записей с человекочитаемой подписью из реестра `shared/config/agent-tools.ts`, статусом, длительностью и разворотом в зоны «Вызов» / «Результат»; шаги субагента идут вложенной лентой внутри строки его вызова. Один и тот же компонент рисует живой ход и сохранённый — данные у них одной формы (см. [streaming.md](streaming.md#frontend-потребление-стрима))
 - Живые элементы ленты: бегущие точки и счётчик времени у идущего действия (`LiveDots`), строка-пауза в любом промежутке хода без движения (`ActivityPauseRow`), индикатор ревью ответа (`ReviewIndicator`)
 - Чем закончился ход, если он закончился не ответом (`StreamEndNotice`): нейтральная «Генерация остановлена» на отмене и generic-карточка на security-блокировке (деталей блокировки контракт не отдаёт). Единственная красная плашка в чате — ошибка соединения
-- Карточка артефакта (инлайн в чате, по событию `artifact_created`); `type === "image"` показывает превью-миниатюру с media-endpoint вместо иконки
+- Карточка артефакта (инлайн в чате) — рендерится из typed part `ArtifactPart` хода (не из отдельного поля сообщения), с бейджем «обновлён · +N −M» при перезаписи существующего пути; категория превью (картинка vs иконка) — по словарю расширений `shared/lib/artifact-category.ts`, общему с вьюером и списком артефактов
+- Чипы вложений пользователя — некликабельный ряд над текстом user-сообщения, из metadata сообщения (не парсинг текста); композер (скрепка, drag&drop, клиентский чип с прогрессом до отправки) — см. «Вложения» ниже
 - Плейсхолдер генерации изображения — выводится из ленты, а не из отдельного состояния: незакрытый вызов `generate_image` даёт pending-карточку (шиммер, indeterminate-прогресс), результат того же вызова её снимает
 - Кнопка cancel
 - Tools dialog — просмотр и управление MCP серверами per-thread (inherited + собственные, toggle)
@@ -108,9 +108,10 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 
 **sphere** — Knowledge Sphere. Viewer (Markdown) + Editor (textarea). Подробнее — [knowledge-sphere.md](knowledge-sphere.md).
 
-**artifacts** — артефакты проекта.
-- Список артефактов (название, тип, дата)
-- Просмотр артефакта: Markdown render + кнопки скачивания md/pdf для текстовых типов; `type === "image"` — `ImageViewer` (fetch bytes с JWT → objectURL, зум, caption = `content`/prompt, скачивание .png), состояния загрузки и «блоба нет» (404)
+**artifacts** — артефакты проекта. Идентичность артефакта — путь относительно зоны `artifacts/` (ADR-032), не UUID; список получает от бэкенда плоский набор путей и строит дерево сам.
+- Список — дерево: плоский ответ бэкенда группируется на фронте по сегментам пути в раскрывающиеся директории (счётчик — файлы всего поддерева), файлы отсортированы по `updated_at`; выбор строки и вьюер синхронизированы через query-параметр `?path=`, не сегмент маршрута
+- Просмотр артефакта — диспетчер по категории из словаря `shared/lib/artifact-category.ts` (расширение → `markdown`/`image`/`text`/`binary`, не по семантической метке): Markdown render + скачивание по фактическому расширению для текстовых типов (`.pdf` как отдельный формат экспорта не существует — PDF стал выходом джобы execution runtime, не бэкенд-фичей); `image` — `ImageViewer` (fetch bytes с JWT → objectURL, зум, скачивание с фактическим расширением); `binary` — шапка метаданных + кнопка «Скачать» без предпросмотра
+- Клик по исторической карточке файла, которого больше нет (переименован/удалён агентом) — явное состояние «Файл больше не существует» (`isArtifactNotFound`), отдельное от сетевой/5xx-ошибки
 
 **security** — admin-only мониторинг SIEM-подсистемы. Подробнее о backend-стороне — [backend.md](backend.md#siem-service), [observability.md](observability.md#siem-observability-security-event-pipeline).
 - SecurityPage (`/security`) — три таба: Events, Alerts, Rules
@@ -119,6 +120,11 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 - SecurityAlerts — таблица алертов с фильтрами (severity, status), действия `Acknowledge` / `Resolve`
 - SecurityRules — таблица rules с CRUD через RuleForm (Threshold / Sequence / Aggregate), toggle `enabled`
 - Сейчас отображает `user_id` напрямую, без username enrichment
+
+**вложения** — file attachments композера (design-brief § Вложения пользователя), три точки входа: `ChatInput` (чат), `ChatDraft` (draft-режим, переиспользует `ChatInput`), поле первого сообщения `ChatList` (project-chats, свой composer shell). Общая логика вынесена в `shared`, так как кросс-импорт между слайсами `pages` запрещён FSD-границами:
+- Тайминг — ничего не уходит на сервер до отправки сообщения: скрепка/drag&drop добавляют файл в чисто клиентское состояние композера (`shared/lib/use-composer-attachments.ts`, `use-file-drop.ts`), чип с прогрессом и ✕ — презентационные `shared/ui/AttachmentChip.tsx`/`DragOverlay.tsx`
+- Отправка: файлы грузятся (`shared/api/uploads.ts`, `uploadFile` — multipart `POST /projects/:id/uploads`, императивный вызов без TanStack Query — вложения только пишутся, кэшировать нечего) до создания оптимистичной копии сообщения; пути загруженных файлов уходят в теле `POST /messages` рядом с текстом
+- Чип в истории — некликабельный ряд над текстом user-сообщения, из metadata сообщения (`Message.attachments: {path, title}[]`), без размера; отдельная от карточки артефакта иконка (файл без «читаемого» агентом содержимого на месте, а не выход агента)
 
 ### Shared
 
@@ -178,8 +184,8 @@ flowchart LR
 | `queryKeys.projects.chat(id, cid)` | `["projects", id, "chats", cid]` | `GET /projects/:id/chats/:cid` |
 | `queryKeys.projects.sphere(id)` | `["projects", id, "sphere"]` | `GET /projects/:id/sphere` |
 | `queryKeys.projects.artifacts(id)` | `["projects", id, "artifacts"]` | `GET /projects/:id/artifacts` |
-| `queryKeys.projects.artifact(id, aid)` | `["projects", id, "artifacts", aid]` | `GET /projects/:id/artifacts/:aid` |
-| `queryKeys.projects.artifactMedia(id, aid)` | `["projects", id, "artifacts", aid, "media"]` | `GET /projects/:id/artifacts/:aid/media` |
+| `queryKeys.projects.artifact(id, path)` | `["projects", id, "artifacts", path]` | `GET /projects/:id/artifacts?path=…` |
+| `queryKeys.projects.artifactMedia(id, path)` | `["projects", id, "artifacts", path, "media"]` | `GET /projects/:id/artifacts/media?path=…` |
 | `queryKeys.chats.recent` | `["chats", "recent"]` | `GET /chats/recent` |
 | `queryKeys.models` | `["models"]` | `GET /models` |
 | `queryKeys.instructions` | `["instructions"]` | `GET /users/me/instructions` |
@@ -192,7 +198,7 @@ flowchart LR
 
 Settings и MCP-серверы используют единый ключ с осью `scope` (`user` / `project` / `thread`) + `projectId`/`threadId`, отфильтрованными через `.filter(Boolean)` — не отдельные ключи на каждый уровень.
 
-`artifactMedia` — потомок `artifact(id, aid)` в иерархии ключей, так что префиксная инвалидация артефакта задевает и media-запись. `staleTime: Infinity` — контент иммутабелен (перегенерация создаёт новый артефакт с новым id/URL), рефетч не нужен; карточка ленты и `ImageViewer` читают один и тот же ключ — react-query дедуплицирует сетевой запрос между потребителями.
+`artifactMedia` — потомок `artifact(id, path)` в иерархии ключей, так что префиксная инвалидация артефакта задевает и media-запись. Путь-идентичность перезаписываема (агент может перезаписать файл по тому же пути), поэтому `staleTime: Infinity` не используется — свежесть держат точечная инвалидация по SSE (см. ниже) и HTTP-ревалидация media-эндпоинта (`ETag`/`Last-Modified` из `mtime`+`size`, `Cache-Control: no-cache` — см. [streaming.md](streaming.md)); карточка ленты и `ImageViewer` читают один и тот же ключ — react-query дедуплицирует сетевой запрос между потребителями.
 
 **Mutations → инвалидация:**
 
@@ -204,8 +210,8 @@ Settings и MCP-серверы используют единый ключ с о�
 | Удалить чат | `queryKeys.projects.chats(id)` (`exact: true`), `queryKeys.chats.recent` |
 | Обновить sphere | `queryKeys.projects.sphere(id)` |
 | Событие `title_updated` (стрим) | — `setQueryData`-патч поля `title`, не инвалидация: `queryKeys.projects.chats(id)`, `queryKeys.chats.recent`, `queryKeys.projects.chat(id, cid)` |
-| Стрим завершён (`done`) | `queryKeys.projects.chat(id, cid)`, `queryKeys.projects.chats(id)` (`exact: true`, fallback на случай непришедшего `title_updated`), `queryKeys.chats.recent` |
-| Событие `artifact_created` | `queryKeys.projects.artifacts(id)` |
+| Стрим завершён (`done` / `cancelled` / `error`) | `queryKeys.projects.chat(id, cid)`, `queryKeys.projects.chats(id)` (`exact: true`, fallback на случай непришедшего `title_updated`), `queryKeys.chats.recent`, `queryKeys.projects.artifacts(id)` (`exact: true` — контракт не даёт событий удаления/переименования, список довозится по факту завершения хода) |
+| Событие `artifact_created` / `artifact_updated` | `queryKeys.projects.artifact(id, path)` (префикс задевает и `artifactMedia`), `queryKeys.projects.artifacts(id)` (`exact: true`) |
 | Обновить settings (any scope) | `queryKeys.settings(scope, …)` |
 | Обновить instructions | `queryKeys.instructions` |
 | Удалить memory | `queryKeys.memories` |
@@ -275,8 +281,10 @@ shared/api/
 │                       deleteChat + useChats, useChat, useCreateChat, useUpdateChat, useDeleteChat,
 │                       useRecentChats
 ├── sphere.ts        — Sphere + getSphere/updateSphere + useSphere, useUpdateSphere
-├── artifacts.ts     — Artifact… + getArtifacts/getArtifact/downloadArtifact/getArtifactMedia + useArtifacts,
-│                       useArtifact, useArtifactMedia, isArtifactMediaNotFound
+├── artifacts.ts     — Artifact/ArtifactDetail (path-адресация, ADR-032) + getArtifacts/getArtifact/
+│                       downloadArtifact/getArtifactMedia + useArtifacts, useArtifact, useArtifactMedia,
+│                       isArtifactNotFound
+├── uploads.ts       — UploadedFile + uploadFile (POST-only, без data-хука — вложениям нечего кэшировать)
 ├── models.ts        — AvailableModel + getModels + useModels
 ├── settings.ts      — Settings… + get/updateSettings + useSettings, useUpdateSettings (per scope)
 ├── user-memory.ts   — Instructions/MemoryItem + … + useInstructions, useUpdateInstructions, useMemories
@@ -292,13 +300,13 @@ shared/api/
 
 **downloadArtifact** — axios blob download с Bearer token (через interceptor). Не через TanStack Query (императивный вызов из onClick).
 
-**getArtifactMedia / useArtifactMedia** — тот же `responseType: "blob"`-паттерн, но через TanStack Query (не императивный вызов): `<img src>` не шлёт Authorization header, поэтому картинка качается как обычные API-данные (Blob) и превращается в `URL.createObjectURL` на стороне потребителя (`ImageViewer`, превью в `ArtifactCard`), а не отдаётся напрямую браузеру по URL. `isArtifactMediaNotFound` — типизированный предикат по `AxiosError.status === 404`, отличает «блоба нет» от сетевой/5xx-ошибки для выбора пустого состояния во вьюере.
+**getArtifactMedia / useArtifactMedia** — тот же `responseType: "blob"`-паттерн, но через TanStack Query (не императивный вызов): `<img src>` не шлёт Authorization header, поэтому картинка качается как обычные API-данные (Blob) и превращается в `URL.createObjectURL` на стороне потребителя (`ImageViewer`, превью в `ArtifactCard`), а не отдаётся напрямую браузеру по URL. `isArtifactNotFound` — типизированный предикат по `AxiosError.status === 404`, общий для detail и media, отличает «файла больше нет» от сетевой/5xx-ошибки для выбора пустого состояния во вьюере и в карточке истории.
 
 ## SSE-стриминг
 
 Кастомный хук `useAgentStream` поверх native `fetch`. Полная спецификация протокола, event types, lifecycle, cancellation — [streaming.md](streaming.md).
 
-Связь с frontend state: событие целиком уходит в модель ленты, Zustand stream store держит результат, TanStack Query инвалидируется после `done` и `artifact_created` (таблица в секции State Management выше). `security_block` — terminal event ([architecture.md](../security/architecture.md)): см. Security UX ниже.
+Связь с frontend state: событие целиком уходит в модель ленты, Zustand stream store держит результат, TanStack Query инвалидируется после `done`/`cancelled`/`error` и `artifact_created`/`artifact_updated` (таблица в секции State Management выше). `security_block` — terminal event ([architecture.md](../security/architecture.md)): см. Security UX ниже.
 
 Хук отвечает и за живучесть транспорта: между чтениями тела потока он уступает событийному циклу, иначе накопленный сервером бэклог, приехавший разом, упирается в сторож вложенных обновлений React и рвёт ход целиком — механизм и замеры в [conventions/frontend.md § Состояние стрима](conventions/frontend.md#состояние-стрима-модель-ленты-чистая-стор--её-держатель).
 
@@ -430,24 +438,30 @@ frontend/
 │   │   │                            CreateProjectModal, NewChatModal (модалка выбора проекта,
 │   │   │                            единственный хост — Sidebar), AuthGate, ErrorBoundary
 │   │   ├── providers/             — QueryClientProvider, прочие провайдеры
-│   │   └── router.tsx             — конфигурация маршрутов
+│   │   └── router.tsx             — конфигурация маршрутов; `ArtifactsViewerSlot` — диспетчер
+│   │                                `?path=` → `<ArtifactView/>`/пустое состояние, вложенным
+│   │                                index-роутом под `artifacts` (`pages/artifacts` не может
+│   │                                импортировать `pages/artifact` напрямую — FSD-граница
+│   │                                `boundaries/dependencies` запрещает кросс-слайс внутри `pages`)
 │   │
 │   ├── pages/                     — слайсы уровня маршрута (ui/ + при нужде model/), public API в index.ts
 │   │   ├── welcome/               — /
-│   │   ├── project-chats/         — /projects/:id (ChatList — список + поле первого сообщения)
+│   │   ├── project-chats/         — /projects/:id (ChatList — список + поле первого сообщения + вложения)
 │   │   ├── chat/                  — /projects/:id/chats/:cid, /projects/:id/chats/new
 │   │   │   ├── ui/                — ChatView (тонкий диспетчер по наличию `cid`) → ChatThread
 │   │   │   │                        (обычный режим) | ChatDraft (композер, без useChat/
 │   │   │   │                        useAgentStream/useStudio); ChatHeader (проп `draft`),
-│   │   │   │                        ChatInput (опциональный контролируемый режим value/
-│   │   │   │                        onValueChange), MessageList, MessageItem,
+│   │   │   │                        ChatInput (скрепка/drag&drop вложений, опциональный
+│   │   │   │                        контролируемый режим value/onValueChange), MessageList,
+│   │   │   │                        MessageItem (чипы вложений + карточки ArtifactPart),
 │   │   │   │                        ActivityFeed/ActivityRow/ActivityDetails (лента активности),
 │   │   │   │                        ActivityPauseRow, LiveDots, StreamEndNotice, ReviewIndicator,
 │   │   │   │                        ArtifactCard, FeedbackButtons
 │   │   │   └── model/             — useAgentStream (SSE-оркестрация)
 │   │   ├── sphere/                — /projects/:id/sphere (SphereView/Viewer/Editor)
-│   │   ├── artifacts/             — /projects/:id/artifacts (ArtifactList)
-│   │   ├── artifact/              — /projects/:id/artifacts/:aid (ArtifactView)
+│   │   ├── artifacts/             — /projects/:id/artifacts (ArtifactList — дерево по `?path=`)
+│   │   ├── artifact/              — вложенный index-роут artifacts (ArtifactView, диспетчер
+│   │   │                            по `?path=`; ImageViewer — единственный нетекстовый вьюер)
 │   │   ├── user-settings/         — /settings (SettingsPage, CustomInstructions, AgentMemory, SkillContext)
 │   │   ├── project-settings/      — /projects/:id/settings (ProjectSettingsPage)
 │   │   └── security/              — /security, admin (SecurityPage, RouteGuard, Events/Alerts/Rules,
@@ -465,15 +479,20 @@ frontend/
 │   │   │   ├── query-keys.ts      — фабрика queryKeys (единый источник ключей)
 │   │   │   ├── pagination.ts      — ListResponse<T>
 │   │   │   ├── sse.ts             — SSEEvent
-│   │   │   ├── projects.ts  chats.ts  sphere.ts  artifacts.ts  models.ts
+│   │   │   ├── projects.ts  chats.ts  sphere.ts  artifacts.ts  uploads.ts  models.ts
 │   │   │   ├── settings.ts  user-memory.ts  skill-context.ts  mcp-servers.ts  feedback.ts  auth.ts
 │   │   │   └── security.ts        — SIEM типы + siemClient + хуки (siem-service API)
 │   │   ├── ui/                    — shadcn/ui примитивы + MarkdownRenderer + TypedTitle
-│   │   │                            (посимвольная печать auto-title, домен-нейтральный)
-│   │   ├── config/                — agent-tools (реестр подписей инструментов),
+│   │   │                            (посимвольная печать auto-title, домен-нейтральный) +
+│   │   │                            AttachmentChip, DragOverlay (композер вложений)
+│   │   ├── config/                — agent-tools (реестр подписей инструментов, включая
+│   │   │                            read_file/write_file/list_files/execute_code/run_command),
 │   │   │                            feature-flags (гейт незрелых фич)
 │   │   └── lib/                   — утилиты (logger, utils, security-error) + agent-feed
-│   │                                (модель ленты активности: редьюсер SSE, адаптер parts)
+│   │                                (модель ленты активности: редьюсер SSE, адаптер parts) +
+│   │                                artifact-category (словарь расширение → категория вьюера) +
+│   │                                use-composer-attachments, use-file-drop (состояние вложений
+│   │                                композера, переиспользуются между тремя точками входа)
 │   │
 │   └── stores/                    — Zustand stores (ui-store, stream-store)
 ```

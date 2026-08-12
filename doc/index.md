@@ -12,6 +12,7 @@ doc/
 ├── tech/            # Техническая документация
 │   ├── backend.md       # Бэкенд: слои, API, persistence
 │   ├── siem-service.md  # SIEM-сервис: pipeline, корреляция, alerts API
+│   ├── executor.md      # Executor-сервис: изоляция, контракт джобы, sandbox
 │   ├── frontend.md      # Фронтенд: экраны, компоненты, state
 │   ├── design-system.md # Дизайн-система: токены, темизация, бренд, иллюстрации
 │   ├── auth.md          # Аутентификация (кросс-сервисная)
@@ -46,6 +47,7 @@ doc/
 **Сервисы:**
 - [tech/backend.md](tech/backend.md) — слоистая архитектура, API endpoints, schemas, persistence, configuration
 - [tech/siem-service.md](tech/siem-service.md) — SIEM-сервис: топология, event pipeline, correlation engine, alerts REST API
+- [tech/executor.md](tech/executor.md) — Executor-сервис: границы изоляции (gVisor + bwrap per job), контракт `POST /jobs`, sandbox, конфигурация
 - [tech/frontend.md](tech/frontend.md) — экраны, компоненты, state management, API-интеграция
 - [tech/design-system.md](tech/design-system.md) — визуальный язык «Чернила / Электрик»: токены, типографика, темизация, бренд-примитивы, иллюстрации, error UX
 
@@ -74,6 +76,8 @@ doc/
   - [ADR-025: Conventions per Domain](tech/adr/ADR-025-conventions-per-domain.md) — дробление conventions.md: ядро + доменные файлы, progressive disclosure
   - [ADR-029: Operational Kill-Switches](tech/adr/ADR-029-operational-kill-switches.md) — один env-тумблер на подсистему (`LLM_DEFENSE_ENABLED`, `SIEM_ENABLED`), гранулярность остаётся в существующих конфигах
   - [ADR-030: Per-Call Tool Result Guard](tech/adr/ADR-030-per-call-tool-result-guard.md) — проверка и отчёт о результате инструмента повызовно, внутри узла `tools`: правдивость ленты против стоимости классификатора
+  - [ADR-031: Execution Runtime Isolation](tech/adr/ADR-031-execution-runtime-isolation.md) — executor-сервис под gVisor, bwrap per job, сетевая сегментация без egress
+  - [ADR-032: Project Workspace File Model](tech/adr/ADR-032-project-workspace-file-model.md) — артефакты переезжают из PostgreSQL в файлы workspace per project, путь как идентичность
 
 **Setup manuals:**
 - [tech/setup/codex-cloud.md](tech/setup/codex-cloud.md) — настройка ChatGPT Codex Environment для cloud-сессий

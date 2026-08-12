@@ -345,7 +345,8 @@ class Workspace:
         first write (ADR-032 § Lifecycle: lazy creation). Overwrite is silent
         (normal working-directory semantics); `kind`/`diff` on the returned
         `WriteResult` are derived from whether `path` already existed and,
-        if so, its previous content.
+        if so, its previous content — bounded by `diff_file_limit_bytes`, so
+        `diff` is `None` for a file too large to diff cheaply.
         """
         target = self.resolve_path(project_id, path, write=True)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -354,12 +355,19 @@ class Workspace:
         diff: DiffCounts | None = None
         if target.exists():
             kind = "updated"
-            try:
-                old_content = target.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                old_content = None
-            if old_content is not None:
-                diff = _line_diff(old_content, content)
+            # The previous content is read only to count changed lines, so it
+            # is subject to the same per-file diff ceiling `snapshot_artifacts`
+            # applies for the same purpose: over it, the counters are dropped
+            # (`diff=None`) rather than paid for with a read of the whole old
+            # file. The write itself is unaffected — overwriting a 500MB file
+            # succeeds, it just reports no line counts.
+            if target.stat().st_size <= self._diff_file_limit_bytes:
+                try:
+                    old_content = target.read_text(encoding="utf-8")
+                except UnicodeDecodeError:
+                    old_content = None
+                if old_content is not None:
+                    diff = _line_diff(old_content, content)
 
         tmp_path = target.parent / f"{TMP_FILE_PREFIX}{uuid4().hex}"
         tmp_path.write_text(content, encoding="utf-8")

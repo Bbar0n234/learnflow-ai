@@ -4,6 +4,7 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from executor.api.deps import SettingsDep
 from executor.api.routes import router
 from executor.config import Settings
 from executor.exceptions import InvalidProjectIdError, WorkspaceMissingError
@@ -48,9 +49,31 @@ def create_app() -> FastAPI:
     app.include_router(router)
 
     @app.get("/health")
-    async def health_check() -> dict[str, str]:
-        """Health check endpoint."""
-        return {"status": "ok"}
+    async def health_check(settings: SettingsDep) -> dict[str, str]:
+        """Health check endpoint — open, no auth (compose polls it).
+
+        Reports the sandbox state alongside liveness: a service running with
+        `EXECUTOR_SANDBOX_ENABLED=false` is up but degraded to the point of
+        having no isolation at all, and that has to be observable from
+        outside the container, not only in its log stream.
+        """
+        return {
+            "status": "ok",
+            "sandbox": "enabled" if settings.sandbox_enabled else "disabled",
+        }
+
+    if not settings.sandbox_enabled:
+        # ERROR, once, at startup: the per-job WARNING in `build_job_argv`
+        # scrolls away in job noise, while this is the line an operator sees
+        # when the service comes up. Not a hard startup failure — the project
+        # carries no environment marker (`app_env`/`environment`) to tell a
+        # dev host from production, and inventing one for this guard alone is
+        # out of scope; the audit trail is this line plus `GET /health`.
+        logger.error(
+            "executor sandbox disabled — jobs run unisolated with rw access "
+            "to every project workspace; never use outside a dev host",
+            sandbox_enabled=False,
+        )
 
     logger.info("executor service configured", log_level=settings.log_level)
 

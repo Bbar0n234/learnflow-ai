@@ -46,10 +46,18 @@ class ArtifactDetail:
 
 @dataclass(frozen=True)
 class ArtifactFile:
-    """Raw bytes + cache-validator metadata for `media`/`download`."""
+    """Where the file is + cache-validator metadata for `media`/`download`.
 
+    Deliberately the location, not the bytes: the size of an artifact is set
+    by whatever job wrote it (no schema ceiling since ADR-032), so reading it
+    whole to hand a `bytes` to the route would put an arbitrary number of
+    megabytes into the process per open/download. The route streams from
+    `path` instead; this dataclass carries the `stat()` the cache validators
+    (`ETag`, `Last-Modified`) are derived from, taken once here.
+    """
+
+    path: Path
     name: str
-    data: bytes
     mtime: float
     mtime_ns: int
     size: int
@@ -105,8 +113,15 @@ class ArtifactWorkspaceService:
             updated_at=_to_datetime(stat_result.st_mtime),
         )
 
-    def read_artifact_file(self, project_id: str, path: str) -> ArtifactFile | None:
-        """`None` when `path` doesn't resolve to an existing file (caller → 404)."""
+    def stat_artifact_file(self, project_id: str, path: str) -> ArtifactFile | None:
+        """Resolve `path` and stat it; `None` when it isn't an existing file (→ 404).
+
+        Resolution + existence check only — the bytes never pass through this
+        layer (see `ArtifactFile`). Doing the `stat()` here rather than
+        leaving it to the response keeps the zone check (`resolve_artifact_
+        path`) and the metadata the route needs in one call off the event
+        loop.
+        """
         target = self._resolve(project_id, path)
         try:
             stat_result = target.stat()
@@ -116,8 +131,8 @@ class ArtifactWorkspaceService:
             return None
 
         return ArtifactFile(
+            path=target,
             name=target.name,
-            data=target.read_bytes(),
             mtime=stat_result.st_mtime,
             mtime_ns=stat_result.st_mtime_ns,
             size=stat_result.st_size,

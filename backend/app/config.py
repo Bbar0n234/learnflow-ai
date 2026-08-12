@@ -90,6 +90,11 @@ class Settings(BaseSettings):
     # EXECUTOR_* Settings (services/executor) are the authority on the
     # numbers referenced below.
     executor_base_url: str = "http://executor:8002"
+    # Shared secret presented to the executor on every POST /jobs
+    # (`Authorization: Bearer`). Required, no default (conventions.md
+    # § Секреты и fail-fast) — the same value must be set on the executor
+    # container as its own EXECUTOR_AUTH_TOKEN.
+    executor_auth_token: str
     # Job deadline sent to the executor. Must stay ≤ EXECUTOR_MAX_TIMEOUT_SECONDS
     # (300 — the executor's clamp ceiling): going over it just means the
     # executor silently clamps to its own ceiling instead of respecting this

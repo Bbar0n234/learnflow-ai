@@ -1,6 +1,6 @@
 """The `EXECUTOR_*` knobs — names, defaults and the prefix that binds them.
 
-These names are a contract with the deployment side: the same eight knobs live
+These names are a contract with the deployment side: the same knobs live
 in `docker-compose.yml` and both `.env*.example` files, written by another
 track. A renamed field or a changed default would not fail anything at startup —
 the service would just quietly run on its own defaults while operations believed
@@ -12,6 +12,30 @@ from __future__ import annotations
 
 import pytest
 from executor.config import Settings
+from pydantic import ValidationError
+
+
+@pytest.mark.unit
+def test_settings_requires_the_shared_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No `EXECUTOR_AUTH_TOKEN` — no service (conventions.md § Секреты и fail-fast).
+
+    A default here, of any shape, would let a deployment come up, pass its
+    healthcheck and look fine while `POST /jobs` accepts anything that reaches
+    the port. The failure has to happen at startup, where it is noticed.
+    """
+    monkeypatch.delenv("EXECUTOR_AUTH_TOKEN", raising=False)
+
+    with pytest.raises(ValidationError):
+        Settings()
+
+
+@pytest.mark.unit
+def test_settings_reads_the_shared_secret_from_its_prefixed_variable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("EXECUTOR_AUTH_TOKEN", "s3cret")
+
+    assert Settings().auth_token == "s3cret"
 
 
 @pytest.mark.unit

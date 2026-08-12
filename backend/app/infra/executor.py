@@ -1,7 +1,10 @@
 """Thin httpx client for the executor service (ADR-031, T1.4).
 
 The only HTTP contract this module speaks: ``POST {executor_base_url}/jobs``
-with ``{project_id, cmd, timeout}``, returning ``{stdout, stderr, exit_code}``
+with ``{project_id, cmd, timeout}`` under an ``Authorization: Bearer
+{executor_auth_token}`` header (the shared secret of the ``exec`` segment —
+``services/executor``'s ``executor.api.auth``), returning
+``{stdout, stderr, exit_code}``
 (``services/executor``'s ``JobRequest``/``JobResponse`` — cross-track
 contract 2, `tracks/T3/plan.md` § EXECUTOR_-knobs). `execute_code` always
 sends its scratch file's run command through the ``cmd`` branch — the
@@ -45,7 +48,11 @@ class ExecutorUnavailableError(Exception):
     `raise_for_status()`) is deliberately *not* covered here: that signals a
     request our own code built wrong (e.g. a malformed `project_id`), which
     is a bug to surface through the ordinary `handle_tool_error` path, not
-    an infra outage to mask behind an "unavailable" message.
+    an infra outage to mask behind an "unavailable" message. A 401/403 (the
+    two ends' `EXECUTOR_AUTH_TOKEN` disagree) travels the same route, but is
+    additionally logged at ERROR — the agent's in-band text stays generic,
+    while the operator gets the actual cause instead of an unexplained tool
+    failure.
     """
 
 
@@ -77,12 +84,15 @@ async def run_job(
     """
     client_timeout = timeout + settings.executor_client_timeout_grace_seconds
     body = {"project_id": project_id, "cmd": cmd, "timeout": timeout}
+    # Shared secret of the `exec` segment — the executor rejects an unsigned
+    # job (`executor.api.auth`). Same Bearer scheme the rest of the project's
+    # machine-to-machine calls use.
+    headers = {"Authorization": f"Bearer {settings.executor_auth_token}"}
     try:
         async with httpx.AsyncClient(timeout=client_timeout) as client:
             response = await client.post(
-                f"{settings.executor_base_url}/jobs", json=body
+                f"{settings.executor_base_url}/jobs", json=body, headers=headers
             )
-        response.raise_for_status()
     except httpx.RequestError as exc:
         logger.warning(
             "executor unreachable",
@@ -91,6 +101,18 @@ async def run_job(
             exc_info=True,
         )
         raise ExecutorUnavailableError("execution runtime unavailable") from exc
+
+    if response.status_code in (401, 403):
+        # Never silent: an auth rejection is a deployment misconfiguration
+        # (the two EXECUTOR_AUTH_TOKEN values disagree), and without this
+        # line it would reach the operator only as a generic tool error.
+        logger.error(
+            "executor rejected our credentials — EXECUTOR_AUTH_TOKEN of the "
+            "backend and of the executor container must hold the same value",
+            project_id=project_id,
+            status_code=response.status_code,
+        )
+    response.raise_for_status()
 
     data = response.json()
     return JobResult(

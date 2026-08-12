@@ -6,13 +6,21 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Executor service settings.
 
-    No secrets, no required fields — access to the executor is controlled by
-    the `exec` network segment, not by application-level auth (design-brief
-    § Executor). The mount set of the sandbox is a security invariant and
-    lives in code (`executor.sandbox`), not here (§ Что попадает в env).
+    The `exec` network segment is the first access barrier, but not the only
+    one: `auth_token` is a shared secret the backend must present on every
+    `POST /jobs` (`executor.api.auth`), so a foothold inside the segment is
+    not by itself arbitrary code execution plus rw access to every project's
+    workspace. The mount set of the sandbox is a security invariant and lives
+    in code (`executor.sandbox`), not here (§ Что попадает в env).
     """
 
     model_config = SettingsConfigDict(env_prefix="EXECUTOR_")
+
+    # Shared secret with the backend — required, no default (conventions.md
+    # § Секреты и fail-fast): a default would silently degrade a deployment
+    # into "anyone in the `exec` network may run code". Must hold the same
+    # value as the backend's own `EXECUTOR_AUTH_TOKEN`.
+    auth_token: str
 
     # Filesystem roots
     workspaces_root: str = "/workspaces"
@@ -32,5 +40,8 @@ class Settings(BaseSettings):
     log_level: str = "info"
 
     # Dev escape hatch — false runs the job without bwrap (for environments
-    # without userns). Never set in compose; every use logs a WARNING.
+    # without userns). Never set in compose. Turning it off is loud by
+    # construction: an ERROR at startup (`executor.main`), a `sandbox`
+    # degradation flag in `GET /health`, and a WARNING per job
+    # (`executor.sandbox.build_job_argv`).
     sandbox_enabled: bool = True

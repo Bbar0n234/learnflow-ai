@@ -7,6 +7,10 @@ built `create_app()`, and (3) isolation of the two pieces of global state the
 service does touch: `EXECUTOR_*` environment variables and structlog's global
 configuration.
 
+The shared secret (`EXECUTOR_AUTH_TOKEN`, no default — see `tests/__init__.py`)
+is pinned to one test value everywhere: in the environment, in the `Settings`
+factory and in the `Authorization` header the client fixtures carry.
+
 Sandboxing is **off by default** in these settings: every test that actually
 starts a process runs the job bare (`sandbox_enabled=False`) instead of under
 `unshare`+`bwrap`. Real sandboxed execution needs unprivileged user namespaces,
@@ -23,6 +27,7 @@ from collections.abc import AsyncIterator, Callable, Iterator
 from pathlib import Path
 from typing import Any
 
+import executor.api.auth
 import executor.api.routes
 import executor.main
 import executor.runner
@@ -34,6 +39,8 @@ from executor.api.deps import get_settings
 from executor.config import Settings
 from executor.main import create_app
 from httpx import ASGITransport, AsyncClient
+
+from tests import AUTH_TOKEN
 
 
 def _reset_structlog() -> None:
@@ -55,6 +62,7 @@ def _reset_structlog() -> None:
     starts from the same place.
     """
     structlog.reset_defaults()
+    executor.api.auth.logger = structlog.get_logger()
     executor.api.routes.logger = structlog.get_logger()
     executor.main.logger = structlog.get_logger()
     executor.runner.logger = structlog.get_logger()
@@ -70,13 +78,17 @@ def _isolated_structlog() -> Iterator[None]:
 
 @pytest.fixture(autouse=True)
 def _clean_executor_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Drop any `EXECUTOR_*` variables the developer's shell happens to export.
+    """Pin the `EXECUTOR_*` environment: nothing leaks in, the secret is fixed.
 
     `Settings()` reads the process environment, so without this a local
-    `EXECUTOR_SANDBOX_ENABLED=…` would leak into every test.
+    `EXECUTOR_SANDBOX_ENABLED=…` would leak into every test. `EXECUTOR_AUTH_TOKEN`
+    is put back afterwards because it has no default — every bare `Settings()`
+    (including the one each `create_app()` builds) would otherwise fail
+    validation.
     """
     for key in [key for key in os.environ if key.startswith("EXECUTOR_")]:
         monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("EXECUTOR_AUTH_TOKEN", AUTH_TOKEN)
 
 
 @pytest.fixture
@@ -116,6 +128,7 @@ def make_settings(workspaces_root: Path, skills_root: Path) -> Callable[..., Set
 
     def _make(**overrides: Any) -> Settings:
         values: dict[str, Any] = {
+            "auth_token": AUTH_TOKEN,
             "workspaces_root": str(workspaces_root),
             "skills_root": str(skills_root),
             "default_timeout_seconds": 5,
@@ -138,7 +151,7 @@ def settings(make_settings: Callable[..., Settings]) -> Settings:
 @pytest_asyncio.fixture
 async def make_client(
     workspace: Path,
-) -> AsyncIterator[Callable[[Settings], AsyncClient]]:
+) -> AsyncIterator[Callable[..., AsyncClient]]:
     """Factory of in-memory ASGI clients, one app per call.
 
     `create_app()` builds its own `Settings` from the environment; tests inject
@@ -146,14 +159,23 @@ async def make_client(
     same seam the handler uses (`SettingsDep`), so nothing about the request
     path is bypassed. Depends on `workspace` so that project `p1` exists for
     every request-level test — the executor refuses to create one itself.
+
+    Clients carry the shared secret by default (`authenticated=False` drops
+    it): the auth barrier is the subject of `tests/api/test_auth.py`, and
+    every other request-level test is about what happens *behind* it.
     """
     clients: list[AsyncClient] = []
 
-    def _make(settings: Settings) -> AsyncClient:
+    def _make(settings: Settings, *, authenticated: bool = True) -> AsyncClient:
         app = create_app()
         app.dependency_overrides[get_settings] = lambda: settings
+        headers = (
+            {"Authorization": f"Bearer {settings.auth_token}"} if authenticated else {}
+        )
         client = AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://executor"
+            transport=ASGITransport(app=app),
+            base_url="http://executor",
+            headers=headers,
         )
         clients.append(client)
         return client
@@ -165,7 +187,5 @@ async def make_client(
 
 
 @pytest.fixture
-def client(
-    make_client: Callable[[Settings], AsyncClient], settings: Settings
-) -> AsyncClient:
+def client(make_client: Callable[..., AsyncClient], settings: Settings) -> AsyncClient:
     return make_client(settings)

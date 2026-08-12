@@ -324,6 +324,43 @@ def test_write_text_over_an_existing_file_reports_updated_with_line_counts(
     assert (result.diff.added, result.diff.removed) == (1, 2)
 
 
+def test_write_text_over_a_file_past_the_diff_limit_writes_without_counters(
+    make_workspace: Callable[..., Workspace], project_dir: Path
+) -> None:
+    """The line counters are a nicety; reading a huge old file to get them is not.
+
+    `write_file` overwrites whatever is at the path, and since ADR-032 the size
+    of what is already there is set by the job that wrote it — a 500MB CSV an
+    `execute_code` run left under `artifacts/` is an ordinary target. Reading it
+    whole just to count changed lines would cost that much memory on a write
+    the agent makes routinely. The snapshot path already refuses that trade at
+    `diff_file_limit_bytes`; the write path holds the same line: `diff` is
+    dropped (`null` on the wire), the write itself still goes through.
+    """
+    workspace = make_workspace(diff_file_limit_bytes=8)
+    write_file(project_dir / "artifacts/big.md", "one\ntwo\nthree\n")  # 14 bytes
+
+    result = workspace.write_text(PROJECT_ID, "artifacts/big.md", "one\n")
+
+    assert (result.kind, result.diff) == ("updated", None)
+    assert (project_dir / "artifacts/big.md").read_text() == "one\n"
+
+
+def test_write_text_over_a_file_at_the_diff_limit_still_counts_lines(
+    make_workspace: Callable[..., Workspace], project_dir: Path
+) -> None:
+    # The other side of the same boundary: a file that fits the ceiling exactly
+    # is still diffed, so the common case (an agent rewriting a note) keeps the
+    # counters the SSE artifact event and the UI badge show.
+    workspace = make_workspace(diff_file_limit_bytes=8)
+    write_file(project_dir / "artifacts/small.md", "one\ntwo\n")  # exactly 8 bytes
+
+    result = workspace.write_text(PROJECT_ID, "artifacts/small.md", "one\nTWO\n")
+
+    assert result.diff is not None
+    assert (result.diff.added, result.diff.removed) == (1, 1)
+
+
 def test_write_text_over_a_binary_file_reports_updated_without_counters(
     workspace: Workspace, project_dir: Path
 ) -> None:

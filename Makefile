@@ -3,6 +3,10 @@
 # Load .env (base) then .env.local (overrides) into shell environment
 LOAD_ENV = set -a && [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; set +a
 
+# smoke-executor passes a placeholder EXECUTOR_AUTH_TOKEN: the smoke scenarios
+# call the runner directly (no HTTP, no auth barrier), but `Settings()` has no
+# default for the secret and would refuse to build inside the container.
+#
 # smoke-executor runtime: `runc` is the image-release gate (default, works on
 # any dev host with plain Docker); `runsc` is the production bwrap-under-gVisor
 # verification, run as a deploy-checklist step on a host that has the runsc
@@ -48,6 +52,7 @@ smoke-executor:  ## Run the executor image smoke suite (release gate). Usage: ma
 	  --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined \
 	  -v "$$tmpdir:/workspaces" \
 	  -v $(PWD)/skills:/skills:ro \
+	  -e EXECUTOR_AUTH_TOKEN=smoke-suite-placeholder \
 	  learnflow-executor:local /app/services/executor/smoke/run_all.sh; \
 	ec=$$?; \
 	docker run --rm --user 0 -v "$$tmpdir:/workspaces" learnflow-executor:local \

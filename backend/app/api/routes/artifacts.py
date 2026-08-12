@@ -7,7 +7,14 @@ can't carry `/` through ASGI routing/React matching. `list` and `get` share
 one route — `path` absent is list (recursive, flat `Page[T]`), `path` present
 is detail — mirroring the exact two calls the frontend already makes
 (`frontend/src/shared/api/artifacts.ts`, T2, shipped ahead of this phase).
-`media`/`download` are their own routes, `path` required on both.
+`media`/`download` are their own routes, `path` required on both; both answer
+with `FileResponse`, which streams the file off disk in chunks instead of
+materializing it — the size of an artifact is whatever job wrote it decided
+(no schema ceiling since ADR-032), so neither read may cost memory
+proportional to the file. The cache headers stay hand-built here: Starlette
+only fills in what a response doesn't already carry (`setdefault`), so the
+weak `(mtime, size)` ETag and the RFC 5987 disposition below win over its
+own defaults.
 
 All actual filesystem access goes through `ArtifactWorkspaceServiceDep`
 (`app/services/artifact_workspace.py`) — routes.py itself never imports
@@ -29,6 +36,7 @@ from urllib.parse import quote
 
 import anyio.to_thread
 from fastapi import APIRouter, HTTPException, Query, Request, Response
+from fastapi.responses import FileResponse
 
 from app.api.deps import ArtifactWorkspaceServiceDep, Pagination, UserProject
 from app.api.schemas.artifacts import (
@@ -115,7 +123,7 @@ async def get_artifact_media(
     path: Annotated[str, Query()],
 ) -> Response:
     file = await anyio.to_thread.run_sync(
-        artifacts.read_artifact_file, str(project.id), path
+        artifacts.stat_artifact_file, str(project.id), path
     )
     if file is None:
         raise HTTPException(status_code=404, detail="Artifact media not found")
@@ -134,8 +142,8 @@ async def get_artifact_media(
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers=headers)
 
-    return Response(
-        content=file.data,
+    return FileResponse(
+        file.path,
         media_type=_guess_media_type(file.name),
         headers=headers,
     )
@@ -148,13 +156,17 @@ async def download_artifact(
     path: Annotated[str, Query()],
 ) -> Response:
     file = await anyio.to_thread.run_sync(
-        artifacts.read_artifact_file, str(project.id), path
+        artifacts.stat_artifact_file, str(project.id), path
     )
     if file is None:
         raise HTTPException(status_code=404, detail="Artifact not found")
 
-    return Response(
-        content=file.data,
+    # `filename=` is not passed to `FileResponse` on purpose: it would build
+    # its own `Content-Disposition` (RFC 5987 only when the name happens to
+    # need escaping) — this surface always sends the `filename*=UTF-8''` form,
+    # so the header stays ours and `FileResponse.setdefault` leaves it alone.
+    return FileResponse(
+        file.path,
         media_type=_guess_media_type(file.name),
         headers={"Content-Disposition": _content_disposition(file.name)},
     )

@@ -6,7 +6,7 @@
 
 ## Топология и границы изоляции
 
-Executor — четвёртый standalone-сервис (по образцу [siem-service.md](siem-service.md)): свой контейнер, свой порт (8002, не публикуется наружу), свой Dockerfile (`services/executor/Dockerfile`, build context — корень репозитория). Единственный клиент — backend, единственный канал — `POST /jobs`; авторизацию делает backend (executor не знает о пользователях и проектах, `project_id` — просто имя директории cwd).
+Executor — четвёртый standalone-сервис (по образцу [siem-service.md](siem-service.md)): свой контейнер, свой порт (8002, не публикуется наружу), свой Dockerfile (`services/executor/Dockerfile`, build context — корень репозитория). Единственный клиент — backend, единственный канал — `POST /jobs`; авторизацию *пользователя* делает backend (executor не знает о пользователях и проектах, `project_id` — просто имя директории cwd), а сам вызывающий доказывает, что он backend, shared-secret'ом `EXECUTOR_AUTH_TOKEN` (§ Аутентификация вызывающего).
 
 Изоляция — четыре независимых барьера, каждый следующий защищает то, что не закрывает предыдущий:
 
@@ -39,7 +39,7 @@ flowchart TB
 
 Слой 1 (резолв путей) — уже в backend, не в executor: он защищает только аргументы файловых инструментов (`read_file`/`write_file`/`list_files`), не пути *внутри* исполняемого кода (`open()`, `rm -rf` абсолютным путём резолв не видит принципиально — обфускация обходит любой blacklist). Для кода, который исполняется, границей служит видимость файловой системы — слои 2–4, целиком в этом сервисе.
 
-- **Сетевая сегментация.** Executor живёт в выделенной сети `exec` (compose), `internal: true`, исключён из стековой сети — БД/Redis/SIEM недостижимы (ни DNS-имени, ни маршрута), выхода в интернет нет вообще (internal-сеть без NAT). Backend состоит в обеих сетях: стековая — для БД, `exec` — для `POST /jobs`. Остаточный риск: netns привязан к контейнеру, не процессу — job-subprocess наследует сеть executor'а и видит `app:8000` (тот же JWT-защищённый API, что публикуется в интернет). Закрывается пустым netns самой джобы (см. § Sandbox ниже), не сетью compose.
+- **Сетевая сегментация.** Executor живёт в выделенной сети `exec` (compose), `internal: true`, исключён из стековой сети — БД/Redis/SIEM недостижимы (ни DNS-имени, ни маршрута), выхода в интернет нет вообще (internal-сеть без NAT). Backend состоит в обеих сетях: стековая — для БД, `exec` — для `POST /jobs`. Остаточный риск: netns привязан к контейнеру, не процессу — job-subprocess наследует сеть executor'а и видит `app:8000` (тот же JWT-защищённый API, что публикуется в интернет). Закрывается пустым netns самой джобы (см. § Sandbox ниже), не сетью compose. Сеть — не единственный барьер на входе: `POST /jobs` дополнительно требует shared-secret (§ Аутентификация вызывающего), поэтому доступ в сегмент сам по себе не даёт ни выполнения кода, ни rw к чужим workspace.
 - **gVisor (`runtime: runsc`).** Между контейнером executor и ядром хоста — user-space Sentry, перехватывающий syscalls; побег из контейнера требует пробить два слоя (Sentry + ядро хоста), а не один. Прод-дефолт; dev-хосты без установленного `runsc` переопределяют `EXECUTOR_RUNTIME=runc` в своём `.env` (compose-интерполяция `runtime: ${EXECUTOR_RUNTIME:-runsc}`, не app-настройка — переменная не заводится ни в одном `Settings`).
 - **bwrap per job.** Изолирует джобы друг от друга *внутри* одного контейнера executor: mount-namespace джобы содержит только её workspace (rw), read-only тулчейн образа и `/skills` (ro) — чужие workspace недостижимы ни на чтение, ни на запись/удаление. Без этого слоя одна джоба могла бы снести `/workspaces` целиком (rw-volume смонтирован в контейнер полностью). Детали — § Sandbox.
 
@@ -52,18 +52,24 @@ sequenceDiagram
     participant W as Workspace (volume)
 
     T->>W: snapshot artifacts/ ДО (path, mtime, size)
-    T->>E: POST /jobs {project_id, code|cmd, timeout}
+    T->>E: POST /jobs {project_id, code|cmd, timeout}<br>Authorization: Bearer EXECUTOR_AUTH_TOKEN
     E->>W: unshare+bwrap subprocess:<br>mount-ns только свой workspace + ro-тулчейн + /skills ro
     Note over E: deadline, потолок stdout/stderr,<br>kill-контракт (см. ниже)
     E-->>T: {stdout, stderr, exit_code}
     T->>W: snapshot artifacts/ ПОСЛЕ → diff → SSE artifact_created/artifact_updated
 ```
 
-Запрос — ровно одно из `code`/`cmd` (валидируется схемой, не `if` в handler'е), плюс `project_id` и опциональный `timeout`. Ответ — фиксированная тройка `{stdout, stderr, exit_code}`; расширять её без пересогласования обеих сторон (backend tool-обвязка, executor) нельзя — это межсервисный контракт. `code` пишется во временный файл вне workspace и ro-бинduется в песочницу по фиксированному пути (читаемые трейсбеки), `cmd` идёт как `bash -c` (не `-lc` — login shell пересобрал бы `PATH` из `/etc/profile`, ломая scrubbed-env инвариант).
+Запрос — ровно одно из `code`/`cmd` (валидируется схемой, не `if` в handler'е), плюс `project_id`, опциональный `timeout` и обязательный заголовок `Authorization: Bearer <EXECUTOR_AUTH_TOKEN>` (§ Аутентификация вызывающего). Ответ — фиксированная тройка `{stdout, stderr, exit_code}`; расширять её без пересогласования обеих сторон (backend tool-обвязка, executor) нельзя — это межсервисный контракт. `code` пишется во временный файл вне workspace и ro-бинduется в песочницу по фиксированному пути (читаемые трейсбеки), `cmd` идёт как `bash -c` (не `-lc` — login shell пересобрал бы `PATH` из `/etc/profile`, ломая scrubbed-env инвариант).
 
 Executor не создаёт workspace-директории и не знает про артефакты: существование workspace до джобы гарантирует backend (`mkdir` перед `POST /jobs`); diff зоны `artifacts/` (что нового/изменённого появилось) снимает backend снапшотом до/после — executor остаётся тупым исполнителем без отчёта о файлах, той же модели доверия, что в ADR-031.
 
 **Ошибки джобы** (ненулевой exit, таймаут) — обычный `JobResult`/`ToolMessage`, не исключение: агент видит stderr и чинит код, это рабочий цикл. **Транспортные отказы** (executor недоступен — connect refused, HTTP-таймаут) backend ловит узким классом httpx-исключений и возвращает in-band «execution runtime unavailable», чтобы агент не пытался чинить код вместо инфраструктуры.
+
+## Аутентификация вызывающего
+
+`POST /jobs` исполняет произвольный код и принимает `project_id` обычным полем запроса — то есть любой, кто дотянулся до порта, получил бы выполнение кода плюс rw к workspace *любого* проекта. Поэтому сетевой сегмент — первый барьер, но не единственный: вызывающий обязан предъявить общий с backend'ом секрет `EXECUTOR_AUTH_TOKEN` в заголовке `Authorization: Bearer` (схема Bearer — та же, что у остальных machine-to-machine вызовов проекта). Несовпадение или отсутствие заголовка → `401` с `WWW-Authenticate: Bearer` и WARNING в логе (`reason=missing_credentials` / `token_mismatch`); сравнение — `hmac.compare_digest`. `GET /health` остаётся открытым: его опрашивает healthcheck compose, а показывает он только живость и флаг деградации песочницы.
+
+Секрет обязателен с обеих сторон: поле `Settings` без дефолта и в executor'е, и в backend'е (`EXECUTOR_AUTH_TOKEN`), в `docker-compose.yml` — `${EXECUTOR_AUTH_TOKEN:?…}` для обоих сервисов. Конфигурация не может тихо деградировать в «без аутентификации»: отсутствие значения — ошибка старта, а не запуск с открытым `/jobs` (conventions.md § Секреты и fail-fast). Отказ по токену на стороне backend'а логируется ERROR'ом с указанием, что значения двух концов разошлись, — агенту при этом достаётся обычная ошибка инструмента, а не молчание.
 
 ## Sandbox: unshare + bwrap
 
@@ -75,7 +81,7 @@ Executor не создаёт workspace-директории и не знает �
 - **Workspace обязан принадлежать uid джобы** — иначе запись под gVisor падает `EINVAL` даже при mode 777 (umask не помогает, `EINVAL` вызывается владельцем, не правами). Отсюда — единый uid 10001 для backend, executor и самой джобы: все `mkdir` workspace-директорий делает backend, владелец автоматически совпадает. Именованный volume `workspaces` дополнительно запекается с `chown 10001:10001` в оба образа (backend и executor, до `USER 10001`) — свежий volume иначе получает root-владение точки монтирования от того контейнера, который стартовал первым.
 - **`tini` как PID 1 образа.** Каждая джоба оставляла в контейнере зомби `bwrap` (родитель — сам subprocess-обёртка, но при выходе процесс реперентится на PID 1 контейнера; `uvicorn` из `CMD` не является init-процессом и не жнёт сирот) — под `pids_limit` compose это медленная утечка PID-слотов. `ENTRYPOINT ["tini", "--"]` — гарантия держится везде, где запускается образ (смоук, ручной `docker run`, compose, прод), не только там, где не забыт compose-флаг `init: true`; сигналы (включая SIGTERM на `stop_grace_period`) tini пробрасывает в `CMD`-процесс без изменений — kill-контракт джобы не затронут.
 - **`security_opt` контейнера executor — не граница изоляции джобы.** Дефолтные seccomp/AppArmor-профили docker блокируют userns и masked-path-монтирования, которые bwrap использует для песочницы, — без снятия профилей executor не может запустить ни одну джобу. `security_opt: [seccomp=unconfined, apparmor=unconfined, systempaths=unconfined]` на сервисе `executor` снимает это ограничение контейнера целиком; сама граница для недоверенного кода — gVisor (прод, `runtime: runsc`) и bwrap на джобу, а не seccomp-профиль контейнера executor. `--privileged` сознательно не используется — он расширил бы привилегии сверх необходимого и создал бы ложное впечатление, что контейнерный seccomp входит в периметр безопасности джобы.
-- **Dev-фолбэк без sandbox.** `EXECUTOR_SANDBOX_ENABLED=false` запускает джобу голым subprocess (без unshare/bwrap) — для сред без поддержки userns; каждое использование логирует WARNING, значение никогда не выставляется в compose (дефолт `true` обязателен во всех задеплоенных окружениях).
+- **Dev-фолбэк без sandbox.** `EXECUTOR_SANDBOX_ENABLED=false` запускает джобу голым subprocess (без unshare/bwrap) — для сред без поддержки userns; значение никогда не выставляется в compose (дефолт `true` обязателен во всех задеплоенных окружениях). Выключение громкое по построению: ERROR на старте сервиса («джобы исполняются без изоляции, с rw ко всем workspace»), `sandbox: disabled` в ответе `GET /health` (деградация видна снаружи, а не только в логах) и WARNING на каждую джобу. Hard-guard «не стартовать вне dev» не реализован: в проекте нет маркера окружения (`app_env`/`environment`) ни в одном `Settings`, а заводить переменную ради одного guard'а — отдельное решение.
 
 Точный argv, найденные при спайке ограничения переноса и матрица проверок под gVisor — [spikes/spike-bwrap-gvisor.md](../tasks/iterations/dogfooding/feat-011-execution-runtime/spikes/spike-bwrap-gvisor.md).
 
@@ -91,6 +97,7 @@ Executor не создаёт workspace-директории и не знает �
 
 | Переменная | Назначение | Default |
 |-----------|-----------|---------|
+| `EXECUTOR_AUTH_TOKEN` | общий с backend'ом секрет для `POST /jobs` (§ Аутентификация вызывающего); значения обоих сервисов обязаны совпадать | — (обязателен) |
 | `EXECUTOR_WORKSPACES_ROOT` | корень workspace-volume внутри контейнера | `/workspaces` |
 | `EXECUTOR_SKILLS_ROOT` | ro-mount скиллов | `/skills` |
 | `EXECUTOR_DEFAULT_TIMEOUT_SECONDS` | deadline джобы, если `timeout` не передан | 60 |
@@ -118,5 +125,5 @@ services/executor/
     ├── runner.py               # run_job — Popen, kill-контракт, потолок вывода per stream
     ├── logging.py              # structlog-обвязка
     ├── exceptions.py           # InvalidProjectIdError, WorkspaceMissingError
-    └── api/                    # schemas.py (JobRequest/JobResponse), routes.py, deps.py
+    └── api/                    # schemas.py (JobRequest/JobResponse), routes.py, deps.py, auth.py
 ```

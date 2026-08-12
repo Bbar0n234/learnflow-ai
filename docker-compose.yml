@@ -92,6 +92,9 @@ services:
       WORKSPACE_DIFF_TOTAL_LIMIT_BYTES: ${WORKSPACE_DIFF_TOTAL_LIMIT_BYTES:-10000000}
       UPLOAD_MAX_SIZE_BYTES: ${UPLOAD_MAX_SIZE_BYTES:-20000000}
       EXECUTOR_BASE_URL: ${EXECUTOR_BASE_URL:-http://executor:8002}
+      # Shared secret of the `exec` segment — same value here and on the
+      # `executor` service below, or every job is rejected with 401.
+      EXECUTOR_AUTH_TOKEN: ${EXECUTOR_AUTH_TOKEN:?EXECUTOR_AUTH_TOKEN is required — set it in .env}
       EXECUTOR_JOB_TIMEOUT_SECONDS: ${EXECUTOR_JOB_TIMEOUT_SECONDS:-60}
       EXECUTOR_CLIENT_TIMEOUT_GRACE_SECONDS: ${EXECUTOR_CLIENT_TIMEOUT_GRACE_SECONDS:-10}
       # MCP external tools — api_key_env from configs/agent.yaml, read directly
@@ -158,6 +161,9 @@ services:
       - apparmor=unconfined
       - systempaths=unconfined
     environment:
+      # Same variable the `app` service gets — one secret, two ends. The
+      # service refuses to start without it (Settings field without default).
+      EXECUTOR_AUTH_TOKEN: ${EXECUTOR_AUTH_TOKEN:?EXECUTOR_AUTH_TOKEN is required — set it in .env}
       EXECUTOR_WORKSPACES_ROOT: ${EXECUTOR_WORKSPACES_ROOT:-/workspaces}
       EXECUTOR_SKILLS_ROOT: ${EXECUTOR_SKILLS_ROOT:-/skills}
       EXECUTOR_DEFAULT_TIMEOUT_SECONDS: ${EXECUTOR_DEFAULT_TIMEOUT_SECONDS:-60}

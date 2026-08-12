@@ -102,7 +102,7 @@ async def test_post_jobs_timed_out_job_is_a_200_with_diagnostics(
 
 @pytest.mark.integration
 async def test_post_jobs_timeout_above_ceiling_is_clamped_and_warned(
-    make_client: Callable[[Settings], AsyncClient],
+    make_client: Callable[..., AsyncClient],
     make_settings: Callable[..., Settings],
 ) -> None:
     """The service ceiling wins over a caller asking for more.
@@ -165,7 +165,7 @@ async def test_post_jobs_timeout_within_ceiling_is_not_warned(
 
 @pytest.mark.integration
 async def test_post_jobs_without_timeout_falls_back_to_the_service_default(
-    make_client: Callable[[Settings], AsyncClient],
+    make_client: Callable[..., AsyncClient],
     make_settings: Callable[..., Settings],
 ) -> None:
     """An omitted timeout is the service default — and it is enforced."""

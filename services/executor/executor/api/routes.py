@@ -17,8 +17,9 @@ import tempfile
 from pathlib import Path
 
 import structlog
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from executor.api.auth import require_service_token
 from executor.api.deps import SettingsDep
 from executor.api.schemas import JobRequest, JobResponse
 from executor.config import Settings
@@ -27,7 +28,11 @@ from executor.sandbox import resolve_workspace
 
 logger = structlog.get_logger()
 
-router = APIRouter()
+# Auth is declared on the router, not on the handler: every route that ever
+# joins this router is behind the shared secret by default, so adding one
+# cannot silently open the job surface (`executor.api.auth`). `GET /health`
+# lives on the app, outside this router, and stays open for compose.
+router = APIRouter(dependencies=[Depends(require_service_token)])
 
 # Fixed in-sandbox destination for the `code` branch — a stable path gives
 # readable tracebacks (`File "/tmp/job.py"`) instead of a random mkstemp

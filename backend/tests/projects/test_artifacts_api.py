@@ -19,7 +19,9 @@ from __future__ import annotations
 
 import os
 import uuid
+from collections.abc import MutableMapping
 from pathlib import Path
+from typing import Any
 from urllib.parse import unquote
 
 import pytest
@@ -47,6 +49,52 @@ def _binary_artifact(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
     return path
+
+
+async def _get_via_raw_asgi(
+    app: FastAPI, path: str, query: bytes
+) -> tuple[int, dict[str, str], list[bytes]]:
+    """GET through the ASGI app itself, keeping the response body parts apart.
+
+    `client` cannot answer "was this body streamed": httpx's `ASGITransport`
+    concatenates every `http.response.body` message before building the
+    `Response`. Driving the app directly is the only way to see the shape the
+    server actually sent — one message per chunk, or one message for the whole
+    file. Auth needs nothing extra: the `app` fixture already overrides the
+    current-user provider.
+    """
+    messages: list[MutableMapping[str, Any]] = []
+
+    async def receive() -> MutableMapping[str, Any]:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message: MutableMapping[str, Any]) -> None:
+        messages.append(message)
+
+    scope: MutableMapping[str, Any] = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "GET",
+        "headers": [(b"host", b"test")],
+        "scheme": "http",
+        "path": path,
+        "raw_path": path.encode(),
+        "query_string": query,
+        "server": ("test", 80),
+        "client": ("127.0.0.1", 123),
+        "root_path": "",
+    }
+    await app(scope, receive, send)
+
+    start = next(m for m in messages if m["type"] == "http.response.start")
+    headers = {key.decode(): value.decode() for key, value in start["headers"]}
+    chunks = [
+        body
+        for m in messages
+        if m["type"] == "http.response.body" and (body := m.get("body", b""))
+    ]
+    return int(start["status"]), headers, chunks
 
 
 # --- list -------------------------------------------------------------------
@@ -433,6 +481,104 @@ async def test_media_answers_200_after_the_file_was_rewritten(
 
     assert second.status_code == 200
     assert second.content == b"new-and-longer"
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        pytest.param("/media", id="media"),
+        pytest.param("/download", id="download"),
+    ],
+)
+async def test_reading_a_large_artifact_streams_it_instead_of_buffering_it(
+    app: FastAPI,
+    current_user: User,
+    workspace: Workspace,
+    workspaces_root: Path,
+    endpoint: str,
+) -> None:
+    """Nothing bounds an artifact's size any more — so nothing may load it whole.
+
+    The size used to be capped by what fit in a PG row; now it is whatever the
+    job that wrote the file decided, and `execute_code` can leave hundreds of
+    megabytes under `artifacts/`. Opening such a file in the viewer or hitting
+    download would then spike the backend's memory by the full file size for
+    the duration of the response, per concurrent reader — the OOM shape the
+    read ceiling closes on the detail endpoint, left open on these two.
+
+    The observable is how the body reaches the transport: several
+    `http.response.body` messages, each a bounded slice, instead of the single
+    whole-file message a materialized `bytes` response can only ever send. It
+    is checked against the raw ASGI app rather than through `client` because
+    httpx's `ASGITransport` joins the parts back together before handing the
+    response over — the buffering under test would be invisible through it.
+    """
+    project = await create_owned_project(current_user)
+    payload = bytes(range(256)) * 2_000  # 512_000 bytes — several send() chunks
+    _binary_artifact(workspaces_root, project.id, "big.bin", payload)
+
+    status, headers, chunks = await _get_via_raw_asgi(
+        app, f"/api/projects/{project.id}/artifacts{endpoint}", b"path=big.bin"
+    )
+
+    assert status == 200
+    assert len(chunks) > 1
+    assert max(len(chunk) for chunk in chunks) < len(payload)
+    assert b"".join(chunks) == payload
+    assert headers["content-length"] == str(len(payload))
+
+
+async def test_media_of_a_large_artifact_keeps_its_own_cache_headers(
+    client: AsyncClient,
+    current_user: User,
+    workspace: Workspace,
+    workspaces_root: Path,
+) -> None:
+    # Streaming the body must not hand the cache contract over to Starlette:
+    # its `FileResponse` would otherwise supply a strong md5-of-(mtime,size)
+    # ETag of its own. The weak `(mtime, size)` validator this surface issues
+    # is what the 304 branch compares against, so a swap would break
+    # revalidation for every client holding an older ETag.
+    project = await create_owned_project(current_user)
+    _binary_artifact(workspaces_root, project.id, "big.bin", b"\x00" * 300_000)
+    url = f"/api/projects/{project.id}/artifacts/media"
+
+    first = await client.get(url, params={"path": "big.bin"})
+    second = await client.get(
+        url,
+        params={"path": "big.bin"},
+        headers={"If-None-Match": first.headers["etag"]},
+    )
+
+    assert first.status_code == 200
+    assert first.headers["etag"].startswith('W/"')
+    assert first.headers["cache-control"] == "no-cache"
+    assert first.headers["last-modified"]
+    assert len(first.content) == 300_000
+    assert second.status_code == 304
+
+
+async def test_download_of_a_large_artifact_keeps_the_rfc5987_disposition(
+    client: AsyncClient,
+    current_user: User,
+    workspace: Workspace,
+    workspaces_root: Path,
+) -> None:
+    # Same concern on the download side: `FileResponse` builds a plain
+    # `filename="..."` disposition whenever the name needs no escaping, while
+    # this surface always sends the `filename*=UTF-8''` form.
+    project = await create_owned_project(current_user)
+    _artifact(workspaces_root, project.id, "big.md", "# Notes\n" * 40_000)
+
+    response = await client.get(
+        f"/api/projects/{project.id}/artifacts/download", params={"path": "big.md"}
+    )
+
+    assert response.status_code == 200
+    assert (
+        response.headers["content-disposition"] == "attachment; filename*=UTF-8''big.md"
+    )
+    assert response.content == ("# Notes\n" * 40_000).encode()
 
 
 async def test_media_of_a_missing_artifact_is_404(

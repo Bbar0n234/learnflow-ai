@@ -634,6 +634,7 @@ Main app реализует: иерархию `AppError` в `services/exceptions
 - `WORKSPACE_READ_LIMIT_CHARS` / `WORKSPACE_DIFF_FILE_LIMIT_BYTES` / `WORKSPACE_DIFF_TOTAL_LIMIT_BYTES` — потолки чтения `read_file` и diff-снапшота `artifacts/` вокруг джобы (per-file/суммарный на джобу; превышение — `diff: null`, не отказ)
 - `UPLOAD_MAX_SIZE_BYTES` — потолок размера файла в `POST /projects/{id}/uploads`
 - `EXECUTOR_BASE_URL` / `EXECUTOR_JOB_TIMEOUT_SECONDS` / `EXECUTOR_CLIENT_TIMEOUT_GRACE_SECONDS` — клиентские knobs httpx-обвязки `execute_code`/`run_command` к сервису `executor` (сами knobs executor-контейнера — отдельный `Settings` с тем же префиксом `EXECUTOR_`, другой процесс, документированы в [executor.md](executor.md))
+- `EXECUTOR_AUTH_TOKEN` — общий с executor'ом секрет, уходит в `Authorization: Bearer` на каждый `POST /jobs`. Обязателен, без дефолта: backend не стартует без него, а значение обязано совпадать с тем, что получил контейнер `executor` ([executor.md](executor.md) § Аутентификация вызывающего)
 
 Agent-специфичная конфигурация (модель, контекст, промпт, summarization, MCP) — отдельный YAML-файл, не env vars. Prompt management — [prompt-management.md](prompt-management.md).
 

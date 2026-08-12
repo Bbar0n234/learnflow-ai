@@ -399,6 +399,17 @@ kill-контракта, которая не помещается в `bwrap`-ф�
   (T3.5) типизирован `float | None` в контракте, но это разные поля: knob'ы — целочисленные
   границы clamp'а, `timeout` запроса — дробный ввод клиента; `min(max(timeout, 0),
   max_timeout_seconds)` корректно работает при смешении `float`/`int` без явного каста.
+- **F2 (harvest-микрофикс) — `JobRequest.timeout` без нижней границы.** Отрицательное значение
+  проходило схему, клампилось `_clamp_timeout`'ом в `0.0` и джоба умирала мгновенно с
+  диагностикой «exceeded timeout of 0.0s» вместо честной `422` — каёмочный кейс, но вводящий
+  в заблуждение (выглядит как runtime-сбой, а не ошибка запроса). Поле переведено на
+  `Annotated[float, Field(gt=0)] | None`; верхняя граница (`max_timeout_seconds`) осталась
+  runtime-клампом в `_clamp_timeout`, как и была — это защитный потолок от бэкенда, а не
+  статический инвариант формы запроса. `test_post_jobs_negative_timeout_is_clamped_to_zero_and_warned`
+  переписан в `test_post_jobs_negative_timeout_is_a_422` (старый ассертил поведение, которое фикс
+  сознательно меняет — синхронизация с контрактом, не эрозия теста), плюс добавлен
+  `test_post_jobs_zero_timeout_is_a_422`. Кейс на кламп по верхней границе
+  (`test_post_jobs_timeout_above_ceiling_is_clamped_and_warned`) не тронут и остаётся зелёным.
 - **`logging.getLevelNamesMapping()`, а не `structlog.stdlib.NAME_TO_LEVEL`.** Первая
   реализация читала уровень из `structlog.stdlib.NAME_TO_LEVEL` (тот же паттерн, что
   использует сам `structlog` внутри) — mypy с `no_implicit_reexport = true` (корневой

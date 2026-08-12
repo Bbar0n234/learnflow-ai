@@ -1,8 +1,8 @@
 """Request/response schemas for `POST /jobs`."""
 
-from typing import Self
+from typing import Annotated, Self
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 class JobRequest(BaseModel):
@@ -17,7 +17,14 @@ class JobRequest(BaseModel):
     project_id: str
     code: str | None = None
     cmd: str | None = None
-    timeout: float | None = None
+    # `gt=0`: a non-positive timeout is a caller bug, not a value the service
+    # should quietly accept and clamp — clamping it would kill the job before
+    # it starts and surface as an opaque "exceeded timeout of 0.0s" instead of
+    # a `422` naming the actual mistake. The upper bound stays a runtime
+    # clamp (`_clamp_timeout` in `executor.api.routes`), not a schema bound —
+    # it is a defensive backstop keyed off `Settings.max_timeout_seconds`,
+    # not a static invariant of the request shape.
+    timeout: Annotated[float, Field(gt=0)] | None = None
 
     @model_validator(mode="after")
     def _exactly_one_of_code_cmd(self) -> Self:

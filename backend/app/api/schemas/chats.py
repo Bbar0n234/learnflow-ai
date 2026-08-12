@@ -82,8 +82,8 @@ class ArtifactPartOut(BaseModel):
     (extension) is ``artifact_type`` — kept separate so it can never collide
     with the discriminator, same reasoning as the SSE envelope's ``artifact_type``
     remap (``stream_events.py``). ``ArtifactPart.path`` carries a real
-    workspace-relative path for ``write_file`` (T1.3); ``generate_image``
-    (still PG-backed until T1.7) carries its PG id here instead.
+    workspace-relative path for every artifact tool, ``generate_image``
+    included.
     """
 
     type: Literal["artifact"] = "artifact"

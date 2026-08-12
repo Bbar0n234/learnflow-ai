@@ -300,6 +300,13 @@ class Workspace:
         self._deny(path=path, reason="outside_skills_root")
 
     def _project_root(self, project_id: str) -> Path:
+        # `project_id` is not validated here: it arrives from a trusted
+        # source (`AgentContext`, or a dependency that already checked the
+        # project exists and belongs to the caller) — ownership is enforced
+        # a layer above this one. Unlike the executor's own `/jobs` surface,
+        # which is a network-reachable endpoint and validates `project_id`
+        # itself (regex + reserved-name list), this path segment is
+        # deliberately left unvalidated here.
         return (self._workspaces_root / project_id).resolve()
 
     def _deny(self, *, path: str, reason: str) -> NoReturn:

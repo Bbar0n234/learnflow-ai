@@ -128,27 +128,30 @@ async def test_post_jobs_timeout_above_ceiling_is_clamped_and_warned(
 
 
 @pytest.mark.integration
-async def test_post_jobs_negative_timeout_is_clamped_to_zero_and_warned(
-    client: AsyncClient,
-) -> None:
-    """The clamp holds at the bottom too, and says so.
+async def test_post_jobs_negative_timeout_is_a_422(client: AsyncClient) -> None:
+    """A non-positive deadline is a caller bug, rejected before it runs.
 
-    A negative deadline is a caller bug (a subtraction that went past zero in
-    T1's budget arithmetic), and its effect is loud: the job is killed the
-    instant it starts. Silently floored, that reads as "the executor kills
-    everything"; the WARNING plus the in-band diagnostics name the real cause.
+    Previously this silently clamped to `0.0` and the job died instantly with
+    an opaque "exceeded timeout of 0.0s" — a caller bug (a subtraction that
+    went past zero in T1's budget arithmetic) dressed up as a runtime
+    failure. The schema now rejects it outright: a plain `422`, no job ever
+    started, no clamp warning to emit.
     """
-    with capture_logs() as logs:
-        response = await client.post(
-            "/jobs", json={"project_id": "p1", "cmd": "sleep 30", "timeout": -1}
-        )
+    response = await client.post(
+        "/jobs", json={"project_id": "p1", "cmd": "sleep 30", "timeout": -1}
+    )
 
-    assert response.status_code == 200
-    assert "exceeded timeout of 0.0" in response.json()["stderr"]
-    clamped = [entry for entry in logs if entry["event"] == "timeout clamped"]
-    assert len(clamped) == 1
-    assert clamped[0]["requested_timeout"] == -1
-    assert clamped[0]["clamped_timeout"] == 0.0
+    assert response.status_code == 422
+
+
+@pytest.mark.integration
+async def test_post_jobs_zero_timeout_is_a_422(client: AsyncClient) -> None:
+    """`0` is excluded too — `timeout` must be strictly positive."""
+    response = await client.post(
+        "/jobs", json={"project_id": "p1", "cmd": "sleep 30", "timeout": 0}
+    )
+
+    assert response.status_code == 422
 
 
 @pytest.mark.integration

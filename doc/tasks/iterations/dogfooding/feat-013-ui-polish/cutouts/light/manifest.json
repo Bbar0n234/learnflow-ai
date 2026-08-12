@@ -1,0 +1,41 @@
+[
+  {
+    "source": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-013-ui-polish/doc/tasks/iterations/dogfooding/feat-013-ui-polish/generated/light/artifacts-select.png",
+    "output": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-013-ui-polish/doc/tasks/iterations/dogfooding/feat-013-ui-polish/cutouts/light/artifacts-select.png",
+    "source_size": [
+      1448,
+      1086
+    ],
+    "inference_resolution": "2048x1536",
+    "weights": "General-HR",
+    "space": "ZhengPeng7/BiRefNet_demo",
+    "seconds": 7.0,
+    "finished_at": "2026-08-12T13:42:44+0300"
+  },
+  {
+    "source": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-013-ui-polish/doc/tasks/iterations/dogfooding/feat-013-ui-polish/generated/light/auth-hero.png",
+    "output": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-013-ui-polish/doc/tasks/iterations/dogfooding/feat-013-ui-polish/cutouts/light/auth-hero.png",
+    "source_size": [
+      1448,
+      1086
+    ],
+    "inference_resolution": "2048x1536",
+    "weights": "General-HR",
+    "space": "ZhengPeng7/BiRefNet_demo",
+    "seconds": 5.1,
+    "finished_at": "2026-08-12T13:42:49+0300"
+  },
+  {
+    "source": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-013-ui-polish/doc/tasks/iterations/dogfooding/feat-013-ui-polish/generated/light/not-found.png",
+    "output": "/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-013-ui-polish/doc/tasks/iterations/dogfooding/feat-013-ui-polish/cutouts/light/not-found.png",
+    "source_size": [
+      1448,
+      1086
+    ],
+    "inference_resolution": "2048x1536",
+    "weights": "General-HR",
+    "space": "ZhengPeng7/BiRefNet_demo",
+    "seconds": 6.1,
+    "finished_at": "2026-08-12T13:42:55+0300"
+  }
+]

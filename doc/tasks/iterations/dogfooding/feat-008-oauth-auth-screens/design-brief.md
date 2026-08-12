@@ -15,7 +15,7 @@
 ## Целевой UX
 
 - **Страница `/login`** заменяет модалку: неаутентифицированный пользователь на любом маршруте попадает на `/login` (с запоминанием исходного пути), после входа возвращается. Логин и регистрация — два режима одной страницы (как сейчас в `AuthGate`), копирайт русский.
-- Сверху — **кнопки провайдеров**, состав приходит с бэкенда (`GET /api/auth/providers`, по гео): РФ — «Войти с Яндексом», «Войти через VK», не-РФ — Google, GitHub. Ниже — парольная форма (для всех).
+- Сверху — **кнопки провайдеров**, состав приходит с бэкенда (`GET /api/auth/providers`, по гео): РФ — только «Войти с Яндексом», «Войти через VK»; не-РФ — **все четыре** (решение архитектора: россиянин за VPN входит своим Яндекс/VK-аккаунтом, не выключая VPN; серверный запрет действует только на паре «РФ-IP × иностранный провайдер» и этим не ослабляется). Ниже — парольная форма (для всех).
 - Для OAuth-регистрации отдельного шага нет: первый вход провайдером создаёт аккаунт (find-or-create), различие login/register для OAuth-пользователя не существует.
 - **Каркас, не дизайн** (граница с feat-013): существующие shadcn-примитивы, целевая FSD-структура `pages/login`, русские тексты; wordmark/иллюстрации/полировка — feat-013 поверх, после merge этой итерации.
 - Ошибки OAuth-флоу (отказ пользователя на экране провайдера, гео-запрет, протухший state) возвращают на `/login` с человекочитаемым сообщением — не белый экран.
@@ -78,10 +78,10 @@ app/infra/oauth/
 
 ### Гео-gate
 
-- `app/infra/geoip.py`: reader MMDB (пакет `geoip2`), база **IPinfo Lite** (fallback — MaxMind GeoLite2), путь из `GEOIP_DB_PATH`. Reader открывается в lifespan → `app.state` (mmap, микросекунды на запрос). Обновление базы — вне процесса (cron/deploy-артефакт), процесс перечитывает файл при рестарте; горячая перезагрузка не нужна.
+- `app/infra/geoip.py`: reader MMDB (пакет `geoip2`), база **IPinfo Lite** (fallback — MaxMind GeoLite2), путь из `GEOIP_DB_PATH`. Reader открывается в lifespan → `app.state` (mmap, микросекунды на запрос). База в v1 скачивается **разово** при настройке окружения (инструкция — в итерации); автоматизация регулярного обновления — сознательно вне scope, пункт в backlog (Infra). Процесс читает файл при старте; горячая перезагрузка не нужна.
 - IP — строго через существующий `app.infra.client_ip.get_client_ip`.
 - **Fallback-страна — `GEOIP_FALLBACK_COUNTRY`, default `RU`** — применяется и при недоступной/несконфигурированной базе, и при **lookup-промахе любого неразрешимого IP** (приватные адреса: dev с `CLIENT_IP_SOURCE=socket` даёт `127.0.0.1`, которого в MMDB нет). Fail-closed в сторону закона: деградация «иностранец видит только Яндекс/VK + пароль» юридически безопасна и функционально не блокирует вход; обратный отказ открыл бы Google/GitHub для РФ. В dev без базы можно выставить `US` для проверки не-РФ ветки. Корректность гео в прод зависит от `CLIENT_IP_SOURCE=x-real-ip` за nginx; misconfig деградирует в тот же fail-closed RU — приемлемо.
-- Enforcement в трёх точках: `GET /api/auth/providers` (состав кнопок), `/authorize` и `/callback` (отклонение запрещённого провайдера для RU-IP → редирект на `/login?error=provider_not_available_in_region`). Проверка в callback обязательна: смена IP между шагами и прямое обращение к callback мимо UI.
+- Enforcement в трёх точках: `GET /api/auth/providers` (состав: RU → `["yandex","vk"]`, иначе — все активные провайдеры), `/authorize` и `/callback` (отклонение запрещённого провайдера для RU-IP → редирект на `/login?error=provider_not_available_in_region`). Проверка в callback обязательна: смена IP между шагами и прямое обращение к callback мимо UI.
 - Атрибуция IPinfo (CC BY-SA) — строка в футере страницы `/login` и/или в README — финализируется в реализации.
 
 ### Эндпоинты и сервисный слой
@@ -125,7 +125,7 @@ Atomic change четырёх мест: `Settings` + `.env.example` + `.env.local
 | `OAUTH_VK_CLIENT_ID` / `OAUTH_VK_SERVICE_TOKEN` | `""` | VK ID (confidential: service_token вместо secret) |
 | `OAUTH_GOOGLE_CLIENT_ID` / `OAUTH_GOOGLE_CLIENT_SECRET` | `""` | Google |
 | `OAUTH_GITHUB_CLIENT_ID` / `OAUTH_GITHUB_CLIENT_SECRET` | `""` | GitHub |
-| `OAUTH_REDIRECT_BASE_URL` | `http://localhost:8000` | База для redirect_uri (`{base}/api/auth/oauth/{provider}/callback`); прод — `https://learnflow.me` |
+| `OAUTH_REDIRECT_BASE_URL` | `http://localhost:5173` | База для redirect_uri (`{base}/api/auth/oauth/{provider}/callback`). Dev-флоу идёт **целиком через Vite-proxy** (`/api → 8000` уже настроен): redirect_uri провайдеров регистрируются на SPA-origin, и финальный относительный 302 callback'а резолвится против него же — отдельная переменная для адреса фронта не нужна. Прод — `https://learnflow.me`; VK-dev — `https://dev.learnflow.me` (см. Ручные шаги) |
 | `GEOIP_DB_PATH` | `""` | Путь к MMDB; пусто → fallback-страна |
 | `GEOIP_FALLBACK_COUNTRY` | `RU` | Страна при недоступной базе (fail-closed в сторону закона) |
 
@@ -158,13 +158,16 @@ Atomic change четырёх мест: `Settings` + `.env.example` + `.env.local
 
 ## Ручные шаги архитектора
 
-1. **Сейчас (разблокирует T1-вертикаль):** dev-приложение Яндекс OAuth (oauth.yandex.ru, redirect `http://localhost:8000/api/auth/oauth/yandex/callback`, без верификации) → пара в `.env.local`.
-2. Prod-приложение Яндекс (redirect на `https://learnflow.me/...`) — к деплою.
-3. VK ID: dev-инфраструктура `dev.learnflow.me` → 127.0.0.1 + локальный TLS (DNS-01), регистрация приложения (проверить доступность физлицу без бизнес-верификации).
-4. Google (testing mode) и GitHub (два приложения: loopback dev + prod) — к соответствующим шагам конвейера.
-5. Токен IPinfo Lite (бесплатный аккаунт) для скачивания MMDB.
+Регистрации ведёт архитектор (отдельным агентом/руками), пары client_id/secret передаются в `.env.local` (dev) и прод-env. Redirect URI с учётом решения «dev через Vite-proxy» (host — SPA-origin):
 
-Точные значения redirect_uri и чек-лист по каждой консоли — [research-provider-libs.md](research-provider-libs.md) § Схема dev/prod-окружений.
+| Провайдер | Dev redirect_uri | Prod redirect_uri | Примечания |
+|-----------|------------------|-------------------|------------|
+| Яндекс | `http://localhost:5173/api/auth/oauth/yandex/callback` | `https://learnflow.me/api/auth/oauth/yandex/callback` | без верификации, работает сразу; **первый шаг, разблокирует T1-вертикаль** |
+| GitHub | `http://localhost:5173/api/auth/oauth/github/callback` | `https://learnflow.me/api/auth/oauth/github/callback` | два отдельных приложения (один callback на приложение); host строго `localhost`, не `127.0.0.1` (инвариант host'а cookie) |
+| Google | `http://localhost:5173/api/auth/oauth/google/callback` | `https://learnflow.me/api/auth/oauth/google/callback` | dev: testing mode, себя в test users; scopes `openid email profile` |
+| VK ID | `https://dev.learnflow.me/api/auth/oauth/vk/callback` | `https://learnflow.me/api/auth/oauth/vk/callback` | сперва DNS `dev.learnflow.me` → 127.0.0.1 + сертификат (DNS-01) + локальный nginx; dev-прогон целиком в этой топологии (SPA+API); проверить доступность регистрации физлицу |
+
+Плюс: токен IPinfo Lite (бесплатный аккаунт) для скачивания MMDB — к фазе гео-gate. Чек-лист по каждой консоли — [research-provider-libs.md](research-provider-libs.md) § Схема dev/prod-окружений.
 
 ## Партиция треков
 
@@ -174,6 +177,8 @@ Atomic change четырёх мест: `Settings` + `.env.example` + `.env.local
 
 Общих файлов нет; общая точка — контракты этого брифа. Сквозной ручной прогон (реальный Яндекс-флоу end-to-end, гео-ветки через `GEOIP_FALLBACK_COUNTRY`) — после интеграции треков.
 
+**Точка merge:** один PR в `develop` в конце итерации (все четыре провайдера + каркас `/login`); промежуточный merge после Яндекс-вертикали не делается (решение архитектора: полуготовый состав кнопок на проде странен для не-РФ пользователей).
+
 ## Scope boundaries — сознательно вне итерации
 
 - **Ручная линковка провайдеров** к существующему аккаунту (настройки) и **авто-склейка по email** — за скоупом v1; схема БД будущей линковке не мешает.
@@ -182,16 +187,8 @@ Atomic change четырёх мест: `Settings` + `.env.example` + `.env.local
 - **Telegram Login / Sber ID / ЕСИА** — возможные будущие провайдеры; абстракция расширяема, сейчас четыре.
 - **Отвязка/удаление oauth-связки, смена пароля OAuth-пользователем** — вместе с линковкой.
 - **Гео-детекция сверх IP** (Accept-Language, история) — перестраховка, не требуется.
-
-## До финализации — решения архитектора
-
-- **Финальный редирект в dev (blocker ревью):** вариант (а) — dev-флоу целиком через Vite-proxy: `OAUTH_REDIRECT_BASE_URL=http://localhost:5173`, redirect_uri dev-приложений регистрируются на `:5173` (proxy `/api → 8000` уже есть), относительный 302 резолвится против SPA-origin; новая env-переменная не нужна. Вариант (б) — отдельная `FRONTEND_BASE_URL`. Рекомендация — (а).
-- **Состав кнопок для не-РФ:** только Google/GitHub (+пароль) или все четыре провайдера. Рекомендация — все четыре (россиянин за VPN со своим Яндекс-аккаунтом); enforcement не ослабляется — запрет действует только на паре «РФ-IP × иностранный провайдер».
-- **Имя OAuth-пользователя:** суффиксные имена (`alice_x7f3`) без возможности смены в v1 (rename пользователя в продукте отсутствует) — принять + отдельный backlog-пункт «user rename».
-- **Точка merge:** один PR в конце итерации (все провайдеры + каркас) vs промежуточный после Яндекс-вертикали. Рекомендация — один.
-- **Обновление гео-базы:** systemd-timer на VM (раз в неделю) + Makefile-цель для dev. Операционная деталь, возражений не ожидается.
-
-После решений блок удаляется, решения вносятся в соответствующие секции.
+- **Смена имени пользователя** — суффиксные имена OAuth-регистрации приняты в v1; user rename — backlog (Frontend / UX).
+- **Автоматизация обновления гео-базы** — v1 живёт на разовом скачивании; механика регулярного обновления — backlog (Infra).
 
 ## SOFA consulted
 

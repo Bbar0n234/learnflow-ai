@@ -1,0 +1,36 @@
+# Реестр титульников — единственный источник правды о доступных шаблонах.
+# id (ключ) = имя файла в templates/title_pages/ без .docx; выбирается YAML-полем title_page.
+# Пополняется wizard'ом (WIZARD.md, шаг 8) при регистрации нового шаблона —
+# тело скилла (SKILL.md/PROFILES.md/WIZARD.md) при этом не меняется.
+# Специфика конкретного вуза (кегли, формы) живёт здесь, а не в общих правилах движка.
+
+guap_lab:
+  university: "ГУАП"
+  work_type: "лабораторная"
+  fields: [discipline, lab_number, lab_title, teacher_title, teacher_name, group, student_name, department]
+  specifics: >-
+    Дисциплина и название работы капсом (_UPPER). Титул заполняет страницу
+    спейсингом — page break в конце не нужен.
+
+guap_course:
+  university: "ГУАП"
+  work_type: "курсовая"
+  fields: [discipline, topic, teacher_title, teacher_name, group, student_name, department, year]
+  specifics: >-
+    Из официального бланка regdocs. Значения над подписными линиями
+    (teacher_title, teacher_name, group, student_name) — статично 12 pt, чтобы
+    не переносились (как в официальном примере ГУАП). Поля в ячейках таблиц.
+
+spbgeu_course:
+  university: "СПбГЭУ"
+  work_type: "курсовая"
+  fields: [faculty, department, discipline, topic, programme, specialization, student_name, group, teacher_name, teacher_title, year]
+  specifics: >-
+    Логотип-картинка. Форм-строки: ведущие подчёркнутые пробелы + единственный
+    right stop 9355 twips (~16,5 см); «Группа … Подпись» — полная схема табов
+    (группа не переносится). Дисциплина — настоящее jc=center; «Тема:» —
+    центрированный абзац с подчёркиванием как в оригинале. Блок
+    «Санкт-Петербург/{{YEAR}}» — во frame у нижнего поля, наполнители удалены,
+    в конце page break. Кавычки-«ёлочки» вокруг дисциплины зашиты в шаблон —
+    discipline указывать без кавычек. faculty/department — полные названия
+    («Факультет …», «Кафедра …»).

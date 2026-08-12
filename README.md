@@ -1,73 +1,75 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="doc/assets/readme/banner-dark.png">
-  <img src="doc/assets/readme/banner-light.png" alt="LearnFlowAI — an AI workspace that turns your expertise into structured talks, articles, and courses">
+  <img src="doc/assets/readme/banner-light.png" alt="LearnFlow AI — рабочее пространство с AI-агентом, которое превращает вашу экспертизу в лекции, конспекты и слайды">
 </picture>
 
+<p align="center"><b>Русский</b> · <a href="README.en.md">English</a></p>
+
 <p align="center">
-  <a href="#what-is-learnflowai">About</a> ·
-  <a href="#screenshots">Screenshots</a> ·
-  <a href="#features">Features</a> ·
-  <a href="#how-the-agent-works">Agent</a> ·
-  <a href="#architecture">Architecture</a> ·
-  <a href="#roadmap">Roadmap</a> ·
-  <a href="#quick-start">Quick Start</a> ·
-  <a href="#documentation">Docs</a>
+  <a href="#что-такое-learnflow-ai">О проекте</a> ·
+  <a href="#скриншоты">Скриншоты</a> ·
+  <a href="#возможности">Возможности</a> ·
+  <a href="#как-работает-агент">Агент</a> ·
+  <a href="#архитектура">Архитектура</a> ·
+  <a href="#дорожная-карта">Дорожная карта</a> ·
+  <a href="#быстрый-старт">Быстрый старт</a> ·
+  <a href="#документация">Документация</a>
 </p>
 
-## What is LearnFlowAI
+## Что такое LearnFlow AI
 
-Tech speakers, educators, and course authors all share the same routine: you have deep expertise and a head full of context, but turning it into a structured talk, article, or course eats hours. Generic LLM chats don't really help — context evaporates between sessions, every new chat starts from zero, and you spend the first ten minutes re-explaining what you already told the model last week.
+Преподаватели, технические спикеры и авторы курсов делят одну рутину: экспертиза есть, контекст в голове, а превращение их в лекцию, методичку или доклад съедает часы. Обычные чаты с LLM не спасают — контекст испаряется между сессиями, каждый новый чат начинается с нуля, и первые десять минут уходят на то, чтобы заново объяснить модели рассказанное на прошлой неделе.
 
-LearnFlowAI is an open-source AI workspace built around a different core idea: **the project as a sphere of context**. You create a project (a talk, a course, an article series) and work inside it through chats. As you work, the agent accumulates a **Knowledge Sphere** — a versioned, structured memory of the project: decisions made, terminology agreed on, materials produced. The next session picks up exactly where you left off, and the agent loads only the context relevant to the current task instead of drowning in the full history.
+LearnFlow AI построен вокруг другой идеи: **проект как сфера контекста**. Вы создаёте проект — курс, доклад, серию статей — и работаете внутри него. По ходу работы агент накапливает **Сферу знаний** — структурированную память проекта: принятые решения, согласованную терминологию, готовые материалы. Следующая сессия продолжается ровно с того места, где закончилась прошлая, а в контекст агент берёт только то, что нужно текущей задаче. Память не ограничивается проектом: агент помнит и самого пользователя — стиль, предпочтения, постоянные инструкции. И эта память прозрачна — видно, что агент знает, и это можно поправить руками.
 
-On top of that memory sits a **general LangGraph agent with pluggable skills** — methodology knowledge contributed by humans (how to structure a lecture, how to build a narrative arc) that the agent loads on demand. The agent produces real artifacts: outlines, summaries, slide decks — not just chat replies.
+Поверх памяти работает агент со **скиллами** — методиками, написанными людьми: как строить лекцию, как оформить отчёт по ГОСТ, как собрать нарратив доклада. На выходе — реальные артефакты: конспекты, методички, слайды, планы курса, — а не просто ответы в чате.
 
-## Screenshots
-
-<p align="center">
-  <img src="doc/assets/readme/screen-welcome-light.png" alt="Welcome screen with project list">
-  <br><em>Projects workspace</em>
-</p>
+## Скриншоты
 
 <p align="center">
-  <img src="doc/assets/readme/screen-chat-dark.png" alt="Chat with an agent writing to the Knowledge Sphere (dark theme)">
-  <br><em>Agent writes to the Knowledge Sphere right from the chat — every write is a versioned, reviewable patch</em>
+  <img src="doc/assets/readme/screen-welcome-light.png" alt="Экран приветствия со списком проектов">
+  <br><em>Рабочее пространство проектов</em>
 </p>
 
 <p align="center">
-  <img src="doc/assets/readme/screen-sphere-light.png" alt="Knowledge Sphere: versioned project memory with chronicle and version history">
-  <br><em>Knowledge Sphere — versioned project memory with chronicle and version history</em>
+  <img src="doc/assets/readme/screen-chat-dark.png" alt="Чат с агентом, который пишет в Сферу знаний (тёмная тема)">
+  <br><em>Агент пишет в Сферу знаний прямо из чата — каждая запись видна и доступна для правки</em>
 </p>
 
-## Features
+<p align="center">
+  <img src="doc/assets/readme/screen-sphere-light.png" alt="Сфера знаний — структурированная память проекта">
+  <br><em>Сфера знаний — структурированная память проекта</em>
+</p>
 
-- **Knowledge Sphere** — versioned project memory. Every agent write is a reviewed patch with a diff, a version bump, and one-click rollback. Progressive disclosure keeps the agent's context lean.
-- **General agent + skills** — a single LangGraph agent extended through pluggable skills and tools instead of hardcoded pipelines. Sub-agents isolate heavy work with their own context.
-- **Live agent activity** — the UI streams what the agent is actually doing over SSE: tool calls, sub-agent runs, sphere writes — a real-time activity feed, not a spinner.
-- **Artifacts** — structured outputs (summaries, study plans, slide decks) live alongside chats inside the project, not buried in the transcript.
-- **Security built in** — prompt-injection defense pipeline plus a dedicated SIEM service that consumes security events through Redis Streams, correlates them, and raises alerts.
-- **Observability** — full Langfuse tracing with per-request cost accounting and prompt management (dev/prod prompt lifecycles).
+## Возможности
 
-## How the agent works
+- **Рабочее пространство проекта** — чаты, память и артефакты живут вместе: материалы согласованы между собой (практика видит лекцию, слайды видят конспект), а не разбросаны по отдельным генераторам.
+- **Память агента** — агент помнит проект и пользователя. Сфера знаний накапливает решения, терминологию и материалы проекта; память о пользователе — стиль, предпочтения, постоянные инструкции. Длинная работа идёт неделями без потери нити, а в контекст подгружается только относящееся к задаче.
+- **Прозрачность и контроль** — видно, что агент делает и что он знает: живая лента действий (вызовы инструментов, запуски субагентов, записи в память — не спиннер), а каждая запись в Сферу — просматриваемый патч, который можно отредактировать.
+- **Скиллы-методики** — подключаемые пакеты знаний методистов («как строить лекцию», «как оформить отчёт по ГОСТ»), работающие в контексте проекта: они видят Сферу и артефакты. Библиотека под вузовские задачи растёт и открыта для вклада.
+- **Артефакты** — конспекты, методички, планы, слайды живут в проекте рядом с чатами, а не похоронены в переписке.
+- **Свой контур** — self-hosted развёртывание, любой OpenAI-совместимый endpoint (от облачных провайдеров до on-prem vLLM), Langfuse-трейсинг с учётом затрат на каждый запрос, встроенная защита от prompt-injection.
 
-The product requirement behind the runtime is flexibility: preparing a talk, a course, and an article series are different workflows, and every expert brings their own. So instead of hardcoded pipelines there is **one general agent** (plain LangGraph ReAct loop, no LangChain wrappers) whose behavior is extended through configuration, not code:
+## Как работает агент
+
+Продуктовое требование к рантайму — гибкость: подготовка доклада, курса и серии статей — разные процессы, и у каждого эксперта они свои. Поэтому вместо жёстко зашитых конвейеров — **один общий агент** (чистый LangGraph ReAct-цикл, без LangChain-обёрток), чьё поведение расширяется конфигурацией, а не кодом:
 
 ```mermaid
 graph LR
-    EXPERT(["Expert<br/>ideas · context · drafts"])
-    AGENT["General Agent"]
-    SPHERE[("Knowledge Sphere<br/>versioned project memory")]
-    SKILLS["Skills<br/>methodology: how to structure<br/>a lecture, a talk, an article"]
-    WEB["Web research<br/>fresh sources for niche topics"]
-    OUT["Artifacts<br/>outlines · slides · summaries"]
+    EXPERT(["Эксперт<br/>идеи · контекст · черновики"])
+    AGENT["Общий агент"]
+    SPHERE[("Сфера знаний<br/>память проекта")]
+    SKILLS["Скиллы<br/>методики: как строить лекцию,<br/>доклад, статью"]
+    WEB["Веб-поиск<br/>свежие источники по теме"]
+    OUT["Артефакты<br/>конспекты · слайды · планы"]
 
-    EXPERT -->|"raw thoughts in chat"| AGENT
-    AGENT -->|"drafts to review"| EXPERT
-    SPHERE -->|"only the context<br/>the current task needs"| AGENT
-    AGENT -->|"new facts and decisions,<br/>written back as versioned patches"| SPHERE
-    SKILLS -->|"loaded on demand"| AGENT
+    EXPERT -->|"мысли и материалы в чате"| AGENT
+    AGENT -->|"черновики на ревью"| EXPERT
+    SPHERE -->|"только контекст,<br/>нужный текущей задаче"| AGENT
+    AGENT -->|"новые факты и решения —<br/>записями в память"| SPHERE
+    SKILLS -->|"подгружаются по запросу"| AGENT
     WEB --> AGENT
-    AGENT -->|"structured materials"| OUT
+    AGENT -->|"структурированные материалы"| OUT
 
     style AGENT stroke:#bc8cff
     style SPHERE stroke:#d29922
@@ -77,45 +79,45 @@ graph LR
     style EXPERT stroke:#8b949e
 ```
 
-The loop between the agent and the sphere is the core of the product: every session both *draws on* accumulated project memory and *grows* it — so the context never resets to zero.
+Петля между агентом и памятью — ядро продукта: каждая сессия и опирается на накопленную память проекта, и растит её — контекст никогда не обнуляется.
 
-- **Skills** — pluggable methodology packages ("how to structure a lecture", "how to write a tech article") loaded on demand. Human-authored knowledge, open for contribution — this is how the product stays specialized without freezing into one workflow.
-- **Tools** — reading and patching the Knowledge Sphere, generating artifacts, web research via MCP, image generation.
-- **Sub-agents** — heavy work (judging output quality, deep web research) runs in isolated contexts so the main agent's context stays lean.
-- **Context engineering** — the agent starts with a minimal slice of project memory and drills deeper only when the task needs it; long threads are compacted automatically.
-- **Guarded execution** — every tool result passes a security checkpoint before re-entering the loop; prompt-injection defenses are layered, not bolted on.
-- **Persistence** — conversation state lives in PostgreSQL checkpoints: any thread resumes exactly where it stopped, which is the whole point of the product.
+- **Скиллы** — подключаемые пакеты методик («как строить лекцию», «как написать техническую статью»), загружаемые по запросу. Знания, написанные людьми и открытые для вклада, — так продукт остаётся специализированным, не застывая в одном сценарии.
+- **Инструменты** — чтение и обновление Сферы знаний, генерация артефактов, веб-поиск через MCP, генерация изображений.
+- **Субагенты** — тяжёлая работа (оценка качества результата, глубокий веб-поиск) выполняется в изолированных контекстах, чтобы контекст основного агента оставался компактным.
+- **Работа с контекстом** — агент стартует с минимального среза памяти проекта и углубляется, только когда этого требует задача; длинные диалоги сжимаются автоматически.
+- **Защищённое выполнение** — каждый результат инструмента проходит security-checkpoint перед возвратом в цикл; защита от prompt-injection построена слоями, а не приклеена сверху.
+- **Персистентность** — состояние диалога живёт в PostgreSQL-чекпоинтах: любой тред продолжается ровно с места остановки, в этом и есть смысл продукта.
 
-## Architecture
+## Архитектура
 
 ```mermaid
 graph TD
     Frontend["React SPA<br/>frontend/"]
 
-    subgraph Backend["Main Backend — FastAPI · backend/"]
+    subgraph Backend["Основной бэкенд — FastAPI · backend/"]
         API["API Layer"]
-        Runtime["Agent Runtime — LangGraph<br/>general agent · skills · sub-agents"]
+        Runtime["Agent Runtime — LangGraph<br/>общий агент · скиллы · субагенты"]
         SecPipe["Security Pipeline"]
     end
 
-    subgraph SIEM["SIEM Service — FastAPI · services/siem-service/"]
+    subgraph SIEM["SIEM-сервис — FastAPI · services/siem-service/"]
         SiemAPI["REST API"]
         Correlation["Correlation Engine"]
     end
 
-    MainDB[("PostgreSQL<br/>checkpoints · sphere · chats")]
-    SiemDB[("PostgreSQL<br/>events · alerts")]
+    MainDB[("PostgreSQL<br/>чекпоинты · сфера · чаты")]
+    SiemDB[("PostgreSQL<br/>события · алерты")]
     Redis[("Redis Streams")]
     External["LLM APIs · MCP · Langfuse"]
 
     Frontend -->|HTTP + SSE| API
-    Frontend -->|"HTTP, admin-only (/security)"| SiemAPI
+    Frontend -->|"HTTP, только для админа (/security)"| SiemAPI
     API --> Runtime
     API --> MainDB
     Runtime --> MainDB
     Runtime --> External
-    API -->|security events| SecPipe
-    Runtime -->|security events| SecPipe
+    API -->|security-события| SecPipe
+    Runtime -->|security-события| SecPipe
     SecPipe -->|XADD| Redis
     Redis -->|XREADGROUP| Correlation
     Correlation --> SiemDB
@@ -135,42 +137,42 @@ graph TD
     style External stroke:#8b949e
 ```
 
-**Stack:** Python 3.12 · FastAPI · LangGraph (plain, no LangChain wrappers) · PostgreSQL · Redis · React + TypeScript (Feature-Sliced Design) · uv workspace monorepo · Langfuse.
+**Стек:** Python 3.12 · FastAPI · LangGraph (чистый, без LangChain-обёрток) · PostgreSQL · Redis · React + TypeScript (Feature-Sliced Design) · uv workspace monorepo · Langfuse.
 
-The project is developed with **AIDD (AI-Driven Development)**: the architect defines contracts and architecture in `doc/`, and LLM agents implement against that documented context. The full decision trail lives in [ADRs](doc/tech/adr/) and iteration artifacts — the repository doubles as a working example of the methodology.
+Проект разрабатывается по **AIDD (AI-Driven Development)**: архитектор определяет контракты и архитектуру в `doc/`, а LLM-агенты реализуют по этому документационному контексту. Полный след решений живёт в [ADR](doc/tech/adr/) и артефактах итераций — репозиторий заодно служит рабочим примером методологии.
 
-## Roadmap
+## Дорожная карта
 
-The core product is built — agent runtime, Knowledge Sphere, artifacts, security, observability. What's ahead:
+Ядро продукта построено — рантайм агента, Сфера знаний, артефакты, безопасность, наблюдаемость. Что впереди:
 
-- **Now · dogfooding on real content.** An author's mini-course on defending LLM applications (lectures, slide decks, summaries) is being prepared entirely through the product. Exit criterion: the author relies on the product by habit instead of escaping to generic tools.
-- **Next · first external users.** OAuth sign-in, cost-optimal model selection, affordable web search, per-user spending caps.
-- **Then · educators channel.** Ready-made teaching materials (lecture notes, slides, practice tasks) built from expert context — for university teachers who have the expertise but not the time to package it.
-- **Ongoing tracks.** Agent evaluation (LLM-as-judge + deterministic checks on real-case datasets), model portability (any OpenAI-compatible endpoint, including on-prem vLLM), Telegram bot as a second delivery channel.
+- **Сейчас · обкатка на реальном контенте.** Авторский мини-курс по защите LLM-приложений (лекции, слайды, конспекты) готовится целиком через продукт. Критерий выхода: автор по привычке опирается на продукт, а не сбегает в универсальные инструменты.
+- **Дальше · первые внешние пользователи.** Вход через OAuth, экономичный выбор моделей, доступный веб-поиск, потолок затрат на пользователя.
+- **Затем · канал преподавателей.** Готовые учебные материалы (конспекты лекций, слайды, практические задания) из экспертного контекста — для преподавателей вузов, у которых есть экспертиза, но нет времени её упаковывать.
+- **Сквозные треки.** Оценка качества агента (LLM-as-judge + детерминированные проверки на датасетах из реальных кейсов), портируемость моделей (любой OpenAI-совместимый endpoint, включая on-prem vLLM), Telegram-бот как второй канал доставки.
 
-The full picture with phases and exit conditions lives in [doc/product/roadmap.md](doc/product/roadmap.md).
+Полная картина с фазами и критериями выхода — в [doc/product/roadmap.md](doc/product/roadmap.md).
 
-## Quick Start
+## Быстрый старт
 
-### Prerequisites
+### Предварительные требования
 
-- Docker and Docker Compose v2
-- For local dev: Python 3.12+, [uv](https://docs.astral.sh/uv/), Node.js 20+
+- Docker и Docker Compose v2
+- Для локальной разработки: Python 3.12+, [uv](https://docs.astral.sh/uv/), Node.js 20+
 
-### Docker (full stack)
+### Docker (полный стек)
 
 ```bash
 git clone https://github.com/Bbar0n234/learnflow-ai.git
 cd learnflow-ai
 
 cp .env.example .env
-# Edit .env — set your LLM API keys
+# Отредактируйте .env — укажите API-ключи LLM
 
 make docker-build && make docker-up
-# App available at http://localhost:8000
+# Приложение доступно на http://localhost:8000
 ```
 
-### Local dev (DB in Docker, app locally)
+### Локальная разработка (БД в Docker, приложение локально)
 
 ```bash
 uv sync
@@ -179,31 +181,31 @@ cd frontend && npm install && cd ..
 cp .env.local.example .env.local
 
 make docker-up-db   # PostgreSQL + Redis
-make dev            # backend at http://localhost:8000
-make dev-fe         # frontend at http://localhost:5173
+make dev            # бэкенд на http://localhost:8000
+make dev-fe         # фронтенд на http://localhost:5173
 ```
 
-### Useful commands
+### Полезные команды
 
-| Command | Description |
-|---------|-------------|
-| `make check` / `make check-fe` | All backend / frontend checks (CI gate) |
-| `make test` | Run pytest |
-| `make migrate` | Apply DB migrations |
-| `make docker-logs` | Tail app container logs |
+| Команда | Назначение |
+|---------|------------|
+| `make check` / `make check-fe` | Все проверки бэкенда / фронтенда (CI gate) |
+| `make test` | Запуск pytest |
+| `make migrate` | Применение миграций БД |
+| `make docker-logs` | Логи контейнера приложения |
 
-The full command list is in the [Makefile](Makefile).
+Полный список команд — в [Makefile](Makefile).
 
-## Documentation
+## Документация
 
-All project documentation lives in [`doc/`](doc/index.md) (in Russian):
+Вся документация проекта живёт в [`doc/`](doc/index.md):
 
-- [idea.md](doc/idea.md) — problem, ICP, JTBD, product boundaries
-- [vision.md](doc/vision.md) — system architecture and MVP criteria
-- [doc/product/](doc/product/) — use cases, roadmap, versioned scope
-- [doc/tech/](doc/tech/) — component docs, conventions, [ADRs](doc/tech/adr/)
-- [doc/tasks/](doc/tasks/) — task lists and iteration artifacts
+- [idea.md](doc/idea.md) — проблема, целевая аудитория, границы продукта
+- [vision.md](doc/vision.md) — архитектура системы и критерии MVP
+- [doc/product/](doc/product/) — сценарии использования, дорожная карта, scope по версиям
+- [doc/tech/](doc/tech/) — документация компонентов, конвенции, [ADR](doc/tech/adr/)
+- [doc/tasks/](doc/tasks/) — тасклисты и артефакты итераций
 
-## License
+## Лицензия
 
 [Apache 2.0](LICENSE)

@@ -31,12 +31,12 @@ sequenceDiagram
     participant P as Провайдер
 
     B->>BE: GET /api/auth/oauth/{provider}/authorize
-    Note over BE: гео-gate: провайдер разрешён для страны IP?<br/>rate limit; state + PKCE-пара
+    Note over BE: гео-gate: провайдер разрешён для страны IP?<br/>rate limit · state + PKCE-пара
     BE-->>B: 302 на провайдера + Set-Cookie: oauth_flow (httpOnly, 10 мин)
     B->>P: authorize-страница, согласие пользователя
     P-->>B: 302 /api/auth/oauth/{provider}/callback?code&state
     B->>BE: GET callback (cookie oauth_flow приедет: top-level GET, SameSite=Lax)
-    Note over BE: гео-gate повторно; сверка state (query ↔ cookie);<br/>обмен code+verifier(+secret) → токен провайдера;<br/>userinfo → (provider, account_id, email)
+    Note over BE: гео-gate повторно · сверка state (query ↔ cookie)<br/>обмен code+verifier(+secret) → токен провайдера<br/>userinfo → (provider, account_id, email)
     Note over BE: find-or-create user + oauth_account (одна транзакция)
     BE-->>B: 302 на SPA + Set-Cookie: refresh_token (штатная механика)<br/>+ Set-Cookie: oauth_flow удалена
     B->>BE: POST /api/auth/refresh (существующий)

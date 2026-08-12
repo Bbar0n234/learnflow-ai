@@ -38,8 +38,16 @@ def setup_logging(
         )
         file_renderer: structlog.types.Processor = structlog.processors.JSONRenderer()
     else:
-        console_renderer = structlog.dev.ConsoleRenderer()
-        file_renderer = structlog.dev.ConsoleRenderer(colors=False)
+        # Rich renders tracebacks with frame locals by default: any frame that
+        # holds `settings` would print every secret (JWT, LLM and OAuth
+        # credentials) in clear text. Keep the stack, drop the locals.
+        traceback_formatter = structlog.dev.RichTracebackFormatter(show_locals=False)
+        console_renderer = structlog.dev.ConsoleRenderer(
+            exception_formatter=traceback_formatter
+        )
+        file_renderer = structlog.dev.ConsoleRenderer(
+            colors=False, exception_formatter=traceback_formatter
+        )
 
     shared_processors: list[structlog.types.Processor] = [
         structlog.contextvars.merge_contextvars,

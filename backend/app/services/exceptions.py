@@ -58,7 +58,7 @@ class SecurityPolicyViolationError(AppError):
 
 
 class UpstreamUnavailableError(AppError):
-    """An external dependency (MCP, wkhtmltopdf, …) is unreachable or misconfigured."""
+    """An external dependency (MCP, executor, image model, …) is unreachable or misconfigured."""
 
     # code and status are configurable per-instance
     code = "upstream-unavailable"

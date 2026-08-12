@@ -12,7 +12,7 @@ from _common import report
 from docx import Document
 
 # docxcompose ships no stubs/py.typed marker — same class of issue as root
-# pyproject.toml's pdfkit/mdx_math/fuzzysearch overrides; kept as a local
+# pyproject.toml's fuzzysearch override; kept as a local
 # ignore since a [[tool.mypy.overrides]] entry would touch a file outside
 # T3.7's scope (services/executor/** + Makefile).
 from docxcompose.composer import Composer  # type: ignore[import-untyped]

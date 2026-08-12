@@ -18,7 +18,7 @@ import numpy as np
 
 # pandas ships no bundled py.typed marker (pandas-stubs is a separate,
 # unlisted dependency) — same class of issue as root pyproject.toml's
-# pdfkit/mdx_math/fuzzysearch overrides; kept as a local ignore since a
+# fuzzysearch override; kept as a local ignore since a
 # [[tool.mypy.overrides]] entry would touch a file outside T3.7's scope
 # (services/executor/** + Makefile).
 import pandas as pd  # type: ignore[import-untyped]

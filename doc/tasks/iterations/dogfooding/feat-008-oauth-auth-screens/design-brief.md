@@ -51,8 +51,10 @@ sequenceDiagram
 
 - На `/authorize` бэкенд генерит `state` (`secrets.token_urlsafe(32)`) и `code_verifier` (`secrets.token_urlsafe(64)`), кладёт их в **JWT, подписанный существующим `JWT_SECRET`** (pyjwt уже в зависимостях), claims: `{state, verifier, provider, exp: +10 мин}` — и ставит cookie `oauth_flow`: httpOnly, `SameSite=Lax`, `Secure` по `SECURE_COOKIES`, `Path=/api/auth/oauth`, `max_age=600`.
 - Redirect от провайдера — top-level GET-навигация, `SameSite=Lax` такую cookie отправляет (ровно кейс, под который Lax спроектирован).
-- На `/callback`: декод и валидация подписи/exp/`provider`-совпадения, сверка `state` из query с claim — затем cookie удаляется. Подпись исключает подделку содержимого клиентом; httpOnly исключает чтение из JS.
-- Ограничение: два параллельных флоу в соседних вкладках перезапишут cookie друг друга — старшая вкладка упадёт на state mismatch с редиректом на `/login` и сообщением «попробуйте ещё раз». Принимаем.
+- На `/callback`: декод и валидация подписи/exp/`provider`-совпадения, сверка `state` из query с claim. Cookie удаляется при **любом** терминальном исходе callback'а (успех, гео-отказ, `access_denied`, ошибка обмена) — кроме ветки «cookie отсутствует» (нечего удалять; сюда же попадает повторный заход на callback — cookie уже погашена, флоу завершается `flow_expired`). Подпись исключает подделку содержимого клиентом; httpOnly исключает чтение из JS.
+- **Инвариант host'а:** authorize, callback и SPA-origin одного флоу обязаны жить на одном host — обе cookie (`oauth_flow`, `refresh_token`) host-scoped. Следствия для dev: GitHub-dev-приложение регистрируется на `localhost` (не `127.0.0.1` — другой host, cookie не приедет; GitHub `localhost` допускает); dev-прогон VK идёт **целиком** в топологии `dev.learnflow.me` (SPA + API через локальный nginx), а не «callback на поддомене, SPA на localhost».
+- Ограничение: два параллельных флоу в соседних вкладках перезапишут cookie друг друга — старшая вкладка упадёт на state mismatch (`flow_expired`) с сообщением «попробуйте ещё раз». Принимаем.
+- Cookie-механика stateless — multi-worker-безопасна by design (в отличие от in-memory rate limiter, см. § Эндпоинты).
 
 ### Провайдер-слой (backend)
 
@@ -72,12 +74,13 @@ app/infra/oauth/
 - Интерфейс — `typing.Protocol` (конвенция); реализации — классы с конфигом из `Settings`, без module-level state; реестр активных провайдеров собирается в lifespan и живёт в `app.state` (провайдер активен ⇔ его креды заданы в env — dev-окружение может гонять один Яндекс).
 - VK-особенности (обязательный `device_id` из callback-query в теле обмена, `state` в теле token-запроса, `service_token` вместо secret) локализованы внутри `vk.py` — наружу тот же Protocol.
 - Сетевые вызовы — httpx AsyncClient с таймаутом; отказ провайдера (5xx, таймаут, невалидный код) — доменное исключение → редирект на `/login?error=provider_unavailable`, `logger.warning`.
+- Lifecycle ресурсов: shared `httpx.AsyncClient` создаётся в lifespan → `app.state` (общий пул соединений), закрывается на shutdown до `engine.dispose()` — паттерн существующих ресурсов `main.py`; geoip-reader — `close()` там же. Клиент per-request не создаётся.
 
 ### Гео-gate
 
 - `app/infra/geoip.py`: reader MMDB (пакет `geoip2`), база **IPinfo Lite** (fallback — MaxMind GeoLite2), путь из `GEOIP_DB_PATH`. Reader открывается в lifespan → `app.state` (mmap, микросекунды на запрос). Обновление базы — вне процесса (cron/deploy-артефакт), процесс перечитывает файл при рестарте; горячая перезагрузка не нужна.
 - IP — строго через существующий `app.infra.client_ip.get_client_ip`.
-- **Fallback-страна при недоступной/несконфигурированной базе — `GEOIP_FALLBACK_COUNTRY`, default `RU`** (fail-closed в сторону закона: деградация «иностранец видит только Яндекс/VK + пароль» юридически безопасна и функционально не блокирует вход — пароль работает для всех; обратный отказ открыл бы Google/GitHub для РФ). В dev без базы можно выставить `US` для проверки не-РФ ветки.
+- **Fallback-страна — `GEOIP_FALLBACK_COUNTRY`, default `RU`** — применяется и при недоступной/несконфигурированной базе, и при **lookup-промахе любого неразрешимого IP** (приватные адреса: dev с `CLIENT_IP_SOURCE=socket` даёт `127.0.0.1`, которого в MMDB нет). Fail-closed в сторону закона: деградация «иностранец видит только Яндекс/VK + пароль» юридически безопасна и функционально не блокирует вход; обратный отказ открыл бы Google/GitHub для РФ. В dev без базы можно выставить `US` для проверки не-РФ ветки. Корректность гео в прод зависит от `CLIENT_IP_SOURCE=x-real-ip` за nginx; misconfig деградирует в тот же fail-closed RU — приемлемо.
 - Enforcement в трёх точках: `GET /api/auth/providers` (состав кнопок), `/authorize` и `/callback` (отклонение запрещённого провайдера для RU-IP → редирект на `/login?error=provider_not_available_in_region`). Проверка в callback обязательна: смена IP между шагами и прямое обращение к callback мимо UI.
 - Атрибуция IPinfo (CC BY-SA) — строка в футере страницы `/login` и/или в README — финализируется в реализации.
 
@@ -86,13 +89,25 @@ app/infra/oauth/
 | Метод | Путь | Назначение | Rate limit | Auth |
 |-------|------|-----------|------------|------|
 | GET | `/api/auth/providers` | Доступные способы входа по гео: `{providers: ["yandex","vk"], password: true}` | — | — |
-| GET | `/api/auth/oauth/{provider}/authorize` | Гео-gate → state/PKCE → cookie `oauth_flow` → 302 на провайдера | 10/мин/IP | — |
-| GET | `/api/auth/oauth/{provider}/callback` | Сверки → обмен → профиль → find-or-create → refresh-cookie → 302 на SPA | 10/мин/IP | cookie `oauth_flow` |
+| GET | `/api/auth/oauth/{provider}/authorize?next=<path>` | Гео-gate → state/PKCE → cookie `oauth_flow` → 302 на провайдера | 10/мин/IP | — |
+| GET | `/api/auth/oauth/{provider}/callback` | Ветки по порядку: `?error` провайдера → cookie/state → гео → обмен → профиль → find-or-create → refresh-cookie → 302 на SPA | 10/мин/IP | cookie `oauth_flow` |
 
 - `{provider}` валидируется по реестру активных провайдеров (неизвестный/выключенный → 404).
-- `OAuthService` (`app/services/oauth.py`): `login_with_provider(profile) → (user, access, refresh)` — одна транзакция: lookup `oauth_accounts` по `(provider, account_id)` → найден: пользователь + освежение `email`; не найден: создание `User` (без пароля) + `OAuthAccount` атомарно, генерация `users.name` из `display_name` с суффиксом на unique violation (алгоритм — [research-data-model.md](research-data-model.md)); далее — существующие `_create_access`/`_create_refresh` из `AuthService` (переиспользование, не копия).
-- SIEM: callback эмитит события входа по образцу существующего `login` (успех/отказ, поле способа входа) — состав полей выравнивается с текущими событиями auth-роутов на реализации.
-- Редирект на SPA: успех — `/{next}` (валидированный **относительный** путь из claim `next` cookie, default `/`; никаких открытых редиректов), ошибка — `/login?error=<код>`.
+- **Транспорт `next`:** кнопка на `/login` передаёт сохранённый guard'ом `from` query-параметром `next`; `/authorize` валидирует его **до записи в claim** (относительный путь: начинается с `/`, не с `//`) и кладёт в `oauth_flow`; callback на успехе редиректит на `/{next}` (default `/`). Клиентское состояние react-router полный уход со страницы не переживает — поэтому транспорт именно сквозной, через query + claim. Для парольного входа `from` остаётся чисто клиентским.
+- `OAuthService` (`app/services/oauth.py`): `login_with_provider(profile) → (user, access, refresh)` — одна транзакция: lookup `oauth_accounts` по `(provider, account_id)` → найден: пользователь + освежение `email`; не найден: создание `User` (без пароля) + `OAuthAccount` атомарно; далее — существующие `_create_access`/`_create_refresh` из `AuthService` (переиспользование, не копия). **Оба constraint-пути обрабатываются явно** (тесты покрывают оба): unique violation на `users.name` → суффикс и retry с лимитом попыток ([research-data-model.md](research-data-model.md)); unique violation на `(provider, provider_account_id)` (гонка двойного callback'а из двух вкладок) → деградация в повторный lookup (login-путь), не 500.
+- **SIEM** — словарь событий закрытый (`packages/siem-contracts`: `vocabulary.py` + `Literal EventType`), поэтому состав фиксируется здесь, а пакет входит в скоуп T1. Новые события: вход через провайдера успех/отказ (поля `provider`, `new_user: bool` — первый вход = создание аккаунта отдельным типом не эмитится, это login-событие с флагом) + rate-limit-событие для oauth-эндпоинтов (существующие `RATE_LIMIT_LOGIN/REGISTER/REFRESH` не переиспользуются — другие эндпоинты). Гео-отказ (`provider_not_available_in_region`) — security-событие не эмитится: это штатная политика показа, не атака; фиксируется structlog-инфо. Имена констант выравниваются по стилю `vocabulary.py` на реализации; состав — не меняется.
+- **Реестр кодов ошибок `/login?error=` — закрытый** (единственный контракт стыка T1↔T2 по ошибкам):
+
+| Код | Когда | Текст на `/login` |
+|-----|-------|-------------------|
+| `access_denied` | пользователь отказал на экране провайдера (`?error=access_denied`, ветка **до** сверки state) | «Вход отменён. Можно попробовать ещё раз или войти с паролем» |
+| `flow_expired` | нет/протухла/не совпала `oauth_flow` (включая повторный заход на callback и параллельные вкладки) | «Сессия входа истекла — попробуйте ещё раз» |
+| `provider_not_available_in_region` | гео-запрет провайдера | «Этот способ входа недоступен в вашем регионе» |
+| `provider_unavailable` | 5xx/таймаут/невалидный ответ провайдера | «Сервис входа временно недоступен — попробуйте позже» |
+| `oauth_failed` | прочее (generic) | «Не удалось войти — попробуйте ещё раз» |
+
+- Rate limit — существующий in-memory `RateLimiter`, per-process допущение то же, что у login/refresh (зафиксировано в backlog «single-worker»). Превышение на браузерных GET отдаёт штатный JSON 429 — сознательное решение: 10/мин/IP честным пользователем недостижимы, отдельный redirect-путь не строим.
+- Редирект на SPA: успех — `/{next}`; ошибка — `/login?error=<код>`. Никаких открытых редиректов (валидация `next` выше).
 
 ### Модель данных и миграция
 
@@ -120,7 +135,7 @@ Atomic change четырёх мест: `Settings` + `.env.example` + `.env.local
 
 - **`AuthGate` умирает.** Вход перестраивается: `BrowserRouter` оборачивает всё приложение; guard-компонент (`RequireAuth`) на layout-маршруте редиректит неаутентифицированных на `/login` с сохранением `from`; `/login` — публичный маршрут.
 - **`pages/login`** (FSD): режимы вход/регистрация, парольная форма (существующие `shared/api/auth.ts` функции), блок кнопок провайдеров из `GET /api/auth/providers` (данные — TanStack Query). Кнопка провайдера — **полный переход страницы** `window.location.assign('/api/auth/oauth/{p}/authorize')`, не fetch (флоу редиректный). Обработка `?error=<код>` — инлайн-сообщение.
-- **Возврат из OAuth:** SPA загружается по редиректу callback'а; бутстрап аутентификации один для всех путей: нет access в localStorage → `POST /api/auth/refresh` → есть refresh-cookie (OAuth только что поставил) → access получен, вход завершён; нет — `/login`. Отдельный callback-маршрут SPA не нужен.
+- **Возврат из OAuth:** SPA загружается по редиректу callback'а; бутстрап аутентификации один для всех путей и живёт на **app-уровне** (hook `useAuthBootstrap` над роутами, выполняется один раз при загрузке SPA): есть access в localStorage → готово; нет → тихий `POST /api/auth/refresh` (есть refresh-cookie — OAuth её только что поставил → access получен; 401 без cookie — ожидаемый тихий путь анонима, не ошибка). Пока бутстрап не завершён — рендерится существующий паттерн загрузки, не редирект (исключает редирект-луп и мигание `/login`). `RequireAuth` принимает вердикт только после бутстрапа; `/login` — вне guard'а. Отдельный callback-маршрут SPA не нужен.
 - Существующие interceptor, `ensureFreshToken`, ключ localStorage — без изменений.
 - Новый auth-стор не заводится: состояние — страница `/login` (локально) + существующий механизм токена; если реализация упрётся в необходимость шаринга — эскалация, не молчаливый стор.
 - Тесты: `router.test.tsx` расширяется (редирект на `/login`, публичность `/login`); MSW-хендлеры для `/providers`.
@@ -129,7 +144,8 @@ Atomic change четырёх мест: `Settings` + `.env.example` + `.env.local
 
 | Контракт | Изменение |
 |----------|-----------|
-| `GET /api/auth/providers` | новый; `{providers: string[], password: bool}` по гео IP |
+| `GET /api/auth/providers` | новый; `{providers: string[], password: bool}` по гео IP; `password` в v1 всегда `true` — задел на будущие политики |
+| `GET /api/auth/me` | без изменений (`id`, `name`, `is_admin` — от пароля не зависит); признак «есть ли пароль» в API v1 не выдаётся |
 | `GET /api/auth/oauth/{provider}/authorize` | новый; 302 + cookie `oauth_flow` |
 | `GET /api/auth/oauth/{provider}/callback` | новый; 302 на SPA + штатная refresh-cookie |
 | Cookie `oauth_flow` | новая; httpOnly, Lax, `Path=/api/auth/oauth`, 600 с, JWT-подпись `JWT_SECRET` |
@@ -152,7 +168,7 @@ Atomic change четырёх мест: `Settings` + `.env.example` + `.env.local
 
 ## Партиция треков
 
-**T1 — Backend: OAuth-вертикаль + гео.** `backend/**` (модели, миграция, `infra/oauth/`, `infra/geoip.py`, `services/oauth.py`, роуты, `config.py`), env-файлы, `docker-compose.yml`. Порядок фаз: модель+миграция → абстракция+Яндекс (сквозная проверка на dev-приложении) → гео-gate → VK → Google → GitHub. Тесты: `backend/tests/auth/` — провайдер-слой на замоканном httpx (respx), сервис find-or-create (включая гонку unique violation), гео-gate (fallback, RU/не-RU), state-cookie (подпись, exp, mismatch).
+**T1 — Backend: OAuth-вертикаль + гео.** `backend/**` (модели, миграция, `infra/oauth/`, `infra/geoip.py`, `services/oauth.py`, роуты, `config.py`), **`packages/siem-contracts/**`** (новые event types — словарь закрытый, см. § Эндпоинты), env-файлы, `docker-compose.yml`. Порядок фаз: модель+миграция → абстракция+Яндекс (сквозная проверка на dev-приложении) → гео-gate → VK → Google → GitHub. Тесты: `backend/tests/auth/` — провайдер-слой на замоканном httpx (respx), сервис find-or-create (оба constraint-пути: суффикс имени, гонка `(provider, account_id)` → re-lookup), гео-gate (fallback, lookup-промах, RU/не-RU), state-cookie (подпись, exp, mismatch, ветки реестра ошибок).
 
 **T2 — Frontend: вход страницей + каркас `/login`.** `frontend/src/**` (`app/router.tsx`, `App.tsx`, удаление `AuthGate`, `pages/login`, `shared/api`). Тесты: `router.test.tsx`, страница с MSW.
 
@@ -167,10 +183,20 @@ Atomic change четырёх мест: `Settings` + `.env.example` + `.env.local
 - **Отвязка/удаление oauth-связки, смена пароля OAuth-пользователем** — вместе с линковкой.
 - **Гео-детекция сверх IP** (Accept-Language, история) — перестраховка, не требуется.
 
+## До финализации — решения архитектора
+
+- **Финальный редирект в dev (blocker ревью):** вариант (а) — dev-флоу целиком через Vite-proxy: `OAUTH_REDIRECT_BASE_URL=http://localhost:5173`, redirect_uri dev-приложений регистрируются на `:5173` (proxy `/api → 8000` уже есть), относительный 302 резолвится против SPA-origin; новая env-переменная не нужна. Вариант (б) — отдельная `FRONTEND_BASE_URL`. Рекомендация — (а).
+- **Состав кнопок для не-РФ:** только Google/GitHub (+пароль) или все четыре провайдера. Рекомендация — все четыре (россиянин за VPN со своим Яндекс-аккаунтом); enforcement не ослабляется — запрет действует только на паре «РФ-IP × иностранный провайдер».
+- **Имя OAuth-пользователя:** суффиксные имена (`alice_x7f3`) без возможности смены в v1 (rename пользователя в продукте отсутствует) — принять + отдельный backlog-пункт «user rename».
+- **Точка merge:** один PR в конце итерации (все провайдеры + каркас) vs промежуточный после Яндекс-вертикали. Рекомендация — один.
+- **Обновление гео-базы:** systemd-timer на VM (раз в неделю) + Makefile-цель для dev. Операционная деталь, возражений не ожидается.
+
+После решений блок удаляется, решения вносятся в соответствующие секции.
+
 ## SOFA consulted
 
 Ресёрч проведён (8 запросов: oauth authorization code flow, PKCE state, social login provider, fastapi oauth, geoip country detection, oauth callback redirect, yandex vk id, jwt refresh token). Прямо релевантных Blueprint/TIL по OAuth-флоу, PKCE и гео-gating нет — валидный пустой исход. Касательные: TIL `954f579d` (стейл-данные в JWT-claims при обновлении профиля) — перекликается с известным backlog-пунктом «JWT `is_admin` не освежается», на решения брифа не влияет; TIL `4c12ce92` (subresource-запросы не проходят Bearer-interceptor) — не про наш флоу (OAuth-редиректы — top-level навигация, аутентификация в них cookie-based by design).
 
 ## Ревью брифа
 
-_Прогон свежим агентом по чек-листу conventions § Ревью дизайн-брифа — выполняется перед финализацией; находки и их разрешение фиксируются здесь._
+Прогон свежим агентом с чистым контекстом (2026-08-12) по чек-листу conventions § Ревью дизайн-брифа: 15 находок (1 blocker, 4 major, 10 minor). Ключевые: dev-топология финального редиректа callback'а (SPA на 5173, callback на 8000 — относительный 302 вёл в JSON-404 бэкенда) → решение архитектора по варианту редиректа; транспорт `next` не был специфицирован → сквозной контракт query→claim→redirect; открытый реестр ошибок → закрытая таблица кодов; SIEM-словарь закрытый → event types зафиксированы, `packages/siem-contracts` добавлен в скоуп T1; host-scope cookies ломал dev-флоу GitHub (`127.0.0.1`) и VK → инвариант «один host на флоу», GitHub-dev на `localhost`, VK-dev целиком через `dev.learnflow.me`. Минорные (lifecycle httpx/geoip-reader, lookup-промах гео, 429-семантика, обе constraint-гонки find-or-create, судьба `oauth_flow` на error-путях, `/me` без изменений, механика бутстрапа, single-worker строка) — учтены правками. Отступление от конвенции UI-мокапа (каркас без мокапа — дизайн и мокап auth-экранов в feat-013) — санкционировано архитектором в рамках решения о границе фич.

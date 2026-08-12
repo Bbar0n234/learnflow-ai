@@ -1,0 +1,1268 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>UI/UX polish — мокап-пакет feat-013 (7 секций)</title>
+<!--
+  Интерактивный мокап итерации feat-013 (design-brief.md § «Состав мокап-пакета»).
+  Токены — честная копия frontend/src/index.css (обе темы) + новый токен --success
+  (значения из утверждённого live-timeline-v3.html). Вёрстка зеркалит реальные
+  компоненты: Sidebar, ChatList, ArtifactList, SphereViewer, ModelSelector,
+  ProjectSettingsPage, ErrorBoundary, ActivityRow, shared/ui (button, input, select).
+  Иллюстрации представлены плейсхолдерами сцен (реальные PNG не встраиваются).
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Source+Serif+4:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  /* ══════════════════════════════════════════════════════════════════════
+     Токены — копия frontend/src/index.css «Чернила / Электрик», обе темы.
+     Добавлен --success (новый токен feat-013, значения из live-timeline-v3).
+     ══════════════════════════════════════════════════════════════════════ */
+  :root {
+    /* Чернила / Электрик — light tokens */
+    --background: #faf7f1;
+    --foreground: #2e2a24;
+    --card: #fffefa;
+    --card-foreground: #2e2a24;
+    --popover: #fffefa;
+    --popover-foreground: #2e2a24;
+    --primary: #7434f4;
+    --primary-foreground: #f6f1ff;
+    --secondary: #efe7fe;
+    --secondary-foreground: #5b21ce;
+    --muted: #f1ede3;
+    --muted-foreground: #8b8370;
+    --accent: #efe7fe;
+    --accent-foreground: #5b21ce;
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: #e2dcd0;
+    --input: #d8d1c2;
+    --ring: #7434f4;
+    --radius: 0.7rem;
+    --sidebar: #f1ede3;
+    --sidebar-foreground: #2e2a24;
+    --sidebar-primary: #7434f4;
+    --sidebar-primary-foreground: #f6f1ff;
+    --sidebar-accent: #efe7fe;
+    --sidebar-accent-foreground: #5b21ce;
+    --sidebar-border: #e2dcd0;
+    --sidebar-ring: #7434f4;
+    /* Extra brand tokens */
+    --brand-lavender: #c5a9f9;
+    --bubble-user: #ede7da;
+    /* Terracotta — destructive soft (Delete, Revert) */
+    --destructive-warm: #b0573f;
+    /* MCP server status indicators */
+    --mcp-connected: #4c9a6e;
+    --mcp-disabled: #c8c0ae;
+    /* Shadows */
+    --shadow-input: 0 2px 10px rgba(80, 70, 50, 0.06);
+    --shadow-lens: 0 24px 80px rgba(24, 16, 36, 0.35);
+    /* Sphere lens overlay scrim */
+    --scrim-overlay: rgba(24, 16, 36, 0.45);
+    /* Slides viewer — намеренно dark независимо от темы приложения */
+    --slides-bg: #181420;
+    --slides-fg: #ede8e2;
+    /* Layout geometry */
+    --content-max-w: 680px;
+    /* Орб-токены (единственное место с градиентом) */
+    --orb-gradient: radial-gradient(
+      circle at 38% 32%,
+      #a47cfa 0%,
+      #7434f4 52%,
+      #4c16b8 100%
+    );
+    --orb-shadow: 0 6px 26px rgba(116, 52, 244, 0.35);
+    --orb-ring-1: #e5dcfc;
+    --orb-ring-2: #cdb9f8;
+    /* Chart tokens */
+    --chart-1: oklch(0.809 0.105 251.813);
+    --chart-2: oklch(0.623 0.214 259.815);
+    --chart-3: oklch(0.546 0.245 262.881);
+    --chart-4: oklch(0.488 0.243 264.376);
+    --chart-5: oklch(0.424 0.199 265.638);
+    /* НОВОЕ (feat-013): токен успеха — из утверждённого live-timeline-v3.html */
+    --success: #3d7a45;
+    /* Шрифты (в продукте — @theme inline) */
+    --font-sans: "Instrument Sans", sans-serif;
+    --font-serif: "Source Serif 4", serif;
+    --font-mono: "IBM Plex Mono", monospace;
+  }
+  .dark {
+    /* Чернила / Электрик — dark tokens */
+    --background: #181420;
+    --foreground: #ede8e2;
+    --card: #221c30;
+    --card-foreground: #ede8e2;
+    --popover: #221c30;
+    --popover-foreground: #ede8e2;
+    --primary: #8a5cf6;
+    --primary-foreground: #f7f4ff;
+    --secondary: rgba(177, 148, 255, 0.15);
+    --secondary-foreground: #cdb6ff;
+    --muted: #1e1929;
+    --muted-foreground: #9a90a8;
+    --accent: rgba(177, 148, 255, 0.15);
+    --accent-foreground: #cdb6ff;
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: #322a44;
+    --input: #3a3150;
+    --ring: #b194ff;
+    --sidebar: #1e1929;
+    --sidebar-foreground: #ede8e2;
+    --sidebar-primary: #8a5cf6;
+    --sidebar-primary-foreground: #f7f4ff;
+    --sidebar-accent: rgba(177, 148, 255, 0.15);
+    --sidebar-accent-foreground: #cdb6ff;
+    --sidebar-border: #322a44;
+    --sidebar-ring: #b194ff;
+    /* Terracotta — destructive soft (Delete, Revert) */
+    --destructive-warm: #d06050;
+    /* MCP server status indicators */
+    --mcp-connected: #6ab88a;
+    --mcp-disabled: #7e7490;
+    /* Extra brand tokens */
+    --brand-lavender: #b194ff;
+    --bubble-user: #262031;
+    /* Орб-токены — dark */
+    --orb-gradient: radial-gradient(
+      circle at 38% 32%,
+      #d0baff 0%,
+      #9d6fff 50%,
+      #5520c8 100%
+    );
+    --orb-shadow: 0 0 46px rgba(177, 148, 255, 0.47);
+    --orb-ring-1: rgba(177, 148, 255, 0.25);
+    --orb-ring-2: rgba(177, 148, 255, 0.45);
+    /* Chart tokens */
+    --chart-1: oklch(0.809 0.105 251.813);
+    --chart-2: oklch(0.623 0.214 259.815);
+    --chart-3: oklch(0.546 0.245 262.881);
+    --chart-4: oklch(0.488 0.243 264.376);
+    --chart-5: oklch(0.424 0.199 265.638);
+    /* НОВОЕ (feat-013): токен успеха — dark */
+    --success: #6fbf78;
+  }
+
+  /* ══ База ══ */
+  * { box-sizing: border-box; margin: 0; padding: 0; border-color: var(--border); }
+  html { font-family: var(--font-sans); }
+  body { background: var(--background); color: var(--foreground); min-height: 100vh; transition: background 0.2s, color 0.2s; }
+  button { font: inherit; cursor: pointer; background: none; border: none; color: inherit; text-align: left; }
+  .hide { display: none !important; }
+  .i { display: block; flex-shrink: 0; }
+  .i12 { width: 12px; height: 12px; }
+  .i14 { width: 14px; height: 14px; }
+  .i15 { width: 15px; height: 15px; }
+  .i16 { width: 16px; height: 16px; }
+  .i18 { width: 18px; height: 18px; }
+  .i20 { width: 20px; height: 20px; }
+  .mono { font-family: var(--font-mono); }
+
+  /* ══ Каркас мокапа (не продукт) ══ */
+  .chrome { position: sticky; top: 0; z-index: 40; background: var(--background); border-bottom: 1px solid var(--border); padding: 14px 24px 0; transition: background 0.2s; }
+  .chrome-inner { max-width: 1100px; margin: 0 auto; }
+  .chrome-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+  .chrome h1 { font-family: var(--font-serif); font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+  .chrome .sub { font-size: 13px; color: var(--muted-foreground); margin-top: 2px; }
+  .chip-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 500; background: var(--secondary); color: var(--secondary-foreground); flex-shrink: 0; }
+  .chip-btn:hover { filter: brightness(0.97); }
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 12px; padding-bottom: 10px; }
+  .tabs button { padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 500; color: var(--muted-foreground); transition: background 0.15s, color 0.15s; }
+  .tabs button:hover { background: var(--muted); color: var(--foreground); }
+  .tabs button.on { background: var(--secondary); color: var(--secondary-foreground); }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 20px 24px 90px; }
+  .sec { display: none; }
+  .sec.on { display: block; }
+  .sec-head h2 { font-family: var(--font-serif); font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+  .sec-head .sub { font-size: 13.5px; color: var(--muted-foreground); margin-top: 3px; max-width: 760px; line-height: 1.5; }
+  .note { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; font-size: 13px; line-height: 1.55; margin: 14px 0; color: var(--card-foreground); }
+  .note b { font-weight: 600; }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 14px 0; }
+  .seg { display: inline-flex; background: var(--muted); border-radius: 999px; padding: 3px; gap: 2px; align-items: center; }
+  .seg .seg-name { font-size: 11px; color: var(--muted-foreground); padding: 0 6px 0 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .seg button { padding: 5px 13px; border-radius: 999px; font-size: 13px; font-weight: 500; color: var(--muted-foreground); transition: background 0.15s, color 0.15s; }
+  .seg button.on { background: var(--card); color: var(--foreground); box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .block-title { font-family: var(--font-serif); font-size: 16px; font-weight: 600; margin: 26px 0 4px; }
+  .block-sub { font-size: 12.5px; color: var(--muted-foreground); margin-bottom: 12px; }
+
+  /* Сравнение «сейчас vs станет» */
+  .cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+  .cmp-tag { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted-foreground); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .cmp-tag.new { color: var(--primary); }
+  .badge-rec { display: inline-flex; align-items: center; border-radius: 999px; background: var(--secondary); color: var(--secondary-foreground); padding: 1px 8px; font-size: 10px; letter-spacing: 0.04em; }
+
+  /* ══ Продуктовые примитивы (зеркало shared/ui) ══ */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: var(--radius); border: 1px solid transparent; font-size: 14px; font-weight: 500; white-space: nowrap; transition: background 0.15s, color 0.15s, filter 0.15s; user-select: none; }
+  .btn:active { transform: translateY(1px); }
+  .btn-sm { height: 28px; padding: 0 10px; font-size: 12.8px; border-radius: min(calc(var(--radius) * 0.8), 12px); }
+  .btn-lg { height: 36px; padding: 0 12px; }
+  .btn-icon-sm { width: 28px; height: 28px; padding: 0; border-radius: min(calc(var(--radius) * 0.8), 12px); }
+  .btn-primary { background: var(--primary); color: var(--primary-foreground); }
+  .btn-primary:hover { filter: brightness(0.94); }
+  .btn-outline { border-color: var(--border); background: var(--background); }
+  .btn-outline:hover { background: var(--muted); }
+  .dark .btn-outline { border-color: var(--input); background: color-mix(in srgb, var(--input) 30%, transparent); }
+  .dark .btn-outline:hover { background: color-mix(in srgb, var(--input) 50%, transparent); }
+  .btn-ghost:hover { background: var(--muted); }
+  .dark .btn-ghost:hover { background: color-mix(in srgb, var(--muted) 50%, transparent); }
+  .btn-link { color: var(--primary); font-weight: 500; }
+  .btn-link:hover { text-decoration: underline; text-underline-offset: 4px; }
+  /* Кнопка «Редактировать» сферы: border-ring/60 text-ring hover:bg-accent */
+  .btn-ring { border-color: color-mix(in srgb, var(--ring) 60%, transparent); color: var(--ring); background: transparent; }
+  .btn-ring:hover { background: var(--accent); color: var(--accent-foreground); }
+
+  .input { height: 32px; width: 100%; min-width: 0; border-radius: var(--radius); border: 1px solid var(--input); background: transparent; padding: 0 10px; font-size: 14px; font-family: var(--font-sans); color: var(--foreground); outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
+  .input::placeholder { color: var(--muted-foreground); }
+  .input:focus-visible { border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent); }
+  .dark .input { background: color-mix(in srgb, var(--input) 30%, transparent); }
+
+  .field-label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; color: var(--foreground); }
+  .hint { margin-top: 4px; font-size: 12px; color: var(--muted-foreground); line-height: 1.5; }
+
+  /* Select (зеркало shared/ui/select.tsx) */
+  .sel-wrap { position: relative; }
+  .sel-trigger { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 6px; height: 32px; border-radius: var(--radius); border: 1px solid var(--input); background: transparent; padding: 0 8px 0 10px; font-size: 14px; color: var(--foreground); transition: border-color 0.15s, background 0.15s; }
+  .dark .sel-trigger { background: color-mix(in srgb, var(--input) 30%, transparent); }
+  .dark .sel-trigger:hover { background: color-mix(in srgb, var(--input) 50%, transparent); }
+  .sel-trigger .chev-d { color: var(--muted-foreground); }
+  .sel-popup { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 30; border-radius: var(--radius); background: var(--popover); color: var(--popover-foreground); box-shadow: 0 8px 24px rgba(0,0,0,0.12); outline: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent); padding: 4px; }
+  .sel-item { position: relative; display: flex; width: 100%; align-items: center; border-radius: calc(var(--radius) * 0.8); padding: 5px 32px 5px 8px; font-size: 14px; }
+  .sel-item:hover { background: var(--accent); color: var(--accent-foreground); }
+  .sel-item .mark { position: absolute; right: 8px; display: none; }
+  .sel-item.sel .mark { display: block; }
+
+  /* Секция настроек (rounded-xl border bg-card p-5) */
+  .card-sec { border: 1px solid var(--border); border-radius: calc(var(--radius) * 1.4); background: var(--card); color: var(--card-foreground); padding: 20px; }
+
+  /* Панель-рамка продукта */
+  .panel { border: 1px solid var(--border); border-radius: calc(var(--radius) * 1.4); background: var(--background); overflow: hidden; display: flex; flex-direction: column; }
+  .panel-h { height: 56px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); padding: 0 24px; }
+  .panel-h .t { font-family: var(--font-serif); font-size: 18px; font-weight: 600; }
+  .panel-h .t-sm { font-family: var(--font-serif); font-size: 16px; font-weight: 600; }
+
+  /* ══ Секция 1: скроллбары ══ */
+  .scrollbox { height: 240px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--background); }
+  /* «Станет»: тонкий кастомный скроллбар уровня дизайн-системы */
+  .scroll-new::-webkit-scrollbar { width: 8px; }
+  body.sb10 .scroll-new::-webkit-scrollbar { width: 10px; }
+  .scroll-new::-webkit-scrollbar-track { background: transparent; }
+  .scroll-new::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+  body:not(.sb-nohover) .scroll-new::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--muted-foreground) 45%, var(--border)); }
+  @supports not selector(::-webkit-scrollbar) {
+    .scroll-new { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  }
+  .chat-card { display: block; border-radius: var(--radius); padding: 12px; transition: background 0.15s; }
+  .chat-card:hover { background: var(--muted); }
+  .chat-card .ct { font-family: var(--font-serif); font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chat-card .cp { margin-top: 2px; font-size: 12px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chat-card .cm { margin-top: 6px; display: flex; align-items: center; gap: 8px; }
+  .chat-card .chip { border-radius: 999px; background: var(--secondary); color: var(--secondary-foreground); padding: 0 8px; font-size: 10px; line-height: 20px; }
+  .chat-card .cd { font-size: 10px; color: var(--muted-foreground); }
+  .md-pad { padding: 16px 20px; }
+
+  /* sphere-prose (копия index.css, для markdown-превью) */
+  .sphere-prose { font-size: 14px; line-height: 1.65; }
+  .sphere-prose h1, .sphere-prose h2, .sphere-prose h3 { font-family: var(--font-serif); font-weight: 600; line-height: 1.3; margin-top: 1.25rem; margin-bottom: 0.5rem; color: var(--foreground); }
+  .sphere-prose h1 { font-size: 1.375rem; }
+  .sphere-prose h2 { font-size: 1.125rem; }
+  .sphere-prose h3 { font-size: 1rem; }
+  .sphere-prose h1:first-child, .sphere-prose h2:first-child { margin-top: 0; }
+  .sphere-prose p { margin-bottom: 0.75rem; }
+  .sphere-prose ul { list-style: none; padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  .sphere-prose ul > li { position: relative; margin-bottom: 0.3rem; }
+  .sphere-prose ul > li::before { content: "—"; position: absolute; left: -1.5rem; color: var(--primary); font-weight: 500; }
+  .sphere-prose code { font-family: var(--font-mono); font-size: 0.85em; background-color: var(--muted); padding: 0.15rem 0.3rem; border-radius: 0.25rem; }
+  .sphere-prose pre { background-color: var(--muted); padding: 1rem; border-radius: var(--radius); overflow-x: auto; margin-bottom: 0.75rem; }
+  .sphere-prose pre code { background: none; padding: 0; font-size: 0.875rem; }
+
+  /* Лента активности (зеркало ActivityRow.tsx) */
+  .feed { display: flex; flex-direction: column; padding: 8px 12px; }
+  .act { position: relative; }
+  .act::before { content: ""; position: absolute; left: 9px; top: 26px; bottom: -2px; width: 1px; background: var(--border); }
+  .act:last-child::before { display: none; }
+  .act-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 4px 6px 4px 0; border-radius: 8px; }
+  .act-row:hover { background: color-mix(in srgb, var(--muted) 55%, transparent); }
+  .act-ico { width: 19px; height: 19px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--muted-foreground); background: var(--background); border-radius: 999px; z-index: 1; }
+  .act-label { font-size: 13.5px; color: var(--muted-foreground); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .act-side { margin-left: auto; display: flex; align-items: center; gap: 7px; flex-shrink: 0; font-size: 12px; color: var(--muted-foreground); }
+  .act-side .dur { font-family: var(--font-mono); font-size: 11px; }
+  .act-side .chev { opacity: 0.7; }
+  .feed-now .ok { color: var(--muted-foreground); }
+  .feed-new .ok { color: var(--success); }
+  .ok-x { color: var(--destructive); }
+
+  /* ══ Секция 2: состояния ══ */
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+  .pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+  .sk { background: var(--muted); border-radius: 6px; }
+  .sk.r-full { border-radius: 999px; }
+  .sk-chat { border-radius: var(--radius); padding: 12px; }
+  .sk-art { display: flex; align-items: center; gap: 12px; border-radius: var(--radius); padding: 10px 12px; }
+  .sk-art .sq { width: 36px; height: 36px; border-radius: calc(var(--radius) * 0.8); background: var(--muted); flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { animation: spin 1s linear infinite; }
+  .state-inline { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--muted-foreground); }
+  .err-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid color-mix(in srgb, var(--destructive) 30%, transparent); background: color-mix(in srgb, var(--destructive) 10%, transparent); border-radius: var(--radius); padding: 12px 16px; font-size: 14px; color: var(--destructive); }
+  .err-card .retry { color: var(--destructive); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; flex-shrink: 0; }
+  .err-card .retry:hover { opacity: 0.8; }
+  .state-full { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 32px; text-align: center; }
+  .state-full .st { font-family: var(--font-serif); font-size: 24px; font-weight: 600; letter-spacing: -0.01em; }
+  .state-full .sd { font-size: 14px; color: var(--muted-foreground); max-width: 420px; line-height: 1.6; }
+
+  /* Плейсхолдер сцены иллюстрации (реальные PNG в мокап не встраиваются) */
+  .scene { width: 100%; border: 1.5px dashed color-mix(in srgb, var(--brand-lavender) 65%, transparent); border-radius: calc(var(--radius) * 1.4); background: linear-gradient(135deg, color-mix(in srgb, var(--brand-lavender) 16%, transparent), color-mix(in srgb, var(--primary) 7%, transparent)); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; aspect-ratio: 4 / 3; color: var(--muted-foreground); user-select: none; }
+  .scene .orb { width: 44px; height: 44px; border-radius: 999px; background: var(--orb-gradient); box-shadow: var(--orb-shadow); position: relative; }
+  .scene .orb::after { content: ""; position: absolute; inset: -7px -9px; border: 1.5px solid color-mix(in srgb, var(--ring) 55%, transparent); border-radius: 50%; transform: rotate(-18deg); }
+  .scene .sn { font-family: var(--font-mono); font-size: 11px; }
+  .scene .ss { font-size: 11px; opacity: 0.75; }
+  .scene.wide { aspect-ratio: 5 / 2; }
+
+  /* ══ Секция 4: inline-edit ══ */
+  .pn-row { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+  .pn-text { font-size: 14px; font-weight: 500; }
+  .pn-saved { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--success); opacity: 0; transition: opacity 0.3s; }
+  .pn-saved.show { opacity: 1; }
+  .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: min(calc(var(--radius) * 0.8), 12px); color: var(--muted-foreground); transition: background 0.15s, color 0.15s; }
+  .icon-btn:hover { background: var(--muted); color: var(--foreground); }
+  .icon-btn.ok-btn:hover { color: var(--success); }
+  .icon-btn.x-btn:hover { color: var(--destructive); }
+
+  /* Модалка (зеркало shadcn dialog) */
+  .overlay { position: fixed; inset: 0; z-index: 50; background: var(--scrim-overlay); display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .dialog { width: 100%; max-width: 400px; border-radius: calc(var(--radius) * 1.4); border: 1px solid var(--border); background: var(--card); color: var(--card-foreground); padding: 24px; box-shadow: 0 16px 48px rgba(0,0,0,0.22); }
+  .dialog .dt { font-family: var(--font-serif); font-size: 18px; font-weight: 600; }
+  .dialog .dd { margin-top: 4px; font-size: 13px; color: var(--muted-foreground); }
+  .dialog .df { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
+  /* Тост (зеркало sonner: popover-фон, иконка успеха --success) */
+  .toast { position: fixed; right: 24px; bottom: 24px; z-index: 60; display: flex; align-items: center; gap: 10px; background: var(--popover); color: var(--popover-foreground); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; font-size: 13.5px; box-shadow: 0 8px 24px rgba(0,0,0,0.14); opacity: 0; transform: translateY(8px); transition: opacity 0.25s, transform 0.25s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast .ti { color: var(--success); }
+
+  /* ══ Секция 5/6: композиции панелей ══ */
+  .split { display: flex; }
+  .split .list-aside { width: 318px; flex-shrink: 0; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+  .split .view { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .art-row { display: flex; align-items: center; gap: 12px; border-radius: var(--radius); padding: 10px 12px; transition: background 0.15s; }
+  .art-row:hover { background: var(--muted); }
+  .art-row.sel { border: 1px solid var(--secondary); border-left: 3px solid var(--ring); background: color-mix(in srgb, var(--secondary) 30%, transparent); padding-left: 10px; }
+  .art-row .sq { width: 36px; height: 36px; border-radius: calc(var(--radius) * 0.8); background: var(--muted); display: flex; align-items: center; justify-content: center; color: var(--muted-foreground); flex-shrink: 0; }
+  .art-row .at { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .art-row .ad { margin-top: 2px; font-size: 12px; color: var(--muted-foreground); }
+
+  /* Сайдбар (зеркало Sidebar.tsx, для каркаса 404) */
+  .app-frame { display: flex; border: 1px solid var(--border); border-radius: calc(var(--radius) * 1.4); overflow: hidden; height: 620px; background: var(--background); }
+  .sbar { width: 252px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--sidebar); color: var(--sidebar-foreground); border-right: 1px solid var(--sidebar-border); }
+  .sbar-h { height: 56px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--sidebar-border); padding: 0 16px; }
+  .sbar-actions { display: flex; flex-direction: column; gap: 4px; padding: 12px; }
+  .sbar-label { margin: 0 0 4px; padding: 0 12px; font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted-foreground); }
+  .sbar-item { display: flex; align-items: center; gap: 8px; border-radius: calc(var(--radius) * 0.8); padding: 6px 12px; font-size: 14px; color: var(--sidebar-foreground); }
+  .sbar-item:hover { background: var(--sidebar-accent); }
+  .sbar-body { flex: 1; overflow: hidden; padding: 0 12px; }
+  .sbar-foot { border-top: 1px solid var(--sidebar-border); padding: 12px; }
+  .sbar-user { display: flex; align-items: center; justify-content: space-between; border-radius: var(--radius); padding: 4px 8px; }
+  .sbar-user .un { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 14px; }
+  .sbar-user .ic { color: var(--muted-foreground); }
+  .sbar-vignette { margin-top: auto; padding: 0; }
+
+  /* Wordmark (зеркало Wordmark.tsx, K5) */
+  .wm { display: inline-flex; align-items: center; font-family: var(--font-sans); font-weight: 700; letter-spacing: -0.015em; }
+  .wm .orb-l { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 0.8em; height: 0.8em; vertical-align: middle; transform: translateY(0.05em); }
+  .wm .orb-core { position: absolute; inset: 0; border-radius: 999px; background: var(--orb-gradient); }
+  .wm .orb-ring { position: absolute; width: calc(0.8em + 10px); height: calc(0.56em + 7px); border: 1.5px solid color-mix(in srgb, var(--ring) 65%, transparent); border-radius: 50%; transform: rotate(-18deg); }
+  .wm .orb-spark { position: absolute; width: 0.2em; height: 0.2em; background: var(--brand-lavender); transform: rotate(45deg); top: -0.12em; right: -0.08em; }
+  .wm .ai { position: relative; display: inline-block; color: var(--ring); }
+  .wm .ai .e1 { position: absolute; inset: -2px -4px; border: 1.5px solid color-mix(in srgb, var(--ring) 75%, transparent); border-radius: 50%; transform: rotate(-9deg); pointer-events: none; }
+  .wm .ai .e2 { position: absolute; inset: -4px -6px; border: 1.5px solid color-mix(in srgb, var(--ring) 35%, transparent); border-radius: 50%; transform: rotate(8deg); pointer-events: none; }
+
+  /* ══ Секция 7: auth ══ */
+  .auth-frame { display: flex; border: 1px solid var(--border); border-radius: calc(var(--radius) * 1.4); overflow: hidden; min-height: 640px; background: var(--background); }
+  .auth-brand { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 22px; padding: 56px; min-width: 0; }
+  .auth-brand .tagline { font-size: 15px; color: var(--muted-foreground); max-width: 380px; line-height: 1.55; }
+  .auth-side { width: 440px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; padding: 40px 48px; }
+  .auth-card { width: 100%; border: 1px solid var(--border); border-radius: calc(var(--radius) * 1.4); background: var(--card); color: var(--card-foreground); padding: 28px; box-shadow: var(--shadow-input); }
+  .auth-card .at { font-family: var(--font-serif); font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  .auth-card .as { margin-top: 3px; font-size: 13px; color: var(--muted-foreground); }
+  .auth-fields { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+  .divider { display: flex; align-items: center; gap: 12px; margin: 16px 0; color: var(--muted-foreground); font-size: 12px; }
+  .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+  .prov { display: flex; flex-direction: column; gap: 8px; }
+  .prov-btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 36px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--background); font-size: 14px; font-weight: 500; transition: background 0.15s; }
+  .prov-btn:hover { background: var(--muted); }
+  .dark .prov-btn { border-color: var(--input); background: color-mix(in srgb, var(--input) 30%, transparent); }
+  .dark .prov-btn:hover { background: color-mix(in srgb, var(--input) 50%, transparent); }
+  .prov-logo { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 999px; font-size: 10px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .auth-switch { margin-top: 14px; text-align: center; }
+  .auth-switch button { font-size: 13px; color: var(--primary); }
+  .auth-switch button:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pulse, .spin { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══ SVG-иконки (контурные, зеркало lucide) ══ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></symbol>
+    <symbol id="i-chevr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-chevd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-loader" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></symbol>
+    <symbol id="i-slides" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></symbol>
+    <symbol id="i-msg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+    <symbol id="i-panel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></symbol>
+    <symbol id="i-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></symbol>
+    <symbol id="i-circle-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+  </defs>
+</svg>
+
+<!-- ══ Шапка мокапа ══ -->
+<header class="chrome">
+  <div class="chrome-inner">
+    <div class="chrome-row">
+      <div>
+        <h1>UI/UX polish — мокап-пакет feat-013</h1>
+        <p class="sub">7 секций · токены «Чернила / Электрик» как в продукте · переключатель темы меняет все секции · вкусовые развилки — переключателями внутри секций</p>
+      </div>
+      <button id="theme-toggle" class="chip-btn">◐ Тема: светлая</button>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button data-s="s1" class="on">1 · Скроллбары + --success</button>
+      <button data-s="s2">2 · StateScreen</button>
+      <button data-s="s3">3 · ModelSelector</button>
+      <button data-s="s4">4 · Имя проекта</button>
+      <button data-s="s5">5 · Empty-states</button>
+      <button data-s="s6">6 · 404</button>
+      <button data-s="s7">7 · Auth</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<!-- ════════════════════════ Секция 1 ════════════════════════ -->
+<section id="s1" class="sec on">
+  <div class="sec-head">
+    <h2>Скроллбары и токен <span class="mono">--success</span></h2>
+    <p class="sub">Что решается: глобальная стилизация скроллбаров уровнем дизайн-системы (толщина и hover-акцент — вкусовые) и первый потребитель нового токена успеха — галочка в ленте активности.</p>
+  </div>
+  <div class="note">
+    Тонкий thumb на <span class="mono">--border</span>, прозрачный трек, скругление как у Base&nbsp;UI <span class="mono">ScrollArea</span> (thumb там уже <span class="mono">bg-border</span> — глобальный стиль подгоняется под него). Hover — усиление к <span class="mono">--muted-foreground</span>-ослабленному. Слева всегда системный скроллбар («сейчас») для сравнения.
+  </div>
+  <div class="controls">
+    <div class="seg" id="sb-width">
+      <span class="seg-name">Толщина</span>
+      <button data-v="8" class="on">8px</button>
+      <button data-v="10">10px</button>
+    </div>
+    <div class="seg" id="sb-hover">
+      <span class="seg-name">Hover-акцент</span>
+      <button data-v="on" class="on">Вкл</button>
+      <button data-v="off">Выкл</button>
+    </div>
+  </div>
+
+  <div class="block-title">Список (стиль ChatList)</div>
+  <div class="block-sub">Прокрутите оба контейнера и наведите курсор на полосу справа.</div>
+  <div class="cmp">
+    <div>
+      <div class="cmp-tag">Сейчас — системный скроллбар</div>
+      <div class="scrollbox">
+        <div style="padding:8px" id="list-now"></div>
+      </div>
+    </div>
+    <div>
+      <div class="cmp-tag new">Станет — тонкий на --border</div>
+      <div class="scrollbox scroll-new">
+        <div style="padding:8px" id="list-new"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="block-title">Markdown-превью (стиль sphere-prose)</div>
+  <div class="cmp">
+    <div>
+      <div class="cmp-tag">Сейчас</div>
+      <div class="scrollbox">
+        <div class="md-pad sphere-prose" id="md-now"></div>
+      </div>
+    </div>
+    <div>
+      <div class="cmp-tag new">Станет</div>
+      <div class="scrollbox scroll-new">
+        <div class="md-pad sphere-prose" id="md-new"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="block-title">Галочка успеха в ленте активности</div>
+  <div class="block-sub">Зеркало <span class="mono">ActivityRow</span>: мета-строка справа (моно-длительность + статус). Сейчас <span class="mono">Check</span> наследует серый от мета-строки; станет — <span class="mono">text-success</span>. Крестик ошибки остаётся <span class="mono">--destructive</span>.</div>
+  <div class="cmp">
+    <div>
+      <div class="cmp-tag">Сейчас — галочка серая</div>
+      <div class="scrollbox feed-now" style="height:auto"><div class="feed" id="feed-now"></div></div>
+    </div>
+    <div>
+      <div class="cmp-tag new">Станет — галочка --success</div>
+      <div class="scrollbox feed-new" style="height:auto"><div class="feed" id="feed-new"></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════ Секция 2 ════════════════════════ -->
+<section id="s2" class="sec">
+  <div class="sec-head">
+    <h2>Система состояний StateScreen</h2>
+    <p class="sub">Что решается: одна система «не-контента» вместо дюжины ad-hoc вариантов — скелетоны списков, спиннер панельной загрузки, карточка ошибки с «Повторить», полноэкранный error.</p>
+  </div>
+
+  <div class="block-title">а · Скелетоны списков</div>
+  <div class="block-sub">Мерцающие плейсхолдеры по форме будущих строк (<span class="mono">animate-pulse</span> на <span class="mono">--muted</span>, без кастомного шиммера). Скелетон сохраняет геометрию экрана — честнее спиннера.</div>
+  <div class="cmp">
+    <div>
+      <div class="cmp-tag">Сейчас — голые строки</div>
+      <div class="panel" style="height:230px">
+        <div style="padding:24px"><p style="font-size:14px;color:var(--muted-foreground)">Загрузка чатов...</p></div>
+      </div>
+      <div class="panel" style="height:150px;margin-top:12px">
+        <div style="padding:12px"><p style="padding:8px 12px;font-size:14px;color:var(--muted-foreground)">Загрузка…</p></div>
+      </div>
+    </div>
+    <div>
+      <div class="cmp-tag new">Станет — скелетоны по форме строк</div>
+      <div class="panel" style="height:230px">
+        <div class="pulse" style="padding:16px 12px;display:flex;flex-direction:column;gap:2px">
+          <div class="sk-chat">
+            <div class="sk" style="width:46%;height:14px"></div>
+            <div class="sk" style="width:68%;height:10px;margin-top:7px"></div>
+            <div style="display:flex;gap:8px;margin-top:9px"><div class="sk r-full" style="width:64px;height:16px"></div><div class="sk" style="width:34px;height:10px;margin-top:3px"></div></div>
+          </div>
+          <div class="sk-chat">
+            <div class="sk" style="width:58%;height:14px"></div>
+            <div class="sk" style="width:44%;height:10px;margin-top:7px"></div>
+            <div style="display:flex;gap:8px;margin-top:9px"><div class="sk r-full" style="width:52px;height:16px"></div><div class="sk" style="width:34px;height:10px;margin-top:3px"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel" style="height:150px;margin-top:12px">
+        <div class="pulse" style="padding:10px 8px;display:flex;flex-direction:column;gap:2px">
+          <div class="sk-art"><div class="sq"></div><div style="flex:1"><div class="sk" style="width:62%;height:12px"></div><div class="sk" style="width:32%;height:9px;margin-top:6px"></div></div></div>
+          <div class="sk-art"><div class="sq"></div><div style="flex:1"><div class="sk" style="width:48%;height:12px"></div><div class="sk" style="width:32%;height:9px;margin-top:6px"></div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="block-title">б · Панельная загрузка — спиннер-блок</div>
+  <div class="block-sub">Полноэкранные и панельные загрузки (Suspense-fallback, ChatThread, SphereView, ArtifactView): центрированный компактный блок — <span class="mono">Loader2</span> + подпись. Без иллюстрации: загрузка — переходное состояние.</div>
+  <div class="cmp">
+    <div>
+      <div class="cmp-tag">Сейчас</div>
+      <div class="panel" style="height:220px"><div style="padding:24px"><p style="font-size:14px;color:var(--muted-foreground)">Loading...</p></div></div>
+    </div>
+    <div>
+      <div class="cmp-tag new">Станет</div>
+      <div class="panel" style="height:220px">
+        <div class="state-inline" style="flex:1">
+          <svg class="i i20 spin"><use href="#i-loader"/></svg>
+          <span style="font-size:13.5px">Загрузка…</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="block-title">в · Ошибка списка — карточка с «Повторить»</div>
+  <div class="block-sub">Канонизируется карточная форма (<span class="mono">border-destructive/30 bg-destructive/10</span>, уже живёт в стрим-ошибке чата). Кнопка «Повторить» вызывает <span class="mono">refetch()</span> — сейчас путь восстановления только F5. Кликните «Повторить» — демо прогонит retry-флоу.</div>
+  <div class="cmp">
+    <div>
+      <div class="cmp-tag">Сейчас — голая строка</div>
+      <div class="panel" style="height:180px"><div style="padding:24px"><p style="font-size:14px;color:var(--destructive)">Не удалось загрузить чаты.</p></div></div>
+    </div>
+    <div>
+      <div class="cmp-tag new">Станет — карточка + повтор</div>
+      <div class="panel" style="height:180px">
+        <div style="padding:16px" id="retry-zone">
+          <div class="err-card" id="retry-error">
+            <span>Не удалось загрузить чаты.</span>
+            <button class="retry" id="retry-btn">Повторить</button>
+          </div>
+          <div class="pulse hide" id="retry-skel">
+            <div class="sk-chat"><div class="sk" style="width:46%;height:14px"></div><div class="sk" style="width:68%;height:10px;margin-top:7px"></div></div>
+            <div class="sk-chat"><div class="sk" style="width:58%;height:14px"></div><div class="sk" style="width:44%;height:10px;margin-top:7px"></div></div>
+          </div>
+          <div class="hide" id="retry-list">
+            <div class="chat-card"><p class="ct">Разбор LangGraph interrupt</p><p class="cp">Нет превью</p><div class="cm"><span class="cd">12 авг.</span></div></div>
+            <div class="chat-card"><p class="ct">План статьи о RAG</p><p class="cp">Нет превью</p><div class="cm"><span class="cd">9 авг.</span></div></div>
+            <button class="btn-link" style="font-size:12px;padding:4px 12px" id="retry-reset">↻ сбросить демо</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="block-title">г · Полноэкранный error</div>
+  <div class="block-sub">Страницы и панели (чат, сфера, артефакт): сцена <span class="mono">error-state</span>, serif-заголовок, подпись, «Повторить». Слева — текущий <span class="mono">ErrorBoundary</span>: sans-заголовок и сырой <span class="mono">&lt;button&gt;</span>; он рефакторится на тот же StateScreen.</div>
+  <div class="cmp">
+    <div>
+      <div class="cmp-tag">Сейчас — ErrorBoundary (sans, сырой button)</div>
+      <div class="panel" style="height:440px">
+        <div class="state-full" style="gap:32px">
+          <div class="scene" style="max-width:256px"><span class="orb"></span><span class="sn">сцена: error-state</span><span class="ss">существующая · h-48</span></div>
+          <div>
+            <div style="font-size:24px;font-weight:600">Что-то пошло не так</div>
+            <div style="font-size:15px;color:var(--muted-foreground);margin-top:8px">Произошла непредвиденная ошибка. Попробуйте обновить страницу.</div>
+          </div>
+          <button style="border:1px solid var(--border);background:var(--card);border-radius:var(--radius);padding:8px 16px;font-size:16px">Обновить страницу</button>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="cmp-tag new">Станет — StateScreen (serif, брендовая типографика)</div>
+      <div class="panel" style="height:440px">
+        <div class="state-full">
+          <div class="scene" style="max-width:280px"><span class="orb"></span><span class="sn">сцена: error-state</span><span class="ss">существующая</span></div>
+          <div class="st">Не удалось загрузить чат</div>
+          <div class="sd">Что-то пошло не так при загрузке. Проверьте соединение и попробуйте ещё раз.</div>
+          <button class="btn btn-outline" id="err-full-retry">Повторить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════ Секция 3 ════════════════════════ -->
+<section id="s3" class="sec">
+  <div class="sec-head">
+    <h2>ModelSelector</h2>
+    <p class="sub">Что решается: локализация свёрнутого значения («Inherit» → «Наследовать») и возврат строки «Активная модель: …» в project-scope, где она заменена статичной подсказкой.</p>
+  </div>
+  <div class="note">
+    Вёрстка — реальный shadcn <span class="mono">Select</span>: label 14px medium, trigger h-8 на <span class="mono">--input</span>, подпись <span class="mono">text-xs text-muted-foreground</span>. Селект справа кликается: откройте список.
+  </div>
+
+  <div class="block-title">Свёрнутое значение (thread/project scope)</div>
+  <div class="cmp">
+    <div>
+      <div class="cmp-tag">Сейчас — сырое «Inherit»</div>
+      <div class="card-sec">
+        <label class="field-label">Модель</label>
+        <div class="sel-trigger" style="cursor:default"><span>Inherit</span><svg class="i i16 chev-d"><use href="#i-chevd"/></svg></div>
+        <p class="hint">Активная модель: Клод Опус 5</p>
+      </div>
+    </div>
+    <div>
+      <div class="cmp-tag new">Станет — «Наследовать» (кликните)</div>
+      <div class="card-sec">
+        <label class="field-label">Модель</label>
+        <div class="sel-wrap">
+          <button class="sel-trigger" id="ms-trigger"><span id="ms-value">Наследовать</span><svg class="i i16 chev-d"><use href="#i-chevd"/></svg></button>
+          <div class="sel-popup hide" id="ms-popup">
+            <button class="sel-item sel" data-name="Наследовать">Наследовать<span class="mark"><svg class="i i16"><use href="#i-check"/></svg></span></button>
+            <button class="sel-item" data-name="Клод Опус 5">Клод Опус 5<span class="mark"><svg class="i i16"><use href="#i-check"/></svg></span></button>
+            <button class="sel-item" data-name="Клод Соннет 4.5">Клод Соннет 4.5<span class="mark"><svg class="i i16"><use href="#i-check"/></svg></span></button>
+            <button class="sel-item" data-name="GPT-5">GPT-5<span class="mark"><svg class="i i16"><use href="#i-check"/></svg></span></button>
+          </div>
+        </div>
+        <p class="hint">Активная модель: <span id="ms-resolved">Клод Опус 5</span></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="block-title">Project-scope: возврат resolved-модели</div>
+  <div class="block-sub">Данные (<span class="mono">resolved_model</span>) есть — регрессия чисто в рендере. Порядок и формулировка подсказки — вкусовая развилка.</div>
+  <div class="controls">
+    <div class="seg" id="hint-var">
+      <span class="seg-name">Подсказка</span>
+      <button data-v="v1" class="on">Две строки</button>
+      <button data-v="v2">Одна строка</button>
+    </div>
+  </div>
+  <div class="cmp">
+    <div>
+      <div class="cmp-tag">Сейчас — только статичная подсказка (+ висящий пробел)</div>
+      <div class="card-sec">
+        <label class="field-label">Модель</label>
+        <div class="sel-trigger" style="cursor:default"><span>Inherit</span><svg class="i i16 chev-d"><use href="#i-chevd"/></svg></div>
+        <p class="hint">Переопределяет модель пользователя для этого проекта.&nbsp;</p>
+      </div>
+    </div>
+    <div>
+      <div class="cmp-tag new">Станет — активная модель видна</div>
+      <div class="card-sec">
+        <label class="field-label">Модель</label>
+        <div class="sel-trigger" style="cursor:default"><span>Наследовать</span><svg class="i i16 chev-d"><use href="#i-chevd"/></svg></div>
+        <div id="hint-v1">
+          <p class="hint">Активная модель: Клод Опус 5</p>
+          <p class="hint" style="margin-top:2px">Выбор здесь переопределит модель пользователя для этого проекта.</p>
+        </div>
+        <p class="hint hide" id="hint-v2">Активная модель: Клод Опус 5 · выбор здесь переопределит её для этого проекта.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════ Секция 4 ════════════════════════ -->
+<section id="s4" class="sec">
+  <div class="sec-head">
+    <h2>Inline-edit имени проекта</h2>
+    <p class="sub">Что решается: замена пары «сырой input + Сохранить» на inline-edit с явным подтверждением (вариант А, рекомендуемый) либо модалку rename как в ProjectActions (вариант Б, референс).</p>
+  </div>
+  <div class="note">
+    Вариант А: клик по карандашу → shared <span class="mono">Input</span> + галочка/крестик; <b>Enter сохраняет</b>, <b>Esc отменяет</b>; после сохранения мигает подтверждение на <span class="mono">--success</span>. Автосохранение по blur отвергнуто в брифе (сюрприз-поведение). Вариант Б показывает и кандидата на тост успеха (<span class="mono">sonner</span> + иконка <span class="mono">--success</span>).
+  </div>
+  <div class="controls">
+    <div class="seg" id="pn-var">
+      <span class="seg-name">Вариант</span>
+      <button data-v="a" class="on">А · inline-edit</button>
+      <button data-v="b">Б · модалка</button>
+    </div>
+  </div>
+  <div class="cmp">
+    <div>
+      <div class="cmp-tag">Сейчас — поле + кнопка</div>
+      <div class="card-sec">
+        <label class="field-label">Имя проекта</label>
+        <div style="display:flex;gap:8px">
+          <input class="input" value="LearnFlow AI — исследование" style="flex:1;border-color:var(--input)" />
+          <button class="btn btn-sm btn-primary">Сохранить</button>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="cmp-tag new" id="pn-new-tag">Станет <span class="badge-rec" id="pn-badge">вариант А — рекомендуемый</span></div>
+      <!-- Вариант А: inline-edit -->
+      <div class="card-sec" id="pn-varA">
+        <label class="field-label">Имя проекта</label>
+        <div class="pn-row" id="pn-view">
+          <span class="pn-text" id="pn-value">LearnFlow AI — исследование</span>
+          <button class="icon-btn" id="pn-pencil" title="Переименовать"><svg class="i i14"><use href="#i-pencil"/></svg></button>
+          <span class="pn-saved" id="pn-saved"><svg class="i i14"><use href="#i-check"/></svg>Сохранено</span>
+        </div>
+        <div class="pn-row hide" id="pn-edit">
+          <input class="input" id="pn-input" style="flex:1" maxlength="100" />
+          <button class="icon-btn ok-btn" id="pn-save" title="Сохранить (Enter)"><svg class="i i16"><use href="#i-check"/></svg></button>
+          <button class="icon-btn x-btn" id="pn-cancel" title="Отменить (Esc)"><svg class="i i16"><use href="#i-x"/></svg></button>
+        </div>
+        <p class="hint">Клик по карандашу — редактирование · Enter — сохранить · Esc — отменить</p>
+      </div>
+      <!-- Вариант Б: модалка rename -->
+      <div class="card-sec hide" id="pn-varB">
+        <label class="field-label">Имя проекта</label>
+        <div class="pn-row">
+          <span class="pn-text" id="pnb-value">LearnFlow AI — исследование</span>
+          <button class="btn btn-sm btn-outline" id="pn-open-modal">Переименовать…</button>
+        </div>
+        <p class="hint">Референс-паттерн: модалка как в ProjectActions/ChatActions</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════ Секция 5 ════════════════════════ -->
+<section id="s5" class="sec">
+  <div class="sec-head">
+    <h2>Empty-states: сфера и артефакты</h2>
+    <p class="sub">Что решается: пустая сфера прижата вверху с мелкой иллюстрацией (280px на 1000+px ширины) — станет вертикально отцентрированной с крупной сценой и CTA; «выберите артефакт» прижат влево-вверх — станет центрированным StateScreen с новой сценой.</p>
+  </div>
+
+  <div class="block-title">а · Сфера знаний</div>
+  <div class="controls">
+    <div class="seg" id="sphere-view">
+      <span class="seg-name">Показ</span>
+      <button data-v="now">Сейчас</button>
+      <button data-v="new" class="on">Станет</button>
+    </div>
+    <div class="seg" id="sphere-size">
+      <span class="seg-name">Иллюстрация</span>
+      <button data-v="400">400px</button>
+      <button data-v="440" class="on">440px</button>
+      <button data-v="480">480px</button>
+    </div>
+  </div>
+  <div class="panel" style="height:520px">
+    <div class="panel-h">
+      <span class="t">Сфера знаний</span>
+      <button class="btn btn-sm btn-ring"><svg class="i i14"><use href="#i-pencil"/></svg>Редактировать</button>
+    </div>
+    <!-- Сейчас: блок сидит вверху скролл-области, иллюстрация max-w-[280px] -->
+    <div id="sphere-now" class="hide" style="flex:1;overflow-y:auto;padding:24px">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:16px;padding:32px 0">
+        <div class="scene" style="max-width:280px"><span class="orb"></span><span class="sn">сцена: empty-sphere</span><span class="ss">существующая · max-w-[280px]</span></div>
+        <p style="font-size:14px;color:var(--muted-foreground);text-align:center">Сфера знаний пуста. Нажмите «Редактировать», чтобы добавить содержимое.</p>
+      </div>
+    </div>
+    <!-- Станет: вертикальный центр, крупная сцена, подпись + CTA -->
+    <div id="sphere-new" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px">
+      <div class="scene" id="sphere-scene" style="max-width:440px"><span class="orb"></span><span class="sn">сцена: empty-sphere</span><span class="ss">существующая · max-w-[<span id="sphere-size-label">440</span>px]</span></div>
+      <p style="font-size:14px;color:var(--muted-foreground);text-align:center;max-width:420px">Сфера знаний пуста — здесь будет накапливаться память проекта.</p>
+      <button class="btn btn-sm btn-ring"><svg class="i i14"><use href="#i-pencil"/></svg>Редактировать</button>
+    </div>
+  </div>
+
+  <div class="block-title">б · Артефакты: «выберите артефакт из списка»</div>
+  <div class="controls">
+    <div class="seg" id="art-view">
+      <span class="seg-name">Показ</span>
+      <button data-v="now">Сейчас</button>
+      <button data-v="new" class="on">Станет</button>
+    </div>
+  </div>
+  <div class="panel" style="height:520px">
+    <div class="split" style="flex:1;min-height:0">
+      <aside class="list-aside">
+        <div style="height:56px;flex-shrink:0;display:flex;align-items:center;border-bottom:1px solid var(--border);padding:0 16px">
+          <span class="t-sm" style="font-family:var(--font-serif);font-size:16px;font-weight:600">Артефакты</span>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:8px" class="scroll-new">
+          <div class="art-row"><div class="sq"><svg class="i i18"><use href="#i-file"/></svg></div><div style="min-width:0;flex:1"><p class="at">Конспект: LangGraph HITL</p><p class="ad">11.08.2026</p></div></div>
+          <div class="art-row"><div class="sq"><svg class="i i18"><use href="#i-slides"/></svg></div><div style="min-width:0;flex:1"><p class="at">Слайды: архитектура RAG</p><p class="ad">10.08.2026</p></div></div>
+          <div class="art-row"><div class="sq"><svg class="i i18"><use href="#i-image"/></svg></div><div style="min-width:0;flex:1"><p class="at">Диаграмма пайплайна</p><p class="ad">08.08.2026</p></div></div>
+          <div class="art-row"><div class="sq"><svg class="i i18"><use href="#i-mic"/></svg></div><div style="min-width:0;flex:1"><p class="at">Аудио-разбор лекции</p><p class="ad">05.08.2026</p></div></div>
+        </div>
+      </aside>
+      <div class="view">
+        <!-- Сейчас: инлайн-div в router.tsx, flex-item без flex-1 — прижат влево-вверх -->
+        <div id="art-now" class="hide" style="padding:24px">
+          <p style="font-size:14px;color:var(--muted-foreground)">Выберите артефакт из списка</p>
+        </div>
+        <!-- Станет: центрированный StateScreen с новой сценой -->
+        <div id="art-new" class="state-full">
+          <div class="scene" style="max-width:300px"><span class="orb"></span><span class="sn">сцена: artifacts-select</span><span class="ss">новая — к генерации</span></div>
+          <div class="sd">Выберите артефакт из списка слева, чтобы посмотреть его.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════ Секция 6 ════════════════════════ -->
+<section id="s6" class="sec">
+  <div class="sec-head">
+    <h2>Catch-all 404</h2>
+    <p class="sub">Что решается: брендовый 404 внутри layout-роута — сайдбар остаётся видимым, пользователь не выпадает из приложения. Новая сцена «Электрик», serif-заголовок, «На главную».</p>
+  </div>
+  <div class="controls">
+    <div class="seg" id="cta404">
+      <span class="seg-name">Кнопка CTA</span>
+      <button data-v="primary" class="on">Primary</button>
+      <button data-v="outline">Outline</button>
+    </div>
+  </div>
+  <div class="app-frame">
+    <!-- Сайдбар схематично (зеркало Sidebar.tsx) -->
+    <aside class="sbar">
+      <div class="sbar-h">
+        <span class="wm" style="font-size:18px"><span>LearnFl</span><span class="orb-l"><i class="orb-core"></i><i class="orb-ring"></i><i class="orb-spark"></i></span><span>w</span></span>
+        <span class="icon-btn"><svg class="i i16"><use href="#i-panel"/></svg></span>
+      </div>
+      <div class="sbar-actions">
+        <button class="btn btn-sm btn-primary" style="width:100%;justify-content:flex-start"><svg class="i i14"><use href="#i-plus"/></svg>Новый чат</button>
+        <button class="btn btn-sm btn-outline" style="width:100%;justify-content:flex-start"><svg class="i i14"><use href="#i-plus"/></svg>Новый проект</button>
+      </div>
+      <div class="sbar-body">
+        <p class="sbar-label">Проекты</p>
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <span class="sbar-item">Дипломная работа</span>
+          <span class="sbar-item">Курс по LangGraph</span>
+          <span class="sbar-item">Статья на Хабр</span>
+        </div>
+        <p class="sbar-label" style="margin-top:16px">Недавнее</p>
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <span class="sbar-item"><svg class="i i16" style="color:var(--muted-foreground)"><use href="#i-msg"/></svg><span style="min-width:0"><span style="display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Разбор interrupt</span><span style="display:block;font-size:12px;color:var(--muted-foreground)">Курс по LangGraph</span></span></span>
+        </div>
+      </div>
+      <div class="sbar-vignette"><div class="scene wide" style="border-radius:0;border-left:0;border-right:0;border-bottom:0"><span class="sn">сцена: sidebar-vignette</span></div></div>
+      <div class="sbar-foot">
+        <div class="sbar-user">
+          <span class="un"><svg class="i i16 ic"><use href="#i-user"/></svg><span>bbaron</span></span>
+          <span style="display:flex;gap:2px">
+            <span class="icon-btn"><svg class="i i16"><use href="#i-moon"/></svg></span>
+            <span class="icon-btn"><svg class="i i16"><use href="#i-gear"/></svg></span>
+            <span class="icon-btn"><svg class="i i16"><use href="#i-logout"/></svg></span>
+          </span>
+        </div>
+      </div>
+    </aside>
+    <!-- Контентная область: StateScreen 404 -->
+    <div class="state-full" style="min-width:0">
+      <div class="scene" style="max-width:360px"><span class="orb"></span><span class="sn">сцена: 404</span><span class="ss">новая — к генерации</span></div>
+      <div class="st">Страница не найдена</div>
+      <div class="sd">Такой страницы нет или она переехала. Вернитесь на главную и продолжите оттуда.</div>
+      <button class="btn btn-primary" id="cta-404">На главную</button>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════ Секция 7 ════════════════════════ -->
+<section id="s7" class="sec">
+  <div class="sec-head">
+    <h2>Auth-экран /login</h2>
+    <p class="sub">Что решается: брендовая полноэкранная страница входа вместо generic-модалки AuthGate — wordmark, иллюстрация, карточка формы, провайдеры по гео. Каркас строит feat-008; здесь — дизайн.</p>
+  </div>
+  <div class="note">
+    Флоу кликается: переключение вход/регистрация, сабмит пустой формы показывает карточную ошибку (паттерн блока 4). Логотипы провайдеров — заглушки-буквы, без бренд-ассетов. Копирайт черновой — финал согласуется при реализации.
+  </div>
+  <div class="controls">
+    <div class="seg" id="geo">
+      <span class="seg-name">Гео</span>
+      <button data-v="ru" class="on">РФ</button>
+      <button data-v="int">не-РФ</button>
+    </div>
+    <div class="seg" id="auth-illo">
+      <span class="seg-name">Иллюстрация</span>
+      <button data-v="hero" class="on">welcome-hero</button>
+      <button data-v="new">auth-hero (новая)</button>
+    </div>
+  </div>
+  <div class="auth-frame">
+    <div class="auth-brand">
+      <span class="wm" style="font-size:38px"><span>LearnFl</span><span class="orb-l"><i class="orb-core"></i><i class="orb-ring"></i><i class="orb-spark"></i></span><span>w</span><span class="ai">AI<i class="e1"></i><i class="e2"></i></span></span>
+      <p class="tagline">Учитесь со своим ИИ-наставником: проекты, чаты и сфера знаний, которая растёт вместе с вами.</p>
+      <div class="scene" style="max-width:460px"><span class="orb"></span><span class="sn" id="auth-scene-name">сцена: welcome-hero</span><span class="ss" id="auth-scene-sub">существующая</span></div>
+    </div>
+    <div class="auth-side">
+      <form class="auth-card" id="auth-form" novalidate>
+        <div class="at" id="auth-title">Вход</div>
+        <div class="as" id="auth-sub">Продолжите работу со своими проектами.</div>
+        <div class="auth-fields">
+          <input class="input" id="auth-name" placeholder="Имя пользователя" autocomplete="username" />
+          <input class="input" id="auth-pass" type="password" placeholder="Пароль" autocomplete="current-password" />
+          <input class="input hide" id="auth-confirm" type="password" placeholder="Повторите пароль" autocomplete="new-password" />
+          <div class="err-card hide" id="auth-error" style="padding:10px 14px;font-size:13px"><span id="auth-error-text">Введите имя и пароль.</span></div>
+          <button class="btn btn-lg btn-primary" type="submit" style="width:100%" id="auth-submit">Войти</button>
+        </div>
+        <div class="divider"><span>или</span></div>
+        <div class="prov" id="prov-ru">
+          <button type="button" class="prov-btn"><span class="prov-logo" style="background:#fc3f1d">Я</span>Войти с Яндекс&nbsp;ID</button>
+          <button type="button" class="prov-btn"><span class="prov-logo" style="background:#07f;border-radius:6px;font-size:8px">VK</span>Войти через VK&nbsp;ID</button>
+        </div>
+        <div class="prov hide" id="prov-int">
+          <button type="button" class="prov-btn"><span class="prov-logo" style="background:#4285f4">G</span>Войти через Google</button>
+          <button type="button" class="prov-btn"><span class="prov-logo" style="background:#24292f;font-size:8px">GH</span>Войти через GitHub</button>
+        </div>
+        <div class="auth-switch">
+          <button type="button" id="auth-mode-link">Нет аккаунта? Зарегистрироваться</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- Модалка rename (вариант Б секции 4) -->
+<div class="overlay hide" id="modal-overlay">
+  <div class="dialog">
+    <div class="dt">Переименовать проект</div>
+    <div class="dd">Новое имя увидят все чаты и артефакты проекта.</div>
+    <div style="margin-top:16px"><input class="input" id="modal-input" maxlength="100" /></div>
+    <div class="df">
+      <button class="btn btn-sm btn-outline" id="modal-cancel">Отмена</button>
+      <button class="btn btn-sm btn-primary" id="modal-save">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Тост успеха (sonner-паттерн, иконка --success) -->
+<div class="toast" id="toast"><svg class="i i16 ti"><use href="#i-circle-check"/></svg><span id="toast-text">Проект переименован</span></div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (sel, root) { return (root || document).querySelector(sel); };
+  var $$ = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
+
+  /* ── Навигация по секциям ── */
+  $$("#tabs button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      $$("#tabs button").forEach(function (x) { x.classList.toggle("on", x === b); });
+      $$(".sec").forEach(function (s) { s.classList.toggle("on", s.id === b.dataset.s); });
+      window.scrollTo({ top: 0 });
+    });
+  });
+
+  /* ── Тема: класс .dark на корне, как в продукте ── */
+  var themeBtn = $("#theme-toggle");
+  themeBtn.addEventListener("click", function () {
+    var dark = document.documentElement.classList.toggle("dark");
+    themeBtn.textContent = dark ? "◐ Тема: тёмная" : "◐ Тема: светлая";
+  });
+
+  /* ── Универсальный segmented-контрол ── */
+  function seg(id, cb) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("click", function (e) {
+      var b = e.target.closest("button");
+      if (!b || !el.contains(b)) return;
+      $$("button", el).forEach(function (x) { x.classList.toggle("on", x === b); });
+      cb(b.dataset.v);
+    });
+  }
+
+  /* ── Секция 1: наполнение списков и лент ── */
+  var chatTitles = [
+    ["Разбор LangGraph interrupt", "12 авг."],
+    ["План статьи о RAG", "9 авг."],
+    ["Конспект лекции по SSE", "8 авг."],
+    ["Вопросы к экзамену", "6 авг."],
+    ["Дизайн схемы БД", "4 авг."],
+    ["Черновик доклада", "2 авг."],
+    ["Идеи для проекта", "31 июл."],
+    ["Отладка стриминга", "29 июл."],
+    ["Сравнение подходов", "27 июл."],
+    ["Итоги недели", "25 июл."]
+  ];
+  function chatCardHtml(t) {
+    return '<div class="chat-card"><p class="ct">' + t[0] + '</p><p class="cp">Нет превью</p><div class="cm"><span class="chip">+3 в сферу</span><span class="cd">' + t[1] + "</span></div></div>";
+  }
+  var listHtml = chatTitles.map(chatCardHtml).join("");
+  $("#list-now").innerHTML = listHtml;
+  $("#list-new").innerHTML = listHtml;
+
+  var mdHtml =
+    "<h2>Сфера знаний проекта</h2>" +
+    "<p>Память проекта накапливается по мере работы: агент дописывает сюда выводы, конспекты и решения. Скроллбар этого контейнера — часть дизайн-системы.</p>" +
+    "<ul><li>граф LangGraph с <code>interrupt()</code> для HITL-пауз</li><li>стриминг ответов по SSE-протоколу</li><li>fuzzy patch для правок сферы</li></ul>" +
+    "<h3>Черновик решения</h3>" +
+    "<p>Событие <code>title_updated</code> приходит после генерации названия чата и анимируется посимвольной печатью.</p>" +
+    "<pre><code>graph.add_node(\"tutor\", tutor_node)\ngraph.add_edge(START, \"tutor\")</code></pre>" +
+    "<p>Ниже ещё абзац, чтобы контейнер гарантированно прокручивался и полоса была видна в обеих темах. Длина текста здесь важнее содержания.</p>" +
+    "<p>Финальный абзац превью — прокрутите до конца, чтобы оценить поведение thumb на границе контейнера.</p>";
+  $("#md-now").innerHTML = mdHtml;
+  $("#md-new").innerHTML = mdHtml;
+
+  function feedRow(icon, label, arg, dur, status) {
+    var side = "";
+    if (dur) side += '<span class="dur">' + dur + "</span>";
+    if (status === "ok") side += '<span class="ok"><svg class="i i14"><use href="#i-check"/></svg></span>';
+    if (status === "err") side += '<span class="ok-x"><svg class="i i14"><use href="#i-x"/></svg></span>';
+    side += '<svg class="i i12 chev"><use href="#i-chevr"/></svg>';
+    return (
+      '<div class="act"><div class="act-row">' +
+      '<span class="act-ico"><svg class="i i15"><use href="#' + icon + '"/></svg></span>' +
+      '<span class="act-label">' + label + (arg ? ' <span style="color:var(--muted-foreground)">· ' + arg + "</span>" : "") + "</span>" +
+      '<span class="act-side">' + side + "</span>" +
+      "</div></div>"
+    );
+  }
+  var feedHtml =
+    feedRow("i-sparkles", "Рассуждал", null, null, null) +
+    feedRow("i-search", "Искал в вебе", "LangGraph interrupt", "4,2 с", "ok") +
+    feedRow("i-file", "Прочитал файл", "agent-runtime.md", "1,8 с", "ok") +
+    feedRow("i-globe", "Обновил сферу знаний", null, "12 с", "ok") +
+    feedRow("i-search", "Искал в вебе", "checkpointer postgres", "6,1 с", "err");
+  $("#feed-now").innerHTML = feedHtml;
+  $("#feed-new").innerHTML = feedHtml;
+
+  seg("sb-width", function (v) { document.body.classList.toggle("sb10", v === "10"); });
+  seg("sb-hover", function (v) { document.body.classList.toggle("sb-nohover", v === "off"); });
+
+  /* ── Секция 2: retry-флоу ── */
+  var rErr = $("#retry-error"), rSkel = $("#retry-skel"), rList = $("#retry-list");
+  $("#retry-btn").addEventListener("click", function () {
+    rErr.classList.add("hide");
+    rSkel.classList.remove("hide");
+    setTimeout(function () {
+      rSkel.classList.add("hide");
+      rList.classList.remove("hide");
+    }, 1200);
+  });
+  $("#retry-reset").addEventListener("click", function () {
+    rList.classList.add("hide");
+    rErr.classList.remove("hide");
+  });
+  var errFull = $("#err-full-retry");
+  errFull.addEventListener("click", function () {
+    var old = errFull.textContent;
+    errFull.textContent = "Повторяем…";
+    errFull.disabled = true;
+    setTimeout(function () { errFull.textContent = old; errFull.disabled = false; }, 1000);
+  });
+
+  /* ── Секция 3: селект ── */
+  var msPopup = $("#ms-popup"), msTrigger = $("#ms-trigger"), msValue = $("#ms-value"), msResolved = $("#ms-resolved");
+  msTrigger.addEventListener("click", function (e) {
+    e.stopPropagation();
+    msPopup.classList.toggle("hide");
+  });
+  $$(".sel-item", msPopup).forEach(function (item) {
+    item.addEventListener("click", function (e) {
+      e.stopPropagation();
+      $$(".sel-item", msPopup).forEach(function (x) { x.classList.toggle("sel", x === item); });
+      msValue.textContent = item.dataset.name;
+      msResolved.textContent = item.dataset.name === "Наследовать" ? "Клод Опус 5" : item.dataset.name;
+      msPopup.classList.add("hide");
+    });
+  });
+  document.addEventListener("click", function () { msPopup.classList.add("hide"); });
+
+  seg("hint-var", function (v) {
+    $("#hint-v1").classList.toggle("hide", v !== "v1");
+    $("#hint-v2").classList.toggle("hide", v !== "v2");
+  });
+
+  /* ── Секция 4: inline-edit ── */
+  var pnView = $("#pn-view"), pnEdit = $("#pn-edit"), pnInput = $("#pn-input"),
+      pnValue = $("#pn-value"), pnSaved = $("#pn-saved");
+  function pnStart() {
+    pnView.classList.add("hide");
+    pnEdit.classList.remove("hide");
+    pnInput.value = pnValue.textContent;
+    pnInput.focus();
+    pnInput.select();
+  }
+  function pnClose() {
+    pnEdit.classList.add("hide");
+    pnView.classList.remove("hide");
+  }
+  function pnCommit() {
+    var v = pnInput.value.trim();
+    if (v) pnValue.textContent = v;
+    pnClose();
+    pnSaved.classList.add("show");
+    setTimeout(function () { pnSaved.classList.remove("show"); }, 1600);
+  }
+  $("#pn-pencil").addEventListener("click", pnStart);
+  $("#pn-save").addEventListener("click", pnCommit);
+  $("#pn-cancel").addEventListener("click", pnClose);
+  pnInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); pnCommit(); }
+    if (e.key === "Escape") pnClose();
+  });
+
+  seg("pn-var", function (v) {
+    $("#pn-varA").classList.toggle("hide", v !== "a");
+    $("#pn-varB").classList.toggle("hide", v !== "b");
+    $("#pn-badge").textContent = v === "a" ? "вариант А — рекомендуемый" : "вариант Б — референс";
+  });
+
+  var overlay = $("#modal-overlay"), modalInput = $("#modal-input"), pnbValue = $("#pnb-value");
+  var toast = $("#toast");
+  var toastTimer = null;
+  function showToast(text) {
+    $("#toast-text").textContent = text;
+    toast.classList.add("show");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toast.classList.remove("show"); }, 2400);
+  }
+  $("#pn-open-modal").addEventListener("click", function () {
+    modalInput.value = pnbValue.textContent;
+    overlay.classList.remove("hide");
+    modalInput.focus();
+    modalInput.select();
+  });
+  $("#modal-cancel").addEventListener("click", function () { overlay.classList.add("hide"); });
+  overlay.addEventListener("click", function (e) { if (e.target === overlay) overlay.classList.add("hide"); });
+  $("#modal-save").addEventListener("click", function () {
+    var v = modalInput.value.trim();
+    if (v) pnbValue.textContent = v;
+    overlay.classList.add("hide");
+    showToast("Проект переименован");
+  });
+  modalInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); $("#modal-save").click(); }
+    if (e.key === "Escape") overlay.classList.add("hide");
+  });
+
+  /* ── Секция 5 ── */
+  seg("sphere-view", function (v) {
+    $("#sphere-now").classList.toggle("hide", v !== "now");
+    $("#sphere-new").classList.toggle("hide", v !== "new");
+  });
+  seg("sphere-size", function (v) {
+    $("#sphere-scene").style.maxWidth = v + "px";
+    $("#sphere-size-label").textContent = v;
+  });
+  seg("art-view", function (v) {
+    $("#art-now").classList.toggle("hide", v !== "now");
+    $("#art-new").classList.toggle("hide", v !== "new");
+  });
+
+  /* ── Секция 6 ── */
+  seg("cta404", function (v) {
+    var b = $("#cta-404");
+    b.classList.toggle("btn-primary", v === "primary");
+    b.classList.toggle("btn-outline", v === "outline");
+  });
+
+  /* ── Секция 7: auth ── */
+  seg("geo", function (v) {
+    $("#prov-ru").classList.toggle("hide", v !== "ru");
+    $("#prov-int").classList.toggle("hide", v !== "int");
+  });
+  seg("auth-illo", function (v) {
+    $("#auth-scene-name").textContent = v === "hero" ? "сцена: welcome-hero" : "сцена: auth-hero";
+    $("#auth-scene-sub").textContent = v === "hero" ? "существующая" : "новая — опционально";
+  });
+
+  var authMode = "login";
+  var authLink = $("#auth-mode-link");
+  function renderAuthMode() {
+    var login = authMode === "login";
+    $("#auth-title").textContent = login ? "Вход" : "Регистрация";
+    $("#auth-sub").textContent = login
+      ? "Продолжите работу со своими проектами."
+      : "Придумайте имя и пароль — этого достаточно.";
+    $("#auth-submit").textContent = login ? "Войти" : "Создать аккаунт";
+    $("#auth-confirm").classList.toggle("hide", login);
+    authLink.textContent = login ? "Нет аккаунта? Зарегистрироваться" : "Уже есть аккаунт? Войти";
+    $("#auth-error").classList.add("hide");
+  }
+  authLink.addEventListener("click", function () {
+    authMode = authMode === "login" ? "register" : "login";
+    renderAuthMode();
+  });
+  $("#auth-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var name = $("#auth-name").value.trim();
+    var pass = $("#auth-pass").value;
+    var errBox = $("#auth-error"), errText = $("#auth-error-text");
+    if (!name || !pass) {
+      errText.textContent = "Введите имя и пароль.";
+      errBox.classList.remove("hide");
+      return;
+    }
+    if (authMode === "register" && pass.length < 8) {
+      errText.textContent = "Пароль должен содержать не менее 8 символов.";
+      errBox.classList.remove("hide");
+      return;
+    }
+    if (authMode === "register" && pass !== $("#auth-confirm").value) {
+      errText.textContent = "Пароли не совпадают.";
+      errBox.classList.remove("hide");
+      return;
+    }
+    errBox.classList.add("hide");
+    var btn = $("#auth-submit");
+    var old = btn.textContent;
+    btn.textContent = "…";
+    btn.disabled = true;
+    setTimeout(function () {
+      btn.textContent = old;
+      btn.disabled = false;
+      showToast(authMode === "login" ? "Добро пожаловать!" : "Аккаунт создан");
+    }, 900);
+  });
+})();
+</script>
+</body>
+</html>

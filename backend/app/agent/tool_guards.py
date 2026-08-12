@@ -41,8 +41,9 @@ from langchain_core.runnables import Runnable
 from langgraph.config import get_config
 from siem_contracts import AGENT_GUARD_DEGRADED
 
+from app.agent.security.detectors.unicode import sanitize_invisible_chars
 from app.agent.security.guard import SecurityGuard
-from app.agent.security.types import Checkpoint, DetectionLayer, Verdict
+from app.agent.security.types import Checkpoint, DetectionLayer, GuardResult, Verdict
 
 logger = structlog.get_logger()
 
@@ -50,6 +51,21 @@ _TOOL_ERROR_MESSAGE = (
     "Tool execution failed; the requested operation could not be completed. "
     "Please try a different approach or rephrasing the request."
 )
+
+# Tools whose result is *program output*, not prose: whatever a job printed to
+# stdout/stderr. An invisible-character hit there is normal — a BOM off a file,
+# soft hyphens out of extracted PDF text, PUA glyphs from a font — while the
+# attack the Unicode layer defends against (an instruction hidden in
+# zero-width characters) is neutralised outright by deleting those characters.
+# So for these two the policy is sanitize-and-continue instead of
+# redact-and-block: the user keeps the result and the thread, the invisible
+# channel is still closed. Every other tool and every other detector keeps the
+# stub + blocked thread (doc/security/architecture.md § Unicode).
+#
+# Hardcoded here, not in `Settings`: which tools run untrusted programs is a
+# property of the tool set, not of the environment (conventions.md § Env vs
+# константы). Names come from `app.agent.tools.registry`.
+_INVISIBLE_CHAR_SANITIZED_TOOLS = frozenset({"execute_code", "run_command"})
 
 
 def handle_tool_error(exc: Exception) -> str:
@@ -111,6 +127,21 @@ def _state_messages(state: Any) -> list[Any] | None:
     return None
 
 
+def _is_sanitizable_unicode_hit(message: ToolMessage, result: GuardResult) -> bool:
+    """Whether this hit is answered by sanitizing rather than by redacting.
+
+    Three conditions, all necessary: the Unicode layer is what fired (every
+    other detector, and the classifier, keep the stub), the result came from a
+    tool that runs untrusted programs, and its content is plain text — a
+    non-``str`` content is a block shape this must not rewrite into a string.
+    """
+    return (
+        result.detection_layer == DetectionLayer.UNICODE
+        and message.name in _INVISIBLE_CHAR_SANITIZED_TOOLS
+        and isinstance(message.content, str)
+    )
+
+
 async def guard_tool_result(
     message: ToolMessage,
     guard: SecurityGuard,
@@ -118,7 +149,7 @@ async def guard_tool_result(
     tool_result_stub: str,
     history: list[Any],
 ) -> ToolMessage:
-    """Check one tool result; return it, or its redacted replacement.
+    """Check one tool result; return it, its sanitized copy, or its redacted stub.
 
     One result, one classifier call — the unit of the check is a single tool
     call, so a result can neither be skipped (there is no batch to fall out of)
@@ -126,6 +157,16 @@ async def guard_tool_result(
     ``security_redacted``). ``history`` is the conversation as the calling node
     received it, offered to the classifier as context; an empty one is a
     degraded check, never a skipped one.
+
+    *Invisible-char sanitizing.* A Unicode hit on the output of a tool in
+    ``_INVISIBLE_CHAR_SANITIZED_TOOLS`` is answered by deleting the offending
+    codepoints and letting the (now harmless) text through — no stub, no
+    ``security_redacted`` marker, so the post-stream inspection never marks the
+    thread blocked. The hit is still logged as a security event by the guard
+    itself, codepoints included; only the *reaction* differs. The sanitized
+    text is then re-checked: the first check short-circuited at the Unicode
+    layer, so nothing past it has judged this buffer — a payload must not buy
+    itself a pass on the fragment detector and the classifier by carrying a BOM.
     """
     if message.additional_kwargs.get("security_redacted"):
         return message
@@ -139,6 +180,25 @@ async def guard_tool_result(
         history=history,
         canary_token=canary_token,
     )
+
+    if result.verdict == Verdict.INJECTION and _is_sanitizable_unicode_hit(
+        message, result
+    ):
+        content = sanitize_invisible_chars(content)
+        logger.warning(
+            "tool_result invisible chars sanitized",
+            tool=message.name,
+            codepoints=(result.details or {}).get("codepoints"),
+        )
+        result = await guard.check(
+            content,
+            Checkpoint.TOOL_RESULT,
+            history=history,
+            canary_token=canary_token,
+        )
+        if result.verdict != Verdict.INJECTION:
+            return message.model_copy(update={"content": content})
+
     if result.verdict != Verdict.INJECTION:
         return message
 

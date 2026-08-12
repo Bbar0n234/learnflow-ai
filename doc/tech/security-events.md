@@ -124,7 +124,7 @@ Additional metadata per event:
 |------------|-----------------|
 | `auth.login.failed` | `username` (attempted login) |
 | `auth.register.failed` | `username` (attempted registration), `reason` |
-| `agent.guard.input.deterministic_hit` | `detector` (detector name), `details` (match specifics) |
+| `agent.guard.*.deterministic_hit` | `detector` (detector name) + the detector's own hit details, spread flat (Unicode: `codepoints`, `distinct_codepoints`) |
 | `agent.guard.*.classifier_*` | `reasoning` (LLM reasoning), `retries` (classifier retries) |
 | `agent.guard.output.canary_leak` | `leaked_value` (indicator of leak) |
 | `rate_limit.*` | `key` (rate limit key), `limit` (threshold), `window` (seconds) |

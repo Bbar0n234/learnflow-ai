@@ -443,6 +443,67 @@ Harness'ы, которые план числил за T1.9 (`backend/tests/image
 - **Принципы разрешения.** Провайдер web-инструментов берётся целиком со стороны `develop` (jina-сервер, `search_web`/`read_url` в списках субагентов, формулировки промптов, фикстура, подписи фронта, имена в тестах); файловая модель feat-011 — с нашей (описания субагентов с artifact path(s), `read_file`/`write_file`/`list_files`/`execute_code`/`run_command`, executor-блок compose и `EXECUTOR_*`, uploads, `ArtifactPart`). В перекрывающихся файлах стороны комбинируются: в `configs/agent.yaml` — jina-сервер и jina-tools develop'а поверх наших описаний субагентов; в `docker-compose.yml` — `JINA_API_KEY` рядом с executor-блоком; в реестре подписей `agent-tools.ts` — `search_web`/`read_url` рядом с файловыми и исполняющими подписями. Фикстура `backend/contracts/agent-tool-names.json` руками не мерджилась — перегенерирована штатным `scripts/generate_tool_names_fixture.py` (21 запись), фронтовый реестр синхронизирован с ней. Доки (tasklist, backlog) — объединение без потерь.
 - **Чем верифицировано.** `make check` — exit 0. `backend/tests` — 1168 passed (без известного сетевого `test_pricing_external.py`); executor 87, siem-service 21, `make test-contracts` 66 — все зелёные. `make check-fe` — зелёный; `make test-fe` — 505 passed (было 507: `develop` снял кейс `firecrawl_extract` из `it.each` подписей и одно имя из фикстуры, по которой параметризован сторож полноты — оба минус-теста ожидаемы). Блокер снят на живом стенде: `docker compose build app` + `make docker-up` — `app` healthy, 0 рестартов, `/health` → 200, лог `mcp tools loaded servers_active=1 servers_total=2 tool_count=2` (jina отдаёт `search_web` + `read_url`), `_validate_subagent_tool_pool` молчит, ни одной ошибки в логе старта.
 
+### Пост-integration фиксы
+
+Оба фикса вскрыты tester'ом на живом прогоне INTEGRATION_TEST (заход 2), решения приняты
+архитектором, реализованы fixer'ом.
+
+- **Вывод исполняющих инструментов санитайзится, а не блокируется (major).** Симптом: при обычной
+  работе с исполнением кода тред уходил в `security_blocked` навсегда — `execute_code`/`run_command`
+  отдают произвольный stdout программы через checkpoint `TOOL_RESULT`, `UnicodeDetector` признаёт
+  инъекцией любой символ категорий `Cf`/`Co`/`Cn` (BOM, мягкий перенос, PUA, неназначенный
+  кодпоинт), а `inspect_in_graph` по факту редакции ставит `thread_views.security_blocked = true`
+  без возврата; на прогоне так умерли два чата подряд на извлечении текста из PDF (5 срабатываний,
+  все `detection_layer=unicode`, `tool=execute_code`). Решение архитектора: для вывода исполняющих
+  инструментов невидимые символы **вычищаются до попадания в контекст** — без заглушки и без
+  `security_blocked`; санитайз сам по себе снимает угрозу невидимой инъекции. Реализация — в
+  enforcement-адаптере, не в детекторе и не в движке: `app/agent/tool_guards.py` держит
+  `_INVISIBLE_CHAR_SANITIZED_TOOLS = {"execute_code", "run_command"}` (захардкожен с обоснованием —
+  какие инструменты запускают чужие программы, свойство набора инструментов, а не окружения,
+  conventions.md § Env vs константы), и `guard_tool_result` на вердикте INJECTION со слоем `unicode`
+  от такого инструмента вместо заглушки удаляет кодпоинты (`sanitize_invisible_chars`) и возвращает
+  копию `ToolMessage` с очищенным текстом — **без** `security_redacted`, поэтому пост-стримовая
+  инспекция редакций не видит ничего и тред не блокируется. Очищенный текст **перепроверяется**
+  вторым `guard.check`: первый ушёл коротким замыканием на unicode-слое, то есть fragment-детектор и
+  классификатор этот буфер ещё не судили, — иначе полезная нагрузка покупала бы себе пропуск мимо
+  них одним BOM'ом; на INJECTION второй проверки работает штатный путь заглушка + блок. Все
+  остальные инструменты, каналы и детекторы политику не меняют. Security-событие осталось прежним
+  (`agent.guard.input.deterministic_hit`, `severity=critical`, эмитит сам guard), но у
+  `UnicodeDetector.inspect` наконец заполнены `details` — `codepoints` (до 20 уникальных, в порядке
+  первого появления) и `distinct_codepoints`, — и заполнены для **всех** каналов детектора, не
+  только исполняющих: без них по событию нельзя было восстановить, какой символ стрельнул. Рядом
+  пишется обычный (не security) лог `tool_result invisible chars sanitized` с именем инструмента и
+  кодпоинтами: применённая политика видна оператору, но SIEM по-прежнему получает ровно одно
+  событие на инцидент.
+- **Состав тулчейна песочницы попал в системный промпт.** Симптом: агент не знал, что стоит в
+  образе executor'а, пробовал несуществующие утилиты (`pdftotext`) и жёг до 18 вызовов на ход.
+  Отдельного фрагмента про исполняющие инструменты в `configs/prompt_fragments.yaml` нет (там живут
+  `headers.*`, обёртки и security-преамбула), поэтому блок `<execution_environment>` добавлен в
+  `configs/prompts/system.txt` — рядом с `<artifacts_guidelines>`, тем же языком и в том же стиле,
+  без имён внутренних инструментов (прод-промпт их принципиально не называет). Содержание: Python с
+  numpy, pandas, matplotlib, pillow, pypdf, python-docx, docxcompose, lxml; из CLI — pandoc и шрифты
+  DejaVu/Liberation/Noto; сети нет, `pip install` не работает, ничего сверх перечисленного нет,
+  файлы ходят только через workspace, а на отсутствующий инструмент нужно сказать честно, а не
+  перебирать команды. Список сверен не по `pyproject.toml`, а по живому образу: джоба в песочнице
+  импортировала каждый пакет и искала бинарники — все восемь библиотек `OK`, `pandoc` и `fc-list`
+  на месте, `pdftotext`/`libreoffice`/`ffmpeg`/`openpyxl`/`scipy` отсутствуют (то самое, на чём
+  спотыкался агент).
+- **Чем верифицировано.** `make check` — exit 0 (ruff, ruff format, mypy ×4, lint-imports 9/9 KEPT,
+  arch_checker — только унаследованные size-WARN'ы). `backend/tests` — 1169 passed, единственный
+  красный — известный внешний `tests/agent/test_pricing_external.py` (сетевой дрейф цен); ни один
+  тест не ассертил старый контракт «unicode в `TOOL_RESULT` → блок», так что покрасневших от смены
+  политики нет. Живой прогон на боевом `.env` (`make docker-up` с пересобранным образом `app`, затем
+  `docker compose down`): ход с `execute_code`, печатающим `print("a\u00adb\ufeffc")`, доходит до
+  `done`; на проводе и в истории `tool_result` содержит `stdout:\nabc` — оба символа вычищены;
+  `security_blocked` чата остался `false`; в логе `app` ровно одно security-событие
+  `agent.guard.input.deterministic_hit` с `metadata.codepoints=['U+00AD','U+FEFF']`,
+  `distinct_codepoints=2`, `checkpoint=tool_result` и рядом `tool_result invisible chars sanitized`
+  `tool=execute_code`. Промпт проверен тем же стендом: startup-seed создал версию 9
+  `system--development` в Langfuse (её и берёт `PromptProvider` по label `latest`), и на вопрос
+  «чем извлекать текст из PDF в песочнице» агент отвечает `pypdf` с примером кода, отдельно
+  оговаривает, что CLI-экстракторов вроде `pdftotext` в окружении нет, и **не делает ни одного**
+  tool-вызова.
+
 ## Follow-ups
 
 (пусто)

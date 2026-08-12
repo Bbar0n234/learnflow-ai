@@ -38,7 +38,7 @@ flowchart LR
 | Checkpoint | Где срабатывает | Направление | Действие при INJECTION |
 |------------|-----------------|-------------|------------------------|
 | `user_input` | Runner, до запуска графа | inbound | Reject, `security_block` SSE, thread blocked |
-| `tool_result` | Узел `tools`, на каждом результате отдельно — до отчёта о вызове и до возврата из узла | inbound | Заглушка-`ToolMessage`, thread blocked |
+| `tool_result` | Узел `tools`, на каждом результате отдельно — до отчёта о вызове и до возврата из узла | inbound | Заглушка-`ToolMessage`, thread blocked (исключение — unicode на выводе исполняющих инструментов, см. § Unicode) |
 | `tool_call_arg` | `agent_node`, после ответа LLM | outbound | `tool_calls=[]` + redacted `AIMessage`, thread blocked, граф уходит в END |
 | `final_output` | Runner, mid-stream и end-of-stream | outbound | Redacted `AIMessage`, thread blocked, `security_block` SSE |
 | `mcp_metadata` | Service, регистрация user MCP + built-in startup | add-time | HTTP 422 (для built-in — disable конкретного сервера) |
@@ -68,7 +68,9 @@ HMAC-токен от `(CANARY_SECRET, thread_id)`. Embedded в system prompt п�
 
 ### Unicode
 
-Невидимые / форматирующие символы (категории Cf, Co, Cn). Применяется только к inbound и add-time content — модель не генерирует такие символы как атаку.
+Невидимые / форматирующие символы (категории Cf, Co, Cn). Применяется только к inbound и add-time content — модель не генерирует такие символы как атаку. Сработавшие кодпоинты уезжают в `details` события (`codepoints`, `distinct_codepoints`) — без них по событию не восстановить, какой символ стрельнул.
+
+**Исключение по реакции: вывод исполняющих инструментов.** `execute_code` / `run_command` отдают в `tool_result` произвольный stdout чужой программы, где невидимый символ — обычное дело (BOM из файла, мягкие переносы из извлечённого PDF, PUA-глифы шрифта). Для этих двух инструментов unicode-срабатывание отвечает **санитайзом**: символы удаляются из `ToolMessage` до его выхода из узла `tools`, заглушки нет, `security_redacted` не ставится — тред не блокируется. Очищенный текст перепроверяется guard'ом заново: первая проверка ушла коротким замыканием на unicode-слое, и fragment-детектор с классификатором этот буфер ещё не судили. Событие и его severity не меняются — меняется только реакция. Список инструментов — `_INVISIBLE_CHAR_SANITIZED_TOOLS` в `backend/app/agent/tool_guards.py`; для всех прочих инструментов и всех прочих детекторов действует общая политика из таблицы checkpoint'ов.
 
 ### Fragment
 

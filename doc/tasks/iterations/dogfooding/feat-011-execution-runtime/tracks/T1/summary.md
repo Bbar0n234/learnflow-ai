@@ -505,6 +505,27 @@ Harness'ы, которые план числил за T1.9 (`backend/tests/image
   «чем извлекать текст из PDF в песочнице» агент отвечает `pypdf` с примером кода, отдельно
   оговаривает, что CLI-экстракторов вроде `pdftotext` в окружении нет, и **не делает ни одного**
   tool-вызова.
+- **Расположение библиотеки скиллов не было в системном промпте (тот же класс, что тулчейн выше).**
+  Симптом вскрыт живым прогоном `A9`: на скилле `gost-lab-report` агент искал файлы вслепую — дважды
+  бил `run_command` по `~/.claude/skills/…` (путь Claude Code, в этом рантайме его нет), затем сжёг
+  целую джобу на рекурсивном `glob("/**/gost-lab-report/scripts/build.py")` до 60-секундного
+  deadline, и только потом нашёл скилл через `list_files /skills`. Ход в итоге прошёл штатно, но три
+  лишних вызова и одна убитая джоба — на ровном месте. Фикс — в тот же блок
+  `<execution_environment>` (`configs/prompts/system.txt`), тем же стилем и без имён внутренних
+  инструментов: библиотека скиллов смонтирована read-only по `/skills`, каждый скилл — поддиректория
+  с `SKILL.md` и сопутствующими файлами, вспомогательные файлы читаются по пути внутри `/skills`,
+  скрипты скилла запускаются из песочницы по абсолютному пути `/skills/<skill>/scripts/<file>`,
+  `/skills` не пишется.
+- **Верификация.** Правка засеяна на живом стенде (`make docker-up`, боевой `.env`, executor под
+  `runsc`): startup-seed создал версию 10 `system--development` в Langfuse (сверено через Langfuse
+  API — `prompt` содержит новый абзац, `labels: ["latest"]`). Два коротких хода на уже интегрированном
+  `gost-lab-report`: (1) «прочитай ENVIRONMENTS.md и скажи, что там про LibreOffice» — агент закрыл
+  задачу одним вызовом `load_skill(gost-lab-report, file=ENVIRONMENTS.md)`, без единого лишнего
+  вызова; (2) «выполни check_env.py из скилла» — первым же вызовом `run_command` с
+  `cmd: "python /skills/gost-lab-report/scripts/check_env.py"`, скрипт нашёл
+  pandoc/python-docx/docxcompose и корректно отрапортовал отсутствие LibreOffice. Ни разу не
+  встретился `~/.claude/skills`, рекурсивный `glob` или другой перебор путей. `docker compose down`
+  после прогона.
 
 ### Фиксы code review
 

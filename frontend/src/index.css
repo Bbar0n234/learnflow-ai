@@ -68,6 +68,23 @@
   /* Slides viewer — намеренно dark независимо от темы приложения (slides viewer design, T6c) */
   --slides-bg: #181420;
   --slides-fg: #ede8e2;
+  /* Брендовые знаки OAuth-провайдеров (auth-экран, `shared/ui/ProviderButton`).
+     Это чужие фирменные цвета, а не палитра продукта: с темой они не меняются
+     (кроме знака GitHub, у которого мокап даёт свой оттенок на тёмном фоне).
+     Живут переменными, а не литералами в `.tsx`, потому что граница «нет hex
+     в компонентах» абсолютна — design-system.md § Границы, тот же приём, что
+     у `--slides-*` и `--scrim-overlay`. Значения — из mockups/ui-polish.html
+     (секция 7, символы `#p-google` / `#p-github` / `#p-yandex`).
+     `--provider-yandex-stroke` — не цвет Яндекса, а наша декоративная обводка
+     белого круга под знаком «Я». */
+  --provider-google-blue: #4285f4;
+  --provider-google-green: #34a853;
+  --provider-google-yellow: #fbbc05;
+  --provider-google-red: #ea4335;
+  --provider-github-fg: #24292f;
+  --provider-yandex-bg: #ffffff;
+  --provider-yandex-fg: #fc3f1d;
+  --provider-yandex-stroke: rgba(0, 0, 0, 0.14);
   /* Layout geometry */
   --content-max-w: 680px;
   /* Орб-токены (единственное место с градиентом) */
@@ -127,6 +144,11 @@
   /* Extra brand tokens */
   --brand-lavender: #b194ff;
   --bubble-user: #262031;
+  /* Знак GitHub — единственный провайдерский цвет, зависящий от темы
+     (мокап: `.dark .prov-btn .p-github { color: #f0f0f0 }`). Остальные
+     `--provider-*` намеренно не переопределяются: фирменные цвета бренда
+     одинаковы в обеих темах. */
+  --provider-github-fg: #f0f0f0;
   /* Орб-токены — dark */
   --orb-gradient: radial-gradient(
     circle at 38% 32%,
@@ -262,8 +284,17 @@
    10px-ширину и hover. Точная ширина и hover-акцент в Firefox недостижимы —
    расхождение принято как норма (design-brief.md § 1.2). */
 @supports not selector(::-webkit-scrollbar) {
-  :root {
+  /* `scrollbar-width` не наследуется, поэтому объявляется на всех элементах:
+     на одном `:root` тонкую полосу получил бы только корневой скроллер, а
+     вложенные overflow-контейнеры (те самые ~19 нативных) остались бы с
+     дефолтной шириной. `scrollbar-color` наследуется — ему достаточно корня.
+     Мокап вешает фолбэк на сам скролл-контейнер (`.scroll-new`,
+     ui-polish.html:259) — здесь тот же охват, но глобальным правилом, как
+     требует design-brief § 1.2 («без точечных классов по контейнерам»). */
+  * {
     scrollbar-width: thin;
+  }
+  :root {
     scrollbar-color: var(--border) transparent;
   }
 }

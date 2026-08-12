@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import type { FormEvent } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { NBSP, PROVIDER_LABELS } from "@/test/provider-labels";
+
 import { ProviderButton, type AuthProvider } from "./ProviderButton";
 
 // Integration (компонент целиком под RTL, без сети и провайдеров): кнопка входа
@@ -16,16 +18,11 @@ import { ProviderButton, type AuthProvider } from "./ProviderButton";
 // зеркалил бы разметку вместо цвета. Живая сверка обеих тем уже сделана треком
 // (summary T6.4, замеры `getComputedStyle`), регресс — ручной кейс {T6.5}.
 
-// Таблица провайдеров — `Record<AuthProvider, string>`: состав союза сторожит
-// `tsc`, а не рантайм-ассерт. Появится в союзе четвёртый провайдер (VK ID снят
-// решением архитектора по 149-ФЗ, design-brief блок 8) — `make check-fe`
-// покраснеет на недостающем ключе, исчезнет один — на лишнем.
-const PROVIDER_LABELS: Record<AuthProvider, string> = {
-  yandex: "Войти с Яндекс ID",
-  google: "Войти через Google",
-  github: "Войти через GitHub",
-};
-
+// Эталонные подписи — общие с суитой экрана (`@/test/provider-labels`), одной
+// копией на весь набор: подписи задаёт этот компонент, а ищут по ним кнопку обе
+// суиты, и две копии разъезжаются с продом порознь. Там же — сторож состава
+// союза `AuthProvider` через `Record<AuthProvider, string>` и объяснение, почему
+// копия своя, а не импорт `DEFAULT_LABELS` из компонента.
 const PROVIDERS = Object.entries(PROVIDER_LABELS) as [AuthProvider, string][];
 
 describe("ProviderButton", () => {
@@ -37,6 +34,31 @@ describe("ProviderButton", () => {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     },
   );
+
+  // Сторож неразрывного пробела. U+00A0 между «Яндекс» и «ID» стоит в мокапе
+  // намеренно: ниже `lg` карточка тянется во всю ширину, и с обычным пробелом
+  // «ID» уезжает на вторую строку в отрыве от названия. Сам перенос в jsdom не
+  // наблюдаем (раскладки нет), зато наблюдаем его носитель — символ в подписи,
+  // и кейс смотрит именно на **отрендеренную** подпись, а не на константу
+  // набора: пробел сравнивается посимвольно, без нормализации.
+  //
+  // Первая половина — что нужный символ на месте; вторая — что кнопка не
+  // находится по тому же имени с обычным пробелом. Вторая нужна потому, что до
+  // этого кейса набор сравнивал подпись как раз с обычным пробелом и был
+  // зелёным при неправильном проде.
+  it("держит «Яндекс ID» неразрывным пробелом, чтобы подпись не переносилась", () => {
+    render(<ProviderButton provider="yandex" />);
+
+    const button = screen.getByRole("button", {
+      name: PROVIDER_LABELS.yandex,
+    });
+    expect(button.textContent).toContain(`Яндекс${NBSP}ID`);
+
+    const withPlainSpace = PROVIDER_LABELS.yandex.replace(NBSP, " ");
+    expect(
+      screen.queryByRole("button", { name: withPlainSpace }),
+    ).not.toBeInTheDocument();
+  });
 
   // Знак — DOM-факт, который jsdom исполняет: он обязан быть в разметке (иначе
   // кнопка провайдера неотличима от обычной) и обязан быть скрыт от скринридера
@@ -59,7 +81,7 @@ describe("ProviderButton", () => {
       screen.getByRole("button", { name: "Продолжить с Google" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Войти через Google" }),
+      screen.queryByRole("button", { name: PROVIDER_LABELS.google }),
     ).not.toBeInTheDocument();
   });
 
@@ -70,7 +92,7 @@ describe("ProviderButton", () => {
     render(<ProviderButton provider="yandex" className="mt-6" />);
 
     expect(
-      screen.getByRole("button", { name: "Войти с Яндекс ID" }),
+      screen.getByRole("button", { name: PROVIDER_LABELS.yandex }),
     ).toHaveClass("mt-6");
   });
 
@@ -79,7 +101,9 @@ describe("ProviderButton", () => {
     const user = userEvent.setup();
     render(<ProviderButton provider="yandex" onClick={onClick} />);
 
-    await user.click(screen.getByRole("button", { name: "Войти с Яндекс ID" }));
+    await user.click(
+      screen.getByRole("button", { name: PROVIDER_LABELS.yandex }),
+    );
 
     expect(onClick).toHaveBeenCalledTimes(1);
   });
@@ -89,7 +113,7 @@ describe("ProviderButton", () => {
     const user = userEvent.setup();
     render(<ProviderButton provider="github" onClick={onClick} disabled />);
 
-    const button = screen.getByRole("button", { name: "Войти через GitHub" });
+    const button = screen.getByRole("button", { name: PROVIDER_LABELS.github });
     expect(button).toBeDisabled();
 
     await user.click(button);
@@ -110,7 +134,7 @@ describe("ProviderButton", () => {
     );
 
     await user.click(
-      screen.getByRole("button", { name: "Войти через Google" }),
+      screen.getByRole("button", { name: PROVIDER_LABELS.google }),
     );
 
     expect(onSubmit).not.toHaveBeenCalled();

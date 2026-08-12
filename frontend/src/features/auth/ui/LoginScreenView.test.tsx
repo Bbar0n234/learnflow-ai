@@ -8,6 +8,7 @@ import {
   type AuthProvider,
   type LoginScreenViewProps,
 } from "@/features/auth";
+import { PROVIDER_LABELS } from "@/test/provider-labels";
 
 // Integration (экран целиком под RTL, без сети и провайдеров: компонент чисто
 // презентационный и в квери не ходит). Суита фиксирует **контракт стыка с
@@ -34,12 +35,6 @@ const NON_RU_PROVIDERS: readonly AuthProvider[] = [
   "github",
 ];
 
-const PROVIDER_LABELS: Record<AuthProvider, string> = {
-  yandex: "Войти с Яндекс ID",
-  google: "Войти через Google",
-  github: "Войти через GitHub",
-};
-
 function renderScreen(overrides: Partial<LoginScreenViewProps> = {}) {
   const props: LoginScreenViewProps = {
     mode: "login",
@@ -59,15 +54,37 @@ function renderScreen(overrides: Partial<LoginScreenViewProps> = {}) {
   };
 }
 
+// Подписи собственных кнопок формы — режимными таблицами, по одной на роль,
+// зеркально прод-контракту. Плоского списка здесь больше нет: он нёс свою копию
+// каждой подписи, и прод-правка подписи сабмита («…» → глагольные формы)
+// покрасила разом и его, и кейсы состава провайдеров, которые на него опираются.
+// Тип `Record<AuthMode, string>` сторожит состав режимов через `tsc`.
+const SUBMIT_LABELS: Record<AuthMode, string> = {
+  login: "Войти",
+  register: "Создать аккаунт",
+};
+
+// На время отправки подпись остаётся именем: «…» именем не было — кнопка
+// пропадала из поиска по доступному имени и озвучивалась как «кнопка,
+// многоточие». Состояние объявляется отдельно, атрибутом `aria-busy`, а не
+// съеденной подписью.
+const SUBMITTING_LABELS: Record<AuthMode, string> = {
+  login: "Входим…",
+  register: "Создаём аккаунт…",
+};
+
+const SWITCH_LABELS: Record<AuthMode, string> = {
+  login: "Нет аккаунта? Зарегистрироваться",
+  register: "Уже есть аккаунт? Войти",
+};
+
 // Собственные кнопки формы — всё, что не относится к блоку провайдеров: сабмит
-// в трёх его подписях (обе режимные + «…» на время отправки) и переключатель
+// в четырёх его подписях (обе режимные + обе на время отправки) и переключатель
 // режима. Всё остальное на экране — кнопка провайдера.
 const OWN_FORM_BUTTON_NAMES: readonly string[] = [
-  "Войти",
-  "Создать аккаунт",
-  "…",
-  "Нет аккаунта? Зарегистрироваться",
-  "Уже есть аккаунт? Войти",
+  ...Object.values(SUBMIT_LABELS),
+  ...Object.values(SUBMITTING_LABELS),
+  ...Object.values(SWITCH_LABELS),
 ];
 
 /**
@@ -104,7 +121,9 @@ describe("LoginScreenView — режимы входа и регистрации"
     expect(screen.getByLabelText("Имя пользователя")).toBeInTheDocument();
     expect(screen.getByLabelText("Пароль")).toBeInTheDocument();
     expect(screen.queryByLabelText("Повторите пароль")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Войти" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: SUBMIT_LABELS.login }),
+    ).toBeInTheDocument();
   });
 
   it("в режиме регистрации добавляет подтверждение пароля и подпись «Создать аккаунт»", () => {
@@ -116,16 +135,16 @@ describe("LoginScreenView — режимы входа и регистрации"
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Повторите пароль")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Создать аккаунт" }),
+      screen.getByRole("button", { name: SUBMIT_LABELS.register }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Войти" }),
+      screen.queryByRole("button", { name: SUBMIT_LABELS.login }),
     ).not.toBeInTheDocument();
   });
 
   const switches: [AuthMode, string, AuthMode][] = [
-    ["login", "Нет аккаунта? Зарегистрироваться", "register"],
-    ["register", "Уже есть аккаунт? Войти", "login"],
+    ["login", SWITCH_LABELS.login, "register"],
+    ["register", SWITCH_LABELS.register, "login"],
   ];
 
   it.each(switches)(
@@ -146,9 +165,7 @@ describe("LoginScreenView — режимы входа и регистрации"
   it("переключение режима не отправляет форму", async () => {
     const { props, user } = renderScreen({ mode: "login" });
 
-    await user.click(
-      screen.getByRole("button", { name: "Нет аккаунта? Зарегистрироваться" }),
-    );
+    await user.click(screen.getByRole("button", { name: SWITCH_LABELS.login }));
 
     expect(props.onSubmit).not.toHaveBeenCalled();
   });
@@ -235,7 +252,7 @@ describe("LoginScreenView — отправка формы", () => {
       values: { name: "", password: "", confirmPassword: "" },
     });
 
-    const submit = screen.getByRole("button", { name: "Войти" });
+    const submit = screen.getByRole("button", { name: SUBMIT_LABELS.login });
     expect(submit).toBeEnabled();
 
     await user.click(submit);
@@ -264,12 +281,43 @@ describe("LoginScreenView — отправка формы", () => {
       screen.getByRole("button", { name: PROVIDER_LABELS.yandex }),
     ).toBeDisabled();
 
-    const submit = screen.getByRole("button", { name: "…" });
+    const submit = screen.getByRole("button", {
+      name: SUBMITTING_LABELS.login,
+    });
     expect(submit).toBeDisabled();
 
     await user.click(submit);
     expect(props.onSubmit).not.toHaveBeenCalled();
   });
+
+  // Отправка — состояние кнопки, а не пропажа её имени. Раньше подпись
+  // схлопывалась в «…»: доступное имя вырождалось, кнопку нельзя было найти по
+  // имени, а скринридер читал «кнопка, многоточие». Кейс требует обе половины
+  // разом — осмысленную режимную подпись и объявленный `aria-busy`, — и
+  // отдельно проверяет обратный переход: вне отправки состояние не объявляется,
+  // иначе «занята всегда» читается так же, как «занята сейчас».
+  const submittingModes = Object.keys(SUBMITTING_LABELS) as AuthMode[];
+
+  it.each(submittingModes)(
+    "в режиме %s подписывает отправку глаголом и объявляет её через aria-busy",
+    (mode) => {
+      const { props, rerender } = renderScreen({ mode });
+
+      expect(
+        screen.getByRole("button", { name: SUBMIT_LABELS[mode] }),
+      ).not.toHaveAttribute("aria-busy");
+
+      rerender(<LoginScreenView {...props} submitting />);
+
+      const submit = screen.getByRole("button", {
+        name: SUBMITTING_LABELS[mode],
+      });
+      expect(submit).toHaveAttribute("aria-busy", "true");
+      expect(
+        screen.queryByRole("button", { name: "…" }),
+      ).not.toBeInTheDocument();
+    },
+  );
 });
 
 describe("LoginScreenView — ошибка", () => {
@@ -413,9 +461,9 @@ describe("LoginScreenView — клавиатура и раскладка", () =>
     const order = [
       screen.getByLabelText("Имя пользователя"),
       screen.getByLabelText("Пароль"),
-      screen.getByRole("button", { name: "Войти" }),
+      screen.getByRole("button", { name: SUBMIT_LABELS.login }),
       screen.getByRole("button", { name: PROVIDER_LABELS.yandex }),
-      screen.getByRole("button", { name: "Нет аккаунта? Зарегистрироваться" }),
+      screen.getByRole("button", { name: SWITCH_LABELS.login }),
     ];
 
     // Отправная точка задаётся явно, а не автофокусом: обход и автофокус —

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 
+import { Button } from "@/shared/ui/button";
 import { cn } from "@/shared/lib/utils";
 import { Illustration } from "@/shared/ui/Illustration";
 import type { Scene } from "@/shared/assets/illustrations";
@@ -141,6 +142,7 @@ export function LoadingState({
 }: LoadingStateProps) {
   return (
     <div
+      role="status"
       className={cn(
         "flex flex-col items-center justify-center gap-2 text-muted-foreground",
         className,
@@ -181,13 +183,21 @@ export function ErrorCard({
     >
       <span>{message}</span>
       {onRetry && (
-        <button
+        // `Button variant="link"` вместо сырого `<button>`: фокус-кольцо,
+        // `disabled`-семантика и переходы приезжают из примитива. Вид сверен с
+        // мокапом (`.err-card .retry`, ui-polish.html:313-314) — цвет
+        // `--destructive`, постоянное подчёркивание с offset 3px, hover через
+        // прозрачность; поэтому `text-primary`/`hover:underline` варианта
+        // перекрываются классом, а не остаются от примитива.
+        <Button
           type="button"
+          variant="link"
+          size="sm"
           onClick={onRetry}
-          className="shrink-0 font-medium text-destructive underline underline-offset-[3px] transition-opacity hover:opacity-80"
+          className="h-auto shrink-0 px-0 text-sm text-destructive underline underline-offset-[3px] transition-opacity hover:opacity-80"
         >
           {retryLabel}
-        </button>
+        </Button>
       )}
     </div>
   );

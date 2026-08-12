@@ -73,6 +73,15 @@ const SUBMIT_LABELS: Record<AuthMode, string> = {
   register: "Создать аккаунт",
 };
 
+// На время отправки подпись не схлопывается в «…»: многоточие — не имя, и
+// кнопка переставала быть находимой и озвучиваемой («кнопка, многоточие»).
+// Глагольная форма держит доступное имя и заодно сообщает состояние —
+// тем же приёмом, что «Удаляем…» / «Сохранено» на экране настроек проекта.
+const SUBMITTING_LABELS: Record<AuthMode, string> = {
+  login: "Входим…",
+  register: "Создаём аккаунт…",
+};
+
 const SWITCH_LABELS: Record<AuthMode, string> = {
   login: "Нет аккаунта? Зарегистрироваться",
   register: "Уже есть аккаунт? Войти",
@@ -189,8 +198,9 @@ export function LoginScreenView({
             size="lg"
             className="w-full"
             disabled={submitting}
+            aria-busy={submitting || undefined}
           >
-            {submitting ? "…" : SUBMIT_LABELS[mode]}
+            {submitting ? SUBMITTING_LABELS[mode] : SUBMIT_LABELS[mode]}
           </Button>
         </div>
 

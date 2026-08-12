@@ -28,21 +28,28 @@ export function ProjectSettingsPage() {
 
   // Кадр «старое имя рядом с зелёным „Сохранено“» (правка plan-review 4):
   // между закрытием режима и приходом рефетча `useProject` квери ещё отдаёт
-  // старое `project.name`. `confirmedName` держит только что записанное имя
-  // локально и подменяет им просмотр, пока квери не догонит — эффект ниже
-  // сбрасывает подмену в момент совпадения, дальше просмотр снова читает
-  // `project.name` напрямую (внешние переименования опять видны немедленно).
-  const [confirmedName, setConfirmedName] = useState<string | null>(null);
-  const displayName =
-    confirmedName !== null && confirmedName !== project?.name
-      ? confirmedName
-      : project?.name;
+  // старое `project.name`. `confirmed` держит только что записанное имя
+  // локально и подменяет им просмотр, пока квери не догонит.
+  //
+  // Снимается подмена по приходу любых свежих данных, а не по совпадению с
+  // записанным именем: рядом с `name` хранится `staleName` — значение квери,
+  // поверх которого мы писали, — и как только квери отдаёт что-то другое,
+  // локальный кадр уступает серверу. Сравнение «пока не совпадёт с моим»
+  // залипало навсегда, если между нашим PUT и нашим же рефетчем проект
+  // переименовывал кто-то ещё (вторая вкладка, модалка сайдбара): совпадение
+  // не наступало никогда, и страница до перезагрузки показывала наше
+  // устаревшее имя (code review A, находка о `confirmedName`).
+  const [confirmed, setConfirmed] = useState<{
+    name: string;
+    staleName: string | undefined;
+  } | null>(null);
+  const displayName = confirmed !== null ? confirmed.name : project?.name;
 
   useEffect(() => {
-    if (confirmedName !== null && project?.name === confirmedName) {
-      setConfirmedName(null);
+    if (confirmed !== null && project?.name !== confirmed.staleName) {
+      setConfirmed(null);
     }
-  }, [project?.name, confirmedName]);
+  }, [project?.name, confirmed]);
 
   // Краткое подтверждение «Сохранено» (мокап, `.pn-saved`, ~1.6с). Таймер
   // хранится в ref, а не в переменной эффекта, — его нужно снимать из двух
@@ -100,15 +107,19 @@ export function ProjectSettingsPage() {
     if (draft === null || !projectId || updateProject.isPending) return;
     const trimmed = draft.trim();
     if (!trimmed) return;
-    if (trimmed === project?.name) {
+    // Сравнение с показанным именем, а не с `project.name`: пока локальный
+    // кадр держит только что записанное имя, Enter без правки не должен
+    // отправлять второй PUT с тем же значением.
+    if (trimmed === displayName) {
       closeEdit();
       return;
     }
+    const staleName = project?.name;
     updateProject.mutate(
       { id: projectId, data: { name: trimmed } },
       {
         onSuccess: () => {
-          setConfirmedName(trimmed);
+          setConfirmed({ name: trimmed, staleName });
           closeEdit();
           clearSavedTimer();
           setShowSaved(true);

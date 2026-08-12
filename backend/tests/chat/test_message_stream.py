@@ -220,6 +220,66 @@ async def test_stream_without_attachments_passes_an_empty_list(
     assert wired_runner.stream_calls[0].attachments == []
 
 
+@pytest.mark.parametrize(
+    "attachments",
+    [
+        pytest.param([f"uploads/a{i}.md" for i in range(51)], id="too-many"),
+        pytest.param(["uploads/a.md", ""], id="empty-string"),
+        pytest.param([f"uploads/{'a' * 1100}.md"], id="overlong-path"),
+    ],
+)
+async def test_stream_rejects_attachment_input_beyond_sanity_limits(
+    client: AsyncClient,
+    current_user: User,
+    db_session: AsyncSession,
+    wired_runner: FakeAgentRunner,
+    attachments: list[str],
+) -> None:
+    """`attachments` is the one field the backend is supposed to have authored.
+
+    `POST /uploads` hands these paths back verbatim, so in a well-behaved round
+    trip they can only be short `uploads/<name>` strings — but the schema is
+    what enforces that, not the client's goodwill: the strings go straight into
+    the model-facing attachment note and into the checkpoint. These are sanity
+    ceilings against garbage, not a business rule, so what is pinned is the
+    refusal, not the exact numbers.
+    """
+    project, thread = await _make_thread(db_session, current_user)
+    wired_runner.events = [text_chunk_event("ok")]
+
+    response = await client.post(
+        f"/api/projects/{project.id}/chats/{thread.thread_id}/messages",
+        json={"content": "разбери", "attachments": attachments},
+    )
+
+    assert response.status_code == 422
+    # Rejected by the schema means no turn ever started — the runner is the
+    # thing that would otherwise have written this garbage into the checkpoint.
+    assert wired_runner.stream_calls == []
+
+
+async def test_stream_accepts_the_largest_attachment_batch_still_allowed(
+    client: AsyncClient,
+    current_user: User,
+    db_session: AsyncSession,
+    wired_runner: FakeAgentRunner,
+) -> None:
+    # The other side of the same boundary: the ceiling has to sit above any
+    # realistic drag-and-drop batch, so the last allowed one still streams.
+    project, thread = await _make_thread(db_session, current_user)
+    wired_runner.events = [text_chunk_event("ok")]
+    attachments = [f"uploads/a{index}.md" for index in range(50)]
+
+    url = f"/api/projects/{project.id}/chats/{thread.thread_id}/messages"
+    async with client.stream(
+        "POST", url, json={"content": "разбери", "attachments": attachments}
+    ) as response:
+        assert response.status_code == 200
+        await collect_sse(response)
+
+    assert wired_runner.stream_calls[0].attachments == attachments
+
+
 async def test_send_message_to_blocked_thread_returns_403(
     client: AsyncClient,
     current_user: User,

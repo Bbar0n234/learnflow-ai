@@ -29,6 +29,7 @@ from app.storage.workspace import (
     WorkspacePathError,
     artifact_type,
     extension_from_mime,
+    read_text_bounded,
     resolve_under_root,
     sanitize_filename,
     to_artifact_path,
@@ -192,6 +193,82 @@ def test_read_text_over_the_limit_is_truncated_and_flagged(
     assert (result.content, result.truncated) == ("01234", True)
 
 
+def test_read_text_of_a_file_exactly_at_the_limit_is_not_flagged(
+    make_workspace: Callable[..., Workspace], project_dir: Path
+) -> None:
+    # The bounded read asks for one character more than the ceiling precisely to
+    # tell "exactly at the limit" from "more follows" — off by one here and
+    # every file of exactly N characters would come back marked truncated.
+    workspace = make_workspace(read_limit_chars=5)
+    write_file(project_dir / "notes.md", "01234")
+
+    result = workspace.read_text(PROJECT_ID, "notes.md")
+
+    assert (result.content, result.truncated) == ("01234", False)
+
+
+def test_read_text_returns_a_multibyte_file_whole_when_its_characters_fit(
+    make_workspace: Callable[..., Workspace], project_dir: Path
+) -> None:
+    """A ceiling counted in characters must not be enforced in bytes.
+
+    Bounding the read means deciding *before* reading, and the only thing
+    available before reading is the byte size. Cyrillic is two bytes per
+    character in UTF-8, so this file is over the ceiling by bytes and under it
+    by characters — refusing it, or cutting it at the byte count, would silently
+    truncate ordinary Russian notes.
+    """
+    workspace = make_workspace(read_limit_chars=10)
+    write_file(project_dir / "notes.md", "конспект")
+
+    result = workspace.read_text(PROJECT_ID, "notes.md")
+
+    assert (result.content, result.truncated) == ("конспект", False)
+
+
+def test_read_text_far_over_the_limit_yields_exactly_the_limit(
+    make_workspace: Callable[..., Workspace], project_dir: Path
+) -> None:
+    # The failure this closes is a job writing a huge file into `artifacts/`
+    # and the backend materializing all of it before truncating. The observable
+    # contract is the same either way — the result is capped — so the assertion
+    # is on the size of what comes back, whatever the file behind it weighs.
+    workspace = make_workspace(read_limit_chars=64)
+    write_file(project_dir / "notes.md", "a" * 500_000)
+
+    result = workspace.read_text(PROJECT_ID, "notes.md")
+
+    assert result.content is not None
+    assert (len(result.content), result.truncated) == (64, True)
+
+
+def test_read_text_of_a_binary_file_over_the_limit_returns_no_content(
+    make_workspace: Callable[..., Workspace], project_dir: Path
+) -> None:
+    # Binary detection lives on both read paths now (whole-file and bounded),
+    # and the oversized one is the path a real PNG takes: callers still get
+    # `content is None` -> "use the media endpoint", not a raised decode error.
+    workspace = make_workspace(read_limit_chars=8)
+    (project_dir / "image.png").write_bytes(b"\x89PNG\r\n\x1a\n\xff\xfe" * 20)
+
+    result = workspace.read_text(PROJECT_ID, "image.png")
+
+    assert (result.content, result.truncated) == (None, False)
+
+
+def test_read_text_bounded_reads_a_path_the_rest_endpoint_already_resolved(
+    project_dir: Path,
+) -> None:
+    # The REST detail endpoint has no lower entry point than the raw `Path`, so
+    # the bound is a module-level primitive both callers share rather than a
+    # `Workspace` method. Same ceiling, same truncation flag, no project id.
+    write_file(project_dir / "artifacts/notes.md", "0123456789")
+
+    result = read_text_bounded(project_dir / "artifacts" / "notes.md", 4)
+
+    assert (result.content, result.truncated) == ("0123", True)
+
+
 def test_read_text_of_a_binary_file_returns_no_content(
     workspace: Workspace, project_dir: Path
 ) -> None:
@@ -337,6 +414,59 @@ def test_list_dir_hides_the_layers_own_temp_files(
     assert [e.path for e in entries] == ["notes.md"]
 
 
+def test_list_dir_skips_a_symlink_and_keeps_the_rest_of_the_listing(
+    workspace: Workspace, project_dir: Path, tmp_path: Path
+) -> None:
+    """One stray link must cost itself, not the whole listing.
+
+    A job can leave a symlink in `artifacts/` (`ln -s /etc/passwd x`) either
+    deliberately or as a toolchain side effect, and the product has no way to
+    remove it — the agent has no delete tool. Before the skip, `list_dir`
+    handed the link out as an ordinary entry and the caller's re-resolve
+    refused it, taking the entire project's artifact panel down with it.
+    """
+    outside = write_file(tmp_path / "outside" / "secret.txt", "s3cret")
+    write_file(project_dir / "artifacts/notes.md", "x")
+    write_file(project_dir / "artifacts/chart.png", "y")
+    (project_dir / "artifacts/leak.txt").symlink_to(outside)
+
+    entries = workspace.list_dir(PROJECT_ID, "artifacts")
+
+    assert [e.path for e in entries] == ["chart.png", "notes.md"]
+
+
+def test_list_dir_skips_a_dangling_symlink(
+    workspace: Workspace, project_dir: Path
+) -> None:
+    # A link to nothing is the cheaper half of the same bug: it isn't a path
+    # escape at all, it just makes `stat()` raise on a caller that assumed
+    # every listed entry exists.
+    write_file(project_dir / "artifacts/notes.md", "x")
+    (project_dir / "artifacts/dangling.txt").symlink_to(project_dir / "nope.txt")
+
+    assert [e.path for e in workspace.list_dir(PROJECT_ID, "artifacts")] == ["notes.md"]
+
+
+def test_list_dir_records_a_warning_for_every_skipped_symlink(
+    workspace: Workspace, project_dir: Path, tmp_path: Path
+) -> None:
+    # Routine filtering, not a security verdict (the resolve barrier owns that
+    # log) — but a file the agent wrote and cannot see must not vanish in
+    # silence either.
+    outside = write_file(tmp_path / "outside" / "secret.txt", "s3cret")
+    (project_dir / "artifacts").mkdir()
+    (project_dir / "artifacts/leak.txt").symlink_to(outside)
+
+    with capture_logs() as logs:
+        workspace.list_dir(PROJECT_ID, "artifacts")
+
+    assert [
+        entry["log_level"]
+        for entry in logs
+        if entry["event"] == "workspace listing skipped symlink"
+    ] == ["warning"]
+
+
 def test_list_dir_of_a_missing_directory_returns_empty(
     workspace: Workspace, project_dir: Path
 ) -> None:
@@ -458,6 +588,76 @@ def test_snapshot_artifacts_ignores_the_layers_temp_files(
     after = workspace.snapshot_artifacts(PROJECT_ID)
 
     assert workspace.diff_artifacts(before, after) == []
+
+
+def test_snapshot_artifacts_never_reads_through_a_symlink_out_of_the_workspace(
+    workspace: Workspace, project_dir: Path, tmp_path: Path
+) -> None:
+    """The snapshot walk is the one loop that bypasses the resolve barrier.
+
+    `rglob` + `is_file()` + `read_text()` follow a link out of the zone without
+    `resolve_path` ever running, so the outside file's *content* landed in the
+    backend's memory and its *line counts* went out in the artifact envelope's
+    diff. The link is invisible to the snapshot instead: appearing changes
+    nothing, and rewriting the target changes nothing either.
+    """
+    outside = write_file(tmp_path / "outside" / "secret.txt", "line one\n")
+    (project_dir / "artifacts").mkdir()
+
+    before = workspace.snapshot_artifacts(PROJECT_ID)
+    (project_dir / "artifacts/leak.txt").symlink_to(outside)
+    after_link = workspace.snapshot_artifacts(PROJECT_ID)
+    outside.write_text("line one\nline two\nline three\n", encoding="utf-8")
+    after_rewrite = workspace.snapshot_artifacts(PROJECT_ID)
+
+    assert after_link == {}
+    assert workspace.diff_artifacts(before, after_link) == []
+    assert workspace.diff_artifacts(after_link, after_rewrite) == []
+
+
+def test_snapshot_artifacts_keeps_the_real_files_beside_a_skipped_symlink(
+    workspace: Workspace, project_dir: Path, tmp_path: Path
+) -> None:
+    # The skip is per entry: the job's own output still has to be reported.
+    outside = write_file(tmp_path / "outside" / "secret.txt", "s3cret\n")
+    write_file(project_dir / "artifacts/notes.md", "one\n")
+    (project_dir / "artifacts/leak.txt").symlink_to(outside)
+    before = workspace.snapshot_artifacts(PROJECT_ID)
+    write_file(project_dir / "artifacts/notes.md", "one\ntwo\n")
+    after = workspace.snapshot_artifacts(PROJECT_ID)
+
+    entries = workspace.diff_artifacts(before, after)
+
+    assert [(e.path, e.kind) for e in entries] == [("notes.md", "updated")]
+
+
+def test_snapshot_artifacts_records_a_warning_for_a_skipped_symlink(
+    workspace: Workspace, project_dir: Path, tmp_path: Path
+) -> None:
+    outside = write_file(tmp_path / "outside" / "secret.txt", "s3cret\n")
+    (project_dir / "artifacts").mkdir()
+    (project_dir / "artifacts/leak.txt").symlink_to(outside)
+
+    with capture_logs() as logs:
+        workspace.snapshot_artifacts(PROJECT_ID)
+
+    assert [
+        entry["log_level"]
+        for entry in logs
+        if entry["event"] == "artifact snapshot skipped symlink"
+    ] == ["warning"]
+
+
+def test_snapshot_artifacts_survives_a_dangling_symlink(
+    workspace: Workspace, project_dir: Path
+) -> None:
+    # `entry.is_file()` is already False for a broken link, so the pre-fix code
+    # skipped it — but only because the check ran before `stat()`. Pinning it
+    # keeps the ordering of the two guards from regressing into a crash.
+    write_file(project_dir / "artifacts/notes.md", "one\n")
+    (project_dir / "artifacts/dangling.txt").symlink_to(project_dir / "nope.txt")
+
+    assert list(workspace.snapshot_artifacts(PROJECT_ID)) == ["notes.md"]
 
 
 def test_snapshot_artifacts_of_a_project_without_artifacts_is_empty(

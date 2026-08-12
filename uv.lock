@@ -601,9 +601,11 @@ source = { virtual = "services/executor" }
 dependencies = [
     { name = "docxcompose" },
     { name = "fastapi" },
+    { name = "lxml" },
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "pandas" },
+    { name = "pillow" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pypdf" },
@@ -622,9 +624,11 @@ dev = [
 requires-dist = [
     { name = "docxcompose", specifier = ">=1.4" },
     { name = "fastapi", specifier = ">=0.135.1" },
+    { name = "lxml", specifier = ">=6.1.1" },
     { name = "matplotlib", specifier = ">=3.9" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "pandas", specifier = ">=2.2" },
+    { name = "pillow", specifier = ">=12.3.0" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pydantic-settings", specifier = ">=2.13.1" },
     { name = "pypdf", specifier = ">=5.1" },

@@ -3,6 +3,7 @@ import { Paperclip, SendHorizontal, Square } from "lucide-react";
 import { Textarea } from "@/shared/ui/textarea";
 import { AttachmentChip } from "@/shared/ui/AttachmentChip";
 import { DragOverlay } from "@/shared/ui/DragOverlay";
+import { logger } from "@/shared/lib/logger";
 import { useComposerAttachments } from "@/shared/lib/use-composer-attachments";
 import { useFileDrop } from "@/shared/lib/use-file-drop";
 
@@ -72,16 +73,36 @@ export function ChatInput({
     if (!hasContent || isDisabled) return;
     const files = attachments.map((a) => a.file);
     setBusy(true);
-    const ok = await onSend(trimmed, files);
-    setBusy(false);
-    // Отправка допустима при пустом тексте, если есть вложения (§ Тайминг) —
-    // `trimmed` тогда пустая строка, `onSend` сам решает, что с ней делать.
-    if (ok === false) return;
-    // Uncontrolled: always clear after a successful dispatch (existing chat
-    // behaviour). Controlled: leave clearing to the parent — the draft
-    // composer never clears on error, so the message isn't lost.
-    if (!isControlled) setInternalValue("");
-    clearAttachments();
+    try {
+      // Отправка допустима при пустом тексте, если есть вложения (§ Тайминг) —
+      // `trimmed` тогда пустая строка, `onSend` сам решает, что с ней делать.
+      // Докстринг пропа объявляет отклонённый промис поддерживаемым исходом
+      // наравне с `false`: оба вызывающих места делают `void handleSend()`, так
+      // что необработанный тут отказ всплывал бы дальше как unhandled rejection
+      // (Vitest красит прогон, в браузере — unhandledrejection). Реальные
+      // вызывающие (`ChatThread`, `ChatDraft`) сами ловят свои ошибки и
+      // показывают их пользователю (inline под композером), никогда не отклоняя
+      // промис, — здесь только страхуемся и логируем на случай, если какой-то
+      // будущий caller решит отклонить.
+      let ok: boolean | void;
+      try {
+        ok = await onSend(trimmed, files);
+      } catch (err) {
+        logger.error("[ChatInput] onSend rejected", err);
+        return;
+      }
+      if (ok === false) return;
+      // Uncontrolled: always clear after a successful dispatch (existing chat
+      // behaviour). Controlled: leave clearing to the parent — the draft
+      // composer never clears on error, so the message isn't lost.
+      if (!isControlled) setInternalValue("");
+      clearAttachments();
+    } finally {
+      // A rejected `onSend` (docstring above: a supported outcome, same as
+      // returning `false`) must not leave the composer disabled forever —
+      // `finally` resets `busy` on every exit path, not just the resolved one.
+      setBusy(false);
+    }
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {

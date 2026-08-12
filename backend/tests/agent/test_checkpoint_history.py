@@ -26,6 +26,7 @@ from app.services.agent_runner import (
     ToolCallPart,
 )
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from structlog.testing import capture_logs
 
 
 class _Tuple:
@@ -605,6 +606,73 @@ async def test_history_replays_one_artifact_part_per_file_a_job_touched() -> Non
         "a.md",
         "b.png",
     ]
+
+
+@pytest.mark.unit
+async def test_history_of_a_legacy_dict_artifact_renders_the_turn_without_cards() -> (
+    None
+):
+    """A checkpoint written before this iteration must not 500 the whole chat.
+
+    ``create_artifact``/``generate_image`` used to key ``ToolMessage.artifact``
+    as a single ``dict``; the file model reads it as a *list*, and iterating a
+    dict yields its string keys — ``item.get(...)`` on a ``str`` raises, and
+    nothing between here and ``GET /chats/{thread_id}`` catches it, so every
+    thread that ever called those tools would answer 500. ADR-032 designs no
+    history back-compat, so the contract is degradation, not migration: zero
+    artifact parts, the rest of the turn intact.
+    """
+    messages = [
+        HumanMessage(content="save it", id="h1"),
+        AIMessage(
+            content="",
+            id="a1",
+            tool_calls=[{"name": "create_artifact", "args": {}, "id": "c"}],
+        ),
+        ToolMessage(
+            content="Artifact created",
+            id="t1",
+            tool_call_id="c",
+            name="create_artifact",
+            artifact={"id": "uuid-1", "title": "T", "type": "md"},
+        ),
+        AIMessage(content="saved", id="a2"),
+    ]
+
+    result = await _history(messages).history(THREAD)
+
+    assert [type(p).__name__ for p in result[1].parts] == ["ToolCallPart", "TextPart"]
+    assert not [p for p in result[1].parts if isinstance(p, ArtifactPart)]
+
+
+@pytest.mark.unit
+async def test_history_records_a_warning_for_a_legacy_dict_artifact() -> None:
+    # Silent skipping would make "old chat lost its artifact cards" invisible;
+    # the tool_call_id is what ties the line back to a concrete checkpoint.
+    messages = [
+        HumanMessage(content="save it", id="h1"),
+        AIMessage(
+            content="",
+            id="a1",
+            tool_calls=[{"name": "create_artifact", "args": {}, "id": "c"}],
+        ),
+        ToolMessage(
+            content="Artifact created",
+            id="t1",
+            tool_call_id="c",
+            name="create_artifact",
+            artifact={"id": "uuid-1", "title": "T", "type": "md"},
+        ),
+    ]
+
+    with capture_logs() as logs:
+        await _history(messages).history(THREAD)
+
+    assert [
+        (entry["event"], entry["log_level"], entry["tool_call_id"])
+        for entry in logs
+        if entry["event"] == "legacy non-list ToolMessage.artifact skipped"
+    ] == [("legacy non-list ToolMessage.artifact skipped", "warning", "c")]
 
 
 @pytest.mark.unit

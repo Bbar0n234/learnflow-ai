@@ -728,6 +728,8 @@ kill-контракта, которая не помещается в `bwrap`-ф�
   доехал через tini); `make smoke-executor` — все шесть сценариев зелёные;
   executor-строка `make test` — 87 passed.
 
+- **F8 (нит B, code review) — `pillow`/`lxml` были только транзитивными зависимостями, хотя `system.txt` обещает их напрямую.** Добавлены явно в `services/executor/pyproject.toml` (`pillow>=12.3.0`, `lxml>=6.1.1` — версии уже разрешённые в `uv.lock`); один прогон `uv lock` + `uv sync --all-packages`, diff `uv.lock` ограничен ровно этими двумя записями зависимостей `executor`. `services/executor` — 87 passed.
+
 ## Follow-ups
 
 - `backend/tests/agent/test_pricing_external.py::test_active_model_prices_within_drift_tolerance`

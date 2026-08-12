@@ -66,17 +66,26 @@ def _artifact_parts(tool_message: ToolMessage) -> list[ArtifactPart]:
     Mirrors ``stream_events.artifact_envelopes``' reading of the same list —
     this is the checkpoint-replay half, this module's one job (module
     docstring: the single place that knows the ``channel_values["messages"]``
-    shape). ``write_file`` (T1.3) already keys its element as ``"path"``;
-    ``generate_image`` (pre-T1.7, still PG-backed) keys its own as ``"id"`` —
-    falling back to it here keeps the part's `path` populated rather than
-    empty until that tool's file-layer migration lands.
+    shape). Every artifact-producing tool keys its element as ``"path"``.
+
+    Older checkpoints (written before this iteration) carry ``artifact`` as a
+    single ``dict``, not a list of dicts — ADR-032 does not design history
+    back-compat for that shape, so it is a defensive guard, not a migration:
+    a non-list value is skipped entirely (zero parts), the turn still renders,
+    just without artifact cards.
     """
     artifact = tool_message.artifact
     if not artifact:
         return []
+    if not isinstance(artifact, list):
+        logger.warning(
+            "legacy non-list ToolMessage.artifact skipped",
+            tool_call_id=tool_message.tool_call_id,
+        )
+        return []
     return [
         ArtifactPart(
-            path=item.get("path") or item.get("id", ""),
+            path=item.get("path", ""),
             title=item.get("title", ""),
             type=item.get("type", ""),
             kind=item.get("kind", "created"),

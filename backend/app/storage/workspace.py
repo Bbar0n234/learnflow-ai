@@ -103,6 +103,48 @@ class ReadResult:
     truncated: bool
 
 
+def read_text_bounded(target: Path, limit: int) -> ReadResult:
+    """Read `target` as UTF-8 text, never materializing more than ~`limit` chars.
+
+    Two read paths, chosen by a `stat()` done up front rather than after the
+    fact: a file whose *byte* size already fits under `limit` is guaranteed
+    to fit under it in *characters* too (UTF-8 encodes every character in at
+    least one byte), so it is read in one call exactly as before. A file over
+    that size may still decode to fewer than `limit` characters (multi-byte
+    text), so it isn't refused outright — it's read through a text-mode file
+    handle capped at `limit + 1` characters (the `+1` is enough to tell
+    "exactly at the limit" from "more follows" without reading the rest just
+    to find out). Either way the process never holds more than one file's
+    worth of *legitimate* content in memory — the OOM shape this closes is a
+    multi-gigabyte `artifacts/` file (job output, upload) read whole before
+    the existing post-read truncation ever got a chance to run.
+
+    Shared by `Workspace.read_text` and `ArtifactWorkspaceService.
+    get_artifact_detail` (`app/services/artifact_workspace.py`) — both read
+    an already-resolved `Path` against the same class of ceiling (`Workspace.
+    read_limit_chars` for the latter), so the bound lives once, here.
+
+    Raises the same `OSError` subclasses a plain `Path.read_text()`/`.open()`
+    would (`FileNotFoundError`, `IsADirectoryError`, ...) — callers already
+    handle those; only decoding is special-cased here, same as before.
+    """
+    size = target.stat().st_size
+    if size <= limit:
+        try:
+            raw = target.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            return ReadResult(content=None, truncated=False)
+        return ReadResult(content=raw, truncated=False)
+
+    try:
+        with target.open(encoding="utf-8") as f:
+            raw = f.read(limit + 1)
+    except UnicodeDecodeError:
+        return ReadResult(content=None, truncated=False)
+    truncated = len(raw) > limit
+    return ReadResult(content=raw[:limit] if truncated else raw, truncated=truncated)
+
+
 @dataclass(frozen=True)
 class DiffCounts:
     """Compact line-diff counters for a text file update."""
@@ -270,6 +312,16 @@ class Workspace:
         )
         raise WorkspacePathError(path=path, reason=reason)
 
+    @property
+    def read_limit_chars(self) -> int:
+        """The char ceiling `read_text` truncates to.
+
+        Exposed so `ArtifactWorkspaceService.get_artifact_detail` — a second,
+        REST-only read path over an already-resolved `Path` — can cap at the
+        same class of limit instead of reading unbounded.
+        """
+        return self._read_limit_chars
+
     # -- Read / write / list ---------------------------------------------
 
     def read_text(self, project_id: str, path: str) -> ReadResult:
@@ -278,18 +330,12 @@ class Workspace:
         Raises the usual `OSError` subclasses (`FileNotFoundError`,
         `IsADirectoryError`, ...) for filesystem realities — only the
         path-resolution step has a dedicated exception; a missing file is not
-        a security concern for this layer's callers to special-case.
+        a security concern for this layer's callers to special-case. Bounded
+        by `read_text_bounded` — never reads more of the file into memory
+        than the limit could ever need.
         """
         target = self.resolve_path(project_id, path)
-        try:
-            raw = target.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            return ReadResult(content=None, truncated=False)
-        truncated = len(raw) > self._read_limit_chars
-        return ReadResult(
-            content=raw[: self._read_limit_chars] if truncated else raw,
-            truncated=truncated,
-        )
+        return read_text_bounded(target, self._read_limit_chars)
 
     def write_text(self, project_id: str, path: str, content: str) -> WriteResult:
         """Write `content` to `path` atomically (tmp + rename in the same dir).
@@ -354,11 +400,24 @@ class Workspace:
             raise NotADirectoryError(str(root))
 
         iterator = root.rglob("*") if recursive else root.iterdir()
-        entries = [
-            ListEntry(path=entry.relative_to(root).as_posix(), is_dir=entry.is_dir())
-            for entry in iterator
-            if not entry.name.startswith(TMP_FILE_PREFIX)
-        ]
+        entries: list[ListEntry] = []
+        for entry in iterator:
+            if entry.name.startswith(TMP_FILE_PREFIX):
+                continue
+            if entry.is_symlink():
+                # A symlink is not an artifact/workspace file (ADR-032 § Границы
+                # путей already refuses to resolve one that escapes the zone);
+                # skipping it here keeps one stray link (job-created or
+                # dangling) from failing the whole listing instead of just
+                # itself. No security log per skip — that's the resolve-time
+                # boundary's job, this is routine filtering.
+                logger.warning("workspace listing skipped symlink", path=str(entry))
+                continue
+            entries.append(
+                ListEntry(
+                    path=entry.relative_to(root).as_posix(), is_dir=entry.is_dir()
+                )
+            )
         return sorted(entries, key=lambda e: e.path)
 
     # -- Lifecycle ---------------------------------------------------------
@@ -392,7 +451,17 @@ class Workspace:
         snapshot: ArtifactSnapshot = {}
         total_bytes = 0
         for entry in sorted(artifacts_root.rglob("*")):
-            if not entry.is_file() or entry.name.startswith(TMP_FILE_PREFIX):
+            if entry.name.startswith(TMP_FILE_PREFIX):
+                continue
+            if entry.is_symlink():
+                # Same policy as `list_dir`: a symlink is not an artifact, and
+                # reading through one here would follow it out of the zone
+                # without the resolve-time boundary check ever running (this
+                # loop walks the filesystem directly, not through
+                # `resolve_path`/`resolve_artifact_path`).
+                logger.warning("artifact snapshot skipped symlink", path=str(entry))
+                continue
+            if not entry.is_file():
                 continue
             stat = entry.stat()
             content: str | None = None

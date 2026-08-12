@@ -25,6 +25,7 @@ from urllib.parse import unquote
 import pytest
 from app.models.user import User
 from app.storage.workspace import Workspace
+from fastapi import FastAPI
 from httpx import AsyncClient
 
 from tests.projects._builders import create_other_project, create_owned_project
@@ -106,6 +107,37 @@ async def test_list_artifacts_honours_limit_and_offset(
     body = response.json()
     assert [item["path"] for item in body["items"]] == ["a1.md"]
     assert (body["total"], body["limit"], body["offset"]) == (3, 1, 1)
+
+
+async def test_list_artifacts_keeps_answering_when_a_job_left_a_symlink(
+    client: AsyncClient,
+    current_user: User,
+    workspace: Workspace,
+    workspaces_root: Path,
+    tmp_path: Path,
+) -> None:
+    """A single symlink in `artifacts/` used to take the whole panel down.
+
+    A job can create one (`ln -s /etc/passwd artifacts/leak.txt`) deliberately
+    or as a toolchain side effect, and the agent has no tool to remove it: the
+    422/500 it caused would have stayed until someone touched the volume by
+    hand. The listing skips it now — the panel answers 200 with the project's
+    real files, and the link is not among them under any name.
+    """
+    project = await create_owned_project(current_user)
+    outside = tmp_path / "outside.txt"
+    outside.write_text("s3cret", encoding="utf-8")
+    _artifact(workspaces_root, project.id, "notes.md", "# Notes")
+    artifacts_dir = workspaces_root / str(project.id) / "artifacts"
+    (artifacts_dir / "leak.txt").symlink_to(outside)
+    (artifacts_dir / "dangling.txt").symlink_to(artifacts_dir / "nope.txt")
+
+    response = await client.get(f"/api/projects/{project.id}/artifacts")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [item["path"] for item in body["items"]] == ["notes.md"]
+    assert body["total"] == 1
 
 
 async def test_list_artifacts_of_someone_elses_project_is_404(
@@ -217,6 +249,41 @@ async def test_get_an_artifact_whose_path_is_not_ascii(
     assert body["path"] == "лекции/Лекция №1.md"
     assert body["title"] == "Лекция №1.md"
     assert body["content"] == "# Лекция"
+
+
+async def test_get_a_huge_artifact_is_capped_by_the_same_read_ceiling(
+    client: AsyncClient,
+    current_user: User,
+    workspace: Workspace,
+    workspaces_root: Path,
+    app: FastAPI,
+    tmp_path: Path,
+) -> None:
+    """Detail is a second read path over the raw file — it needs the same knob.
+
+    The agent's `read_file` is bounded by `Workspace.read_text`; this endpoint
+    reaches the file directly, so it used to serve whatever a job had written
+    there in full. A gigabyte of `cat` output in `artifacts/` is exactly the
+    failure the executor's own output ceiling exists to prevent, reintroduced
+    through REST. The ceiling is dialled down here rather than the file dialled
+    up — the number is an operational knob, its enforcement is the contract.
+    """
+    project = await create_owned_project(current_user)
+    _artifact(workspaces_root, project.id, "huge.md", "a" * 5_000)
+    app.state.workspace = Workspace(
+        workspaces_root=workspaces_root,
+        skills_root=tmp_path / "skills",
+        read_limit_chars=64,
+        diff_file_limit_bytes=1_000_000,
+        diff_total_limit_bytes=10_000_000,
+    )
+
+    response = await client.get(
+        f"/api/projects/{project.id}/artifacts", params={"path": "huge.md"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["content"] == "a" * 64
 
 
 async def test_get_a_missing_artifact_is_404(

@@ -178,6 +178,50 @@ def test_an_updated_element_yields_an_artifact_updated_envelope_with_its_diff() 
 
 
 @pytest.mark.unit
+def test_a_binary_update_still_carries_an_explicit_null_diff() -> None:
+    # `_artifact_item` omits `diff` entirely when the file is binary or over the
+    # copy budget, but the wire contract (design-brief § «Создание vs
+    # обновление»: «для бинарных — тоже `null`») and the frontend type declare
+    # the field as always present on `artifact_updated`. A missing key is not a
+    # null: the envelope has to spell it out.
+    message = ToolMessage(
+        content="ok",
+        tool_call_id="c1",
+        name="run_command",
+        artifact=[
+            {
+                "type": "png",
+                "path": "chart.png",
+                "title": "chart.png",
+                "kind": "updated",
+            }
+        ],
+    )
+
+    envelopes = artifact_envelopes(message)
+
+    assert envelopes[0]["type"] == "artifact_updated"
+    assert "diff" in envelopes[0]["data"]
+    assert envelopes[0]["data"]["diff"] is None
+
+
+@pytest.mark.unit
+def test_a_legacy_dict_artifact_yields_no_envelope() -> None:
+    # Pre-iteration tools keyed `artifact` as a single dict; iterating it walks
+    # its string keys and `dict(item)` on a `str` raises. The guard is kept in
+    # sync with the read side (`checkpoint_history._artifact_parts`) rather than
+    # trusted to be unreachable on a live run.
+    message = ToolMessage(
+        content="ok",
+        tool_call_id="c1",
+        name="create_artifact",
+        artifact={"id": "a1", "title": "T", "type": "note"},
+    )
+
+    assert artifact_envelopes(message) == []
+
+
+@pytest.mark.unit
 def test_multiple_elements_yield_one_envelope_each_in_order() -> None:
     # A job touching several files -> N envelopes off one ToolMessage
     # (design-brief: "джоба с N файлами -> N ArtifactPart").

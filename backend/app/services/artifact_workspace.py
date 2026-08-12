@@ -19,7 +19,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from app.storage.workspace import ARTIFACTS_DIR, Workspace, artifact_type
+from app.storage.workspace import (
+    ARTIFACTS_DIR,
+    Workspace,
+    artifact_type,
+    read_text_bounded,
+)
 
 
 @dataclass(frozen=True)
@@ -85,10 +90,12 @@ class ArtifactWorkspaceService:
         if target.is_dir():
             return None
 
-        try:
-            content: str | None = target.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            content = None
+        # Same ceiling `read_text` truncates to, same bounded-read primitive
+        # — this REST path has no lower entry point than the raw file, so it
+        # must bound itself rather than rely on a caller having already done
+        # so (unlike the agent's `read_file` tool, which always goes through
+        # `Workspace.read_text`).
+        content = read_text_bounded(target, self._workspace.read_limit_chars).content
 
         return ArtifactDetail(
             path=path,

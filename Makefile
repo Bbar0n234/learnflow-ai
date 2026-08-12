@@ -24,7 +24,7 @@ docker-down:  ## Stop all containers
 docker-build:  ## Build Docker images
 	docker compose build
 
-docker-build-executor:  ## Build the executor image standalone (not wired into docker-compose.yml yet)
+docker-build-executor:  ## Build the executor image standalone (also built as part of `make docker-build`/`docker-up`, which run docker-compose.yml's own build)
 	docker build -f services/executor/Dockerfile -t learnflow-executor:local .
 
 # Executor image release gate: runs services/executor/smoke/run_all.sh (the

@@ -121,6 +121,38 @@ describe("ChatInput — вложения до отправки", () => {
     expect(screen.getByText("huge.pdf")).toBeInTheDocument();
   });
 
+  it("после отклонённой отправки композер снова готов к повторной попытке", async () => {
+    // Докстринг пропа объявляет отклонённый промис поддерживаемым исходом
+    // наравне с `false` («держит текст и чипы»). Без сброса `busy` на этой
+    // ветке композер оставался задизейбленным до перемонтирования: и текст, и
+    // файл на месте, а отправить их нечем — единственный выход у пользователя
+    // был перезагрузить страницу и потерять набранное.
+    const onSend = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("upload failed"))
+      .mockResolvedValueOnce(true);
+    const { container } = renderComposer(onSend);
+    const field = screen.getByPlaceholderText("Сообщение...");
+
+    await userEvent.type(field, "Разбери конспект");
+    attach(container, file("konspekt.md"));
+    await userEvent.click(screen.getByRole("button", { name: "Отправить" }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+    // Ничего не потеряно и всё снова активно.
+    const send = screen.getByRole("button", { name: "Отправить" });
+    await waitFor(() => expect(send).toBeEnabled());
+    expect(field).toHaveValue("Разбери конспект");
+    expect(
+      screen.getByRole("button", { name: "Убрать konspekt.md" }),
+    ).toBeEnabled();
+
+    await userEvent.click(send);
+
+    expect(onSend).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(field).toHaveValue(""));
+    expect(screen.queryByText("konspekt.md")).not.toBeInTheDocument();
+  });
+
   it("не заводит вторую отправку той же партии, пока идёт первая", async () => {
     // Окно между кликом и стартом хода занято загрузкой файлов — повторный
     // клик здесь загрузил бы те же файлы во второй раз и завёл второй ход.

@@ -7,6 +7,7 @@ not which collaborator methods fired.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
@@ -17,6 +18,7 @@ from app.repositories.project import ProjectRepository
 from app.services.exceptions import EntityNotFoundError
 from app.services.project import ProjectService
 from app.storage.workspace import Workspace
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.projects.fakes import FakeMCPServerRepository, FakeProjectRepository
 
@@ -147,3 +149,61 @@ async def test_delete_project_also_removes_its_workspace_directory(
 
     assert stored.id not in repo.projects
     assert not (workspaces_root / str(stored.id)).exists()
+
+
+class _RecordingSession:
+    """Records what the world looked like at the moment ``commit()`` was called."""
+
+    def __init__(self, observe: Callable[[], object]) -> None:
+        self._observe = observe
+        self.observations: list[object] = []
+
+    async def commit(self) -> None:
+        self.observations.append(self._observe())
+
+
+async def test_delete_project_commits_the_row_before_touching_the_files(
+    tmp_path: Path,
+) -> None:
+    """DB transaction first, best-effort file side effect after.
+
+    `ProjectRepository.delete` only flushes; the commit belongs to the
+    request-scoped session dependency, which runs *after* this method returns.
+    Wiping the directory before that point means a rollback anywhere later
+    leaves a live project row over a workspace that is already gone — and the
+    workspace is unrecoverable, the row is not. Same order `ChatService.
+    delete_chat` established for checkpoint cleanup, asserted the same way: on
+    what is true when the commit happens, not on who called whom.
+    """
+    workspaces_root = tmp_path / "workspaces"
+    workspaces_root.mkdir()
+    skills_root = tmp_path / "skills"
+    skills_root.mkdir()
+    workspace = Workspace(
+        workspaces_root=workspaces_root,
+        skills_root=skills_root,
+        read_limit_chars=1000,
+        diff_file_limit_bytes=1000,
+        diff_total_limit_bytes=1000,
+    )
+    repo = FakeProjectRepository()
+    stored = Project(id=uuid.uuid4(), user_id=uuid.uuid4(), name="Doomed")
+    repo._add(stored)
+    project_dir = workspaces_root / str(stored.id)
+    workspace.write_text(str(stored.id), "artifacts/notes.md", "x")
+    session = _RecordingSession(
+        lambda: (stored.id in repo.projects, project_dir.exists())
+    )
+    service = ProjectService(
+        project_repo=cast(ProjectRepository, repo),
+        mcp_server_repo=cast(MCPServerRepository, FakeMCPServerRepository()),
+        workspace=workspace,
+        session=cast(AsyncSession, session),
+    )
+
+    await service.delete_project(stored.id)
+
+    # Exactly one commit, and at that instant the row was already gone while
+    # the directory was still there — i.e. the files come down strictly after.
+    assert session.observations == [(False, True)]
+    assert not project_dir.exists()

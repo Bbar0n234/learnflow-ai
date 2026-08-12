@@ -95,6 +95,7 @@ def get_project_service(session: DBSession, request: Request) -> ProjectService:
         # Optional with a None default: ASGI tests build the app without
         # running the lifespan, so `app.state.workspace` never exists there.
         workspace=getattr(request.app.state, "workspace", None),
+        session=session,
     )
 
 

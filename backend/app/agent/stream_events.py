@@ -70,8 +70,13 @@ def artifact_envelopes(message: ToolMessage) -> list[dict[str, Any]]:
     Wire-name for the file's own type is ``artifact_type`` — the flat envelope
     ``messages.py`` builds (``{"type": event.type, **event.data}``) would let a
     payload key literally named ``type`` clobber the event's own.
+
+    A non-list ``artifact`` (older checkpoint form — see ``checkpoint_history.
+    _artifact_parts``) never reaches this path on a live run — this module only
+    ever sees messages the tools node just produced — but the guard is kept in
+    sync with the read side rather than trusted implicitly.
     """
-    if not message.artifact:
+    if not message.artifact or not isinstance(message.artifact, list):
         return []
     envelopes: list[dict[str, Any]] = []
     for item in message.artifact:
@@ -79,6 +84,7 @@ def artifact_envelopes(message: ToolMessage) -> list[dict[str, Any]]:
         data["artifact_type"] = data.pop("type", "")
         kind = data.pop("kind", "created")
         if kind == "updated":
+            data.setdefault("diff", None)
             envelopes.append({"type": "artifact_updated", "data": data})
         else:
             data.pop("diff", None)

@@ -142,14 +142,14 @@ class OAuthService:
             except IntegrityError as exc:
                 constraint = _constraint_name(exc)
                 if constraint == _USERS_NAME_CONSTRAINT:
-                    logger.info(
+                    logger.warning(
                         "oauth user name collision, retrying with suffix",
                         provider=profile.provider,
                         attempt=attempt,
                     )
                     continue
                 if constraint == _OAUTH_ACCOUNT_CONSTRAINT:
-                    logger.info(
+                    logger.warning(
                         "oauth account race detected on create, degrading to lookup",
                         provider=profile.provider,
                     )

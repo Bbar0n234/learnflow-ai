@@ -179,9 +179,33 @@ class StubGeoipReader:
         return self.record
 
 
+class CorruptGeoipReader:
+    """A reader over a corrupt-but-openable MMDB: every lookup blows up.
+
+    ``open_reader`` only reads the header, so a truncated or damaged database
+    opens successfully and fails on the first ``get`` with
+    ``maxminddb.InvalidDatabaseError`` — a ``RuntimeError``, not a
+    ``ValueError``, which is why it needs its own stand-in.
+    """
+
+    def __init__(self) -> None:
+        self.queried: list[str] = []
+
+    def get(self, ip: str) -> Record | None:
+        self.queried.append(ip)
+        raise maxminddb.InvalidDatabaseError(
+            "Invalid record pointer in the search tree"
+        )
+
+
 def geoip_reader_for(record: Record | None) -> maxminddb.Reader:
     """A stub reader typed as the real one for call sites that require it."""
     return cast("maxminddb.Reader", StubGeoipReader(record))
+
+
+def corrupt_geoip_reader() -> maxminddb.Reader:
+    """A reader whose lookups raise like a corrupt database's do."""
+    return cast("maxminddb.Reader", CorruptGeoipReader())
 
 
 # --------------------------------------------------------------------------

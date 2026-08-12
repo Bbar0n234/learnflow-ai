@@ -158,6 +158,31 @@ describe("App — бутстрап аутентификации", () => {
     // доходит до конца, а не отдельная проверка количества заголовков.
   });
 
+  it("на таймаут бутстрапа тихо остаётся анонимом и уводит на /login", async () => {
+    const loggerError = vi.spyOn(logger, "error");
+    // Настоящий бюджет (30 с) кейсу не отмотать: fake timers на связке
+    // fetch + MSW + React Query делают прогон недетерминированным, а живое
+    // ожидание — тридцатисекундным. Подменяется источник сигнала: фабрика
+    // отдаёт уже сработавший `AbortSignal`, то есть `fetch` видит ровно то,
+    // что увидел бы по истечении бюджета. Сторож двусторонний — если сигнал
+    // перестанут передавать в `fetch`, подмена ни на что не повлияет,
+    // хендлер ответит 200 и кейс покраснеет на отсутствии формы входа.
+    vi.spyOn(AbortSignal, "timeout").mockReturnValue(AbortSignal.abort());
+    const refresh = refreshHandler(200);
+    server.use(refresh.handler, authProvidersHandlers.ru());
+
+    const { queryErrors } = renderApp("/projects/p1");
+
+    expect(
+      await screen.findByRole("heading", { name: LOGIN_HEADING }),
+    ).toBeInTheDocument();
+    expect(getAccessToken()).toBeNull();
+    // Оборвавшийся по таймауту бутстрап — тот же тихий путь анонима, что и
+    // 401: гейт обязан открыться (`ready`), а error-канал остаться молчащим.
+    expect(queryErrors).not.toHaveBeenCalled();
+    expect(loggerError).not.toHaveBeenCalled();
+  });
+
   it("с access в localStorage готов сразу и не ходит на refresh", async () => {
     setAccessToken(fakeJwt());
     const refresh = refreshHandler(200);

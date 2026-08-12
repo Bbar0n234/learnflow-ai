@@ -23,8 +23,8 @@ class OAuthProfile:
 class OAuthProvider(Protocol):
     """Point of variability across OAuth providers (conventions.md § Интерфейсы).
 
-    Implementations (``yandex.py``, and later ``google.py``/``github.py``)
-    hold their own ``client_id``/``client_secret`` (sourced from ``Settings``
+    Implementations (``yandex.py``, ``google.py``, ``github.py``) hold their
+    own ``client_id``/``client_secret`` (sourced from ``Settings``
     at registry build time) and a reference to the shared
     ``httpx.AsyncClient`` — no module-level state, no per-request client
     construction (design-brief.md § Провайдер-слой). Instances are assembled

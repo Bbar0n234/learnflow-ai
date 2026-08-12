@@ -172,6 +172,21 @@ async def test_a_user_who_changed_their_mind_is_not_a_security_event(
 
 
 @pytest.mark.integration
+async def test_a_provider_error_code_is_not_a_security_event(stand: OAuthStand) -> None:
+    # A provider answering `error=server_error` (or a revoked client secret) is
+    # the same outage category as a failed token exchange: it earns a warning
+    # in the log, not an entry in the analyst's queue.
+    with capture_logs() as logs:
+        await stand.client.get(
+            CALLBACK.format(provider="yandex"),
+            params={"error": "server_error"},
+            cookies=_flow_cookie(),
+        )
+
+    assert security_events(logs) == []
+
+
+@pytest.mark.integration
 async def test_a_region_refusal_is_not_a_security_event(stand: OAuthStand) -> None:
     # Showing fewer buttons in a region is policy, not an incident; it would
     # otherwise fire on every ordinary Russian visitor.

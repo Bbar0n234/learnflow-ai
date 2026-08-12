@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 OAUTH_PROVIDERS = ("yandex", "google", "github")
+_OAUTH_PROVIDERS_SQL = ", ".join(f"'{provider}'" for provider in OAUTH_PROVIDERS)
 
 
 class OAuthAccount(Base):
@@ -28,7 +29,7 @@ class OAuthAccount(Base):
     __table_args__ = (
         UniqueConstraint("provider", "provider_account_id"),
         CheckConstraint(
-            "provider IN ('yandex', 'google', 'github')",
+            f"provider IN ({_OAUTH_PROVIDERS_SQL})",
             name="provider_allowed",
         ),
     )

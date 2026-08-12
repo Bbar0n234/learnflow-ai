@@ -25,7 +25,7 @@ export interface LoginScreenViewProps {
   onModeToggle: () => void;
   error: string;
   loading: boolean;
-  /** Блок кнопок провайдеров — наполняется в T2.4, здесь только слот каркаса. */
+  /** Блок кнопок провайдеров — слот каркаса, пуст при пустом составе провайдеров. */
   providersSlot?: ReactNode;
 }
 

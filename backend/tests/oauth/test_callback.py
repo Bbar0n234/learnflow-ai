@@ -28,6 +28,7 @@ from app.models.user import User
 from httpx import Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from structlog.testing import capture_logs
 
 from tests.oauth._helpers import (
     FakeProvider,
@@ -180,7 +181,7 @@ async def test_callback_budget_is_counted_per_client_address(
 
 
 # ---------------------------------------------------------------------------
-# Branch 1: the user refused on the provider's screen
+# Branch 1: the provider came back with an error code — a refusal or a fault
 # ---------------------------------------------------------------------------
 
 
@@ -231,6 +232,59 @@ async def test_callback_user_refusal_without_a_cookie_sets_none(
     response = await _callback(stand, error="access_denied")
 
     assert cookie_header(response, FLOW_COOKIE) is None
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "code",
+    ["server_error", "invalid_client", "redirect_uri_mismatch", "unauthorized_client"],
+    ids=["server-error", "invalid-client", "redirect-uri-mismatch", "unknown-client"],
+)
+async def test_callback_a_provider_error_other_than_refusal_is_unavailable(
+    stand: OAuthStand, code: str
+) -> None:
+    # Only access_denied is a person changing their mind. Every other code the
+    # provider can send back is a malfunction on their side or a broken
+    # registration on ours, and answering it as a refusal hides an outage that
+    # no user action can explain.
+    response = await _callback(stand, error=code)
+
+    assert response.status_code == 302
+    assert response.headers["location"] == "/login?error=provider_unavailable"
+
+
+@pytest.mark.integration
+async def test_callback_a_provider_error_is_logged_with_the_code_it_sent(
+    stand: OAuthStand,
+) -> None:
+    # The registry of /login?error= codes stays closed, so the provider's own
+    # code survives only in the log — that record is the entire difference
+    # between a diagnosable misconfiguration and a silent one.
+    with capture_logs() as logs:
+        response = await _callback(stand, error="invalid_client")
+
+    assert response.headers["location"] == "/login?error=provider_unavailable"
+    assert any(
+        entry["event"] == "oauth provider returned error"
+        and entry.get("provider") == "yandex"
+        and entry.get("error") == "invalid_client"
+        for entry in logs
+    )
+
+
+@pytest.mark.integration
+async def test_callback_a_provider_error_extinguishes_the_cookie_it_got(
+    stand: OAuthStand,
+) -> None:
+    # Terminal branch like the refusal next to it: the flow is over, and a
+    # surviving cookie would let the next callback replay it.
+    response = await stand.client.get(
+        _callback_url("yandex"),
+        params={"error": "server_error"},
+        cookies=_flow_cookie(),
+    )
+
+    assert is_deleted_cookie(response, FLOW_COOKIE)
 
 
 # ---------------------------------------------------------------------------

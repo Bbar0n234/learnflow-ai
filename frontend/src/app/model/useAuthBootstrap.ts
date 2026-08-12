@@ -6,6 +6,12 @@ interface RefreshResponseBody {
   access_token: string;
 }
 
+// Тот же бюджет, что дефолт `apiClient` (`shared/api/client.ts`) — голый
+// `fetch` не наследует его таймаут, а зависший (не оборвавшийся быстрым
+// reject) бэкенд иначе держит `isPending=true` бесконечно, гейтя всю SPA.
+const BOOTSTRAP_TIMEOUT_MS =
+  Number(import.meta.env.VITE_API_TIMEOUT_MS) || 30000;
+
 // Единственный тихий бутстрап на все пути входа в SPA. Идёт мимо `apiClient`
 // (стык feat-013, `shared/api/client.ts` — только чтение): его интерцептор
 // безусловно пишет `logger.error` на 401, а 401 здесь — ожидаемый путь
@@ -30,9 +36,11 @@ async function bootstrapAuth(): Promise<null> {
     response = await fetch(`${baseUrl}/auth/refresh`, {
       method: "POST",
       credentials: "include",
+      signal: AbortSignal.timeout(BOOTSTRAP_TIMEOUT_MS),
     });
   } catch {
-    // Сеть недоступна — тот же тихий путь анонима, что и явный 401.
+    // Сеть недоступна или таймаут (`AbortSignal.timeout` реджектит тем же
+    // путём) — тот же тихий путь анонима, что и явный 401.
     return null;
   }
 

@@ -21,6 +21,7 @@ from app.infra.geoip import open_reader, resolve_country
 from maxminddb.types import Record
 from structlog.testing import capture_logs
 
+from tests.oauth._helpers import corrupt_geoip_reader
 from tests.oauth._helpers import geoip_reader_for as _reader
 
 
@@ -100,6 +101,16 @@ def test_resolve_country_falls_back_when_the_record_yields_no_code(
 def test_resolve_country_falls_back_on_an_unparsable_ip() -> None:
     # get_client_ip returns the literal "unknown" when there is no client.
     assert resolve_country(_reader({"country_code": "US"}), "unknown", "RU") == "RU"
+
+
+@pytest.mark.unit
+def test_resolve_country_falls_back_on_a_corrupt_database() -> None:
+    # A truncated or damaged MMDB passes open_reader (only the header is read
+    # there) and blows up on the first lookup instead. That failure is another
+    # way not to know the country, so it belongs on the fail-closed path: an
+    # escaping exception would answer every /providers, authorize and callback
+    # with a 500 rather than with the fallback country.
+    assert resolve_country(corrupt_geoip_reader(), "8.8.8.8", "RU") == "RU"
 
 
 @pytest.mark.unit

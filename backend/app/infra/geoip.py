@@ -89,7 +89,11 @@ def resolve_country(
         return fallback
     try:
         record = reader.get(ip)
-    except ValueError:
+    except (ValueError, maxminddb.InvalidDatabaseError):
+        # `InvalidDatabaseError` (наследник `RuntimeError`) поднимается из
+        # `get_with_prefix_len` на битой/обрезанной базе, открывшейся успешно
+        # в `open_reader` — без этой ветки такой файл давал 500 на каждый
+        # lookup вместо fallback-страны.
         return fallback
     country = _extract_country_code(record)
     return country if country is not None else fallback

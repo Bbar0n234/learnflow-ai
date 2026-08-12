@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 import structlog
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request
@@ -11,8 +11,8 @@ from siem_contracts import (
     RATE_LIMIT_OAUTH_EXCEEDED,
 )
 
+from app.api.cookies import set_refresh_cookie
 from app.api.deps import DBSession, SettingsDep
-from app.api.routes.auth import _set_refresh_cookie
 from app.api.schemas.oauth import ProvidersResponse
 from app.config import Settings
 from app.infra.client_ip import get_client_ip
@@ -50,6 +50,16 @@ _LOGIN_PATH = "/login"
 # ограничена — все активные провайдеры доступны.
 _GEO_RESTRICTED_COUNTRY = "RU"
 _GEO_ALLOWED_PROVIDERS_RU = frozenset({"yandex"})
+
+# Закрытый реестр кодов `/login?error=` (design-brief.md § Эндпоинты, таблица
+# кодов) — совпадает буквально с фронтендовым union в `LoginPage.tsx`.
+OAuthErrorCode = Literal[
+    "access_denied",
+    "flow_expired",
+    "provider_not_available_in_region",
+    "provider_unavailable",
+    "oauth_failed",
+]
 
 
 def _get_rate_limiter(request: Request) -> RateLimiter:
@@ -109,7 +119,7 @@ def _redirect_uri(settings: Settings, provider: str) -> str:
 
 
 def _login_redirect(
-    error_code: str, *, delete_cookie: bool, settings: Settings
+    error_code: OAuthErrorCode, *, delete_cookie: bool, settings: Settings
 ) -> RedirectResponse:
     """Редирект на ``/login?error=<код>`` из закрытого реестра. Cookie
     ``oauth_flow`` гасится на каждой терминальной ветке, кроме «cookie
@@ -239,9 +249,21 @@ async def callback(
 
     cookie_present = oauth_flow is not None
 
-    # Ветка 1: отказ пользователя на экране провайдера — до сверки state
-    # (design-brief.md § Эндпоинты, диаграмма веток callback'а).
-    if request.query_params.get("error"):
+    # Ветка 1: код ошибки от провайдера — до сверки state (design-brief.md
+    # § Эндпоинты, диаграмма веток callback'а). `access_denied` — штатный
+    # отказ пользователя на экране провайдера, не событие; любой другой код
+    # (мисконфиг клиента, отозванный secret, 5xx провайдера) — операционная
+    # деградация категории `provider_unavailable`: наблюдаемый лог с кодом
+    # провайдера, реестр `/login?error=` не расширяется.
+    provider_error = request.query_params.get("error")
+    if provider_error and provider_error != "access_denied":
+        logger.warning(
+            "oauth provider returned error", provider=provider, error=provider_error
+        )
+        return _login_redirect(
+            "provider_unavailable", delete_cookie=cookie_present, settings=settings
+        )
+    if provider_error:
         return _login_redirect(
             "access_denied", delete_cookie=cookie_present, settings=settings
         )
@@ -309,6 +331,6 @@ async def callback(
     # refresh-cookie; SPA получает access существующим POST /api/auth/refresh.
     _emit_oauth_success(provider, new_user)
     response = RedirectResponse(url=flow.next, status_code=302)
-    _set_refresh_cookie(response, refresh_raw, settings)
+    set_refresh_cookie(response, refresh_raw, settings)
     delete_flow_cookie(response, settings)
     return response

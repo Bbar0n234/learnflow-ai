@@ -37,11 +37,15 @@ function getOAuthErrorMessage(code: string): string {
     : OAUTH_ERROR_MESSAGES.oauth_failed;
 }
 
+// Та же база, что `shared/api/client.ts` и `useAuthBootstrap.ts` — локальная
+// константа, не импорт из client.ts (заморожен для этого трека).
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? "/api";
+
 /**
  * Контейнер страницы входа. Логика формы перенесена из `AuthGate`
- * (парольный вход/регистрация, клиентская валидация); блок кнопок
- * провайдеров и переход на `/authorize` с транспортом `next`, обработка
- * `?error=` — T2.4.
+ * (парольный вход/регистрация, клиентская валидация); дополнена блоком
+ * кнопок провайдеров, переходом на `/authorize` с транспортом `next` и
+ * обработкой `?error=`.
  */
 export function LoginPage() {
   const navigate = useNavigate();
@@ -71,7 +75,7 @@ export function LoginPage() {
     // Полная навигация браузера, не fetch: OAuth-флоу редиректный.
     const next = encodeURIComponent(from);
     window.location.assign(
-      `/api/auth/oauth/${providerId}/authorize?next=${next}`,
+      `${API_BASE_URL}/auth/oauth/${providerId}/authorize?next=${next}`,
     );
   }
 

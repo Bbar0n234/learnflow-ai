@@ -40,7 +40,7 @@ function page(items: SecurityEvent[]) {
 }
 
 describe("SecurityEvents", () => {
-  it("shows a loading hint while events are in flight", () => {
+  it("holds the table with placeholder rows while events are in flight", async () => {
     server.use(
       http.get(EVENTS_URL, async () => {
         await delay(50);
@@ -48,9 +48,19 @@ describe("SecurityEvents", () => {
       }),
     );
 
-    renderWithProviders(<SecurityEvents />);
+    const { container } = renderWithProviders(<SecurityEvents />);
 
-    expect(screen.getByText("Загрузка события...")).toBeInTheDocument();
+    // Плашки скелетона не имеют доступного имени — берём публичный маркер
+    // примитива дизайн-системы (`data-slot="skeleton"`), последнюю ступень
+    // лестницы запросов из testing.md § Frontend. Число строк, ширины плашек
+    // и мерцание jsdom не исполняет: их сторожит ручной кейс.
+    expect(
+      container.querySelectorAll('[data-slot="skeleton"]').length,
+    ).toBeGreaterThan(0);
+    // Пока данные в пути, «событий нет» не объявляется.
+    expect(screen.queryByText("События не найдены")).not.toBeInTheDocument();
+
+    await screen.findByText("События не найдены");
   });
 
   it("shows an empty-state message when there are no events", async () => {
@@ -70,9 +80,36 @@ describe("SecurityEvents", () => {
 
     renderWithProviders(<SecurityEvents />);
 
+    // Формулировка канонизирована блоком 4 брифа («Не удалось загрузить …»),
+    // детали ответа сохранены рядом с ней.
     expect(
-      await screen.findByText(/Ошибка загрузки событий/),
+      await screen.findByText(/Не удалось загрузить события: boom/),
     ).toBeInTheDocument();
+  });
+
+  it("recovers the events table through «Повторить»", async () => {
+    let failing = true;
+    server.use(
+      http.get(EVENTS_URL, () => {
+        if (failing) {
+          return HttpResponse.json({ detail: "boom" }, { status: 500 });
+        }
+        return page([event()]);
+      }),
+    );
+    const user = userEvent.setup();
+
+    renderWithProviders(<SecurityEvents />);
+
+    await screen.findByText(/Не удалось загрузить события/);
+    failing = false;
+    // Путь восстановления помимо F5: кнопка перезапрашивает ту же квери.
+    await user.click(screen.getByRole("button", { name: "Повторить" }));
+
+    expect(await screen.findByText("auth.login.failed")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Не удалось загрузить события/),
+    ).not.toBeInTheDocument();
   });
 
   it("lists events with their type and severity", async () => {

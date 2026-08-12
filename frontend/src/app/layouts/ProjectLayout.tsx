@@ -11,7 +11,7 @@ export function ProjectLayout() {
   const { data: project, isLoading } = useProject(id!);
   const isChatView = useMatch("/projects/:id/chats/:cid");
 
-  const projectName = isLoading ? "Loading..." : (project?.name ?? id);
+  const projectName = isLoading ? "Загрузка…" : (project?.name ?? id);
 
   if (isChatView) {
     return (

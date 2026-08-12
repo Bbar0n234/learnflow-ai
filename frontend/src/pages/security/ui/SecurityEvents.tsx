@@ -12,6 +12,8 @@ import {
   DialogTitle,
 } from "@/shared/ui/dialog";
 import { Button } from "@/shared/ui/button";
+import { ErrorCard } from "@/shared/ui/StateScreen";
+import { Skeleton } from "@/shared/ui/skeleton";
 import { getApiErrorMessage } from "@/shared/lib/api-error";
 
 interface EventsFilterState {
@@ -29,7 +31,7 @@ export function SecurityEvents() {
     null,
   );
 
-  const { data, isLoading, error } = useEvents(limit, offset, filters);
+  const { data, isLoading, error, refetch } = useEvents(limit, offset, filters);
 
   const handleFilterChange = (newFilters: EventsFilterState) => {
     setFilters(newFilters);
@@ -38,9 +40,10 @@ export function SecurityEvents() {
 
   if (error) {
     return (
-      <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-destructive">
-        Ошибка загрузки событий: {getApiErrorMessage(error)}
-      </div>
+      <ErrorCard
+        message={`Не удалось загрузить события: ${getApiErrorMessage(error)}`}
+        onRetry={() => void refetch()}
+      />
     );
   }
 
@@ -52,8 +55,27 @@ export function SecurityEvents() {
       />
 
       {isLoading ? (
-        <div className="text-center py-8 text-muted-foreground">
-          Загрузка события...
+        <div className="rounded-lg border border-border bg-card">
+          <div className="divide-y divide-border">
+            <div className="flex items-center gap-4 px-4 py-3">
+              <Skeleton className="h-3 w-28" />
+              <Skeleton className="h-3 w-40" />
+              <Skeleton className="h-4 w-16 rounded-full" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+            <div className="flex items-center gap-4 px-4 py-3">
+              <Skeleton className="h-3 w-36" />
+              <Skeleton className="h-3 w-32" />
+              <Skeleton className="h-4 w-16 rounded-full" />
+              <Skeleton className="h-3 w-20" />
+            </div>
+            <div className="flex items-center gap-4 px-4 py-3">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-3 w-44" />
+              <Skeleton className="h-4 w-16 rounded-full" />
+              <Skeleton className="h-3 w-28" />
+            </div>
+          </div>
         </div>
       ) : !data || data.items.length === 0 ? (
         <div className="rounded-lg border border-border bg-card p-8 text-center text-muted-foreground">

@@ -134,6 +134,30 @@ describe("NewChatModal", () => {
     ).toBeInTheDocument();
   });
 
+  it("recovers the project picker through «Повторить»", async () => {
+    let failing = true;
+    server.use(
+      http.get(PROJECTS_URL, () => {
+        if (failing) {
+          return HttpResponse.json({ detail: "boom" }, { status: 500 });
+        }
+        return projectsResponse([project()]);
+      }),
+    );
+    const user = userEvent.setup();
+    renderModal();
+
+    await screen.findByText("Не удалось загрузить список проектов");
+    failing = false;
+    // Путь восстановления помимо F5: кнопка перезапрашивает ту же квери, и
+    // выбор проекта становится возможен без перезагрузки страницы.
+    await user.click(screen.getByRole("button", { name: "Повторить" }));
+
+    expect(
+      await screen.findByRole("button", { name: /Матан/ }),
+    ).toBeInTheDocument();
+  });
+
   it("explains to a user without projects that a chat lives inside one", async () => {
     server.use(http.get(PROJECTS_URL, () => projectsResponse([])));
 
@@ -165,10 +189,10 @@ describe("NewChatModal", () => {
       await screen.findByRole("button", { name: /Создать проект/ }),
     );
     await user.type(
-      await screen.findByPlaceholderText("Project name"),
+      await screen.findByPlaceholderText("Название проекта"),
       "Химия",
     );
-    await user.click(screen.getByRole("button", { name: "Create" }));
+    await user.click(screen.getByRole("button", { name: "Создать" }));
 
     // Straight to the composer — no detour through the project page.
     expect(

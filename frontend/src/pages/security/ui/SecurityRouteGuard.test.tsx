@@ -82,7 +82,7 @@ describe("SecurityRouteGuard", () => {
 
     renderGuard();
 
-    expect(screen.getByText("Загрузка...")).toBeInTheDocument();
+    expect(screen.getByText("Загрузка…")).toBeInTheDocument();
     await screen.findByText("Secret dashboard");
   });
 

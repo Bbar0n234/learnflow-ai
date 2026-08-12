@@ -6,6 +6,7 @@ import { useMCPServerMutations } from "@/shared/api/mcp-servers";
 import { MCPServerForm } from "./MCPServerForm";
 import { Button } from "@/shared/ui/button";
 import { Switch } from "@/shared/ui/switch";
+import { LoadingState } from "@/shared/ui/StateScreen";
 import type {
   MCPServer,
   InheritedMCPServer,
@@ -199,7 +200,7 @@ export function MCPServersSection({ scope, projectId, threadId }: Props) {
       )}
 
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Загрузка…</p>
+        <LoadingState className="py-6" />
       ) : (
         <>
           {inherited.length > 0 && (

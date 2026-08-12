@@ -10,6 +10,7 @@ import {
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { MarkdownRenderer } from "@/shared/ui/MarkdownRenderer";
+import { LoadingState } from "@/shared/ui/StateScreen";
 import { cn } from "@/shared/lib/utils";
 import {
   isSecurityViolation,
@@ -186,9 +187,7 @@ export function SkillContextSection() {
 
   if (isLoading) {
     return (
-      <p className="text-sm text-muted-foreground">
-        Загрузка контекста скиллов…
-      </p>
+      <LoadingState label="Загрузка контекста скиллов…" className="py-6" />
     );
   }
 

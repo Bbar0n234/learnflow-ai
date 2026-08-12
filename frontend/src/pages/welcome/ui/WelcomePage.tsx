@@ -71,7 +71,7 @@ export function WelcomePage() {
         {/* Hero-врезка 460×270 (из T3) */}
         <Illustration
           scene="welcome-hero"
-          alt="Welcome to LearnFlowAI"
+          alt="Иллюстрация: добро пожаловать в LearnFlow AI"
           className="mx-auto h-[270px] w-full max-w-[460px] object-contain"
         />
 

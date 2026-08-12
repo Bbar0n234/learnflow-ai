@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { describe, expect, it } from "vitest";
 
@@ -18,8 +18,7 @@ import { ChatList } from "./ChatList";
 
 const PROJECT_ID = "p1";
 const CHATS_URL = `/api/projects/${PROJECT_ID}/chats`;
-const FIRST_MESSAGE_PLACEHOLDER =
-  "Спросите о чём угодно — начнётся новый чат...";
+const FIRST_MESSAGE_PLACEHOLDER = "Спросите о чём угодно — начнётся новый чат…";
 
 function chat(over: Partial<Chat> = {}): Chat {
   return {
@@ -220,6 +219,32 @@ describe("ChatList", () => {
     expect(screen.queryByText(/Открыт чат/)).not.toBeInTheDocument();
   });
 
+  it("holds the list with placeholders while it loads, without claiming it is empty", async () => {
+    server.use(
+      http.get(CHATS_URL, async () => {
+        await delay(50);
+        return chatsResponse([]);
+      }),
+    );
+
+    const { container } = renderChatList();
+
+    // Плашки скелетона не имеют доступного имени, поэтому берём публичный
+    // маркер примитива дизайн-системы (`data-slot="skeleton"`) — последняя
+    // ступень лестницы запросов из testing.md § Frontend. Геометрия и
+    // мерцание в jsdom не исполняются: их сторожит ручной кейс.
+    expect(
+      container.querySelectorAll('[data-slot="skeleton"]').length,
+    ).toBeGreaterThan(0);
+    // Пока данные в пути, пустой список не объявляется — иначе на каждом
+    // открытии проекта мигало бы «нет чатов».
+    expect(
+      screen.queryByText("Нет чатов. Начните с первого сообщения выше."),
+    ).not.toBeInTheDocument();
+
+    await screen.findByText("Нет чатов. Начните с первого сообщения выше.");
+  });
+
   it("reports a failure to load the chat list", async () => {
     server.use(
       http.get(CHATS_URL, () =>
@@ -232,6 +257,32 @@ describe("ChatList", () => {
     expect(
       await screen.findByText("Не удалось загрузить чаты."),
     ).toBeInTheDocument();
+  });
+
+  it("recovers the chat list from a failure through «Повторить»", async () => {
+    let failing = true;
+    server.use(
+      http.get(CHATS_URL, () => {
+        if (failing) {
+          return HttpResponse.json({ detail: "boom" }, { status: 500 });
+        }
+        return chatsResponse([chat({ title: "Производные" })]);
+      }),
+    );
+    const user = userEvent.setup();
+    renderChatList();
+
+    await screen.findByText("Не удалось загрузить чаты.");
+    failing = false;
+    // Путь восстановления помимо F5: кнопка перезапрашивает ту же квери.
+    await user.click(screen.getByRole("button", { name: "Повторить" }));
+
+    expect(
+      await screen.findByRole("link", { name: /Производные/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Не удалось загрузить чаты."),
+    ).not.toBeInTheDocument();
   });
 
   it("does not create a chat while the previous request is still in flight", async () => {

@@ -6,6 +6,8 @@ import {
   LayoutDashboard,
 } from "lucide-react";
 import { Illustration } from "@/shared/ui/Illustration";
+import { Skeleton } from "@/shared/ui/skeleton";
+import { ErrorCard } from "@/shared/ui/StateScreen";
 import { useArtifacts } from "@/shared/api/artifacts";
 import { cn } from "@/shared/lib/utils";
 
@@ -21,7 +23,7 @@ function ArtifactIcon({ type }: { type: string }) {
 
 export function ArtifactList() {
   const { id, aid: selectedId } = useParams();
-  const { data, isLoading, isError } = useArtifacts(id);
+  const { data, isLoading, isError, refetch } = useArtifacts(id);
 
   return (
     <div className="flex h-full flex-col">
@@ -35,19 +37,35 @@ export function ArtifactList() {
       {/* List body */}
       <div className="flex-1 overflow-y-auto px-2 py-2">
         {isLoading && (
-          <p className="px-3 py-2 text-sm text-muted-foreground">Загрузка…</p>
+          <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5">
+              <Skeleton className="h-9 w-9 shrink-0 rounded-[calc(var(--radius)*0.8)]" />
+              <div className="flex-1">
+                <Skeleton className="h-3 w-[62%]" />
+                <Skeleton className="mt-1.5 h-2.5 w-[32%]" />
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5">
+              <Skeleton className="h-9 w-9 shrink-0 rounded-[calc(var(--radius)*0.8)]" />
+              <div className="flex-1">
+                <Skeleton className="h-3 w-[48%]" />
+                <Skeleton className="mt-1.5 h-2.5 w-[32%]" />
+              </div>
+            </div>
+          </div>
         )}
         {isError && (
-          <p className="px-3 py-2 text-sm text-destructive">
-            Ошибка загрузки артефактов.
-          </p>
+          <ErrorCard
+            message="Не удалось загрузить артефакты."
+            onRetry={() => void refetch()}
+          />
         )}
 
         {data && data.items.length === 0 && (
           <div className="flex flex-col items-center gap-4 px-4 py-8">
             <Illustration
               scene="empty-artifacts"
-              alt="No artifacts yet"
+              alt="Иллюстрация: артефактов пока нет"
               className="w-full max-w-[200px]"
             />
             <p className="text-center text-sm text-muted-foreground">

@@ -21,6 +21,8 @@ import {
 } from "@/shared/ui/dialog";
 import { Plus, Edit2, Trash2 } from "lucide-react";
 import { Switch } from "@/shared/ui/switch";
+import { ErrorCard } from "@/shared/ui/StateScreen";
+import { Skeleton } from "@/shared/ui/skeleton";
 import { logger } from "@/shared/lib/logger";
 import { getApiErrorMessage } from "@/shared/lib/api-error";
 
@@ -43,7 +45,7 @@ export function SecurityRules() {
   const [errorMessage, setErrorMessage] = useState("");
   const [pendingToggleId, setPendingToggleId] = useState<number | null>(null);
 
-  const { data, isLoading, error } = useRules(limit, offset);
+  const { data, isLoading, error, refetch } = useRules(limit, offset);
   const createMutation = useCreateRule();
   const updateMutation = useUpdateRule(selectedRule?.id || 0);
   const toggleMutation = useUpdateAnyRule();
@@ -110,9 +112,10 @@ export function SecurityRules() {
 
   if (error) {
     return (
-      <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-destructive">
-        Ошибка загрузки правил: {getApiErrorMessage(error)}
-      </div>
+      <ErrorCard
+        message={`Не удалось загрузить правила: ${getApiErrorMessage(error)}`}
+        onRetry={() => void refetch()}
+      />
     );
   }
 
@@ -138,8 +141,27 @@ export function SecurityRules() {
       </div>
 
       {isLoading ? (
-        <div className="text-center py-8 text-muted-foreground">
-          Загрузка правил...
+        <div className="rounded-lg border border-border bg-card">
+          <div className="divide-y divide-border">
+            <div className="flex items-center gap-4 px-4 py-3">
+              <Skeleton className="h-3 w-28" />
+              <Skeleton className="h-3 w-40" />
+              <Skeleton className="h-4 w-16 rounded-full" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+            <div className="flex items-center gap-4 px-4 py-3">
+              <Skeleton className="h-3 w-36" />
+              <Skeleton className="h-3 w-32" />
+              <Skeleton className="h-4 w-16 rounded-full" />
+              <Skeleton className="h-3 w-20" />
+            </div>
+            <div className="flex items-center gap-4 px-4 py-3">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-3 w-44" />
+              <Skeleton className="h-4 w-16 rounded-full" />
+              <Skeleton className="h-3 w-28" />
+            </div>
+          </div>
         </div>
       ) : !data || data.items.length === 0 ? (
         <div className="rounded-lg border border-border bg-card p-8 text-center text-muted-foreground">
@@ -193,7 +215,7 @@ export function SecurityRules() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleEdit(rule)}
-                          aria-label="Edit rule"
+                          aria-label="Редактировать правило"
                         >
                           <Edit2 className="h-4 w-4" />
                         </Button>
@@ -204,7 +226,7 @@ export function SecurityRules() {
                             setDeleteTargetId(rule.id);
                             setDeleteConfirmOpen(true);
                           }}
-                          aria-label="Delete rule"
+                          aria-label="Удалить правило"
                         >
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
@@ -256,7 +278,7 @@ export function SecurityRules() {
               onClick={handleDeleteConfirm}
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? "Удаление..." : "Удалить"}
+              {deleteMutation.isPending ? "Удаление…" : "Удалить"}
             </Button>
           </DialogFooter>
         </DialogContent>

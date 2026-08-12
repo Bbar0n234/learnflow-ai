@@ -17,6 +17,7 @@ import {
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { setAccessToken } from "@/shared/api/client";
+import { Button } from "@/shared/ui/button";
 import { server } from "@/test/msw/server";
 import { fakeJwt, sseFrame, sseResponseStream } from "@/test/sse-stream";
 import { createTestQueryClient, renderWithProviders } from "@/test/test-utils";
@@ -532,8 +533,10 @@ describe("ChatThread — first message handed over by the entry path", () => {
     expect(historyDelivered).toBe(false);
     // Панельная загрузка чата — общий для продукта `LoadingState` с русской
     // подписью (feat-013, блоки 2 и 3): англоязычная строка `Loading chat...`
-    // отменена вместе с ad-hoc вёрсткой этого состояния.
-    expect(screen.getByText("Загрузка…")).toBeInTheDocument();
+    // отменена вместе с ad-hoc вёрсткой этого состояния. Подпись именует
+    // загружаемое («Загрузка чата…»), как на сфере и артефакте, а не остаётся
+    // безличным дефолтом примитива.
+    expect(screen.getByText("Загрузка чата…")).toBeInTheDocument();
     // Let the held history land before the test ends — a request still in
     // flight at teardown resolves into a torn-down environment.
     releaseHistory();
@@ -849,17 +852,46 @@ describe("ChatThread — состояния загрузки и ошибки", (
 
     renderChatThread(null);
 
+    // Полная форма, а не компактная карточка и не голая красная строка:
+    // serif-заголовок + подпись + сцена + действие. Заголовок отдельным
+    // ассертом — именно его отсутствие и было главным расхождением экрана
+    // чата с мокапом (секция 2г) и с соседними панелями.
     expect(
-      await screen.findByText("Не удалось загрузить чат."),
+      await screen.findByRole("heading", { name: "Не удалось загрузить чат" }),
     ).toBeInTheDocument();
-    // Полная форма, а не компактная карточка: чат — панель, и сцена ошибки в
-    // нём та же, что на сфере и артефакте.
+    // Подпись — общая для всех «не удалось загрузить» формулировка, а не
+    // персональная строка экрана: тот же текст несут сфера, артефакт и 404.
     expect(
-      screen.getByRole("img", { name: "Иллюстрация ошибки" }),
+      screen.getByText(
+        "Что-то пошло не так при загрузке. Проверьте соединение и попробуйте ещё раз.",
+      ),
+    ).toBeInTheDocument();
+    // Сцена та же и **названа** так же, как на сфере, артефакте и в
+    // `ErrorBoundary`: доступное имя одной и той же картинки не имеет права
+    // разъезжаться по экранам.
+    expect(
+      screen.getByRole("img", { name: "Иллюстрация: ошибка" }),
     ).toBeInTheDocument();
     expect(attempts).toBe(1);
 
-    await userEvent.click(screen.getByRole("button", { name: "Повторить" }));
+    const retry = screen.getByRole("button", { name: "Повторить" });
+    // Вид действия — `variant="outline"`, как в мокапе и у соседей, а не
+    // primary. Единственный признак варианта, наблюдаемый в jsdom (CSS он не
+    // исполняет), — набор классов, который выдаёт сам примитив `Button`.
+    // Сверяем не с захардкоженными токенами Tailwind, а с эталоном,
+    // отрендеренным тем же примитивом: кейс сторожит принадлежность к
+    // варианту и переживает любую перекраску палитры. Это осознанное
+    // отступление от «не ассертим className» — другого шва у варианта нет, а
+    // без сторожа форма экрана снова разъедется незамеченной.
+    const outlineReference = render(
+      <Button variant="outline">Повторить</Button>,
+    );
+    expect(retry.className).toBe(
+      outlineReference.container.querySelector("button")!.className,
+    );
+    outlineReference.unmount();
+
+    await userEvent.click(retry);
 
     // Путь восстановления, которого у экрана не было: до фикса из ошибки
     // выводила только перезагрузка страницы.

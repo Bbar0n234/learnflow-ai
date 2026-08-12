@@ -182,17 +182,22 @@ export function ChatThread() {
   }, [cid, location.pathname, location.state, navigate, handleSend]);
 
   if (isLoading) {
-    return <LoadingState className="h-full" />;
+    return <LoadingState className="h-full" label="Загрузка чата…" />;
   }
 
   if (isError) {
     return (
       <StateScreen
         scene="error-state"
-        alt="Иллюстрация ошибки"
+        alt="Иллюстрация: ошибка"
         illustrationClassName="max-w-[280px] w-full"
-        description="Не удалось загрузить чат."
-        action={<Button onClick={() => refetch()}>Повторить</Button>}
+        title="Не удалось загрузить чат"
+        description="Что-то пошло не так при загрузке. Проверьте соединение и попробуйте ещё раз."
+        action={
+          <Button variant="outline" onClick={() => void refetch()}>
+            Повторить
+          </Button>
+        }
         className="h-full"
       />
     );

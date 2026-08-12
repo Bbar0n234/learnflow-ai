@@ -207,3 +207,5 @@ All project documentation lives in [`doc/`](doc/index.md) (in Russian):
 ## License
 
 [Apache 2.0](LICENSE)
+
+This product includes IP geolocation data by [IPinfo](https://ipinfo.io), licensed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).

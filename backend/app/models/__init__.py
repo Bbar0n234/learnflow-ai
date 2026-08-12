@@ -7,6 +7,7 @@ from app.models.mcp_server import (
     ThreadMCPServer,
     UserMCPServer,
 )
+from app.models.oauth_account import OAuthAccount
 from app.models.project import Project
 from app.models.refresh_token import RefreshToken
 from app.models.settings import ProjectSettings, ThreadSettings, UserSettings
@@ -21,6 +22,7 @@ __all__ = [
     "Artifact",
     "ArtifactBlob",
     "RefreshToken",
+    "OAuthAccount",
     "UserSettings",
     "ProjectSettings",
     "ThreadSettings",

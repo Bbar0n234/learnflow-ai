@@ -61,6 +61,16 @@ services:
       CLIENT_IP_SOURCE: ${CLIENT_IP_SOURCE:-socket}
       CLIENT_IP_XFF_HOPS: ${CLIENT_IP_XFF_HOPS:-1}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      OAUTH_YANDEX_CLIENT_ID: ${OAUTH_YANDEX_CLIENT_ID:-}
+      OAUTH_YANDEX_CLIENT_SECRET: ${OAUTH_YANDEX_CLIENT_SECRET:-}
+      OAUTH_GOOGLE_CLIENT_ID: ${OAUTH_GOOGLE_CLIENT_ID:-}
+      OAUTH_GOOGLE_CLIENT_SECRET: ${OAUTH_GOOGLE_CLIENT_SECRET:-}
+      OAUTH_GITHUB_CLIENT_ID: ${OAUTH_GITHUB_CLIENT_ID:-}
+      OAUTH_GITHUB_CLIENT_SECRET: ${OAUTH_GITHUB_CLIENT_SECRET:-}
+      OAUTH_REDIRECT_BASE_URL: ${OAUTH_REDIRECT_BASE_URL:-http://localhost:8000}
+      OAUTH_HTTP_TIMEOUT_SECONDS: ${OAUTH_HTTP_TIMEOUT_SECONDS:-10}
+      GEOIP_DB_PATH: ${GEOIP_DB_PATH:-}
+      GEOIP_FALLBACK_COUNTRY: ${GEOIP_FALLBACK_COUNTRY:-RU}
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
       LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-https://cloud.langfuse.com}
@@ -90,6 +100,7 @@ services:
     volumes:
       - ./configs:/app/configs:ro
       - ./skills:/app/skills:ro
+      - ./data/geoip:/app/data/geoip:ro
     logging:
       driver: json-file
       options:

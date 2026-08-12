@@ -2,7 +2,7 @@ import "@/test/match-media-polyfill";
 
 import { screen } from "@testing-library/react";
 import { delay, http, HttpResponse } from "msw";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useLocation, useNavigationType } from "react-router";
 import {
   afterEach,
   beforeAll,
@@ -14,6 +14,7 @@ import {
 } from "vitest";
 
 import { setAccessToken } from "@/shared/api/client";
+import { authProvidersHandlers } from "@/test/msw/auth-providers";
 import { server } from "@/test/msw/server";
 import { fakeJwt } from "@/test/sse-stream";
 import { renderWithProviders } from "@/test/test-utils";
@@ -199,5 +200,68 @@ describe("AppRoutes — the /security route under the SIEM flag", () => {
     expect(
       await screen.findByRole("heading", { name: WELCOME_HEADING }),
     ).toBeInTheDocument();
+  });
+});
+
+// Integration (feat-008, трек T2): вход в SPA как маршрут, а не модалка. Guard
+// `RequireAuth` стоит над группой защищённых роутов, `/login` лежит снаружи.
+// Наблюдаем через сам роутер: зонд рядом с `<AppRoutes />` печатает текущий путь
+// и строку `from`, положенную guard'ом в `location.state` — то самое значение,
+// которое потом уходит и в `navigate(from)`, и в query-параметр `next`
+// (design-brief § Frontend). Зонд печатает и тип навигации: редирект guard'а
+// обязан заменять запись истории, иначе Back с `/login` возвращает на
+// защищённый URL, который тут же редиректит обратно — Back для пользователя
+// перестаёт работать. Отличить push от replace рендером нельзя (в обоих
+// случаях на экране `/login`), поэтому наблюдаем ту самую запись истории,
+// которую делает роутер.
+
+const LOGIN_HEADING = "Вход";
+
+function LocationProbe() {
+  const location = useLocation();
+  const navigationType = useNavigationType();
+  const state = location.state as { from?: string } | null;
+  return (
+    <>
+      <div>{`probe:${location.pathname}|${state?.from ?? ""}`}</div>
+      <div>{`nav:${navigationType}`}</div>
+    </>
+  );
+}
+
+function renderRoutedAt(entry: string) {
+  return renderWithProviders(
+    <MemoryRouter initialEntries={[entry]}>
+      <AppRoutes />
+      <LocationProbe />
+    </MemoryRouter>,
+  );
+}
+
+describe("AppRoutes — guard входа и публичный /login", () => {
+  it("уводит анонима с защищённого маршрута на /login, запоминая исходный путь строкой", async () => {
+    server.use(authProvidersHandlers.ru());
+
+    renderRoutedAt("/projects/p1/artifacts?tab=all#top");
+
+    expect(
+      await screen.findByRole("heading", { name: LOGIN_HEADING }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("probe:/login|/projects/p1/artifacts?tab=all#top"),
+    ).toBeInTheDocument();
+    // Защищённый URL заменён в истории, а не задвинут под `/login`.
+    expect(screen.getByText("nav:REPLACE")).toBeInTheDocument();
+  });
+
+  it("открывает /login без токена — маршрут публичный, вне guard'а", async () => {
+    server.use(authProvidersHandlers.ru());
+
+    renderRoutedAt("/login");
+
+    expect(
+      await screen.findByRole("heading", { name: LOGIN_HEADING }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("probe:/login|")).toBeInTheDocument();
   });
 });

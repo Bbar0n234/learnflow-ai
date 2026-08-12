@@ -41,7 +41,8 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 | `/projects/:id/artifacts` | Список артефактов проекта |
 | `/projects/:id/artifacts/:aid` | Просмотр артефакта + скачивание (md/pdf) |
 | `/projects/:id/settings` | Настройки проекта: model override, MCP серверы |
-| `/security` | Мониторинг безопасности (admin-only, RBAC guard): Events / Alerts / Rules |
+| `/security` | Мониторинг безопасности (admin-only, RBAC guard): Events / Alerts / Rules. Маршрут существует только при включённом флаге `SIEM_ENABLED`; несимметричное поведение по намерению — флаг выключен → маршрута нет, попадает под catch-all 404, флаг включён + не-admin → редирект на `/` от `SecurityRouteGuard`, не 404 |
+| `*` (любой непойманный путь внутри `AppLayout`) | Брендовый 404 (`pages/not-found`) — не редирект, sidebar остаётся видимым |
 
 ### Экраны
 
@@ -124,6 +125,7 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 
 - **ui/** — shadcn/ui примитивы (Button, Input, Dialog, Tabs, ScrollArea и т.д.)
 - **MarkdownRenderer** — обёртка над Streamdown. Переиспользуется в chat (ответы агента), sphere (просмотр), artifacts (просмотр)
+- **StateScreen / LoadingState / ErrorCard / Skeleton** — единая система состояний «не-контента» (loading/error/empty). Контракт — [design-system.md § Error UX](design-system.md#error-ux)
 
 ## State Management
 
@@ -233,19 +235,23 @@ uiStore
 streamStore
 ├── isStreaming: boolean
 ├── streamingChatId: string | null
-├── feed: AgentFeedItem[]          — лента хода: рассуждения, текст, вызовы, доменные события
-├── redacted: boolean              — ход схлопнут в заглушку security-блокировкой
+├── feed: AgentFeedItem[]                          — лента хода: рассуждения, текст, вызовы, доменные события
+├── redacted: boolean                              — ход схлопнут в заглушку security-блокировкой
 ├── isReviewing: boolean
 ├── startStream(chatId)
-├── applyEvent(event)              — единственная точка мутации ленты: событие уходит редьюсеру модели
-├── redact(stubText)               — терминальная редакция: закрывает стрим, ленту не стирает
-├── setReviewing(value)
-└── endStream()
+├── applyEvent(ownerChatId, event)                 — единственная точка мутации ленты: событие уходит
+│                                                     редьюсеру модели, но только для владельца стрима
+├── redact(ownerChatId, stubText)                  — терминальная редакция: закрывает стрим, ленту не стирает
+├── setReviewing(ownerChatId, value)
+├── endStream(ownerChatId)
+└── reset()                                        — неохраняемый сброс для cleanup на unmount
 ```
 
-Скаляров «текущий текст» / «текущий инструмент» в сторе нет — параллельные вызовы адресуются по `call_id` внутри самой ленты и закрываются независимо; всё производное (pending-карточка генерации, активная строка, сигнал автопрокрутки) считается из ленты на рендере. Причины и границы этой раскладки — [conventions/frontend.md § Состояние стрима](conventions/frontend.md#состояние-стрима-модель-ленты-чистая-стор--её-держатель).
+Скаляров «текущий текст» / «текущий инструмент» в сторе нет — параллельные вызовы адресуются по `call_id` внутри самой ленты и закрываются независимо; всё производное (pending-карточка генерации, активная строка, сигнал автопрокрутки) считается из ленты на рендере.
 
-После `endStream()` — сброс в initial state. Полное сообщение приходит с сервера через инвалидацию chat query: сохранённый ход отдаёт `parts`, из которых собирается та же лента.
+**Owner-guard.** `ChatThread` не перемонтируется при переключении чата, поэтому поток чата A, не оборванный при переходе на B, может продолжать слать события уже после `startStream(B)`. Четыре охраняемых действия (`applyEvent`, `redact`, `setReviewing`, `endStream`) принимают владельца первым аргументом и сверяют его со `streamingChatId` — несовпадение делает вызов no-op, инвариант держит сам стор, а не дисциплина вызывающего. `reset()` — исключение: неохраняемый сброс для cleanup на unmount, отдельный от `endStream()` намеренно («мой поток закончился» и «экран ушёл» — разная семантика с разной защитой). Причины и границы всей раскладки, а также контракт владельца в колбэках `useAgentStream` — [conventions/frontend.md § Состояние стрима](conventions/frontend.md#состояние-стрима-модель-ленты-чистая-стор--её-держатель).
+
+После `endStream(ownerChatId)`, вызванного владельцем, — сброс в initial state (вызов от уже не владеющего потока — no-op). Полное сообщение приходит с сервера через инвалидацию chat query: сохранённый ход отдаёт `parts`, из которых собирается та же лента.
 
 ## API-интеграция
 
@@ -315,8 +321,8 @@ Frontend различает две точки взаимодействия с с
 Визуальный язык продукта — система «Чернила / Электрик»: тёплая бумажная основа, один плоский фиолетовый акцент, serif-акценты, Сфера-орб как ядро бренда. Токены light/dark, типографика, бренд-примитивы (`Wordmark`, `SphereOrb`), иллюстрации и error UX — в [design-system.md](design-system.md). Здесь — только точки интеграции:
 
 - **Темизация.** Тема — клиентское состояние `stores/theme-store.ts` (Zustand + persist, ключ `learnflow-theme`); переключение вешает класс `.dark` на `<html>`, no-FOUC инлайн-скрипт в `index.html`. Переключатель — в user-строке Sidebar.
-- **Иллюстрации.** Welcome-hero, sidebar-vignette, empty-states и error-state идут через централизованную карту `shared/assets/illustrations/index.ts` (обёртка `shared/ui/Illustration`) — единственная точка свапа ассетов.
-- **Error UX.** Тосты `sonner` на ошибках мутаций (`MutationCache.onError` → `toast.error` из парсера `shared/lib/api-error.ts`); брендовый ErrorBoundary с иллюстрацией; инлайн error-бары на токене `--destructive`.
+- **Иллюстрации.** Сцены (welcome-hero, sidebar-vignette, empty-states, error-state, not-found, artifacts-select, auth-hero) идут через централизованную карту `shared/assets/illustrations/index.ts` (обёртка `shared/ui/Illustration`) — единственная точка свапа ассетов.
+- **Error UX.** Единая система состояний «не-контента» — `StateScreen`/`LoadingState`/`ErrorCard`/`Skeleton` (`shared/ui/StateScreen.tsx`, `shared/ui/skeleton.tsx`); тосты `sonner` остаются отдельным каналом за мутациями. Контракт — [design-system.md § Error UX](design-system.md#error-ux).
 
 ## Стек и инструменты
 
@@ -368,12 +374,14 @@ graph TD
         SETP["user-settings · project-settings"]
         SECP["security — admin"]
         WELP["welcome"]
+        NFP["not-found"]
     end
 
     subgraph FEATSL["features/ — переиспользуемые interactions"]
         MSEL["model-selector"]
         MCPF["mcp-servers"]
         CHACT["chat-actions"]
+        AUTHF["auth — 0 потребителей, мост под feat-008"]
     end
 
     subgraph CLST["stores/ — клиентский state, Zustand"]
@@ -410,7 +418,7 @@ graph TD
     style SHRD fill:#d299221a,stroke:#d29922,color:#d29922
 ```
 
-Структура каноническая по FSD с осознанными отступлениями (зафиксированы в [conventions/frontend.md](conventions/frontend.md#frontend)): `stores/` на верхнем уровне (`stream-store` cross-feature), `shared/` импортируется по доменным файлам без barrel-индексов, слои `widgets/` и `entities/` не вводятся.
+Структура каноническая по FSD с осознанными отступлениями (зафиксированы в [conventions/frontend.md](conventions/frontend.md#frontend)): `stores/` на верхнем уровне (`stream-store` cross-feature), `shared/` импортируется по доменным файлам без barrel-индексов, слои `widgets/` и `entities/` не вводятся, `features/auth` временно без потребителей — презентационный мост под каркас параллельной итерации feat-008.
 
 ```
 frontend/
@@ -450,14 +458,19 @@ frontend/
 │   │   ├── artifact/              — /projects/:id/artifacts/:aid (ArtifactView)
 │   │   ├── user-settings/         — /settings (SettingsPage, CustomInstructions, AgentMemory, SkillContext)
 │   │   ├── project-settings/      — /projects/:id/settings (ProjectSettingsPage)
-│   │   └── security/              — /security, admin (SecurityPage, RouteGuard, Events/Alerts/Rules,
-│   │                                RuleForm, Filter, Pagination, Severity/StatusBadge)
+│   │   ├── security/              — /security, admin (SecurityPage, RouteGuard, Events/Alerts/Rules,
+│   │   │                            RuleForm, Filter, Pagination, Severity/StatusBadge)
+│   │   └── not-found/             — catch-all `path="*"` внутри AppLayout (NotFoundPage, брендовый 404)
 │   │
 │   ├── features/                  — переиспользуемые interactions (2+ страниц), public API в index.ts
 │   │   ├── model-selector/        — ModelSelector (chat + user/project settings)
 │   │   ├── mcp-servers/           — MCPServersSection (+ MCPServerForm, приватный)
-│   │   └── chat-actions/          — ChatActions (rename/delete dropdown + диалоги; хосты —
-│   │                                project-chats/ChatList и app/components/Sidebar recents)
+│   │   ├── chat-actions/          — ChatActions (rename/delete dropdown + диалоги; хосты —
+│   │   │                            project-chats/ChatList и app/components/Sidebar recents)
+│   │   └── auth/                  — LoginScreenView (презентационная сборка входа/регистрации,
+│   │                                без auth-логики); осознанное исключение из критерия 2+ страниц —
+│   │                                мост под каркас параллельной итерации feat-008, сегодня ноль
+│   │                                потребителей (design-brief feat-013 § 8)
 │   │
 │   ├── shared/
 │   │   ├── api/                   — HTTP-слой: домен = типы + API-функции + data-хуки
@@ -469,7 +482,11 @@ frontend/
 │   │   │   ├── settings.ts  user-memory.ts  skill-context.ts  mcp-servers.ts  feedback.ts  auth.ts
 │   │   │   └── security.ts        — SIEM типы + siemClient + хуки (siem-service API)
 │   │   ├── ui/                    — shadcn/ui примитивы + MarkdownRenderer + TypedTitle
-│   │   │                            (посимвольная печать auto-title, домен-нейтральный)
+│   │   │                            (посимвольная печать auto-title, домен-нейтральный) + система
+│   │   │                            состояний StateScreen/LoadingState/ErrorCard/skeleton +
+│   │   │                            брендовые примитивы auth-экрана AuthLayout/ProviderButton
+│   │   ├── assets/                — illustrations/{light,dark}/ (растровые сцены по теме) +
+│   │   │                            index.ts (карта getIllustration(scene, theme))
 │   │   ├── config/                — agent-tools (реестр подписей инструментов),
 │   │   │                            feature-flags (гейт незрелых фич)
 │   │   └── lib/                   — утилиты (logger, utils, security-error) + agent-feed
@@ -478,7 +495,7 @@ frontend/
 │   └── stores/                    — Zustand stores (ui-store, stream-store)
 ```
 
-**Принципы:** `pages/` — композиция уровня маршрута, каждая изолирована и закрыта `index.ts`. `features/` — только реально переиспользуемое между страницами (`model-selector`, `mcp-servers`, `chat-actions`); кросс-импортов между слайсами одного слоя нет — страницы тянут общие куски вниз, из `features/`. Компонент с одним хостом (`NewChatModal`) остаётся в `app/components/`, а не заводит `features/` — критерий 2+ страниц не выполнен. `shared/api` держит data-хуки и фабрику ключей. `app/` — shell (layouts, providers, router, постоянный Sidebar с управлением проектами), не бизнес-логика. `stores/` отдельно — `stream-store` cross-feature.
+**Принципы:** `pages/` — композиция уровня маршрута, каждая изолирована и закрыта `index.ts`. `features/` — только реально переиспользуемое между страницами (`model-selector`, `mcp-servers`, `chat-actions`); кросс-импортов между слайсами одного слоя нет — страницы тянут общие куски вниз, из `features/`. Компонент с одним хостом (`NewChatModal`) остаётся в `app/components/`, а не заводит `features/` — критерий 2+ страниц не выполнен. Осознанное исключение — `features/auth`: `LoginScreenView` заведён туда решением архитектора как презентационный мост под каркас параллельной итерации feat-008, сегодня без единого потребителя в `pages/`; критерий 2+ страниц здесь не выполнен намеренно, не по недосмотру (design-brief feat-013 § 8) — feat-008 соберёт из него `pages/login` при merge. `shared/api` держит data-хуки и фабрику ключей. `app/` — shell (layouts, providers, router, постоянный Sidebar с управлением проектами), не бизнес-логика. `stores/` отдельно — `stream-store` cross-feature.
 
 ## Logging
 
@@ -502,4 +519,4 @@ logger.error("[context]", error);
 
 ### Error Boundary
 
-`frontend/src/app/components/ErrorBoundary.tsx` — React class component, оборачивает корень приложения. При непойманной ошибке рендера показывает брендовый fallback UI (иллюстрация error-state + сообщение + кнопка «обновить страницу») вместо белого экрана. Логирует ошибку через `logger.error`. Ошибки API доводятся тостами `sonner` (мутации) и инлайн error-барами — см. [design-system.md § Error UX](design-system.md#error-ux).
+`frontend/src/app/components/ErrorBoundary.tsx` — React class component, оборачивает корень приложения. При непойманной ошибке рендера показывает брендовый fallback — композиция `StateScreen` (иллюстрация `error-state` + сообщение + кнопка «обновить страницу») вместо белого экрана; своей вёрстки не несёт, вся форма приходит из `StateScreen`. `componentDidCatch` по-прежнему логирует ошибку через `logger.error`. Ошибки API доводятся тостами `sonner` (мутации) и `ErrorCard`/инлайн-состояниями per-query — см. [design-system.md § Error UX](design-system.md#error-ux).

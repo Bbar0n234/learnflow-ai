@@ -17,7 +17,7 @@
 - **Страница `/login`** заменяет модалку: неаутентифицированный пользователь на любом маршруте попадает на `/login` (с запоминанием исходного пути), после входа возвращается. Логин и регистрация — два режима одной страницы (как сейчас в `AuthGate`), копирайт русский.
 - Сверху — **кнопки провайдеров**, состав приходит с бэкенда (`GET /api/auth/providers`, по гео): РФ — только «Войти с Яндексом»; не-РФ — **все три** (решение архитектора: россиянин за VPN входит своим Яндекс-аккаунтом, не выключая VPN; серверный запрет действует только на паре «РФ-IP × иностранный провайдер» и этим не ослабляется). Ниже — парольная форма (для всех).
 - Для OAuth-регистрации отдельного шага нет: первый вход провайдером создаёт аккаунт (find-or-create), различие login/register для OAuth-пользователя не существует.
-- **Каркас, не дизайн** (граница с feat-013): существующие shadcn-примитивы, целевая FSD-структура `pages/login`, русские тексты; wordmark/иллюстрации/полировка — feat-013 поверх, после merge этой итерации.
+- **Каркас, не дизайн** (граница с feat-013): существующие shadcn-примитивы, целевая FSD-структура `pages/login`, русские тексты; wordmark/иллюстрации/полировка — feat-013 поверх, после merge этой итерации. **Структурный референс каркаса — утверждённый мокап feat-013** (`iterations/dogfooding/feat-013-ui-polish/mockups/ui-polish.html`, экран auth, два гео-варианта): состав и порядок блоков (карточка формы, блок кнопок провайдеров, разделитель «или») берутся из него, чтобы стилизация feat-013 легла краской, а не перестройкой DOM.
 - Ошибки OAuth-флоу (отказ пользователя на экране провайдера, гео-запрет, протухший state) возвращают на `/login` с человекочитаемым сообщением — не белый экран.
 
 ## Архитектура
@@ -36,7 +36,7 @@ sequenceDiagram
     B->>P: authorize-страница, согласие пользователя
     P-->>B: 302 /api/auth/oauth/{provider}/callback?code&state
     B->>BE: GET callback (cookie oauth_flow приедет: top-level GET, SameSite=Lax)
-    Note over BE: гео-gate повторно · сверка state (query ↔ cookie)<br/>обмен code+verifier(+secret) → токен провайдера<br/>userinfo → (provider, account_id, email)
+    Note over BE: сверка state (query ↔ cookie) · гео-gate повторно<br/>обмен code+verifier(+secret) → токен провайдера<br/>userinfo → (provider, account_id, email)
     Note over BE: find-or-create user + oauth_account (одна транзакция)
     BE-->>B: 302 на SPA + Set-Cookie: refresh_token (штатная механика)<br/>+ Set-Cookie: oauth_flow удалена
     B->>BE: POST /api/auth/refresh (существующий)
@@ -135,11 +135,11 @@ app/infra/oauth/
 
 ### Гео-gate
 
-- `app/infra/geoip.py`: reader MMDB (пакет `geoip2`), база **IPinfo Lite** (fallback — MaxMind GeoLite2), путь из `GEOIP_DB_PATH`. Reader открывается в lifespan → `app.state` (mmap, микросекунды на запрос). База в v1 скачивается **разово** при настройке окружения (инструкция — в итерации); автоматизация регулярного обновления — сознательно вне scope, пункт в backlog (Infra). Процесс читает файл при старте; горячая перезагрузка не нужна.
+- `app/infra/geoip.py`: reader MMDB — **пакет `maxminddb`, чтение `Reader.get(ip)`** с извлечением country-кода: high-level API `geoip2` заточен под схему записей MaxMind, у IPinfo Lite структура записей плоская — `maxminddb.get()` совместим с обеими базами (и с GeoLite2-fallback). База **IPinfo Lite**, путь из `GEOIP_DB_PATH`. Reader открывается в lifespan → `app.state` (mmap, микросекунды на запрос). Dev-база уже скачана (см. Ручные шаги); прод — разовое скачивание при деплое; автоматизация регулярного обновления — сознательно вне scope, пункт в backlog (Infra). Процесс читает файл при старте; горячая перезагрузка не нужна.
 - IP — строго через существующий `app.infra.client_ip.get_client_ip`.
 - **Fallback-страна — `GEOIP_FALLBACK_COUNTRY`, default `RU`** — применяется и при недоступной/несконфигурированной базе, и при **lookup-промахе любого неразрешимого IP** (приватные адреса: dev с `CLIENT_IP_SOURCE=socket` даёт `127.0.0.1`, которого в MMDB нет). Fail-closed в сторону закона: деградация «иностранец видит только Яндекс + пароль» юридически безопасна и функционально не блокирует вход; обратный отказ открыл бы Google/GitHub для РФ. В dev без базы можно выставить `US` для проверки не-РФ ветки. Корректность гео в прод зависит от `CLIENT_IP_SOURCE=x-real-ip` за nginx; misconfig деградирует в тот же fail-closed RU — приемлемо.
-- Enforcement в трёх точках: `GET /api/auth/providers` (состав: RU → `["yandex"]`, иначе — все активные провайдеры), `/authorize` и `/callback` (отклонение запрещённого провайдера для RU-IP → редирект на `/login?error=provider_not_available_in_region`). Проверка в callback обязательна: смена IP между шагами и прямое обращение к callback мимо UI.
-- Атрибуция IPinfo (CC BY-SA) — строка в футере страницы `/login` и/или в README — финализируется в реализации.
+- Enforcement в трёх точках: `GET /api/auth/providers` (состав: RU → `{yandex}` **∩ активные** — при незаполненных кредах Яндекса RU-пользователь получает только пароль, а не кнопку в 404; иначе — все активные провайдеры), `/authorize` и `/callback` (отклонение запрещённого провайдера для RU-IP → редирект на `/login?error=provider_not_available_in_region`). Проверка в callback обязательна: смена IP между шагами и прямое обращение к callback мимо UI.
+- Атрибуция IPinfo (CC BY-SA) — **в README проекта** (публичный репозиторий) + упоминание в `auth.md`. В футер `/login` сознательно не кладём: экран целиком перекрашивается feat-013, строка в каркасе рисковала бы потеряться при стилизации.
 
 ### Эндпоинты и сервисный слой
 
@@ -152,7 +152,7 @@ app/infra/oauth/
 - `{provider}` валидируется по реестру активных провайдеров (неизвестный/выключенный → 404).
 - **Транспорт `next`:** кнопка на `/login` передаёт сохранённый guard'ом `from` query-параметром `next`; `/authorize` валидирует его **до записи в claim** (относительный путь: начинается с `/`, не с `//`) и кладёт в `oauth_flow`; callback на успехе редиректит на `/{next}` (default `/`). Клиентское состояние react-router полный уход со страницы не переживает — поэтому транспорт именно сквозной, через query + claim. Для парольного входа `from` остаётся чисто клиентским.
 - `OAuthService` (`app/services/oauth.py`): `login_with_provider(profile) → (user, access, refresh)` — одна транзакция: lookup `oauth_accounts` по `(provider, account_id)` → найден: пользователь + освежение `email`; не найден: создание `User` (без пароля) + `OAuthAccount` атомарно; далее — существующие `_create_access`/`_create_refresh` из `AuthService` (переиспользование, не копия). **Оба constraint-пути обрабатываются явно** (тесты покрывают оба): unique violation на `users.name` → суффикс и retry с лимитом попыток ([research-data-model.md](research-data-model.md)); unique violation на `(provider, provider_account_id)` (гонка двойного callback'а из двух вкладок) → деградация в повторный lookup (login-путь), не 500.
-- **SIEM** — словарь событий закрытый (`packages/siem-contracts`: `vocabulary.py` + `Literal EventType`), поэтому состав фиксируется здесь, а пакет входит в скоуп T1. Новые события: вход через провайдера успех/отказ (поля `provider`, `new_user: bool` — первый вход = создание аккаунта отдельным типом не эмитится, это login-событие с флагом) + rate-limit-событие для oauth-эндпоинтов (существующие `RATE_LIMIT_LOGIN/REGISTER/REFRESH` не переиспользуются — другие эндпоинты). Гео-отказ (`provider_not_available_in_region`) — security-событие не эмитится: это штатная политика показа, не атака; фиксируется structlog-инфо. Имена констант выравниваются по стилю `vocabulary.py` на реализации; состав — не меняется.
+- **SIEM** — словарь событий закрытый (`packages/siem-contracts`: `vocabulary.py` + `Literal EventType`), поэтому состав фиксируется здесь, а пакет входит в скоуп backend-части итерации. Новые события: вход через провайдера успех/отказ (поля `provider`, `new_user: bool` — первый вход = создание аккаунта отдельным типом не эмитится, это login-событие с флагом) + rate-limit-событие для oauth-эндпоинтов (существующие `RATE_LIMIT_LOGIN/REGISTER/REFRESH` не переиспользуются — другие эндпоинты). **Маппинг веток callback'а на событие «отказ»:** эмитят `flow_expired` (несовпадение/подделка state — потенциальный CSRF-сигнал, самая security-значимая ветка) и `oauth_failed`; `provider_unavailable` — операционная деградация внешнего сервиса, `logger.warning` без SIEM; `access_denied` — пользователь передумал, не событие; гео-отказ (`provider_not_available_in_region`) — штатная политика показа, structlog-инфо. Имена констант выравниваются по стилю `vocabulary.py` на реализации; состав — не меняется.
 - Порядок веток callback'а (cookie `oauth_flow` гасится на **каждой** терминальной ветке, кроме «cookie отсутствует» — см. § Хранение state):
 
 ```mermaid
@@ -170,7 +170,7 @@ flowchart TB
     FOC -->|успех| OK["Set-Cookie refresh_token → 302 /{next}"]
 ```
 
-- **Реестр кодов ошибок `/login?error=` — закрытый** (единственный контракт стыка T1↔T2 по ошибкам):
+- **Реестр кодов ошибок `/login?error=` — закрытый** (контракт стыка backend↔frontend по ошибкам):
 
 | Код | Когда | Текст на `/login` |
 |-----|-------|-------------------|
@@ -224,7 +224,7 @@ flowchart LR
 ### Frontend
 
 - **`AuthGate` умирает.** Вход перестраивается: `BrowserRouter` оборачивает всё приложение; guard-компонент (`RequireAuth`) на layout-маршруте редиректит неаутентифицированных на `/login` с сохранением `from`; `/login` — публичный маршрут.
-- **`pages/login`** (FSD): режимы вход/регистрация, парольная форма (существующие `shared/api/auth.ts` функции), блок кнопок провайдеров из `GET /api/auth/providers` (данные — TanStack Query). Кнопка провайдера — **полный переход страницы** `window.location.assign('/api/auth/oauth/{p}/authorize')`, не fetch (флоу редиректный). Обработка `?error=<код>` — инлайн-сообщение.
+- **`pages/login`** (FSD): режимы вход/регистрация, парольная форма (существующие `shared/api/auth.ts` функции), блок кнопок провайдеров из `GET /api/auth/providers` (данные — TanStack Query). Кнопка провайдера — **полный переход страницы** `window.location.assign('/api/auth/oauth/{p}/authorize?next=<from>')`, не fetch (флоу редиректный); `from` — сохранённый guard'ом исходный путь (транспорт `next` — § Эндпоинты). Обработка `?error=<код>` — инлайн-сообщение.
 - **Возврат из OAuth:** SPA загружается по редиректу callback'а; бутстрап аутентификации один для всех путей и живёт на **app-уровне** (hook `useAuthBootstrap` над роутами, выполняется один раз при загрузке SPA): есть access в localStorage → готово; нет → тихий `POST /api/auth/refresh` (есть refresh-cookie — OAuth её только что поставил → access получен; 401 без cookie — ожидаемый тихий путь анонима, не ошибка). Пока бутстрап не завершён — рендерится существующий паттерн загрузки, не редирект (исключает редирект-луп и мигание `/login`). `RequireAuth` принимает вердикт только после бутстрапа; `/login` — вне guard'а. Отдельный callback-маршрут SPA не нужен.
 
 ```mermaid
@@ -239,7 +239,8 @@ flowchart TB
     G -->|да| APP["layout-маршруты приложения"]
     G -->|нет| LGN["/login — публичный, вне guard<br/>+ сохранение from"]
 ```
-- Существующие interceptor, `ensureFreshToken`, ключ localStorage — без изменений.
+- **Критерий вердикта `RequireAuth`:** наличие access token после завершения бутстрапа, нереактивно (как сегодня у `AuthGate`). Смерть сессии mid-session (провал refresh в интерцепторе → `clearAccessToken`) наследует текущее поведение — пользователь остаётся на экране до перезагрузки; реактивный редирект — сознательно вне scope.
+- **Interceptor (`shared/api/client.ts`) — второй общий файл стыка с feat-013** (их фикс сайдбар-бага меняет правило исключений refresh-retry на семантическое: «в исключениях — только анонимные эндпоинты»). Классификация наших эндпоинтов по этому правилу: `GET /api/auth/providers` — анонимный → в исключениях; `authorize`/`callback` — top-level навигация, не fetch, интерцептора не касаются вовсе. Сам файл эта итерация не правит — при merge после feat-013 классификация сходится без конфликтов. `ensureFreshToken`, ключ localStorage — без изменений.
 - Новый auth-стор не заводится: состояние — страница `/login` (локально) + существующий механизм токена; если реализация упрётся в необходимость шаринга — эскалация, не молчаливый стор.
 - Тесты: `router.test.tsx` расширяется (редирект на `/login`, публичность `/login`); MSW-хендлеры для `/providers`.
 
@@ -256,22 +257,23 @@ flowchart TB
 | `Settings`/env | 9 переменных (таблица выше), atomic change 4 мест |
 | Роутинг SPA | `/login` публичный; guard на layout; `AuthGate` удаляется |
 | `router.tsx` | правки только структуры входа — catch-all `path="*"` принадлежит feat-013 |
+| `shared/api/client.ts` | этой итерацией не правится; классификация новых эндпоинтов по семантическому правилу feat-013: `/api/auth/providers` — анонимный (в исключениях refresh-retry), authorize/callback — не fetch |
 
 Актуализация документации по итогам: `auth.md` (OAuth-флоу, эндпоинты, cookie `oauth_flow`, env-таблица), `backend.md` (слои: `infra/oauth`, `infra/geoip`, `OAuthService`), `frontend.md` (вход страницей, дерево модулей), `security/architecture.md` (новая поверхность: OAuth-callback, гео-gate), новый ADR.
 
 ## Ручные шаги архитектора
 
-Регистрации ведёт архитектор (отдельным агентом/руками), пары client_id/secret передаются в `.env.local` (dev) и прод-env. Redirect URI с учётом решения «dev через Vite-proxy» (host — SPA-origin):
+**Dev-контур готов:** регистрации всех трёх провайдеров выполнены архитектором, пары client_id/secret лежат в `.env.local`; гео-база IPinfo Lite скачана в `data/geoip/ipinfo_lite.mmdb` (путь — `GEOIP_DB_PATH`). Реализация ни на какие ручные шаги не блокируется.
 
-| Провайдер | Dev redirect_uri | Prod redirect_uri | Примечания |
+**Остаток — prod-регистрации, отдельным заходом к деплою.** Redirect URI (host — SPA-origin, dev через Vite-proxy):
+
+| Провайдер | Dev redirect_uri (выполнено) | Prod redirect_uri (к деплою) | Примечания |
 |-----------|------------------|-------------------|------------|
-| Яндекс | `http://localhost:5173/api/auth/oauth/yandex/callback` | `https://learnflow.me/api/auth/oauth/yandex/callback` | без верификации, работает сразу; **первый шаг, разблокирует T1-вертикаль** |
+| Яндекс | `http://localhost:5173/api/auth/oauth/yandex/callback` | `https://learnflow.me/api/auth/oauth/yandex/callback` | без верификации, работает сразу |
 | GitHub | `http://localhost:5173/api/auth/oauth/github/callback` | `https://learnflow.me/api/auth/oauth/github/callback` | два отдельных приложения (один callback на приложение); host строго `localhost`, не `127.0.0.1` (инвариант host'а cookie) |
 | Google | `http://localhost:5173/api/auth/oauth/google/callback` | `https://learnflow.me/api/auth/oauth/google/callback` | dev: testing mode, себя в test users; scopes `openid email profile` |
 
-Плюс: токен IPinfo Lite (бесплатный аккаунт) для скачивания MMDB — к фазе гео-gate. Чек-лист по каждой консоли — [research-provider-libs.md](research-provider-libs.md) § Схема dev/prod-окружений.
-
-Статус: dev-регистрации всех трёх провайдеров выполнены, пары лежат в `.env.local`; гео-база IPinfo Lite скачана в `data/geoip/ipinfo_lite.mmdb` (путь — `GEOIP_DB_PATH`). Prod-пары — отдельным заходом к деплою.
+Чек-лист по каждой консоли — [research-provider-libs.md](research-provider-libs.md) § Схема dev/prod-окружений.
 
 ## Порядок реализации и завершение
 
@@ -300,4 +302,6 @@ flowchart TB
 
 ## Ревью брифа
 
-Прогон свежим агентом с чистым контекстом (2026-08-12) по чек-листу conventions § Ревью дизайн-брифа: 15 находок (1 blocker, 4 major, 10 minor). Ключевые: dev-топология финального редиректа callback'а (SPA на 5173, callback на 8000 — относительный 302 вёл в JSON-404 бэкенда) → решение архитектора по варианту редиректа; транспорт `next` не был специфицирован → сквозной контракт query→claim→redirect; открытый реестр ошибок → закрытая таблица кодов; SIEM-словарь закрытый → event types зафиксированы, `packages/siem-contracts` добавлен в скоуп T1; host-scope cookies ломал dev-флоу GitHub (`127.0.0.1`) и VK → инвариант «один host на флоу», GitHub-dev на `localhost`, VK-dev целиком через `dev.learnflow.me`. Минорные (lifecycle httpx/geoip-reader, lookup-промах гео, 429-семантика, обе constraint-гонки find-or-create, судьба `oauth_flow` на error-путях, `/me` без изменений, механика бутстрапа, single-worker строка) — учтены правками. Отступление от конвенции UI-мокапа (каркас без мокапа — дизайн и мокап auth-экранов в feat-013) — санкционировано архитектором в рамках решения о границе фич.
+**Первый прогон** (2026-08-12, свежий агент с чистым контекстом, чек-лист conventions § Ревью дизайн-брифа): 15 находок (1 blocker, 4 major, 10 minor). Ключевые: dev-топология финального редиректа callback'а (SPA на 5173, callback на 8000 — относительный 302 вёл в JSON-404 бэкенда) → решение архитектора по варианту редиректа; транспорт `next` не был специфицирован → сквозной контракт query→claim→redirect; открытый реестр ошибок → закрытая таблица кодов; SIEM-словарь закрытый → event types зафиксированы, `packages/siem-contracts` в скоупе backend-части; host-scope cookies ломал dev-флоу GitHub (`127.0.0.1`) и VK (на тот момент в составе; позже исключён — с ним снята и https-топология `dev.learnflow.me`) → инвариант «один host на флоу», GitHub-dev на `localhost`. Минорные — учтены правками. Отступление от конвенции UI-мокапа (каркас без собственного мокапа — дизайн и мокап auth-экранов в feat-013) — санкционировано архитектором в рамках решения о границе фич.
+
+**Второй прогон** (2026-08-12, после исключения VK, внесения решений и снятия партиции; включал кросс-сверку с design-brief feat-013): 12 находок (0 blocker, 3 major, 9 minor) — висящие ссылки на T1/T2 после снятия партиции, второй общий файл стыка `shared/api/client.ts` (семантическое правило классификации эндпоинтов интерцептора из feat-013), устаревшая строка артефакта в tasklist, порядок веток в sequence-Note, статус ручных шагов, пересечение RU-ветки с активными провайдерами, `maxminddb.get()` вместо high-level `geoip2` для IPinfo Lite, судьба атрибуции при стилизации feat-013 (→ README), `next` в сниппете кнопки, критерий вердикта `RequireAuth` + mid-session вне scope, маппинг веток callback'а на SIEM-«отказ», VK-хвост в логе первого прогона. Все вправлены; стык с feat-013 в остальном подтверждён чистым (гео-модель, копирайт, `router.tsx`, FSD, порядок merge).

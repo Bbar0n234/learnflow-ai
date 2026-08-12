@@ -18,6 +18,10 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  /* Нативные UA-виджеты (в т.ч. системный скроллбар до применения кастомного
+     стиля ниже) рендерятся в светлой палитре — без этого на тёмной теме
+     местами светится белым. */
+  color-scheme: light;
   /* Чернила / Электрик — light tokens */
   --background: #faf7f1;
   --foreground: #2e2a24;
@@ -54,6 +58,8 @@
   /* MCP server status indicators */
   --mcp-connected: #4c9a6e;
   --mcp-disabled: #c8c0ae;
+  /* Токен успеха (галочка активности, success-тост) */
+  --success: #3d7a45;
   /* Shadows */
   --shadow-input: 0 2px 10px rgba(80, 70, 50, 0.06);
   --shadow-lens: 0 24px 80px rgba(24, 16, 36, 0.35);
@@ -83,6 +89,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   /* Чернила / Электрик — dark tokens */
   --background: #181420;
   --foreground: #ede8e2;
@@ -115,6 +122,8 @@
   /* MCP server status indicators */
   --mcp-connected: #6ab88a;
   --mcp-disabled: #7e7490;
+  /* Токен успеха (галочка активности, success-тост) */
+  --success: #6fbf78;
   /* Extra brand tokens */
   --brand-lavender: #b194ff;
   --bubble-user: #262031;
@@ -141,6 +150,7 @@
   --font-serif: "Source Serif 4", serif;
   --font-mono: "IBM Plex Mono", monospace;
   --color-destructive-warm: var(--destructive-warm);
+  --color-success: var(--success);
   --color-mcp-connected: var(--mcp-connected);
   --color-mcp-disabled: var(--mcp-disabled);
   --color-brand-lavender: var(--brand-lavender);
@@ -200,6 +210,61 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* ─── Скроллбары уровня дизайн-системы (T1.2) ──────────────────────────────
+   Единый тонкий стиль на токенах для всех overflow-контейнеров (~19 нативных
+   `overflow-auto`/`overflow-y-auto` в src), согласованный по ширине/радиусу/
+   /цвету с Base UI `ScrollArea` (shared/ui/scroll-area.tsx — не правится,
+   примитив shadcn).
+
+   Паритет ширины с thumb'ом ScrollArea (резолюция plan-review, T1/plan.md
+   п.3): дорожка ScrollArea — `w-2.5` (10px), но видимый thumb внутри неё
+   уже не 10px, а 7px — `Scrollbar` несёт `p-px` (padding 1px со всех сторон)
+   и `border-l`/`border-t` шириной 1px (transparent) только с ведущей стороны:
+   10 − border(1) − padding-ведущий(1) − padding-ведомый(1) = 7px, смещение
+   2px с ведущей стороны (лево у вертикальной полосы, верх у горизонтальной)
+   и 1px с ведомой. Тот же эффект здесь получен рамкой thumb'а с
+   `background-clip: padding-box`: 10 − 2 − 1 = 7px видимой полосы, то же
+   асимметричное смещение. Замерено на dev-сборке в обеих темах — ширина и
+   положение полос неотличимы визуально. Hover-акцент у ScrollArea нет и
+   без правки сгенерированного файла недостижим — расхождение принято
+   (см. tracks/T1/summary.md § Follow-ups). */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  background-clip: padding-box;
+  border-style: solid;
+  border-color: transparent;
+  border-width: 2px 1px 1px 2px;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--muted-foreground) 45%,
+    var(--border)
+  );
+}
+/* Firefox не поддерживает ::-webkit-scrollbar — гард обязателен: без него
+   современный Chromium тоже применил бы scrollbar-width/scrollbar-color
+   (свойства поддержаны и там) и перебил бы webkit-правила выше, обнулив
+   10px-ширину и hover. Точная ширина и hover-акцент в Firefox недостижимы —
+   расхождение принято как норма (design-brief.md § 1.2). */
+@supports not selector(::-webkit-scrollbar) {
+  :root {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
   }
 }
 

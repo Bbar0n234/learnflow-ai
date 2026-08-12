@@ -19,7 +19,10 @@ export function AppLayout() {
       >
         <Sidebar />
       </aside>
-      <main className="flex-1 overflow-auto">
+      <main
+        className="flex-1 overflow-auto"
+        style={{ scrollbarGutter: "stable" }}
+      >
         {!sidebarOpen && (
           <Button
             variant="ghost"

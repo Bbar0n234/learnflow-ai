@@ -181,7 +181,10 @@ export function MessageList({
   ]);
 
   return (
-    <div className="flex-1 overflow-auto p-6">
+    <div
+      className="flex-1 overflow-auto p-6"
+      style={{ scrollbarGutter: "stable" }}
+    >
       <div
         className="mx-auto flex flex-col gap-4"
         style={{ maxWidth: "var(--content-max-w)" }}

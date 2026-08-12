@@ -86,6 +86,22 @@ warm, not a journey scene.
 - Компактный смысловой кластер, свободный воздух по краям (сцена 3 — слева ≥40%).
 - Dark-пара визуально идентична light по композиции.
 
+## Перегенерация: итерация 2 (фидбэк архитектора по итерации 1)
+
+Сцены 1 и 2 приняты, их не трогать. Перегенерируется **только `auth-hero.png`** — дефект первой генерации: **хвост кота зажат открытой дверью** (проходит за дверным полотном и выглядит прищемлённым).
+
+```text
+Regenerate auth-hero. Use the previous generation
+(generated/light/auth-hero.png) as the binding composition reference: keep the
+same scene, character identity, door, hut, doorway light, key on chain, doormat
+page, supporting objects, palette, and left-side free air.
+Fix exactly one thing: the cat's tail must not be caught behind or pinched by
+the open door. The tail lies freely and fully visible — curled calmly beside
+the cat's feet or wrapped around them, entirely in front of the door plane.
+```
+
+После light-версии — dark-пара тем же режимом B. Результат кладётся поверх прежних файлов (`generated/{light,dark}/auth-hero.png`) — история остаётся в git.
+
 ## Куда класть результат
 
 `doc/tasks/iterations/dogfooding/feat-013-ui-polish/generated/{light,dark}/<имя-сцены>.png` — в ветку `dogf/feat-013-ui-polish`. Варианты (если несколько кандидатов на сцену) — с суффиксами `-v1/-v2`. Дальнейшие шаги вне этого контракта: отбор архитектором → BiRefNet-вырез → ручная доводка → вставка в мокап итерации → перенос в `frontend/src/shared/assets/illustrations/` при реализации.

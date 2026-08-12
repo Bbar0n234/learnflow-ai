@@ -1,4 +1,4 @@
-# Design Brief: OAuth-вход — Яндекс ID / VK ID / Google / GitHub с гео-разделением + каркас `/login`
+# Design Brief: OAuth-вход — Яндекс ID / Google / GitHub с гео-разделением + каркас `/login`
 
 **Итерация:** dogfooding feat-008 (I) — [tasklist-dogfooding.md](../../../tasklist-dogfooding.md)
 **Scope:** cross-cutting (Frontend + Backend + Design-branding)
@@ -6,7 +6,7 @@
 
 ## Контекст и цель
 
-Сегодня единственный способ входа — логин/пароль в блокирующей модалке `AuthGate` над роутером. Итерация добавляет вход через внешних провайдеров (пользователь не заводит отдельный пароль) и перестраивает вход на полноценную страницу `/login`. Состав провайдеров продиктован ч. 10 ст. 8 149-ФЗ (штрафы по ст. 13.55 КоАП с 07.07.2026): пользователям из РФ показываются и разрешаются только Яндекс ID / VK ID (+ пароль), остальным — Google / GitHub (+ пароль, + опционально российские кнопки). Юридическая рамка, ответственность и границы — [research-legal-geo.md](research-legal-geo.md).
+Сегодня единственный способ входа — логин/пароль в блокирующей модалке `AuthGate` над роутером. Итерация добавляет вход через внешних провайдеров (пользователь не заводит отдельный пароль) и перестраивает вход на полноценную страницу `/login`. Состав провайдеров продиктован ч. 10 ст. 8 149-ФЗ (штрафы по ст. 13.55 КоАП с 07.07.2026): пользователям из РФ показываются и разрешаются только российские провайдеры (+ пароль), остальным — все активные. Из российских реализуется один Яндекс ID: VK ID исключён решением архитектора — регистрация VK ID-приложения физлицу без бизнес-верификации недоступна, а dev-флоу требовал бы отдельной https-топологии (`dev.learnflow.me` + сертификат + nginx). Итоговый состав: Яндекс ID, Google, GitHub. Юридическая рамка, ответственность и границы — [research-legal-geo.md](research-legal-geo.md).
 
 Ключевая рамка архитектуры: **OAuth заканчивается в момент, когда мы надёжно узнали `(provider, provider_account_id)`**. Дальше без изменений работает существующая сессионная машина (`_create_access` / `_create_refresh`, ротация refresh, replay-детекция) — итерация не трогает [auth.md](../../../../tech/auth.md)-механику токенов.
 
@@ -15,7 +15,7 @@
 ## Целевой UX
 
 - **Страница `/login`** заменяет модалку: неаутентифицированный пользователь на любом маршруте попадает на `/login` (с запоминанием исходного пути), после входа возвращается. Логин и регистрация — два режима одной страницы (как сейчас в `AuthGate`), копирайт русский.
-- Сверху — **кнопки провайдеров**, состав приходит с бэкенда (`GET /api/auth/providers`, по гео): РФ — только «Войти с Яндексом», «Войти через VK»; не-РФ — **все четыре** (решение архитектора: россиянин за VPN входит своим Яндекс/VK-аккаунтом, не выключая VPN; серверный запрет действует только на паре «РФ-IP × иностранный провайдер» и этим не ослабляется). Ниже — парольная форма (для всех).
+- Сверху — **кнопки провайдеров**, состав приходит с бэкенда (`GET /api/auth/providers`, по гео): РФ — только «Войти с Яндексом»; не-РФ — **все три** (решение архитектора: россиянин за VPN входит своим Яндекс-аккаунтом, не выключая VPN; серверный запрет действует только на паре «РФ-IP × иностранный провайдер» и этим не ослабляется). Ниже — парольная форма (для всех).
 - Для OAuth-регистрации отдельного шага нет: первый вход провайдером создаёт аккаунт (find-or-create), различие login/register для OAuth-пользователя не существует.
 - **Каркас, не дизайн** (граница с feat-013): существующие shadcn-примитивы, целевая FSD-структура `pages/login`, русские тексты; wordmark/иллюстрации/полировка — feat-013 поверх, после merge этой итерации.
 - Ошибки OAuth-флоу (отказ пользователя на экране провайдера, гео-запрет, протухший state) возвращают на `/login` с человекочитаемым сообщением — не белый экран.
@@ -34,7 +34,7 @@ sequenceDiagram
     Note over BE: гео-gate: провайдер разрешён для страны IP?<br/>rate limit; state + PKCE-пара
     BE-->>B: 302 на провайдера + Set-Cookie: oauth_flow (httpOnly, 10 мин)
     B->>P: authorize-страница, согласие пользователя
-    P-->>B: 302 /api/auth/oauth/{provider}/callback?code&state(+device_id у VK)
+    P-->>B: 302 /api/auth/oauth/{provider}/callback?code&state
     B->>BE: GET callback (cookie oauth_flow приедет: top-level GET, SameSite=Lax)
     Note over BE: гео-gate повторно; сверка state (query ↔ cookie);<br/>обмен code+verifier(+secret) → токен провайдера;<br/>userinfo → (provider, account_id, email)
     Note over BE: find-or-create user + oauth_account (одна транзакция)
@@ -67,7 +67,6 @@ flowchart TB
     subgraph INFRA [Infra]
         REG["Реестр провайдеров — app.state<br/>OAuthProvider (Protocol)"]
         Y["yandex.py"]
-        V["vk.py"]
         G["google.py"]
         H["github.py"]
         GEO["geoip.py — MMDB reader, app.state"]
@@ -76,7 +75,7 @@ flowchart TB
     end
 
     subgraph EXT [External]
-        PYA["oauth.yandex.ru · id.vk.ru ·<br/>accounts.google.com · github.com"]
+        PYA["oauth.yandex.ru ·<br/>accounts.google.com · github.com"]
     end
 
     PG[("PostgreSQL<br/>users · oauth_accounts · refresh_tokens")]
@@ -92,8 +91,8 @@ flowchart TB
     GEO --> CIP
     AZ --> REG
     CB --> REG
-    REG --> Y & V & G & H
-    Y & V & G & H -->|httpx, TLS| PYA
+    REG --> Y & G & H
+    Y & G & H -->|httpx, TLS| PYA
     CB --> OS
     OS --> AS
     OS --> PG
@@ -112,7 +111,7 @@ flowchart TB
 - На `/authorize` бэкенд генерит `state` (`secrets.token_urlsafe(32)`) и `code_verifier` (`secrets.token_urlsafe(64)`), кладёт их в **JWT, подписанный существующим `JWT_SECRET`** (pyjwt уже в зависимостях), claims: `{state, verifier, provider, exp: +10 мин}` — и ставит cookie `oauth_flow`: httpOnly, `SameSite=Lax`, `Secure` по `SECURE_COOKIES`, `Path=/api/auth/oauth`, `max_age=600`.
 - Redirect от провайдера — top-level GET-навигация, `SameSite=Lax` такую cookie отправляет (ровно кейс, под который Lax спроектирован).
 - На `/callback`: декод и валидация подписи/exp/`provider`-совпадения, сверка `state` из query с claim. Cookie удаляется при **любом** терминальном исходе callback'а (успех, гео-отказ, `access_denied`, ошибка обмена) — кроме ветки «cookie отсутствует» (нечего удалять; сюда же попадает повторный заход на callback — cookie уже погашена, флоу завершается `flow_expired`). Подпись исключает подделку содержимого клиентом; httpOnly исключает чтение из JS.
-- **Инвариант host'а:** authorize, callback и SPA-origin одного флоу обязаны жить на одном host — обе cookie (`oauth_flow`, `refresh_token`) host-scoped. Следствия для dev: GitHub-dev-приложение регистрируется на `localhost` (не `127.0.0.1` — другой host, cookie не приедет; GitHub `localhost` допускает); dev-прогон VK идёт **целиком** в топологии `dev.learnflow.me` (SPA + API через локальный nginx), а не «callback на поддомене, SPA на localhost».
+- **Инвариант host'а:** authorize, callback и SPA-origin одного флоу обязаны жить на одном host — обе cookie (`oauth_flow`, `refresh_token`) host-scoped. Следствие для dev: GitHub-dev-приложение регистрируется на `localhost` (не `127.0.0.1` — другой host, cookie не приедет; GitHub `localhost` допускает).
 - Ограничение: два параллельных флоу в соседних вкладках перезапишут cookie друг друга — старшая вкладка упадёт на state mismatch (`flow_expired`) с сообщением «попробуйте ещё раз». Принимаем.
 - Cookie-механика stateless — multi-worker-безопасна by design (в отличие от in-memory rate limiter, см. § Эндпоинты).
 
@@ -123,16 +122,14 @@ flowchart TB
 ```
 app/infra/oauth/
 ├── base.py        # OAuthProvider (typing.Protocol): authorize_url(state, challenge, redirect_uri) /
-│                  #   exchange_code(code, verifier, redirect_uri, extra) / fetch_profile(token) → OAuthProfile
+│                  #   exchange_code(code, verifier, redirect_uri) / fetch_profile(token) → OAuthProfile
 ├── yandex.py      # обычный code flow; профиль GET login.yandex.ru/info
-├── vk.py          # PKCE+device_id+state в теле обмена, service_token; POST id.vk.ru/oauth2/user_info
 ├── google.py      # code flow; профиль через userinfo-endpoint (JWKS-валидация id_token не требуется)
 └── github.py      # code flow; email добором через /user/emails при null (scope user:email)
 ```
 
 - `OAuthProfile` — нормализованный результат: `provider`, `provider_account_id: str`, `email: str | None`, `display_name: str | None` (кандидат для `users.name`).
 - Интерфейс — `typing.Protocol` (конвенция); реализации — классы с конфигом из `Settings`, без module-level state; реестр активных провайдеров собирается в lifespan и живёт в `app.state` (провайдер активен ⇔ его креды заданы в env — dev-окружение может гонять один Яндекс).
-- VK-особенности (обязательный `device_id` из callback-query в теле обмена, `state` в теле token-запроса, `service_token` вместо secret) локализованы внутри `vk.py` — наружу тот же Protocol.
 - Сетевые вызовы — httpx AsyncClient с таймаутом; отказ провайдера (5xx, таймаут, невалидный код) — доменное исключение → редирект на `/login?error=provider_unavailable`, `logger.warning`.
 - Lifecycle ресурсов: shared `httpx.AsyncClient` создаётся в lifespan → `app.state` (общий пул соединений), закрывается на shutdown до `engine.dispose()` — паттерн существующих ресурсов `main.py`; geoip-reader — `close()` там же. Клиент per-request не создаётся.
 
@@ -140,15 +137,15 @@ app/infra/oauth/
 
 - `app/infra/geoip.py`: reader MMDB (пакет `geoip2`), база **IPinfo Lite** (fallback — MaxMind GeoLite2), путь из `GEOIP_DB_PATH`. Reader открывается в lifespan → `app.state` (mmap, микросекунды на запрос). База в v1 скачивается **разово** при настройке окружения (инструкция — в итерации); автоматизация регулярного обновления — сознательно вне scope, пункт в backlog (Infra). Процесс читает файл при старте; горячая перезагрузка не нужна.
 - IP — строго через существующий `app.infra.client_ip.get_client_ip`.
-- **Fallback-страна — `GEOIP_FALLBACK_COUNTRY`, default `RU`** — применяется и при недоступной/несконфигурированной базе, и при **lookup-промахе любого неразрешимого IP** (приватные адреса: dev с `CLIENT_IP_SOURCE=socket` даёт `127.0.0.1`, которого в MMDB нет). Fail-closed в сторону закона: деградация «иностранец видит только Яндекс/VK + пароль» юридически безопасна и функционально не блокирует вход; обратный отказ открыл бы Google/GitHub для РФ. В dev без базы можно выставить `US` для проверки не-РФ ветки. Корректность гео в прод зависит от `CLIENT_IP_SOURCE=x-real-ip` за nginx; misconfig деградирует в тот же fail-closed RU — приемлемо.
-- Enforcement в трёх точках: `GET /api/auth/providers` (состав: RU → `["yandex","vk"]`, иначе — все активные провайдеры), `/authorize` и `/callback` (отклонение запрещённого провайдера для RU-IP → редирект на `/login?error=provider_not_available_in_region`). Проверка в callback обязательна: смена IP между шагами и прямое обращение к callback мимо UI.
+- **Fallback-страна — `GEOIP_FALLBACK_COUNTRY`, default `RU`** — применяется и при недоступной/несконфигурированной базе, и при **lookup-промахе любого неразрешимого IP** (приватные адреса: dev с `CLIENT_IP_SOURCE=socket` даёт `127.0.0.1`, которого в MMDB нет). Fail-closed в сторону закона: деградация «иностранец видит только Яндекс + пароль» юридически безопасна и функционально не блокирует вход; обратный отказ открыл бы Google/GitHub для РФ. В dev без базы можно выставить `US` для проверки не-РФ ветки. Корректность гео в прод зависит от `CLIENT_IP_SOURCE=x-real-ip` за nginx; misconfig деградирует в тот же fail-closed RU — приемлемо.
+- Enforcement в трёх точках: `GET /api/auth/providers` (состав: RU → `["yandex"]`, иначе — все активные провайдеры), `/authorize` и `/callback` (отклонение запрещённого провайдера для RU-IP → редирект на `/login?error=provider_not_available_in_region`). Проверка в callback обязательна: смена IP между шагами и прямое обращение к callback мимо UI.
 - Атрибуция IPinfo (CC BY-SA) — строка в футере страницы `/login` и/или в README — финализируется в реализации.
 
 ### Эндпоинты и сервисный слой
 
 | Метод | Путь | Назначение | Rate limit | Auth |
 |-------|------|-----------|------------|------|
-| GET | `/api/auth/providers` | Доступные способы входа по гео: `{providers: ["yandex","vk"], password: true}` | — | — |
+| GET | `/api/auth/providers` | Доступные способы входа по гео: `{providers: ["yandex"], password: true}` | — | — |
 | GET | `/api/auth/oauth/{provider}/authorize?next=<path>` | Гео-gate → state/PKCE → cookie `oauth_flow` → 302 на провайдера | 10/мин/IP | — |
 | GET | `/api/auth/oauth/{provider}/callback` | Ветки по порядку: `?error` провайдера → cookie/state → гео → обмен → профиль → find-or-create → refresh-cookie → 302 на SPA | 10/мин/IP | cookie `oauth_flow` |
 
@@ -188,7 +185,7 @@ flowchart TB
 
 ### Модель данных и миграция
 
-Зафиксирована в [research-data-model.md](research-data-model.md) (DDL-эскиз, таблица решений, postgresql-ревью): новая `oauth_accounts`, `users.password_hash → nullable`, `users.email` не вводится, токены провайдера не хранятся. Одна autogenerate-ревизия против запущенной БД. Инвариант «пароль ИЛИ oauth-связка» — сервисный слой (одна транзакция создания). Парольный логин при `password_hash IS NULL` отклоняется тем же 401, что и неверный пароль (без утечки способа входа аккаунта).
+Зафиксирована в [research-data-model.md](research-data-model.md) (DDL-эскиз, таблица решений, postgresql-ревью): новая `oauth_accounts`, `users.password_hash → nullable`, `users.email` не вводится, токены провайдера не хранятся. Отступление от research-эскиза: CHECK-constraint `provider IN (...)` реализуется по фактическому составу — `('yandex', 'google', 'github')`, без `vk` (эскиз писался до исключения VK; возврат провайдера = код + тривиальная миграция расширения CHECK — цена, принятая конвенцией db.md). Одна autogenerate-ревизия против запущенной БД. Инвариант «пароль ИЛИ oauth-связка» — сервисный слой (одна транзакция создания). Парольный логин при `password_hash IS NULL` отклоняется тем же 401, что и неверный пароль (без утечки способа входа аккаунта).
 
 Решение модели тянет **ADR** (identity model: отдельная таблица связок, запрет авто-линковки, nullable-пароль) — пишется в итерации на базе research-документа, номер по очереди ADR.
 
@@ -199,14 +196,13 @@ Atomic change четырёх мест: `Settings` + `.env.example` + `.env.local
 | Переменная | Default | Назначение |
 |-----------|---------|-----------|
 | `OAUTH_YANDEX_CLIENT_ID` / `OAUTH_YANDEX_CLIENT_SECRET` | `""` | Пара Яндекс OAuth; пусто → провайдер выключен |
-| `OAUTH_VK_CLIENT_ID` / `OAUTH_VK_SERVICE_TOKEN` | `""` | VK ID (confidential: service_token вместо secret) |
 | `OAUTH_GOOGLE_CLIENT_ID` / `OAUTH_GOOGLE_CLIENT_SECRET` | `""` | Google |
 | `OAUTH_GITHUB_CLIENT_ID` / `OAUTH_GITHUB_CLIENT_SECRET` | `""` | GitHub |
-| `OAUTH_REDIRECT_BASE_URL` | `http://localhost:5173` | База для redirect_uri (`{base}/api/auth/oauth/{provider}/callback`). Dev-флоу идёт **целиком через Vite-proxy** (`/api → 8000` уже настроен): redirect_uri провайдеров регистрируются на SPA-origin, и финальный относительный 302 callback'а резолвится против него же — отдельная переменная для адреса фронта не нужна. Прод — `https://learnflow.me`; VK-dev — `https://dev.learnflow.me` (см. Ручные шаги) |
+| `OAUTH_REDIRECT_BASE_URL` | `http://localhost:5173` | База для redirect_uri (`{base}/api/auth/oauth/{provider}/callback`). Dev-флоу идёт **целиком через Vite-proxy** (`/api → 8000` уже настроен): redirect_uri провайдеров регистрируются на SPA-origin, и финальный относительный 302 callback'а резолвится против него же — отдельная переменная для адреса фронта не нужна. Прод — `https://learnflow.me` |
 | `GEOIP_DB_PATH` | `""` | Путь к MMDB; пусто → fallback-страна |
 | `GEOIP_FALLBACK_COUNTRY` | `RU` | Страна при недоступной базе (fail-closed в сторону закона) |
 
-Секреты провайдеров — операционные значения, не бизнес-инварианты; список разрешённых провайдеров для RU (`{"yandex","vk"}`) — бизнес-инвариант, живёт в коде.
+Секреты провайдеров — операционные значения, не бизнес-инварианты; список разрешённых провайдеров для RU (`{"yandex"}`) — бизнес-инвариант, живёт в коде.
 
 Топологии окружений (иллюстрация к `OAUTH_REDIRECT_BASE_URL` и инварианту host'а — в каждом окружении весь флоу живёт на одном host):
 
@@ -216,16 +212,12 @@ flowchart LR
         B1([Браузер]) --> VITE["Vite :5173<br/>SPA + proxy /api → :8000"]
         VITE --> BE1["Backend :8000"]
     end
-    subgraph VKDEV ["Dev для VK — dev.learnflow.me"]
-        B3([Браузер]) --> NG3["локальный nginx :443<br/>/ → :5173 · /api → :8000"]
-    end
     subgraph PROD ["Prod — learnflow.me"]
         B2([Браузер]) --> NG["nginx<br/>/ → SPA-статика · /api → backend"]
         NG --> BE2["Backend"]
     end
 
     style DEV fill:#39c5cf1a,stroke:#39c5cf,color:#39c5cf
-    style VKDEV fill:#d299221a,stroke:#d29922,color:#d29922
     style PROD fill:#8b949e1a,stroke:#8b949e,color:#8b949e
 ```
 
@@ -261,7 +253,7 @@ flowchart TB
 | `GET /api/auth/oauth/{provider}/callback` | новый; 302 на SPA + штатная refresh-cookie |
 | Cookie `oauth_flow` | новая; httpOnly, Lax, `Path=/api/auth/oauth`, 600 с, JWT-подпись `JWT_SECRET` |
 | БД | `oauth_accounts` (новая), `users.password_hash` → nullable; autogenerate-миграция |
-| `Settings`/env | 11 переменных (таблица выше), atomic change 4 мест |
+| `Settings`/env | 9 переменных (таблица выше), atomic change 4 мест |
 | Роутинг SPA | `/login` публичный; guard на layout; `AuthGate` удаляется |
 | `router.tsx` | правки только структуры входа — catch-all `path="*"` принадлежит feat-013 |
 
@@ -276,26 +268,28 @@ flowchart TB
 | Яндекс | `http://localhost:5173/api/auth/oauth/yandex/callback` | `https://learnflow.me/api/auth/oauth/yandex/callback` | без верификации, работает сразу; **первый шаг, разблокирует T1-вертикаль** |
 | GitHub | `http://localhost:5173/api/auth/oauth/github/callback` | `https://learnflow.me/api/auth/oauth/github/callback` | два отдельных приложения (один callback на приложение); host строго `localhost`, не `127.0.0.1` (инвариант host'а cookie) |
 | Google | `http://localhost:5173/api/auth/oauth/google/callback` | `https://learnflow.me/api/auth/oauth/google/callback` | dev: testing mode, себя в test users; scopes `openid email profile` |
-| VK ID | `https://dev.learnflow.me/api/auth/oauth/vk/callback` | `https://learnflow.me/api/auth/oauth/vk/callback` | сперва DNS `dev.learnflow.me` → 127.0.0.1 + сертификат (DNS-01) + локальный nginx; dev-прогон целиком в этой топологии (SPA+API); проверить доступность регистрации физлицу |
 
 Плюс: токен IPinfo Lite (бесплатный аккаунт) для скачивания MMDB — к фазе гео-gate. Чек-лист по каждой консоли — [research-provider-libs.md](research-provider-libs.md) § Схема dev/prod-окружений.
 
+Статус: dev-регистрации всех трёх провайдеров выполнены, пары лежат в `.env.local`; гео-база IPinfo Lite скачана в `data/geoip/ipinfo_lite.mmdb` (путь — `GEOIP_DB_PATH`). Prod-пары — отдельным заходом к деплою.
+
 ## Партиция треков
 
-**T1 — Backend: OAuth-вертикаль + гео.** `backend/**` (модели, миграция, `infra/oauth/`, `infra/geoip.py`, `services/oauth.py`, роуты, `config.py`), **`packages/siem-contracts/**`** (новые event types — словарь закрытый, см. § Эндпоинты), env-файлы, `docker-compose.yml`. Порядок фаз: модель+миграция → абстракция+Яндекс (сквозная проверка на dev-приложении) → гео-gate → VK → Google → GitHub. Тесты: `backend/tests/auth/` — провайдер-слой на замоканном httpx (respx), сервис find-or-create (оба constraint-пути: суффикс имени, гонка `(provider, account_id)` → re-lookup), гео-gate (fallback, lookup-промах, RU/не-RU), state-cookie (подпись, exp, mismatch, ветки реестра ошибок).
+**T1 — Backend: OAuth-вертикаль + гео.** `backend/**` (модели, миграция, `infra/oauth/`, `infra/geoip.py`, `services/oauth.py`, роуты, `config.py`), **`packages/siem-contracts/**`** (новые event types — словарь закрытый, см. § Эндпоинты), env-файлы, `docker-compose.yml`. Порядок фаз: модель+миграция → абстракция+Яндекс (сквозная проверка на dev-приложении) → гео-gate → Google → GitHub. Тесты: `backend/tests/auth/` — провайдер-слой на замоканном httpx (respx), сервис find-or-create (оба constraint-пути: суффикс имени, гонка `(provider, account_id)` → re-lookup), гео-gate (fallback, lookup-промах, RU/не-RU), state-cookie (подпись, exp, mismatch, ветки реестра ошибок).
 
 **T2 — Frontend: вход страницей + каркас `/login`.** `frontend/src/**` (`app/router.tsx`, `App.tsx`, удаление `AuthGate`, `pages/login`, `shared/api`). Тесты: `router.test.tsx`, страница с MSW.
 
 Общих файлов нет; общая точка — контракты этого брифа. Сквозной ручной прогон (реальный Яндекс-флоу end-to-end, гео-ветки через `GEOIP_FALLBACK_COUNTRY`) — после интеграции треков.
 
-**Точка merge:** один PR в `develop` в конце итерации (все четыре провайдера + каркас `/login`); промежуточный merge после Яндекс-вертикали не делается (решение архитектора: полуготовый состав кнопок на проде странен для не-РФ пользователей).
+**Точка merge:** один PR в `develop` в конце итерации (все три провайдера + каркас `/login`); промежуточный merge после Яндекс-вертикали не делается (решение архитектора: полуготовый состав кнопок на проде странен для не-РФ пользователей).
 
 ## Scope boundaries — сознательно вне итерации
 
 - **Ручная линковка провайдеров** к существующему аккаунту (настройки) и **авто-склейка по email** — за скоупом v1; схема БД будущей линковке не мешает.
 - **`users.email`** и любые email-фичи (верификация, нотификации).
 - **Брендовый дизайн auth-экранов и 404** — feat-013 (контракт стыка — tasklist).
-- **Telegram Login / Sber ID / ЕСИА** — возможные будущие провайдеры; абстракция расширяема, сейчас четыре.
+- **VK ID** — исключён решением архитектора: регистрация приложения требует бизнес-верификации (физлицу недоступна), а dev-флоу — отдельной https-топологии; кандидат на возврат при появлении верифицированного профиля. Нестандартности флоу задокументированы в [research-provider-libs.md](research-provider-libs.md).
+- **Telegram Login / Sber ID / ЕСИА** — возможные будущие провайдеры; абстракция расширяема, сейчас три.
 - **Отвязка/удаление oauth-связки, смена пароля OAuth-пользователем** — вместе с линковкой.
 - **Гео-детекция сверх IP** (Accept-Language, история) — перестраховка, не требуется.
 - **Смена имени пользователя** — суффиксные имена OAuth-регистрации приняты в v1; user rename — backlog (Frontend / UX).

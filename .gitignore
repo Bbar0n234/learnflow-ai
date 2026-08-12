@@ -258,3 +258,6 @@ doc/strategy.local.md
 /*.png
 
 team-report/
+
+# Личные лабораторные заметки (разборы инцидентов, черновики)
+doc/lab-notes/

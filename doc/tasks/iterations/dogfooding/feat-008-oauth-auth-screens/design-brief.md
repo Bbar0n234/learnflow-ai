@@ -45,6 +45,66 @@ sequenceDiagram
 
 Существенное свойство: **access token не передаётся через redirect-URL** (грязный канал). Callback ставит только штатную httpOnly refresh-cookie и редиректит на SPA; SPA получает access существующим `POST /api/auth/refresh`. Ротация одноразового refresh при этом срабатывает штатно — выданный в callback токен гасится первым же refresh. Ноль новых механик доставки токенов.
 
+### Компоненты (backend)
+
+Новые модули и их место в слоях; «существующий» = переиспользуется без изменений:
+
+```mermaid
+flowchart TB
+    U([Браузер])
+
+    subgraph API [API Layer — routes]
+        PR["GET /auth/providers"]
+        AZ["GET /auth/oauth/{p}/authorize"]
+        CB["GET /auth/oauth/{p}/callback"]
+    end
+
+    subgraph SVC [Service Layer]
+        OS["OAuthService<br/>login_with_provider · find-or-create"]
+        AS["AuthService (существующий)<br/>_create_access · _create_refresh"]
+    end
+
+    subgraph INFRA [Infra]
+        REG["Реестр провайдеров — app.state<br/>OAuthProvider (Protocol)"]
+        Y["yandex.py"]
+        V["vk.py"]
+        G["google.py"]
+        H["github.py"]
+        GEO["geoip.py — MMDB reader, app.state"]
+        CIP["client_ip.get_client_ip (существующий)"]
+        RL["RateLimiter (существующий)"]
+    end
+
+    subgraph EXT [External]
+        PYA["oauth.yandex.ru · id.vk.ru ·<br/>accounts.google.com · github.com"]
+    end
+
+    PG[("PostgreSQL<br/>users · oauth_accounts · refresh_tokens")]
+
+    U --> PR
+    U --> AZ
+    U --> CB
+    PR --> GEO
+    AZ --> GEO
+    AZ --> RL
+    CB --> GEO
+    CB --> RL
+    GEO --> CIP
+    AZ --> REG
+    CB --> REG
+    REG --> Y & V & G & H
+    Y & V & G & H -->|httpx, TLS| PYA
+    CB --> OS
+    OS --> AS
+    OS --> PG
+    AS --> PG
+
+    style API fill:#58a6ff1a,stroke:#58a6ff,color:#58a6ff
+    style SVC fill:#3fb9501a,stroke:#3fb950,color:#3fb950
+    style INFRA fill:#39c5cf1a,stroke:#39c5cf,color:#39c5cf
+    style EXT fill:#8b949e1a,stroke:#8b949e,color:#8b949e
+```
+
 ### Хранение state / PKCE-verifier: подписанная httpOnly-cookie
 
 Решение открытого вопроса. Между `/authorize` и `/callback` бэкенду нужно помнить `state` и `code_verifier` того браузера, который начал флоу. БД-таблица и server-side session не нужны:
@@ -96,6 +156,23 @@ app/infra/oauth/
 - **Транспорт `next`:** кнопка на `/login` передаёт сохранённый guard'ом `from` query-параметром `next`; `/authorize` валидирует его **до записи в claim** (относительный путь: начинается с `/`, не с `//`) и кладёт в `oauth_flow`; callback на успехе редиректит на `/{next}` (default `/`). Клиентское состояние react-router полный уход со страницы не переживает — поэтому транспорт именно сквозной, через query + claim. Для парольного входа `from` остаётся чисто клиентским.
 - `OAuthService` (`app/services/oauth.py`): `login_with_provider(profile) → (user, access, refresh)` — одна транзакция: lookup `oauth_accounts` по `(provider, account_id)` → найден: пользователь + освежение `email`; не найден: создание `User` (без пароля) + `OAuthAccount` атомарно; далее — существующие `_create_access`/`_create_refresh` из `AuthService` (переиспользование, не копия). **Оба constraint-пути обрабатываются явно** (тесты покрывают оба): unique violation на `users.name` → суффикс и retry с лимитом попыток ([research-data-model.md](research-data-model.md)); unique violation на `(provider, provider_account_id)` (гонка двойного callback'а из двух вкладок) → деградация в повторный lookup (login-путь), не 500.
 - **SIEM** — словарь событий закрытый (`packages/siem-contracts`: `vocabulary.py` + `Literal EventType`), поэтому состав фиксируется здесь, а пакет входит в скоуп T1. Новые события: вход через провайдера успех/отказ (поля `provider`, `new_user: bool` — первый вход = создание аккаунта отдельным типом не эмитится, это login-событие с флагом) + rate-limit-событие для oauth-эндпоинтов (существующие `RATE_LIMIT_LOGIN/REGISTER/REFRESH` не переиспользуются — другие эндпоинты). Гео-отказ (`provider_not_available_in_region`) — security-событие не эмитится: это штатная политика показа, не атака; фиксируется structlog-инфо. Имена констант выравниваются по стилю `vocabulary.py` на реализации; состав — не меняется.
+- Порядок веток callback'а (cookie `oauth_flow` гасится на **каждой** терминальной ветке, кроме «cookie отсутствует» — см. § Хранение state):
+
+```mermaid
+flowchart TB
+    IN["GET /callback?…"] --> E{"?error<br/>от провайдера"}
+    E -->|access_denied| ERR1["/login?error=access_denied"]
+    E -->|нет| CK{"oauth_flow валидна,<br/>state совпал?"}
+    CK -->|"нет · протухла · mismatch"| ERR2["/login?error=flow_expired"]
+    CK -->|да| GEOX{"провайдер разрешён<br/>для страны IP?"}
+    GEOX -->|нет| ERR3["/login?error=provider_not_available_in_region"]
+    GEOX -->|да| EX{"обмен code → токен,<br/>userinfo получен?"}
+    EX -->|"5xx · таймаут · отказ"| ERR4["/login?error=provider_unavailable"]
+    EX -->|да| FOC["find-or-create<br/>(одна транзакция)"]
+    FOC -->|неожиданный сбой| ERR5["/login?error=oauth_failed"]
+    FOC -->|успех| OK["Set-Cookie refresh_token → 302 /{next}"]
+```
+
 - **Реестр кодов ошибок `/login?error=` — закрытый** (единственный контракт стыка T1↔T2 по ошибкам):
 
 | Код | Когда | Текст на `/login` |
@@ -131,11 +208,45 @@ Atomic change четырёх мест: `Settings` + `.env.example` + `.env.local
 
 Секреты провайдеров — операционные значения, не бизнес-инварианты; список разрешённых провайдеров для RU (`{"yandex","vk"}`) — бизнес-инвариант, живёт в коде.
 
+Топологии окружений (иллюстрация к `OAUTH_REDIRECT_BASE_URL` и инварианту host'а — в каждом окружении весь флоу живёт на одном host):
+
+```mermaid
+flowchart LR
+    subgraph DEV ["Dev — один host: localhost"]
+        B1([Браузер]) --> VITE["Vite :5173<br/>SPA + proxy /api → :8000"]
+        VITE --> BE1["Backend :8000"]
+    end
+    subgraph VKDEV ["Dev для VK — dev.learnflow.me"]
+        B3([Браузер]) --> NG3["локальный nginx :443<br/>/ → :5173 · /api → :8000"]
+    end
+    subgraph PROD ["Prod — learnflow.me"]
+        B2([Браузер]) --> NG["nginx<br/>/ → SPA-статика · /api → backend"]
+        NG --> BE2["Backend"]
+    end
+
+    style DEV fill:#39c5cf1a,stroke:#39c5cf,color:#39c5cf
+    style VKDEV fill:#d299221a,stroke:#d29922,color:#d29922
+    style PROD fill:#8b949e1a,stroke:#8b949e,color:#8b949e
+```
+
 ### Frontend
 
 - **`AuthGate` умирает.** Вход перестраивается: `BrowserRouter` оборачивает всё приложение; guard-компонент (`RequireAuth`) на layout-маршруте редиректит неаутентифицированных на `/login` с сохранением `from`; `/login` — публичный маршрут.
 - **`pages/login`** (FSD): режимы вход/регистрация, парольная форма (существующие `shared/api/auth.ts` функции), блок кнопок провайдеров из `GET /api/auth/providers` (данные — TanStack Query). Кнопка провайдера — **полный переход страницы** `window.location.assign('/api/auth/oauth/{p}/authorize')`, не fetch (флоу редиректный). Обработка `?error=<код>` — инлайн-сообщение.
 - **Возврат из OAuth:** SPA загружается по редиректу callback'а; бутстрап аутентификации один для всех путей и живёт на **app-уровне** (hook `useAuthBootstrap` над роутами, выполняется один раз при загрузке SPA): есть access в localStorage → готово; нет → тихий `POST /api/auth/refresh` (есть refresh-cookie — OAuth её только что поставил → access получен; 401 без cookie — ожидаемый тихий путь анонима, не ошибка). Пока бутстрап не завершён — рендерится существующий паттерн загрузки, не редирект (исключает редирект-луп и мигание `/login`). `RequireAuth` принимает вердикт только после бутстрапа; `/login` — вне guard'а. Отдельный callback-маршрут SPA не нужен.
+
+```mermaid
+flowchart TB
+    L(["Загрузка SPA — любой путь:<br/>прямой заход · возврат из OAuth"]) --> A{"access<br/>в localStorage?"}
+    A -->|да| RDY["бутстрап завершён"]
+    A -->|нет| R["тихий POST /api/auth/refresh"]
+    R -->|"200 — cookie была"| S["сохранить access"]
+    S --> RDY
+    R -->|"401 — cookie нет<br/>(ожидаемый путь анонима)"| RDY
+    RDY --> G{"RequireAuth:<br/>аутентифицирован?"}
+    G -->|да| APP["layout-маршруты приложения"]
+    G -->|нет| LGN["/login — публичный, вне guard<br/>+ сохранение from"]
+```
 - Существующие interceptor, `ensureFreshToken`, ключ localStorage — без изменений.
 - Новый auth-стор не заводится: состояние — страница `/login` (локально) + существующий механизм токена; если реализация упрётся в необходимость шаринга — эскалация, не молчаливый стор.
 - Тесты: `router.test.tsx` расширяется (редирект на `/login`, публичность `/login`); MSW-хендлеры для `/providers`.

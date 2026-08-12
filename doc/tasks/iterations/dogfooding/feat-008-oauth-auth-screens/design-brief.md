@@ -15,7 +15,7 @@
 ## Целевой UX
 
 - **Страница `/login`** заменяет модалку: неаутентифицированный пользователь на любом маршруте попадает на `/login` (с запоминанием исходного пути), после входа возвращается. Логин и регистрация — два режима одной страницы (как сейчас в `AuthGate`), копирайт русский.
-- Сверху — **кнопки провайдеров**, состав приходит с бэкенда (`GET /api/auth/providers`, по гео): РФ — только «Войти с Яндексом»; не-РФ — **все три** (решение архитектора: россиянин за VPN входит своим Яндекс-аккаунтом, не выключая VPN; серверный запрет действует только на паре «РФ-IP × иностранный провайдер» и этим не ослабляется). Ниже — парольная форма (для всех).
+- **Кнопки провайдеров** — состав приходит с бэкенда (`GET /api/auth/providers`, по гео): РФ — только кнопка Яндекса; не-РФ — **все три** (решение архитектора: россиянин за VPN входит своим Яндекс-аккаунтом, не выключая VPN; серверный запрет действует только на паре «РФ-IP × иностранный провайдер» и этим не ослабляется). Порядок блоков карточки — по мокапу feat-013 (решение архитектора на реализации): парольная форма (для всех) сверху, ниже разделитель «или» и кнопки провайдеров.
 - Для OAuth-регистрации отдельного шага нет: первый вход провайдером создаёт аккаунт (find-or-create), различие login/register для OAuth-пользователя не существует.
 - **Каркас, не дизайн** (граница с feat-013): существующие shadcn-примитивы, целевая FSD-структура `pages/login`, русские тексты; wordmark/иллюстрации/полировка — feat-013 поверх, после merge этой итерации. **Структурный референс каркаса — утверждённый мокап feat-013** (`iterations/dogfooding/feat-013-ui-polish/mockups/ui-polish.html`, экран auth, два гео-варианта): состав и порядок блоков (карточка формы, блок кнопок провайдеров, разделитель «или») берутся из него, чтобы стилизация feat-013 легла краской, а не перестройкой DOM.
 - Ошибки OAuth-флоу (отказ пользователя на экране провайдера, гео-запрет, протухший state) возвращают на `/login` с человекочитаемым сообщением — не белый экран.
@@ -277,7 +277,7 @@ flowchart TB
 
 ## Порядок реализации и завершение
 
-Партиция треков — фаза PARTITION оркестратора при старте реализации, здесь не фиксируется. Рамочные решения архитектора, которые партиция обязана учесть:
+Партиция треков — фаза PARTITION оркестратора при старте реализации, зафиксирована в секции `## Партиция треков` ниже. Рамочные решения архитектора, которые партиция обязана учесть:
 
 - **Порядок провайдер-вертикали:** модель+миграция → абстракция+Яндекс (сквозная проверка на dev-приложении) → гео-gate → Google → GitHub.
 - **`packages/siem-contracts` входит в скоуп итерации** (новые event types — словарь закрытый, см. § Эндпоинты).
@@ -295,6 +295,29 @@ flowchart TB
 - **Гео-детекция сверх IP** (Accept-Language, история) — перестраховка, не требуется.
 - **Смена имени пользователя** — суффиксные имена OAuth-регистрации приняты в v1; user rename — backlog (Frontend / UX).
 - **Автоматизация обновления гео-базы** — v1 живёт на разовом скачивании; механика регулярного обновления — backlog (Infra).
+
+## Партиция треков
+
+Заполнено оркестратором на фазе PARTITION; проверено general-purpose ревьюером (вердикт «OK с правками», правки внесены).
+
+| Трек | Название | Файловый/модульный скоуп | Тестовый скоуп |
+|------|----------|--------------------------|----------------|
+| T1 | Backend: OAuth-вертикаль, гео-gate, SIEM-словарь | `backend/**` — новые `app/infra/oauth/`, `app/infra/geoip.py`, `app/services/oauth.py`, oauth-роуты в `app/api/routes/`, alembic-ревизия; правки `app/config.py` (Settings), `app/main.py` (lifespan: httpx-клиент, geoip-reader, реестр провайдеров), `app/models/*` (`oauth_accounts`, nullable `password_hash`), `app/api/routes/auth.py` (401 при `password_hash IS NULL`); `packages/siem-contracts/**` (новые event types + `__init__.__all__` + тесты пакета); env-контур: `.env.example`, `.env.local.example`, `docker-compose.yml` (вкл. mount `./data/geoip`); `README.md` (атрибуция IPinfo); корневые `uv.lock` (регенерация при `uv add maxminddb`) и `pyproject.toml` — только секция `[[tool.mypy.overrides]]`, если у `maxminddb` нет `py.typed` | `backend/tests/oauth/` (новый скоуп); затронутые существующие: `backend/tests/auth/` (точечно), `backend/tests/security/test_event_vocabulary_contract.py` (новые emit-сайты), `backend/tests/migrations/` (drift новой ревизии), `packages/siem-contracts/tests/` (гварды словаря). T2 backend-тесты не трогает |
+| T2 | Frontend: каркас `/login`, guard, бутстрап | `frontend/src/**` — новые `pages/login/` (вкл. **локальные** презентационные компоненты каркаса внутри `pages/login/`), app-уровневый hook `useAuthBootstrap`, guard `RequireAuth`; правки `app/router.tsx`, `app/router.test.tsx`, `App.tsx`, удаление `app/components/AuthGate.tsx`, проверка логаут-пути `app/components/Sidebar.tsx`, `shared/api/auth.ts` (или новый модуль providers-запроса), `src/test/msw/**`; `frontend/package.json` + `package-lock.json` (на случай зависимости; shadcn CLI не запускается — недостающие примитивы (card, separator) собираются вручную поверх установленного `@base-ui/react` + tailwind) | колокация Vitest-тестов в затронутых слайсах + `src/test/msw/**` |
+
+**Стык с параллельной итерацией feat-013 (третий пункт контракта после `router.tsx` и `client.ts`).** feat-013 (трек T6) резервирует презентационный слой auth: `features/auth/**` (слайс `LoginScreenView`), `shared/ui/AuthLayout.tsx`, `shared/ui/ProviderButton.tsx`. T2 эти пути **не создаёт и не занимает**: весь каркасный UI — локальные компоненты внутри `pages/login/`, собранные по структуре мокапа feat-013, чтобы брендовая презентация feat-013 легла подменой/покраской без перестройки `pages/login` и app-уровня. `pages/login/**`, `RequireAuth`, `useAuthBootstrap`, `router.tsx` — владение feat-008.
+
+**Референс мокапа:** в этом worktree каталога feat-013 нет; читаемый путь на машине — `/home/bbaron/dev/my_pet_projects/learnflow-ai-wt-feat-013-ui-polish/doc/tasks/iterations/dogfooding/feat-013-ui-polish/mockups/ui-polish.html` (экран auth, два гео-варианта). После merge feat-013 канонический путь — `doc/tasks/iterations/dogfooding/feat-013-ui-polish/mockups/ui-polish.html`.
+
+**Тихий бутстрап без правки `client.ts`:** 401 в response-интерцепторе `apiClient` безусловно пишет `logger.error`, а `client.ts` заморожен — поэтому refresh-вызов бутстрапа (`useAuthBootstrap`) идёт **мимо `apiClient`** (прямой fetch/axios на `/api/auth/refresh`, `withCredentials`) в коде T2; существующий `refresh()` из `auth.ts` для бутстрапа не используется. Остальные вызовы — через `apiClient` штатно.
+
+**Гео-база (T1, dev):** файл в worktree отсутствует (`data/*` в gitignore) — `GEOIP_DB_PATH` в `.env.local` уже указывает абсолютный путь в основной checkout (`.../learnflow-ai/data/geoip/ipinfo_lite.mmdb`, файл на месте). Не скачивать заново; для docker-пути — mount `./data/geoip` в `docker-compose.yml`.
+
+**Вердикт непересечения:** скоупы дизъюнктны — `backend/` + `packages/siem-contracts/` + корневые `uv.lock`/`pyproject.toml`/env-файлы/`README.md` (T1) против `frontend/**` (T2); lock-файлы разных экосистем. Единственный стык — контракты `GET /api/auth/providers` и закрытый реестр кодов `/login?error=` — зафиксирован в брифе (§ Эндпоинты, § Контракты); T2 работает против MSW-моков, файлового пересечения нет.
+
+**Параллельность фаз:** T1 ∥ T2 полностью — все per-track фазы (PLAN → … → TEST(track)) обоих треков идут независимо и одновременно; T2 не ждёт кода T1 (контракт в брифе). Порядок провайдер-вертикали (модель+миграция → Яндекс → гео-gate → Google → GitHub) — фазы внутри плана T1. Барьер — стандартный, перед INTEGRATION_TEST: сквозной ручной прогон (реальный Яндекс-флоу, гео-ветки) — после интеграции треков.
+
+**Вне обоих треков:** `doc/**` (фаза DOC_UPDATE, включая ADR identity model и правки `auth.md`/`backend.md`/`frontend.md`/`security/architecture.md`), `doc/tasks/**` (оркестратор), `Makefile`, `frontend/src/shared/api/client.ts`, `features/auth/**` и `shared/ui/{AuthLayout,ProviderButton}.tsx` (территория feat-013). Потребность в правке любого из них — эскалация оркестратору.
 
 ## SOFA consulted
 

@@ -143,7 +143,10 @@ services:
     # (cross-track contract 4 — design brief § Executor / ADR-031).
     user: "10001:10001"
     cpus: "2"
-    mem_limit: 2g
+    # Потолок памяти джобы. Параметризован, потому что зависит от машины, а не
+    # от продукта: на VM, где рядом живут другие сервисы, дефолт съедает
+    # половину RAM и одна тяжёлая джоба уводит соседей в OOM-killer.
+    mem_limit: ${EXECUTOR_MEM_LIMIT:-2g}
     pids_limit: 256
     # >= EXECUTOR_MAX_TIMEOUT_SECONDS (300) + EXECUTOR_KILL_GRACE_SECONDS (5):
     # the executor's own SIGTERM-then-SIGKILL sequence at job deadline must

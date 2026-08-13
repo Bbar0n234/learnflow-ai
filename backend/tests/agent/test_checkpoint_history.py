@@ -500,14 +500,14 @@ async def test_latest_redaction_none_when_no_redaction_present() -> None:
 
 
 @pytest.mark.unit
-async def test_history_replays_an_artifact_part_after_the_call_that_made_it() -> None:
+async def test_history_replays_artifact_parts_after_the_turns_final_text() -> None:
     """A tool that wrote a file replays as an ``ArtifactPart`` in the turn.
 
     The link "artifact ↝ chat" has no PG row behind it any more (ADR-032): the
     checkpoint's ``ToolMessage.artifact`` is the only record, and the path is
     the identity the frontend re-fetches the file by. Order is contract — the
-    card belongs to the call that produced it, so the part follows its
-    ``ToolCallPart``.
+    card is an outcome of the turn, so it trails the final text rather than
+    sitting inline after the call that happened to write the file.
     """
     messages = [
         HumanMessage(content="save it", id="h1"),
@@ -535,10 +535,10 @@ async def test_history_replays_an_artifact_part_after_the_call_that_made_it() ->
     parts = result[1].parts
     assert [type(p).__name__ for p in parts] == [
         "ToolCallPart",
-        "ArtifactPart",
         "TextPart",
+        "ArtifactPart",
     ]
-    assert parts[1] == ArtifactPart(
+    assert parts[2] == ArtifactPart(
         path="s.md", title="s.md", type="md", kind="created", diff=None
     )
 
@@ -605,6 +605,118 @@ async def test_history_replays_one_artifact_part_per_file_a_job_touched() -> Non
     assert [p.path for p in result[1].parts if isinstance(p, ArtifactPart)] == [
         "a.md",
         "b.png",
+    ]
+
+
+@pytest.mark.unit
+async def test_history_groups_artifacts_of_several_calls_at_the_end_of_the_turn() -> (
+    None
+):
+    # Cards of a multi-call turn arrive as one trailing group, not interleaved
+    # with the activity feed — the reader sees the turn's outcome in one place.
+    messages = [
+        HumanMessage(content="do both", id="h1"),
+        AIMessage(
+            content="",
+            id="a1",
+            tool_calls=[{"name": "write_file", "args": {}, "id": "c1"}],
+        ),
+        ToolMessage(
+            content="File written",
+            id="t1",
+            tool_call_id="c1",
+            name="write_file",
+            artifact=[
+                {"path": "a.md", "title": "a.md", "type": "md", "kind": "created"}
+            ],
+        ),
+        AIMessage(
+            content="",
+            id="a2",
+            tool_calls=[{"name": "execute_code", "args": {}, "id": "c2"}],
+        ),
+        ToolMessage(
+            content="exit_code: 0",
+            id="t2",
+            tool_call_id="c2",
+            name="execute_code",
+            artifact=[
+                {"path": "p.png", "title": "p.png", "type": "png", "kind": "created"}
+            ],
+        ),
+        AIMessage(content="ready", id="a3"),
+    ]
+
+    result = await _history(messages).history(THREAD)
+
+    assert [type(p).__name__ for p in result[1].parts] == [
+        "ToolCallPart",
+        "ToolCallPart",
+        "TextPart",
+        "ArtifactPart",
+        "ArtifactPart",
+    ]
+
+
+@pytest.mark.unit
+async def test_history_collapses_a_path_written_twice_in_one_turn() -> None:
+    """One card per path — and a file created here stays "created".
+
+    A job that rewrites what an earlier call in the same turn created would
+    otherwise produce two cards for one file, the second of them labelled
+    "updated" — which reads as "your existing file changed" for a file that
+    did not exist before this turn.
+    """
+    messages = [
+        HumanMessage(content="build it", id="h1"),
+        AIMessage(
+            content="",
+            id="a1",
+            tool_calls=[{"name": "write_file", "args": {}, "id": "c1"}],
+        ),
+        ToolMessage(
+            content="File written",
+            id="t1",
+            tool_call_id="c1",
+            name="write_file",
+            artifact=[
+                {"path": "r.md", "title": "r.md", "type": "md", "kind": "created"}
+            ],
+        ),
+        AIMessage(
+            content="",
+            id="a2",
+            tool_calls=[{"name": "execute_code", "args": {}, "id": "c2"}],
+        ),
+        ToolMessage(
+            content="exit_code: 0",
+            id="t2",
+            tool_call_id="c2",
+            name="execute_code",
+            artifact=[
+                {
+                    "path": "r.md",
+                    "title": "r.md",
+                    "type": "md",
+                    "kind": "updated",
+                    "diff": {"added": 4, "removed": 0},
+                }
+            ],
+        ),
+        AIMessage(content="done", id="a3"),
+    ]
+
+    result = await _history(messages).history(THREAD)
+
+    artifact_parts = [p for p in result[1].parts if isinstance(p, ArtifactPart)]
+    assert artifact_parts == [
+        ArtifactPart(
+            path="r.md",
+            title="r.md",
+            type="md",
+            kind="created",
+            diff={"added": 4, "removed": 0},
+        )
     ]
 
 

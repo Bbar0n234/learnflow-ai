@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Any, Literal
 
@@ -232,6 +232,8 @@ class CheckpointHistory:
                     TextPart(content=ai.content if isinstance(ai.content, str) else "")
                 )
 
+        parts.extend(self._turn_artifact_parts(segment))
+
         anchor = final_ai if final_ai is not None else ai_messages[-1]
         redacted = bool(anchor.additional_kwargs.get("security_redacted"))
         content = (
@@ -289,9 +291,32 @@ class CheckpointHistory:
                     result_truncated=result_truncated,
                 )
             )
-            if tool_message is not None:
-                parts.extend(_artifact_parts(tool_message))
         return parts
+
+    @staticmethod
+    def _turn_artifact_parts(segment: list[Any]) -> list[Part]:
+        """Every artifact the turn produced, as one trailing group of cards.
+
+        Placement is a product call, not a data one: a card reads as an outcome
+        of the turn, so it follows the final text instead of sitting inline
+        after the tool call that happened to write the file.
+
+        One card per path — a path written twice in the same turn (a job
+        rewriting what an earlier call created) collapses into a single entry:
+        order comes from its first appearance, data from the last event, except
+        that ``created`` never degrades to ``updated`` — for the reader the file
+        is new in this turn.
+        """
+        by_path: dict[str, ArtifactPart] = {}
+        for m in segment:
+            if not isinstance(m, ToolMessage):
+                continue
+            for part in _artifact_parts(m):
+                previous = by_path.get(part.path)
+                if previous is not None and previous.kind == "created":
+                    part = replace(part, kind="created")
+                by_path[part.path] = part
+        return list(by_path.values())
 
     async def last_ai_message_id(self, thread_id: uuid.UUID) -> str | None:
         messages = await self.raw_messages(thread_id)

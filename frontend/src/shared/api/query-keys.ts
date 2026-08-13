@@ -14,11 +14,12 @@ export const queryKeys = {
     sphere: (id: string | undefined) => ["projects", id, "sphere"] as const,
     artifacts: (id: string | undefined) =>
       ["projects", id, "artifacts"] as const,
-    artifact: (id: string | undefined, artifactId: string | undefined) =>
-      ["projects", id, "artifacts", artifactId] as const,
+    // path — идентичность артефакта (не UUID): элемент ключа адресует файл
+    artifact: (id: string | undefined, path: string | undefined) =>
+      ["projects", id, "artifacts", path] as const,
     // Потомок artifact(...): префиксная инвалидация артефакта задевает и media
-    artifactMedia: (id: string | undefined, artifactId: string | undefined) =>
-      [...queryKeys.projects.artifact(id, artifactId), "media"] as const,
+    artifactMedia: (id: string | undefined, path: string | undefined) =>
+      [...queryKeys.projects.artifact(id, path), "media"] as const,
   },
   chats: {
     recent: ["chats", "recent"] as const,

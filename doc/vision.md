@@ -31,10 +31,15 @@ graph TD
         Correlation["Correlation Engine<br>siem_service/correlation/"]
     end
 
+    subgraph Executor["Executor Service — FastAPI :8002 — services/executor/"]
+        JobRunner["Job Runner — gVisor + per-job bwrap<br>executor/runner.py"]
+    end
+
     Contracts["siem-contracts<br>packages/siem-contracts/"]
     MainDB[("PostgreSQL learnflow<br>:5432")]
     SiemDB[("PostgreSQL siem<br>:5434")]
     Redis[("Redis :6379<br>stream security.events")]
+    Workspaces[("Volume workspaces<br>/workspaces/{project_id} · /skills ro")]
     External["LLM APIs · MCP · Langfuse"]
     SkillsDir["Skills Repo<br>skills/"]
 
@@ -42,28 +47,37 @@ graph TD
     Frontend -->|"HTTP, admin-only (/security)"| SiemAPI
     API --> Runtime
     API --> MainDB
+    API -->|"артефакты · вложения"| Workspaces
     Runtime --> MainDB
     Runtime --> External
     Runtime --> SkillsDir
+    Runtime -->|файловые операции| Workspaces
+    Runtime -->|"POST /jobs (сеть exec, internal)"| JobRunner
+    JobRunner --> Workspaces
+    JobRunner -.->|ro| SkillsDir
     SecPipe -->|XADD| Redis
     Redis -->|XREADGROUP| SIEM
     Correlation --> SiemDB
     SiemAPI --> SiemDB
     Contracts -.->|Pydantic-контракты событий| SecPipe
     Contracts -.-> SIEM
+
+    style Executor fill:#f851491a,stroke:#f85149,color:#f85149
 ```
 
 **Frontend** — React SPA, chat-интерфейс + admin-страница SIEM-мониторинга. Основной клиент на MVP.
 
-**Main Backend** — FastAPI. Async, типизация, OpenAPI. Принимает запросы, управляет сессиями, стримит ответы через SSE. Внутри — Agent Runtime (LangGraph: General Agent с ReAct loop, skills, memory, tools) и Security Pipeline (нормализация security-событий → Redis Stream).
+**Main Backend** — FastAPI. Async, типизация, OpenAPI. Принимает запросы, управляет сессиями, стримит ответы через SSE. Внутри — Agent Runtime (LangGraph: General Agent с ReAct loop, skills, memory, tools) и Security Pipeline (нормализация security-событий → Redis Stream). Файловый слой (`app/storage/workspace.py`) резолвит пути агента и REST-запросов против общего volume `workspaces`.
 
 **SIEM Service** — отдельный FastAPI-сервис: потребляет security-события из Redis Stream, коррелирует, генерирует алерты, отдаёт REST API для мониторинга. Изолированный blast radius и собственная БД.
 
+**Executor Service** — четвёртый standalone-сервис: исполняет недоверенный код агента (Python/bash) под gVisor, с сетевой сегментацией (изолированная сеть `exec`, без доступа к БД/Redis/интернету) и per-job bwrap-песочницей. Единственный клиент — backend (`POST /jobs`), порт наружу не публикуется. Подробнее — [executor.md](tech/executor.md), обоснование изоляции — [ADR-031](tech/adr/ADR-031-execution-runtime-isolation.md).
+
 **siem-contracts** — shared-пакет workspace: Pydantic-контракты security-событий, общие для producer (backend) и consumer (siem-service).
 
-**Databases** — две PostgreSQL: основная (checkpoints LangGraph, Knowledge Sphere, история диалогов, артефакты) и изолированная SIEM (события, алерты, правила корреляции). Redis — транспорт событий (Streams) и кэш.
+**Databases** — две PostgreSQL: основная (checkpoints LangGraph, Knowledge Sphere, история диалогов) и изолированная SIEM (события, алерты, правила корреляции). Redis — транспорт событий (Streams) и кэш. Артефакты, вложения пользователя и рабочие файлы агента живут не в PostgreSQL, а на именованном volume `workspaces` (per project, смонтирован в backend и executor) — файловая модель, обоснование в [ADR-032](tech/adr/ADR-032-project-workspace-file-model.md).
 
-Детальное описание компонентов — в технической документации (`doc/tech/`): слои каждого сервиса — в его документе ([backend.md](tech/backend.md), [frontend.md](tech/frontend.md), [siem-service.md](tech/siem-service.md)).
+Детальное описание компонентов — в технической документации (`doc/tech/`): слои каждого сервиса — в его документе ([backend.md](tech/backend.md), [frontend.md](tech/frontend.md), [siem-service.md](tech/siem-service.md), [executor.md](tech/executor.md)).
 
 ### Data Flow (типичный сценарий)
 

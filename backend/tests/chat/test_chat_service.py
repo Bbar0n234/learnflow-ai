@@ -29,11 +29,11 @@ from tests.chat.conftest import (
     RUNNER_FORWARDED_TYPES,
     SERVICE_SYNTHESISED_TYPES,
     FakeAgentRunner,
-    FakeArtifactRepo,
     FakeThreadViewRepo,
     FakeTraceStore,
     agent_event_event,
     artifact_created_event,
+    artifact_updated_event,
     cancelled_event,
     error_event,
     heartbeat_event,
@@ -63,13 +63,11 @@ def _build_service(
     *,
     thread_repo: FakeThreadViewRepo,
     runner: FakeAgentRunner,
-    artifact_repo: FakeArtifactRepo | None = None,
     trace_store: FakeTraceStore | None = None,
 ) -> ChatService:
     return ChatService(
         thread_view_repo=thread_repo,  # type: ignore[arg-type]
         agent_runner=runner,  # AgentRunner is a Protocol — FakeAgentRunner fits
-        artifact_repo=artifact_repo or FakeArtifactRepo(),  # type: ignore[arg-type]
         trace_store=trace_store,  # type: ignore[arg-type]
         session=None,
     )
@@ -207,26 +205,6 @@ async def test_send_message_filters_trace_id_and_appends_done() -> None:
     done = events[-1]
     assert done.data == {"message_id": "m1", "trace_id": "tr-9"}
     assert thread.thread_id in repo.touched
-
-
-async def test_send_message_links_created_artifacts_to_message() -> None:
-    thread = _thread()
-    repo = FakeThreadViewRepo()
-    repo.add(thread)
-    artifact_id = uuid.uuid4()
-    runner = FakeAgentRunner()
-    runner.last_ai_message_id = "msg-1"
-    runner.events = [artifact_created_event(artifact_id)]
-    artifact_repo = FakeArtifactRepo()
-    service = _build_service(
-        thread_repo=repo, runner=runner, artifact_repo=artifact_repo
-    )
-
-    await _drain(service, thread)
-
-    # Assert the resulting linkage state (the effect), not just that the spy
-    # method fired: the streamed artifact is now bound to the resolved message.
-    assert artifact_repo.linked == {artifact_id: "msg-1"}
 
 
 @pytest.mark.parametrize(
@@ -445,7 +423,8 @@ async def test_chat_service_forwards_each_runner_type_and_consumes_trace_id() ->
         tool_call_cancelled_event("c2"),
         tool_result_event("c1", "search", content="ok"),
         agent_event_event("sphere_write", {"section_id": "s1"}),
-        artifact_created_event(uuid.uuid4()),
+        artifact_created_event(),
+        artifact_updated_event(),
         StreamEvent(type="final_output_review_started", data={}),
         StreamEvent(type="final_output_review_complete", data={}),
     ]
@@ -467,6 +446,7 @@ async def test_chat_service_forwards_each_runner_type_and_consumes_trace_id() ->
         "tool_result",
         "agent_event",
         "artifact_created",
+        "artifact_updated",
         "final_output_review_started",
         "final_output_review_complete",
         "done",

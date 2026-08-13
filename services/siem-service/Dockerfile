@@ -23,6 +23,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=packages/siem-contracts/pyproject.toml,target=packages/siem-contracts/pyproject.toml \
     --mount=type=bind,source=packages/testing/pyproject.toml,target=packages/testing/pyproject.toml \
     --mount=type=bind,source=services/siem-service/pyproject.toml,target=services/siem-service/pyproject.toml \
+    --mount=type=bind,source=services/executor/pyproject.toml,target=services/executor/pyproject.toml \
     --mount=type=bind,source=tools/security-scan/pyproject.toml,target=tools/security-scan/pyproject.toml \
     --mount=type=bind,source=tools/arch-checker/pyproject.toml,target=tools/arch-checker/pyproject.toml \
     uv sync --locked --no-dev --no-install-workspace --package siem-service
@@ -35,7 +36,9 @@ COPY tools/arch-checker/pyproject.toml /app/tools/arch-checker/pyproject.toml
 COPY pyproject.toml uv.lock /app/
 # uv requires every workspace member declared in the root pyproject to exist
 # on disk; copy backend's pyproject only (no source) to satisfy the workspace
-# resolver without bloating the image with backend code.
+# resolver without bloating the image with backend code. executor's manifest
+# needs no separate copy here — it lives under services/, already copied
+# wholesale above.
 COPY backend/pyproject.toml /app/backend/pyproject.toml
 
 # Install project

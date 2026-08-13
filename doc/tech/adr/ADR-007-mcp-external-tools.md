@@ -31,7 +31,7 @@ External tools подключаются через MCP Client. Конкретн�
 | **Web search, URL reading** | Да | Stateless, заменяемые, готовые MCP-серверы |
 | **KS tools** (get_sphere, update_sphere) | Нет | Тесно связаны с LangGraph Store/State |
 | **Skills** (load_skill) | Нет | Управление контекстом агента, внутренняя механика |
-| **Artifacts** (create_artifact) | Нет | Связан с app-managed persistence |
+| **Files/Artifacts** (read_file, write_file, execute_code) | Нет | Связан с project workspace и execution runtime (ADR-031/032) |
 
 MCP Prompts рассматривались как механизм доставки skills — отклонено. По спеке Prompts user-controlled, агент не может автономно выбирать их. Нет trigger patterns, нет role:system. Zero real-world evidence использования для skills.
 

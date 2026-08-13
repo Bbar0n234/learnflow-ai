@@ -1,6 +1,6 @@
-# Production setup — nginx-периметр и клиентский IP
+# Production setup — nginx-периметр, execution runtime и клиентский IP
 
-Документ фиксирует контракт периметра прод-VM, от которого зависит корректность и безопасность режима `CLIENT_IP_SOURCE=x-real-ip`: топологию доверия, референсную копию боевого nginx-конфига и ручные шаги, которые нельзя вывести из репозитория автоматически.
+Документ фиксирует контракт периметра прод-VM: топологию доверия, от которой зависит корректность и безопасность режима `CLIENT_IP_SOURCE=x-real-ip`, референсную копию боевого nginx-конфига, подготовку хоста под изолированный execution runtime (executor, gVisor, workspace) и ручные шаги, которые нельзя вывести из репозитория автоматически.
 
 ## Топология и инвариант доверия
 
@@ -188,9 +188,112 @@ TLS — Let's Encrypt, сертификат один на оба имени (SAN
 - **Рассинхрон `SIEM_ENABLED=true` при пустом `COMPOSE_PROFILES` безобиден.** Если строка 1 руками дописана, а строка `COMPOSE_PROFILES=` — нет (или наоборот), эмиссия идёт в Redis Stream без консьюмера (siem-service не поднят). Рост буфера ограничен `MAXLEN ~100_000` (`transport.py:28`) — это буфер, а не утечка. Чинить нечего; окно рассинхрона ограничено периодом до merge PR, описанным выше.
 - **`location /siem/` в nginx после выключения SIEM отдаёт `502 Bad Gateway`** (upstream не поднят, см. § Референс nginx-конфига выше). Рекомендация — оставить `location` как есть, ничего не удалять: маршрут admin-only, UI на него больше не ссылается при выключенном флаге, а удаление строки удорожило бы обратное включение и разошлось бы с референсной копией конфига в этом же документе.
 
+### Execution runtime: gVisor, отдельный volume workspaces, bwrap-верификация
+
+Три шага подготовки VM для сервиса `executor` (ADR-031, ADR-032). Выполняются один раз, до первого `docker compose up`, поднимающего `executor` в составе стека, — то есть до merge PR, вводящего сервис в `main`, аналогично разделам «Клиентский IP»/«SIEM» выше.
+
+#### Установка gVisor (runsc)
+
+Executor обязателен к запуску под gVisor — второй слой изоляции поверх границы контейнера (ADR-031). `docker-compose.yml` объявляет `runtime: ${EXECUTOR_RUNTIME:-runsc}`: дефолт fail-closed, без зарегистрированного в docker-демоне рантайма `runsc` контейнер `executor` не стартует вовсе (`unknown or invalid runtime name: runsc`). Dev-override `EXECUTOR_RUNTIME=runc` (см. `.env.local.example`, для хостов без gVisor) **на проде недопустим** — он снимает слой gVisor, оставляя только контейнерную границу и bwrap. Обязательная к правке в боевом `.env` переменная одна — `EXECUTOR_AUTH_TOKEN`: общий секрет backend'а и executor'а (`Authorization: Bearer` на `POST /jobs`, [executor.md](../executor.md) § Аутентификация вызывающего). Дефолта у него нет ни в одном `Settings`, в compose он пробрасывается как `${EXECUTOR_AUTH_TOKEN:?…}` обоим сервисам — без строки в `.env` стек не поднимется вовсе. Значение — случайная строка ≥ 32 символов, генерируется на VM (`openssl rand -hex 32`) и не совпадает с `JWT_SECRET`. Остальные `EXECUTOR_*`-переменные (`EXECUTOR_WORKSPACES_ROOT`, `EXECUTOR_SKILLS_ROOT`, `EXECUTOR_DEFAULT_TIMEOUT_SECONDS`, `EXECUTOR_MAX_TIMEOUT_SECONDS`, `EXECUTOR_MAX_OUTPUT_BYTES`, `EXECUTOR_KILL_GRACE_SECONDS`, `EXECUTOR_LOG_LEVEL`, `EXECUTOR_BASE_URL`, `EXECUTOR_JOB_TIMEOUT_SECONDS`, `EXECUTOR_CLIENT_TIMEOUT_GRACE_SECONDS`) правки не требуют — дефолты в `docker-compose.yml`/`.env.example` уже прод-безопасны. Исключение — `EXECUTOR_SANDBOX_ENABLED`: намеренно не задаётся нигде (дефолт `true` обязан держаться во всех окружениях) — kill-switch bwrap для локальной отладки, на проде выставлять нельзя; сервис, поднятый с ним, пишет ERROR на старте и отдаёт `sandbox: disabled` в `GET /health`.
+
+1. Скачать статический релиз gVisor и проверить контрольную сумму:
+
+   ```bash
+   ARCH=$(uname -m)
+   URL=https://storage.googleapis.com/gvisor/releases/release/latest/${ARCH}
+   wget "${URL}/gvisor.tar.bz2" "${URL}/gvisor.tar.bz2.sha512"
+   sha512sum -c gvisor.tar.bz2.sha512
+   ```
+
+   Архив содержит `runsc`, `containerd-shim-runsc-v1` и `gvisor-bin/` одним целым — распаковывать как есть, не разносить компоненты по разным путям.
+
+2. Распаковать в `/usr/local/bin` (системный путь — требует sudo; бинарь должен быть читаем/исполняем всем, `runsc` переисполняет себя от непривилегированного пользователя):
+
+   ```bash
+   sudo tar -xjf gvisor.tar.bz2 -C /usr/local/bin
+   rm -f gvisor.tar.bz2 gvisor.tar.bz2.sha512
+   ```
+
+3. Зарегистрировать `runsc` в docker-демоне. `runsc install` правит `/etc/docker/daemon.json` (дописывает секцию `runtimes`) — снять резервную копию до правки на случай, если файл придётся откатывать вручную:
+
+   ```bash
+   sudo cp /etc/docker/daemon.json /root/daemon.json.bak 2>/dev/null || true
+   sudo /usr/local/bin/runsc install
+   sudo systemctl reload docker
+   ```
+
+   `reload`, не `restart`: `runtimes` — один из ключей `daemon.json`, перечитываемых демоном по `SIGHUP` без остановки уже запущенных контейнеров (наравне с `insecure-registries`, `default-runtime` и т.п.; полный список — референс Docker `dockerd`). Уже работающие на VM контейнеры (`app`, `db`, `redis`, nginx-хост-процесс) `reload` не трогает — в отличие от установки runsc в среде, где сам docker ещё не запущен, здесь простоя не требуется. Если `reload` сообщает о конфликте (обычно синтаксическая ошибка в `daemon.json`) — демон остаётся на старой конфигурации, а не падает; исправить файл и повторить `reload`.
+
+4. Проверить, что рантайм действительно доступен:
+
+   ```bash
+   docker run --rm --runtime=runsc hello-world
+   ```
+
+   Отдельно про SELinux: на хостах с SELinux в `enforcing` (Fedora/RHEL-семейство) `docker run --runtime=runsc` может падать по меткам — gVisor не умеет проставлять SELinux-метки процессам внутри Sentry. Известный обход — снять маркировку для конкретного контейнера:
+
+   ```bash
+   docker run --rm --runtime=runsc --security-opt label=disable hello-world
+   ```
+
+   На Ubuntu (действующий AppArmor, не SELinux) этот шаг не нужен — но именно эта комбинация ОС/профиля первой проверяется на прод-VM следующим шагом (bwrap-верификация ниже), а не только smoke-тестом `hello-world`.
+
+#### Отдельная точка монтирования для volume `workspaces`
+
+Дефолтное размещение именованного volume — `/var/lib/docker/volumes/…`, та же файловая система, что `pgdata` и корень хоста. Джоба, заполнившая диск (рендер, случайный бесконечный вывод), кладёт Postgres и сам хост, а не только просмотр артефактов — квоты на джобу сознательно не реализованы (design-brief feat-011 § Scope boundaries), поэтому отдельная файловая система для `workspaces` — единственная защита от этого сценария на сегодня. `docker-compose.yml` объявляет `workspaces` как обычный именованный volume без `driver_opts`/`external` (секция `volumes:` в конце файла) — довести его до отдельной ФС нужно подготовкой самого volume до первого поднятия стека, не правкой compose-файла.
+
+1. Подготовить отдельный раздел или диск и смонтировать его в постоянную точку, например `/mnt/workspaces-disk` (конкретное устройство и точка — на усмотрение оператора; условие одно — отдельная файловая система, не путь внутри `/var/lib/docker` и не корень хоста). Прописать в `/etc/fstab`, чтобы монтирование пережило перезагрузку.
+
+2. Владелец точки монтирования — uid 10001 (единый uid `app`/`executor`/джобы, ADR-031): под gVisor запись в каталог с другим владельцем падает `EINVAL` даже при mode 777 (подтверждено спайком, `spikes/spike-bwrap-gvisor.md`).
+
+   ```bash
+   sudo mkdir -p /mnt/workspaces-disk
+   sudo chown 10001:10001 /mnt/workspaces-disk
+   ```
+
+3. Создать docker volume с именем, которое иначе создал бы compose, но с `local`-драйвером, указывающим на подготовленный путь. Имя volume, которое соберёт compose, — `<имя_проекта>_workspaces`; при чек-ауте в `~/learnflow-ai/` (путь, на который ссылается этот документ выше) имя проекта по умолчанию — `learnflow-ai`, то есть volume называется `learnflow-ai_workspaces`. Если каталог чек-аута на конкретной VM называется иначе или задан `COMPOSE_PROJECT_NAME`, проверить фактическое имя заранее: `docker compose config --format json | grep -m1 '"name"'`.
+
+   ```bash
+   docker volume create --driver local \
+     --opt type=none --opt o=bind \
+     --opt device=/mnt/workspaces-disk \
+     learnflow-ai_workspaces
+   ```
+
+   Compose не пересоздаёт volume с уже существующим именем — при первом `docker compose up`, поднимающем `app`/`executor`, он использует то, что уже создано этим шагом.
+
+4. Проверить, что точка монтирования резолвится верно, и что оба контейнера пишут именно туда:
+
+   ```bash
+   docker volume inspect learnflow-ai_workspaces --format '{{ .Mountpoint }}'   # → /mnt/workspaces-disk
+   docker compose exec app sh -c 'touch /workspaces/.mount-check'
+   ls -la /mnt/workspaces-disk/.mount-check   # файл виден с хоста
+   ```
+
+   Если сервис `executor` уже разворачивался на этой VM раньше под volume по умолчанию (данные успели накопиться в `/var/lib/docker/volumes/…`) — перед пересозданием volume перенести содержимое: остановить стек (`docker compose down`), скопировать данные (`docker run --rm -v learnflow-ai_workspaces:/from -v /mnt/workspaces-disk:/to alpine sh -c 'cp -a /from/. /to/'` — на старом volume под старым именем, до его удаления), удалить старый volume, выполнить шаг 3, поднять стек заново.
+
+#### Прод-верификация bwrap первым шагом развёртывания
+
+Спайк bwrap-под-gVisor гонялся в `runsc --rootless` на Fedora (`spikes/spike-bwrap-gvisor.md`) — прод-топология (docker + `runsc` + дефолтные seccomp/AppArmor дистрибутива, unprivileged userns) отличается и явно помечена спайком как непроверенная. Первый шаг развёртывания на новой прод-VM — прогон смоук-набора внутри уже собранного образа executor:
+
+```bash
+make docker-build-executor
+make smoke-executor RUNTIME=runsc
+```
+
+Зелёный прогон подтверждает, что весь bwrap-префикс (userns, mount-ns, урезанная сеть) реально работает под конкретной комбинацией ядра/seccomp/AppArmor этой VM, а не только под тестовым `runsc --rootless`. При отказе — не снимать/ослаблять ничего в `docker-compose.yml` в качестве попытки почини́ть: у сервиса `executor` уже стоит набор `security_opt: [seccomp=unconfined, apparmor=unconfined, systempaths=unconfined]` — это разрешение для *контейнера* создавать userns и монтировать то, что нужно bwrap внутри него (дефолтный docker-профиль это блокирует и без gVisor); периметр изоляции джобы держат `runtime: runsc` и bwrap внутри контейнера, а не seccomp/AppArmor-профиль самого контейнера executor (ADR-031). Снятие этого `security_opt` не усиливает изоляцию — оно останавливает bwrap ещё до того, как джоба успевает запуститься. Третий флаг, `systempaths=unconfined`, закрывает конкретно и только `/proc`: без него Docker по умолчанию накрывает `/proc` контейнера полутора десятками masked/readonly over-mount'ов (в `mountinfo` — 14 записей вместо 1 без маскировки), а ядро запрещает монтировать свежий procfs в новом user-namespace поверх такой картины — падает именно `bwrap --proc /proc`, а не создание самого namespace. Без этого уточнения два первых флага выглядят достаточными, и отладка «почему всё равно падает» начинается заново на каждой новой VM. Отказ смоука на новой VM — сигнал эскалировать архитектору с логами прогона, не менять периметр самостоятельно.
+
+## Бэкап
+
+Бэкап-контур на прод-VM не реализован — фиксация здесь ограничена требованием к его будущему составу (ADR-032), не описанием существующей процедуры.
+
+С переездом артефактов и вложений пользователя на файловую модель (ADR-032) дамп PostgreSQL один больше не покрывает данные продукта: таблиц `artifacts`/`artifact_blobs` не существует, публикации агента и вложения пользователей живут только как файлы на volume `workspaces` (точка монтирования — см. § Execution runtime выше). Когда бэкап-контур будет разворачиваться, он обязан включать резервное копирование volume `workspaces` наравне с дампом PostgreSQL — восстановление одной БД без содержимого volume вернёт структуру чатов и историю, но ни одного файла с результатом работы агента.
+
 ## Related docs
 
 - [tech/conventions.md](../conventions.md) § Logging Conventions → Security Event Logging — правило единственной точки чтения клиентского IP.
 - [tech/security-events.md](../security-events.md) — поле `ip` в каталоге security-событий.
 - [tech/siem-service.md](../siem-service.md) — устройство SIEM-подсистемы, которую гасит § SIEM выше.
+- [tech/adr/ADR-031-execution-runtime-isolation.md](../adr/ADR-031-execution-runtime-isolation.md) — изоляция executor: gVisor, bwrap per job, сетевая сегментация.
+- [tech/adr/ADR-032-project-workspace-file-model.md](../adr/ADR-032-project-workspace-file-model.md) — файловый workspace, переезд артефактов из PostgreSQL.
 - [tech/setup/codex-cloud.md](codex-cloud.md) — соседний setup-мануал, cloud-окружение.

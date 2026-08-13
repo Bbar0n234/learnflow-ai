@@ -36,6 +36,7 @@ AGENT_GUARD_OUTPUT_DETERMINISTIC_HIT = "agent.guard.output.deterministic_hit"
 
 # Agent runtime events
 AGENT_RUNTIME_CANARY_STREAM_ABORTED = "agent.runtime.canary.stream_aborted"
+AGENT_RUNTIME_PATH_DENIED = "agent.runtime.path_denied"
 
 # SIEM administrative events
 SIEM_ALERT_ACKNOWLEDGED = "siem.alert.acknowledged"
@@ -72,6 +73,7 @@ EventType = Literal[
     "agent.guard.output.deterministic_hit",
     # Agent runtime
     "agent.runtime.canary.stream_aborted",
+    "agent.runtime.path_denied",
     # SIEM
     "siem.alert.acknowledged",
     "siem.alert.resolved",

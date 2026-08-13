@@ -1,5 +1,4 @@
 from app.services.agent_runner import AgentRunner, Message, StreamEvent
-from app.services.artifact import ArtifactService
 from app.services.auth import AuthService
 from app.services.chat import ChatDetail, ChatService
 from app.services.exceptions import (
@@ -9,6 +8,7 @@ from app.services.exceptions import (
     EntityNotFoundError,
     InvalidURLError,
     NotFoundError,
+    PayloadTooLargeError,
     SecurityPolicyViolationError,
     UpstreamUnavailableError,
 )
@@ -22,7 +22,6 @@ from app.services.sphere import (
 __all__ = [
     "AgentRunner",
     "AppError",
-    "ArtifactService",
     "AuthService",
     "ChatDetail",
     "ChatService",
@@ -33,6 +32,7 @@ __all__ = [
     "LangGraphSphereService",
     "Message",
     "NotFoundError",
+    "PayloadTooLargeError",
     "ProjectService",
     "SecurityPolicyViolationError",
     "SphereData",

@@ -1,10 +1,4 @@
-import {
-  X,
-  FileText,
-  Image as ImageIcon,
-  Mic,
-  LayoutDashboard,
-} from "lucide-react";
+import { X, FileText, Mic, LayoutDashboard } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { SphereOrb } from "@/shared/ui/SphereOrb";
 import type { StudioControls, StudioTab } from "../model/useStudio";
@@ -24,16 +18,14 @@ const ARTIFACT_PREVIEW: Record<string, string> = {
     "Интервью с пользователем (42 мин): ожидания, боли, желаемые результаты.",
 };
 
-function ArtifactTypeIcon({
-  type,
-}: {
-  type: "md" | "slides" | "image" | "audio";
-}) {
+// T2.2: ветка "image" снята — недостижимый мёртвый код (MOCK_ARTIFACTS
+// никогда не заводил артефакт этого типа), а словарь категорий
+// (shared/lib/artifact-category.ts) теперь единственное место, решающее
+// "image" ли артефакт (§ Open Questions T2, OQ7).
+function ArtifactTypeIcon({ type }: { type: "md" | "slides" | "audio" }) {
   switch (type) {
     case "slides":
       return <LayoutDashboard className="h-3.5 w-3.5" />;
-    case "image":
-      return <ImageIcon className="h-3.5 w-3.5" />;
     case "audio":
       return <Mic className="h-3.5 w-3.5" />;
     default:
@@ -147,11 +139,10 @@ function ArtifactsPanelContent({ studio }: { studio: StudioControls }) {
         <button className="flex-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90">
           Открыть
         </button>
+        {/* .pdf снята вместе с той же кнопкой во вьюере (C3, T2.2) —
+            export в PDF не поддерживается. */}
         <button className="flex-1 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted">
           .md
-        </button>
-        <button className="flex-1 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted">
-          .pdf
         </button>
       </div>
     </div>

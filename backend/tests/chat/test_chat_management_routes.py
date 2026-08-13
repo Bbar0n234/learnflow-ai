@@ -12,7 +12,6 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from app.models.artifact import Artifact
 from app.models.mcp_server import MCPServerDisable, ThreadMCPServer
 from app.models.thread_view import ThreadView
 from app.models.user import User
@@ -390,35 +389,3 @@ async def test_delete_chat_clears_its_mcp_disables_and_servers(
         select(ThreadMCPServer.id).where(ThreadMCPServer.thread_id == thread.thread_id)
     )
     assert servers.first() is None
-
-
-async def test_delete_chat_keeps_its_artifacts_in_the_project(
-    client: AsyncClient,
-    current_user: User,
-    db_session: AsyncSession,
-    thread_factory: type[ThreadViewFactory],
-    wired_runner: FakeAgentRunner,
-) -> None:
-    project = await ProjectFactory.create(user=current_user)
-    thread = await thread_factory.create(project=project)
-    artifact = Artifact(
-        project_id=project.id,
-        thread_id=thread.thread_id,
-        title="Конспект",
-        type="markdown",
-        content="# Конспект",
-    )
-    db_session.add(artifact)
-    await db_session.flush()
-
-    response = await client.delete(
-        f"/api/projects/{project.id}/chats/{thread.thread_id}"
-    )
-
-    assert response.status_code == 204
-    stored = await db_session.execute(
-        select(Artifact.thread_id).where(Artifact.id == artifact.id)
-    )
-    # Artifacts outlive the chat they were produced in and stay in the project
-    # (FK SET NULL) — deleting a chat is not deleting the user's work.
-    assert stored.scalar_one() is None

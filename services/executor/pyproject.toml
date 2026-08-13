@@ -1,0 +1,43 @@
+[project]
+name = "executor"
+version = "0.1.0"
+description = "Executor service - sandboxed job runtime for agent-generated code"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.135.1",
+    "uvicorn[standard]>=0.41.0",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.13.1",
+    "structlog>=25.0",
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "matplotlib>=3.9",
+    "python-docx>=1.1.2",
+    "docxcompose>=1.4",
+    "pypdf>=5.1",
+    "pillow>=12.3.0",
+    "lxml>=6.1.1",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["executor*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "unit: fast, no external infra",
+    "integration: spawns real OS processes (the executor owns no database)",
+    "slow: long-running",
+]
+
+[tool.uv.sources]
+learnflow-testing = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "learnflow-testing",
+    "pytest-xdist>=3.6",
+]

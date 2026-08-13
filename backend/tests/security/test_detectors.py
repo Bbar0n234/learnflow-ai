@@ -11,7 +11,12 @@ from app.agent.security.detectors.canary import CanaryDetector, check_canary_in_
 from app.agent.security.detectors.fragment import FragmentDetector
 from app.agent.security.detectors.normalize import normalize
 from app.agent.security.detectors.paired import PairedToolIdentifierDetector
-from app.agent.security.detectors.unicode import UnicodeDetector, detect_invisible_chars
+from app.agent.security.detectors.unicode import (
+    UnicodeDetector,
+    detect_invisible_chars,
+    invisible_codepoints,
+    sanitize_invisible_chars,
+)
 from app.agent.security.types import DetectionLayer
 
 # --- normalize ------------------------------------------------------------
@@ -114,6 +119,87 @@ def test_unicode_detector_misses_on_clean_text() -> None:
     detector = UnicodeDetector()
 
     assert detector.inspect("perfectly normal", {}) is None
+
+
+# --- unicode: which codepoints fired, and getting rid of them -------------
+#
+# A hit's ``details`` reach the SIEM event verbatim, and the one thing an
+# operator needs from it is *which* codepoint fired — a BOM off an extracted
+# PDF reads differently from an RTL override placed by hand. The same two
+# helpers also feed the sanitizing policy in ``app.agent.tool_guards``, so the
+# reporting and the removal are pinned here, at the source, once.
+
+# Soft hyphen twice, BOM once, in that order — one buffer that separates
+# "distinct" from "every occurrence" and pins the ordering at the same time.
+_REPEATING_INVISIBLES = "a­b﻿c­d"
+
+
+@pytest.mark.unit
+def test_invisible_codepoints_reports_each_codepoint_once_in_order_of_appearance() -> (
+    None
+):
+    # Distinct, not one entry per occurrence: a soft hyphen repeated across an
+    # extracted page is one fact about the buffer, and an event that grew with
+    # the input would be metadata nobody can read.
+    assert invisible_codepoints(_REPEATING_INVISIBLES) == ["U+00AD", "U+FEFF"]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "text",
+    ["plain ascii text", "accented café déjà", "emoji 🚀 ok", ""],
+)
+def test_invisible_codepoints_empty_for_legit_text(text: str) -> None:
+    assert invisible_codepoints(text) == []
+
+
+@pytest.mark.unit
+def test_unicode_detector_details_name_the_codepoints_that_fired() -> None:
+    detector = UnicodeDetector()
+
+    hit = detector.inspect(_REPEATING_INVISIBLES, {})
+
+    assert hit is not None
+    assert hit.details["codepoints"] == ["U+00AD", "U+FEFF"]
+    assert hit.details["distinct_codepoints"] == 2
+
+
+@pytest.mark.unit
+def test_unicode_detector_details_cap_the_list_but_still_count_the_rest() -> None:
+    # A pathological buffer must not turn one event into a megabyte of
+    # metadata — the list is truncated at 20, but the count stays honest, so
+    # the truncation is visible instead of silently under-reporting.
+    detector = UnicodeDetector()
+    twenty_five_pua_chars = "".join(chr(0xE000 + i) for i in range(25))
+
+    hit = detector.inspect(twenty_five_pua_chars, {})
+
+    assert hit is not None
+    assert len(hit.details["codepoints"]) == 20
+    assert hit.details["codepoints"][0] == "U+E000"
+    assert hit.details["codepoints"][-1] == "U+E013"  # the 20th, in order
+    assert hit.details["distinct_codepoints"] == 25
+
+
+@pytest.mark.unit
+def test_sanitize_invisible_chars_drops_the_invisible_and_keeps_everything_else() -> (
+    None
+):
+    # Removal, not replacement: what is left is what a human already saw on
+    # screen — line breaks, accents and emoji included — minus the channel a
+    # hidden instruction would have travelled through.
+    poisoned = "stdout:\na­b﻿c — café 🚀"
+
+    assert sanitize_invisible_chars(poisoned) == "stdout:\nabc — café 🚀"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "text",
+    ["plain ascii text", "accented café déjà", "emoji 🚀 ok", ""],
+)
+def test_sanitize_invisible_chars_leaves_clean_text_alone(text: str) -> None:
+    assert sanitize_invisible_chars(text) == text
 
 
 # --- fragment detector ----------------------------------------------------

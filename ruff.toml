@@ -5,6 +5,8 @@ line-length = 88
 extend-exclude = [
     "doc/",
     ".claude/skills/", # vendored skill assets — справочный материал, не код проекта
+    "skills/",         # библиотека скиллов агента: самостоятельные артефакты со своим
+                       # жизненным циклом (вендоренные копии — со своим апстримом и CI)
     "**/alembic/versions",
     "**/__pycache__",
 ]

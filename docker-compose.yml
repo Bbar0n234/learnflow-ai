@@ -46,6 +46,9 @@ services:
       args:
         VITE_SIEM_ENABLED: ${SIEM_ENABLED:-true}
     restart: unless-stopped
+    # uid 10001 shared with executor and the job sandbox it spawns (cross-
+    # track contract — design brief § Executor / ADR-031).
+    user: "10001:10001"
     ports:
       - "127.0.0.1:${APP_PORT:-8000}:8000"
     environment:
@@ -82,14 +85,26 @@ services:
       LLM_IMAGE_TIMEOUT_SECONDS: ${LLM_IMAGE_TIMEOUT_SECONDS:-120}
       LLM_TITLE_TIMEOUT_SECONDS: ${LLM_TITLE_TIMEOUT_SECONDS:-20}
       MCP_TIMEOUT_SECONDS: ${MCP_TIMEOUT_SECONDS:-30}
-      PDF_CONVERSION_TIMEOUT_SECONDS: ${PDF_CONVERSION_TIMEOUT_SECONDS:-30}
+      WORKSPACES_ROOT: ${WORKSPACES_ROOT:-/workspaces}
+      SKILLS_ROOT: ${SKILLS_ROOT:-/skills}
+      WORKSPACE_READ_LIMIT_CHARS: ${WORKSPACE_READ_LIMIT_CHARS:-50000}
+      WORKSPACE_DIFF_FILE_LIMIT_BYTES: ${WORKSPACE_DIFF_FILE_LIMIT_BYTES:-1000000}
+      WORKSPACE_DIFF_TOTAL_LIMIT_BYTES: ${WORKSPACE_DIFF_TOTAL_LIMIT_BYTES:-10000000}
+      UPLOAD_MAX_SIZE_BYTES: ${UPLOAD_MAX_SIZE_BYTES:-20000000}
+      EXECUTOR_BASE_URL: ${EXECUTOR_BASE_URL:-http://executor:8002}
+      # Shared secret of the `exec` segment — same value here and on the
+      # `executor` service below, or every job is rejected with 401.
+      EXECUTOR_AUTH_TOKEN: ${EXECUTOR_AUTH_TOKEN:?EXECUTOR_AUTH_TOKEN is required — set it in .env}
+      EXECUTOR_JOB_TIMEOUT_SECONDS: ${EXECUTOR_JOB_TIMEOUT_SECONDS:-60}
+      EXECUTOR_CLIENT_TIMEOUT_GRACE_SECONDS: ${EXECUTOR_CLIENT_TIMEOUT_GRACE_SECONDS:-10}
       # MCP external tools — api_key_env from configs/agent.yaml, read directly
       # via os.environ (not through Settings).
       JINA_API_KEY: ${JINA_API_KEY:-}
       FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
     volumes:
       - ./configs:/app/configs:ro
-      - ./skills:/app/skills:ro
+      - ./skills:/skills:ro
+      - workspaces:/workspaces
     logging:
       driver: json-file
       options:
@@ -106,6 +121,76 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    # In both `default` (db/redis/siem) and `exec` (talks to `executor`) —
+    # the only service in both. Explicit list required once any service
+    # joins a non-default network, or it drops out of `default` implicitly.
+    networks:
+      - default
+      - exec
+
+  executor:
+    build:
+      context: .
+      dockerfile: services/executor/Dockerfile
+    restart: unless-stopped
+    # Prod isolation boundary (ADR-031, cross-track contract 6). Default
+    # stays runsc (prod guarantee unchanged); dev hosts without a registered
+    # `runsc` runtime override via EXECUTOR_RUNTIME=runc in their own .env
+    # (compose-level interpolation, not an app Settings knob — architect
+    # escalation resolved in tracks/T1/summary.md § T1.11).
+    runtime: ${EXECUTOR_RUNTIME:-runsc}
+    # uid 10001 shared with `app` and the job sandbox it spawns via bwrap
+    # (cross-track contract 4 — design brief § Executor / ADR-031).
+    user: "10001:10001"
+    cpus: "2"
+    mem_limit: 2g
+    pids_limit: 256
+    # >= EXECUTOR_MAX_TIMEOUT_SECONDS (300) + EXECUTOR_KILL_GRACE_SECONDS (5):
+    # the executor's own SIGTERM-then-SIGKILL sequence at job deadline must
+    # resolve before compose gives up and force-kills the container.
+    stop_grace_period: 320s
+    # Default docker seccomp/AppArmor profiles block the userns + masked-path
+    # mounts bwrap needs to sandbox a job (layer 3, spikes/spike-bwrap-gvisor.md)
+    # — without these the executor can't run any job at all. The isolation
+    # boundary for untrusted job code is gVisor (`runtime: runsc`, above) and
+    # the bwrap sandbox inside the job, not this container's own
+    # seccomp/AppArmor profile. Decision: architect escalation 2026-08-11,
+    # fixed in ADR-031.
+    security_opt:
+      - seccomp=unconfined
+      - apparmor=unconfined
+      - systempaths=unconfined
+    environment:
+      # Same variable the `app` service gets — one secret, two ends. The
+      # service refuses to start without it (Settings field without default).
+      EXECUTOR_AUTH_TOKEN: ${EXECUTOR_AUTH_TOKEN:?EXECUTOR_AUTH_TOKEN is required — set it in .env}
+      EXECUTOR_WORKSPACES_ROOT: ${EXECUTOR_WORKSPACES_ROOT:-/workspaces}
+      EXECUTOR_SKILLS_ROOT: ${EXECUTOR_SKILLS_ROOT:-/skills}
+      EXECUTOR_DEFAULT_TIMEOUT_SECONDS: ${EXECUTOR_DEFAULT_TIMEOUT_SECONDS:-60}
+      EXECUTOR_MAX_TIMEOUT_SECONDS: ${EXECUTOR_MAX_TIMEOUT_SECONDS:-300}
+      EXECUTOR_MAX_OUTPUT_BYTES: ${EXECUTOR_MAX_OUTPUT_BYTES:-262144}
+      EXECUTOR_KILL_GRACE_SECONDS: ${EXECUTOR_KILL_GRACE_SECONDS:-5}
+      EXECUTOR_LOG_LEVEL: ${EXECUTOR_LOG_LEVEL:-info}
+      # EXECUTOR_SANDBOX_ENABLED intentionally not set — its default (true)
+      # must hold in every deployed environment (T3 plan § EXECUTOR_-knobs,
+      # Open Question 2).
+    volumes:
+      - workspaces:/workspaces
+      - ./skills:/skills:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # Isolated network only — no path to db/redis/app, no egress (ADR-031).
+    networks:
+      - exec
 
   siem-db:
     profiles: ["siem"]
@@ -176,8 +261,13 @@ networks:
     driver: bridge
     driver_opts:
       com.docker.network.driver.mtu: ${DOCKER_MTU:-1500}
+  # executor-only network (ADR-031): no db/redis/app reachability, no
+  # egress. `internal: true` blocks outbound routing at the bridge level.
+  exec:
+    internal: true
 
 volumes:
   pgdata:
   redisdata:
   siem_pgdata:
+  workspaces:

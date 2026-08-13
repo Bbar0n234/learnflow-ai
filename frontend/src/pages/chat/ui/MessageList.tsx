@@ -168,8 +168,11 @@ export function MessageList({
   // Прокрутка следует за ростом всей ленты, а не за одним текстом и не за одним
   // её корнем: ход из одних tool-событий, без единого `text_chunk`, уезжал бы за
   // нижнюю границу, а работающий субагент растит только свою вложенную ленту.
+  // `block: "nearest"` держит прокрутку внутри ленты: без него scrollIntoView
+  // тянет к своей верхней границе каждого предка-скроллера вплоть до документа,
+  // и любое переполнение снаружи ленты уводит страницу от чата на каждом чанке.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [
     messages.length,
     size,

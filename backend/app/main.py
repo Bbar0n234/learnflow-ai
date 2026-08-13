@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any
 
+import httpx
 import structlog
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -75,6 +76,7 @@ from app.api.routes import (
     mcp_servers,
     messages,
     models,
+    oauth,
     projects,
     skill_context,
     sphere,
@@ -85,6 +87,7 @@ from app.api.routes import settings as settings_routes
 from app.config import Settings
 from app.infra.client_ip import get_client_ip, is_health_path
 from app.infra.db import create_engine, create_session_factory
+from app.infra.geoip import open_reader as open_geoip_reader
 from app.infra.langfuse import (
     ensure_model_definitions,
     ensure_security_score_config,
@@ -95,6 +98,7 @@ from app.infra.langgraph import create_checkpointer, create_store
 from app.infra.llm import create_guard_llm
 from app.infra.logging import setup_logging
 from app.infra.mcp import create_mcp_client
+from app.infra.oauth import build_oauth_registry
 from app.infra.prompt_provider import PromptProvider
 from app.infra.rate_limit import RateLimiter
 from app.infra.redis import create_redis
@@ -342,6 +346,28 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         publisher_task = asyncio.create_task(event_transport.publisher_loop())
         app.state.security_publisher_task = publisher_task
         logger.info("security event publisher started")
+
+    # OAuth: shared httpx.AsyncClient (connection pool, one instance for all
+    # provider calls — per-request clients are not created) with a timeout
+    # sourced from Settings (conventions.md § Таймауты — no hardcoded value),
+    # and the active-provider registry built from it. Both live in
+    # app.state, wired here — no module-level state (conventions.md §
+    # Module-level state). Registry composition is logged, credentials never
+    # are.
+    oauth_http_client = httpx.AsyncClient(timeout=settings.oauth_http_timeout_seconds)
+    app.state.oauth_http_client = oauth_http_client
+    app.state.oauth_providers = build_oauth_registry(settings, oauth_http_client)
+    logger.info(
+        "oauth providers registry built",
+        active_providers=sorted(app.state.oauth_providers),
+    )
+
+    # Гео-gate: MMDB reader (mmap) opened once, stored on app.state — no
+    # module-level singleton. Missing/unset/unopenable database degrades to
+    # a warning, not a blocked start (open_geoip_reader logs it); every
+    # lookup then falls back to GEOIP_FALLBACK_COUNTRY (fail-closed in the
+    # direction the law requires — design-brief.md § Гео-gate).
+    app.state.geoip_reader = open_geoip_reader(settings.geoip_db_path)
 
     # PromptProvider
     prompts_dir = Path(__file__).resolve().parents[2] / "configs" / "prompts"
@@ -703,6 +729,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     shutdown_langfuse()
     if app.state.redis:
         await app.state.redis.aclose()
+    await app.state.oauth_http_client.aclose()
+    if app.state.geoip_reader is not None:
+        app.state.geoip_reader.close()
     await engine.dispose()
 
 
@@ -785,6 +814,7 @@ def create_app() -> FastAPI:
     # API routes
     api_prefix = "/api"
     app.include_router(auth.router, prefix=api_prefix)
+    app.include_router(oauth.router, prefix=api_prefix)
     app.include_router(projects.router, prefix=api_prefix)
     app.include_router(chats.router, prefix=api_prefix)
     app.include_router(messages.router, prefix=api_prefix)

@@ -39,6 +39,7 @@
 - Пагинация — **offset/limit** (cursor не используем: коллекции — десятки-сотни элементов на пользователя). Query-параметры: `limit` (default 50, max 200), `offset` (≥0); общий dependency `Pagination` в `app/api/deps.py`.
 - Envelope списочных ответов един для **всех** list-эндпоинтов, включая маленькие фиксированные списки (models, mcp-servers): `{ items, total, limit, offset }`. Generic `Page[T]` — `app/api/schemas/common.py`; endpoint-специфичные поля добавляются наследованием (пример — `inherited` в `MCPServerListResponse`).
 - Решение «пагинация везде» — осознанное: не держим в голове, какой список «может вырасти», а какой нет.
+- **Исключение — capability-дескриптор, не коллекция ресурсов**: `GET /api/auth/providers` (`{providers: string[], password: bool}`) вне list-envelope — санкционировано design-brief итерации feat-008. Отличие от списочных эндпоинтов: ответ описывает доступные способы входа (fixed shape, не набор идентичных ресурсов), поле `password` в `{ items, total, limit, offset }` не ложится по смыслу.
 
 ### Status codes
 

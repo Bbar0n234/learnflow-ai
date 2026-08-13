@@ -29,7 +29,7 @@
 | feat-005 | F | 📋 Planned | backend | PDF-экспорт: замена wkhtmltopdf, рендер формул, фирменный стиль |
 | feat-006 | G | 📋 Planned | agent | Генерация слайдов: spike → скилл/интеграция (паттерн ADR-026) |
 | feat-007 | H | 📋 Planned | cross-cutting | Кастомные скиллы пользователя + страница библиотеки скиллов |
-| feat-008 | I | 🚧 In Progress | cross-cutting | OAuth (Яндекс ID для РФ, + Google/GitHub вне РФ — гео-разделение по 149-ФЗ) + функциональный каркас страницы `/login` (брендовый дизайн — feat-013) |
+| feat-008 | I | ✅ Done | cross-cutting | OAuth (Яндекс ID для РФ, + Google/GitHub вне РФ — гео-разделение по 149-ФЗ) + функциональный каркас страницы `/login` (брендовый дизайн — feat-013) |
 | feat-009 | J | ✅ Done | infra | Web search MCP: замена Firecrawl на Jina AI (hosted) |
 | feat-010 | K | 📋 Planned | cross-cutting | Voice input (STT) |
 | feat-011 | L | ✅ Done | cross-cutting | Execution runtime: изолированное выполнение кода/CLI + файловый workspace + file attachments (поглотила E) — общий фундамент PDF (F), слайдов (G), ГОСТ-скилла (M) |
@@ -255,7 +255,7 @@
 
 **Цель:** авторизация через внешних провайдеров — вход без заведения отдельного пароля — + функциональный каркас страницы `/login`. Состав провайдеров пересмотрен архитектором при взятии в работу: Яндекс ID для пользователей из РФ, все активные провайдеры (+ Google, GitHub) для остальных — гео-разделение по ч. 10 ст. 8 149-ФЗ (запрет иностранной авторизации для РФ-пользователей; штрафы по ст. 13.55 КоАП действуют с 07.07.2026). VK ID исключён на этапе design-brief: регистрация приложения физлицу без бизнес-верификации недоступна, dev-флоу требовал бы отдельной https-топологии; кандидат на возврат при появлении верифицированного профиля. 404-экран и брендовый дизайн auth-экранов перенесены в feat-013 (решение архитектора: весь UI-дизайн консолидируется в полировочном пакете, включая мокапы).
 
-**Статус:** 🚧 In Progress
+**Статус:** ✅ Done
 **Ветка:** `dogf/feat-008-oauth-auth-screens`
 **Scope:** cross-cutting (Frontend + Backend + Design-branding)
 
@@ -278,6 +278,18 @@
 
 - [design-brief.md](iterations/dogfooding/feat-008-oauth-auth-screens/design-brief.md) — финализирован: флоу, state-cookie, провайдер-слой, гео-gate, реестры ошибок и SIEM-событий, контракты, рамка порядка реализации (партиция треков — за фазой PARTITION оркестратора); открытые вопросы взятия в работу (state-хранение, shape callback-пути, контракт providers) закрыты в нём; ревью свежими агентами пройдено двумя прогонами (15 + 12 находок, включая кросс-сверку с брифом feat-013; вправлены)
 - Ресёрч-выжимки взятия в работу: [research-legal-geo.md](iterations/dogfooding/feat-008-oauth-auth-screens/research-legal-geo.md) (149-ФЗ, ст. 13.55 КоАП, геодетекция), [research-data-model.md](iterations/dogfooding/feat-008-oauth-auth-screens/research-data-model.md) (эталонные схемы, DDL-эскиз, postgresql-ревью), [research-provider-libs.md](iterations/dogfooding/feat-008-oauth-auth-screens/research-provider-libs.md) (authlib vs httpx, политики провайдеров, dev/prod-окружения)
+
+#### Документация
+
+- [design-brief.md](iterations/dogfooding/feat-008-oauth-auth-screens/design-brief.md) — OAuth-флоу (Яндекс ID/Google/GitHub), гео-разделение по 149-ФЗ, cookie `oauth_flow`, модель данных, каркас `/login` по мокапу feat-013, партиция треков T1/T2
+- [research-legal-geo.md](iterations/dogfooding/feat-008-oauth-auth-screens/research-legal-geo.md) / [research-data-model.md](iterations/dogfooding/feat-008-oauth-auth-screens/research-data-model.md) / [research-provider-libs.md](iterations/dogfooding/feat-008-oauth-auth-screens/research-provider-libs.md) — юридическая рамка гео-ограничения, ресёрч модели данных (эталоны Auth.js/allauth/better-auth/omniauth, база ADR-031), сравнение провайдерских библиотек
+- [tracks/T1/plan.md](iterations/dogfooding/feat-008-oauth-auth-screens/tracks/T1/plan.md) / [tracks/T2/plan.md](iterations/dogfooding/feat-008-oauth-auth-screens/tracks/T2/plan.md) — implementation plans (backend: модель + миграция, провайдер-абстракция, гео-gate, эндпоинты, SIEM-словарь; frontend: каркас `/login`, guard, бутстрап)
+- [tracks/T1/summary.md](iterations/dogfooding/feat-008-oauth-auth-screens/tracks/T1/summary.md) / [tracks/T2/summary.md](iterations/dogfooding/feat-008-oauth-auth-screens/tracks/T2/summary.md) — post-implementation summary: девять фаз бэкенд-вертикали (T1), каркас входа + фиксы доступности (T2)
+- [tracks/T1/test-cases.md](iterations/dogfooding/feat-008-oauth-auth-screens/tracks/T1/test-cases.md) / [tracks/T2/test-cases.md](iterations/dogfooding/feat-008-oauth-auth-screens/tracks/T2/test-cases.md) — тестовые кейсы и результаты прогонов
+- [review-a.md](iterations/dogfooding/feat-008-oauth-auth-screens/review-a.md) / [review-b.md](iterations/dogfooding/feat-008-oauth-auth-screens/review-b.md) — code review (независимый + соответствие контракту)
+- [harvest-proposals.md](iterations/dogfooding/feat-008-oauth-auth-screens/harvest-proposals.md) — кандидаты в backlog/конвенции, собранные по ходу итерации
+- Создан: [ADR-033](../tech/adr/ADR-033-oauth-identity-model.md) — отдельная таблица `oauth_accounts`, запрет авто-линковки по email, nullable `password_hash`
+- Обновлены по итогам: [auth.md](../tech/auth.md) (OAuth-вход целиком: флоу, cookie `oauth_flow`, гео-gate, реестр кодов ошибок, поверхность атаки, вход страницей `/login`), [backend.md](../tech/backend.md) (`infra/oauth`, `infra/geoip.py`, `AuthService`/`OAuthService`, `api/cookies.py`, таблица `OAuthAccount`, `show_locals=False`), [frontend.md](../tech/frontend.md) (маршрут `/login`, guard `RequireAuth`, `useAuthBootstrap`, дерево модулей), [security-events.md](../tech/security-events.md) (`auth.oauth.success`/`failed`, `rate_limit.oauth.exceeded`), [conventions/api.md](../tech/conventions/api.md) (исключение `/auth/providers` из list-envelope)
 
 ---
 

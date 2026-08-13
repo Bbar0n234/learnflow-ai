@@ -32,6 +32,7 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 
 | Маршрут | Центральная область |
 |---------|---------------------|
+| `/login` | Вход/регистрация — публичный маршрут вне guard'а (§ Layout ниже); неаутентифицированный доступ к любому другому маршруту редиректит сюда |
 | `/` | Welcome (без input; чат создаётся на странице проекта или через композер) |
 | `/settings` | Пользовательские настройки: модель, инструкции, память, MCP серверы |
 | `/projects/:id` | Проект: табы **Chats** / **Sphere** / **Artifacts** / **Settings** |
@@ -43,6 +44,8 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 | `/security` | Мониторинг безопасности (admin-only, RBAC guard): Events / Alerts / Rules |
 
 ### Экраны
+
+**Вход (`/login`):** режимы вход/регистрация одной формы (парольная, как раньше в `AuthGate`) + блок кнопок провайдеров по составу `GET /api/auth/providers` (пусто, если гео-gate не оставил ни одного — форма при этом не блокируется). Клик по кнопке провайдера — полный переход браузера на `/api/auth/oauth/{provider}/authorize`, не fetch. `?error=<код>` из OAuth-редиректа — инлайн-сообщение по закрытому реестру кодов. Backend-механика (гео-gate, cookie `oauth_flow`, реестр кодов) — [auth.md](auth.md#oauth-вход).
 
 **Главная (`/`):** welcome-экран без input. Проекты доступны через sidebar; создание чата — с поля первого сообщения на странице проекта или через кнопку «+ Новый чат» в sidebar (модалка выбора проекта → композер).
 
@@ -68,7 +71,8 @@ Chat-first SPA с постоянным sidebar. Паттерн навигаци�
 
 ### Layout
 
-- **AuthGate** — app-level auth gate: блокирующая модалка login/register если не аутентифицирован. Подробнее — [auth.md](auth.md).
+- **RequireAuth** — guard на layout-маршруте, оборачивающем всё приложение кроме `/login`: неаутентифицированного редиректит на `/login` с сохранением исходного пути. Вердикт нереактивный (синхронное чтение access token). Подробнее — [auth.md](auth.md#вход-страница-login-guard-requireauth-бутстрап).
+- **useAuthBootstrap** (`app/model/`) — app-уровневый hook, гейтит монтирование всех маршрутов до однократной проверки/тихого refresh сессии.
 - **AppLayout** — корневой layout: sidebar + центральная область. Рендерится на всех маршрутах.
 - **Sidebar** — проекты пользователя, recents, кнопки создания (new chat / new project), user footer с logout.
 - **ProjectLayout** — обёртка для project-level маршрутов: имя проекта, табы (Chats / Sphere / Artifacts / Settings).
@@ -194,6 +198,8 @@ flowchart LR
 | `queryKeys.settings(scope, projectId?, threadId?)` | `["settings", scope, …]` | settings по scope (user/project/thread) |
 | `queryKeys.mcpServers(scope, projectId?, threadId?)` | `["mcp-servers", scope, …]` | mcp-servers по scope |
 | `queryKeys.auth.me` | `["auth", "me"]` | `GET /auth/me` (route guard, user footer) |
+| `queryKeys.auth.providers` | `["auth", "providers"]` | `GET /auth/providers` (блок кнопок провайдеров на `/login`) |
+| `queryKeys.auth.bootstrap` | `["auth", "bootstrap"]` | Внутренний ключ `useAuthBootstrap` (не HTTP-эндпоинт напрямую — дедупликация тихого `POST /auth/refresh` под `StrictMode`) |
 | `queryKeys.security.*` | `["security", …]` | SIEM events/alerts/rules (siem-service) |
 
 Settings и MCP-серверы используют единый ключ с осью `scope` (`user` / `project` / `thread`) + `projectId`/`threadId`, отфильтрованными через `.filter(Boolean)` — не отдельные ключи на каждый уровень.
@@ -292,7 +298,7 @@ shared/api/
 │                       useUpdateSkillContext, useDeleteSkillContext
 ├── mcp-servers.ts   — MCPServer… + CRUD per scope + useMCPServers, useMCPServerMutations
 ├── feedback.ts      — setFeedback, deleteFeedback
-├── auth.ts          — register/login/refresh/getMe/logout
+├── auth.ts          — register/login/refresh/getMe/logout + getAuthProviders/useAuthProviders
 └── security.ts      — SIEM типы + siemClient + listEvents/Alerts/Rules… + useEvents, useAlerts, useRules, …
 ```
 
@@ -359,17 +365,19 @@ graph TD
 
     subgraph ENTRY["Entry"]
         MAINX["main.tsx — React root"]
-        APPX["App.tsx — AuthGate"]
+        APPX["App.tsx — бутстрап-гейт + роутер"]
     end
 
     subgraph SHELL["app/ — application shell"]
         ROUTERX["router.tsx"]
         LAY["layouts/ — AppLayout, ProjectLayout"]
         PROVX["providers/ — QueryClientProvider"]
-        ACOMP["components/ — Sidebar, project- и chat-модалки,<br>AuthGate, ErrorBoundary"]
+        ACOMP["components/ — Sidebar, project- и chat-модалки,<br>RequireAuth, ErrorBoundary"]
+        AMODEL["model/ — useAuthBootstrap"]
     end
 
     subgraph PAGESL["pages/ — слайсы уровня маршрута (ui/ + model/)"]
+        LOGINP["login"]
         CHATP["chat · project-chats"]
         SPHP["sphere"]
         ARTP["artifacts · artifact"]
@@ -397,13 +405,16 @@ graph TD
     end
 
     MAINX --> APPX
+    APPX --> AMODEL
     APPX --> ROUTERX
+    ROUTERX --> LOGINP
     ROUTERX --> LAY
     LAY --> PAGESL
     PAGESL --> FEATSL
     PAGESL --> SHRD
     FEATSL --> SHRD
     ACOMP --> SHRD
+    AMODEL --> SHRD
     CHATP --> STST
     STST --> SHRD
     APIX -->|HTTP| BE
@@ -429,22 +440,25 @@ frontend/
 │
 ├── src/
 │   ├── main.tsx                   — entry point: React root, providers
-│   ├── App.tsx                    — AuthGate + роутер
+│   ├── App.tsx                    — бутстрап-гейт (useAuthBootstrap) + роутер
 │   ├── index.css                  — Tailwind + shadcn theme variables
 │   │
 │   ├── app/                       — application shell
 │   │   ├── layouts/               — AppLayout (sidebar + центр), ProjectLayout (табы)
 │   │   ├── components/            — Sidebar, ProjectList/ProjectCard/ProjectActions/
 │   │   │                            CreateProjectModal, NewChatModal (модалка выбора проекта,
-│   │   │                            единственный хост — Sidebar), AuthGate, ErrorBoundary
+│   │   │                            единственный хост — Sidebar), RequireAuth, ErrorBoundary
+│   │   ├── model/                 — useAuthBootstrap (app-уровневый бутстрап сессии)
 │   │   ├── providers/             — QueryClientProvider, прочие провайдеры
-│   │   └── router.tsx             — конфигурация маршрутов; `ArtifactsViewerSlot` — диспетчер
+│   │   └── router.tsx             — конфигурация маршрутов (`/login` — публичный, вне RequireAuth);
+│   │                                `ArtifactsViewerSlot` — диспетчер
 │   │                                `?path=` → `<ArtifactView/>`/пустое состояние, вложенным
 │   │                                index-роутом под `artifacts` (`pages/artifacts` не может
 │   │                                импортировать `pages/artifact` напрямую — FSD-граница
 │   │                                `boundaries/dependencies` запрещает кросс-слайс внутри `pages`)
 │   │
 │   ├── pages/                     — слайсы уровня маршрута (ui/ + при нужде model/), public API в index.ts
+│   │   ├── login/                 — /login (парольная форма + блок кнопок провайдеров)
 │   │   ├── welcome/               — /
 │   │   ├── project-chats/         — /projects/:id (ChatList — список + поле первого сообщения + вложения)
 │   │   ├── chat/                  — /projects/:id/chats/:cid, /projects/:id/chats/new

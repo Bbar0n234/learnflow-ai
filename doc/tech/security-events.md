@@ -12,7 +12,7 @@ Event types follow the naming convention: `<domain>.<subject>.<outcome>`
 
 | Domain | Purpose | Components |
 |--------|---------|-----------|
-| `auth` | Authentication and session events | Login, registration, refresh token flows |
+| `auth` | Authentication and session events | Login, registration, refresh token, OAuth provider flows |
 | `rate_limit` | Rate limiting triggers | Request throttling per scope |
 | `agent.guard` | Security guard (input/output/tool) | Injection detection, canary checks |
 | `agent.runtime` | Agent runtime events | Stream abortion, canary leaks, workspace path denial |
@@ -30,6 +30,8 @@ Event types follow the naming convention: `<domain>.<subject>.<outcome>`
 | `auth.register.failed` | `warning` | Registration fails (username exists, etc) | `ip`, `request_id` |
 | `auth.refresh.success` | `info` | Refresh token successfully exchanged | `request_id`, `user_id`, `session_id` |
 | `auth.refresh.replay_detected` | `critical` | Token replay attack detected | `request_id`, `user_id` |
+| `auth.oauth.success` | `info` | OAuth callback completes login (existing or newly created account) | `ip`, `request_id`, `user_id` |
+| `auth.oauth.failed` | `warning` | OAuth callback fails on `flow_expired` (state/cookie mismatch) or `oauth_failed` (find-or-create failure) — `access_denied` (user declined), `provider_unavailable` (provider outage) and geo-denial are not SIEM events, see [auth.md](auth.md#реестр-кодов-ошибок-loginerror) | `ip`, `request_id` |
 
 #### Rate Limit Events
 
@@ -38,6 +40,7 @@ Event types follow the naming convention: `<domain>.<subject>.<outcome>`
 | `rate_limit.login.exceeded` | `warning` | Login rate limit exceeded | `ip`, `request_id` |
 | `rate_limit.register.exceeded` | `warning` | Registration rate limit exceeded | `ip`, `request_id` |
 | `rate_limit.refresh.exceeded` | `warning` | Refresh rate limit exceeded | `ip`, `request_id` |
+| `rate_limit.oauth.exceeded` | `warning` | OAuth `authorize`/`callback` rate limit exceeded (separate budgets, same event type) | `ip`, `request_id` |
 
 #### Security Guard Events - Degradation (cross-checkpoint)
 
@@ -125,6 +128,8 @@ Additional metadata per event:
 |------------|-----------------|
 | `auth.login.failed` | `username` (attempted login) |
 | `auth.register.failed` | `username` (attempted registration), `reason` |
+| `auth.oauth.success` | `provider` (`yandex` \| `google` \| `github`), `new_user` (`bool` — account created by this request) |
+| `auth.oauth.failed` | `provider`, `reason` (`flow_expired` \| `oauth_failed`) |
 | `agent.guard.*.deterministic_hit` | `detector` (detector name) + the detector's own hit details, spread flat (Unicode: `codepoints`, `distinct_codepoints`) |
 | `agent.guard.*.classifier_*` | `reasoning` (LLM reasoning), `retries` (classifier retries) |
 | `agent.guard.output.canary_leak` | `leaked_value` (indicator of leak) |

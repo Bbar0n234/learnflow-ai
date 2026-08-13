@@ -56,7 +56,9 @@ class AuthService:
 
     async def login(self, name: str, password: str) -> tuple[User, str, str]:
         user = await self._user_repo.get_by_name(name)
-        if user is None or not await anyio.to_thread.run_sync(
+        if user is None or user.password_hash is None:
+            raise InvalidCredentialsError
+        if not await anyio.to_thread.run_sync(
             verify_password, user.password_hash, password
         ):
             raise InvalidCredentialsError
@@ -65,6 +67,22 @@ class AuthService:
         access_token = self._create_access(user)
         refresh_raw = await self._create_refresh(user.id)
         return user, access_token, refresh_raw
+
+    async def issue_session(self, user: User) -> tuple[str, str]:
+        """Выдать access/refresh пару для уже определённого пользователя.
+
+        Публичная точка переиспользования механики выдачи сессии для
+        вызывающих извне ``AuthService`` — сейчас единственный такой
+        вызывающий: ``OAuthService.login_with_provider`` после find-or-create
+        (design-brief.md § Эндпоинты). Доступ к приватным
+        ``_create_access``/``_create_refresh`` другого объекта не вариант
+        (conventions.md § Интерфейсы) — этот метод и есть их легальная
+        точка входа снаружи.
+        """
+        await self._token_repo.delete_expired_for_user(user.id)
+        access_token = self._create_access(user)
+        refresh_raw = await self._create_refresh(user.id)
+        return access_token, refresh_raw
 
     async def refresh(self, token_raw: str) -> tuple[str, str]:
         token_hash = hash_raw_token(token_raw)

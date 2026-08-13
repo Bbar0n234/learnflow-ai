@@ -26,6 +26,22 @@ class Settings(BaseSettings):
     client_ip_source: Literal["socket", "x-real-ip", "x-forwarded-for"] = "socket"
     client_ip_xff_hops: int = Field(1, ge=1)
 
+    # OAuth providers — пустой креды-дефолт выключает провайдера (не fail-fast-секрет)
+    oauth_yandex_client_id: str = ""
+    oauth_yandex_client_secret: str = ""
+    oauth_google_client_id: str = ""
+    oauth_google_client_secret: str = ""
+    oauth_github_client_id: str = ""
+    oauth_github_client_secret: str = ""
+    # Local dev через Vite; docker-compose разводит свой дефолт (:8000, SPA отдаёт backend)
+    oauth_redirect_base_url: str = "http://localhost:5173"
+    oauth_http_timeout_seconds: int = 10
+
+    # GeoIP (гео-gate) — путь к MMDB (IPinfo Lite); пусто/недоступна → fallback-страна.
+    # Разрешённые для RU провайдеры ({"yandex"}) — бизнес-инвариант в коде, не env.
+    geoip_db_path: str = ""
+    geoip_fallback_country: str = "RU"
+
     # Langfuse Observability
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""

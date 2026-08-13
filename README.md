@@ -209,3 +209,5 @@ make dev-fe         # фронтенд на http://localhost:5173
 ## Лицензия
 
 [Apache 2.0](LICENSE)
+
+This product includes IP geolocation data by [IPinfo](https://ipinfo.io), licensed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).

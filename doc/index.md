@@ -78,6 +78,7 @@ doc/
   - [ADR-030: Per-Call Tool Result Guard](tech/adr/ADR-030-per-call-tool-result-guard.md) — проверка и отчёт о результате инструмента повызовно, внутри узла `tools`: правдивость ленты против стоимости классификатора
   - [ADR-031: Execution Runtime Isolation](tech/adr/ADR-031-execution-runtime-isolation.md) — executor-сервис под gVisor, bwrap per job, сетевая сегментация без egress
   - [ADR-032: Project Workspace File Model](tech/adr/ADR-032-project-workspace-file-model.md) — артефакты переезжают из PostgreSQL в файлы workspace per project, путь как идентичность
+  - [ADR-033: OAuth Identity Model](tech/adr/ADR-033-oauth-identity-model.md) — отдельная таблица `oauth_accounts`, запрет авто-линковки по email, nullable `password_hash`
 
 **Setup manuals:**
 - [tech/setup/codex-cloud.md](tech/setup/codex-cloud.md) — настройка ChatGPT Codex Environment для cloud-сессий

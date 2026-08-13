@@ -34,6 +34,8 @@ export const queryKeys = {
     ["mcp-servers", scope, projectId, threadId].filter(Boolean),
   auth: {
     me: ["auth", "me"] as const,
+    providers: ["auth", "providers"] as const,
+    bootstrap: ["auth", "bootstrap"] as const,
   },
   security: {
     events: (params: Record<string, unknown>) =>

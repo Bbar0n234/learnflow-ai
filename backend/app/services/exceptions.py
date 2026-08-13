@@ -156,3 +156,18 @@ class TokenExpiredError(AuthError):
 class ReplayDetectedError(AuthError):
     def __init__(self) -> None:
         super().__init__("Token reuse detected, all sessions revoked")
+
+
+class OAuthAccountCreationError(AuthError):
+    """Find-or-create в ``OAuthService`` не смог завершиться штатно.
+
+    Два источника: retry-бюджет генерации ``users.name`` исчерпан (частые
+    коллизии кандидата), либо деградация после гонки двойного callback'а
+    на ``(provider, provider_account_id)`` не нашла строку повторным
+    lookup'ом (неожиданное состояние БД, не сама гонка — та обрабатывается
+    без исключения). Routes (T1.6) ловят это и редиректят на
+    ``/login?error=oauth_failed`` — наружу ``AppError``/500 не течёт.
+    """
+
+    def __init__(self) -> None:
+        super().__init__("Unable to complete provider login")

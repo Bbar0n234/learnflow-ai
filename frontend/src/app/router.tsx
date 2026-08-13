@@ -2,7 +2,9 @@ import { lazy, Suspense } from "react";
 import { Route, Routes, useSearchParams } from "react-router";
 import { AppLayout } from "./layouts/AppLayout";
 import { ProjectLayout } from "./layouts/ProjectLayout";
+import { RequireAuth } from "./components/RequireAuth";
 import { WelcomePage } from "@/pages/welcome";
+import { LoginPage } from "@/pages/login";
 import { ChatList } from "@/pages/project-chats";
 import { ChatView } from "@/pages/chat";
 import { SphereView } from "@/pages/sphere";
@@ -51,30 +53,34 @@ function ArtifactsViewerSlot() {
 export function AppRoutes() {
   return (
     <Routes>
-      <Route element={<AppLayout />}>
-        <Route index element={<WelcomePage />} />
-        <Route path="settings" element={<SettingsPage />} />
-        {SIEM_ENABLED && (
-          <Route
-            path="security"
-            element={
-              <SecurityRouteGuard>
-                <Suspense fallback={<LoadingFallback />}>
-                  <SecurityPage />
-                </Suspense>
-              </SecurityRouteGuard>
-            }
-          />
-        )}
-        <Route path="projects/:id" element={<ProjectLayout />}>
-          <Route index element={<ChatList />} />
-          <Route path="chats/new" element={<ChatView />} />
-          <Route path="chats/:cid" element={<ChatView />} />
-          <Route path="sphere" element={<SphereView />} />
-          <Route path="artifacts" element={<ArtifactsPage />}>
-            <Route index element={<ArtifactsViewerSlot />} />
+      <Route path="login" element={<LoginPage />} />
+      <Route element={<RequireAuth />}>
+        <Route element={<AppLayout />}>
+          <Route index element={<WelcomePage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          {SIEM_ENABLED && (
+            <Route
+              path="security"
+              element={
+                <SecurityRouteGuard>
+                  <Suspense fallback={<LoadingFallback />}>
+                    <SecurityPage />
+                  </Suspense>
+                </SecurityRouteGuard>
+              }
+            />
+          )}
+          <Route path="projects/:id" element={<ProjectLayout />}>
+            <Route index element={<ChatList />} />
+            <Route path="chats/new" element={<ChatView />} />
+            <Route path="chats/:cid" element={<ChatView />} />
+            <Route path="sphere" element={<SphereView />} />
+            <Route path="artifacts" element={<ArtifactsPage />}>
+              <Route index element={<ArtifactsViewerSlot />} />
+              <Route path=":aid" element={<ArtifactView />} />
+            </Route>
+            <Route path="settings" element={<ProjectSettingsPage />} />
           </Route>
-          <Route path="settings" element={<ProjectSettingsPage />} />
         </Route>
       </Route>
     </Routes>

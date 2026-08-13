@@ -262,3 +262,6 @@ team-report/
 # Local file workspace root (make dev, host mode) — per-project runtime
 # files written by the agent, not committed (ADR-032).
 /workspaces/
+
+# Личные лабораторные заметки (разборы инцидентов, черновики)
+doc/lab-notes/

@@ -63,7 +63,48 @@ class ToolCallPart:
     type: Literal["tool_call"] = "tool_call"
 
 
-Part = ReasoningPart | TextPart | ToolCallPart
+@dataclass(frozen=True)
+class ArtifactPart:
+    """One artifact write/update a tool call produced (``ToolMessage.artifact`` element).
+
+    Reconstructed by ``checkpoint_history`` on replay, one per element of the
+    list ``content_and_artifact`` carries (design-brief § «Артефакты»: a job
+    touching N files -> N parts). ``kind`` distinguishes a fresh write from an
+    overwrite of an existing path — the SSE event type (``artifact_created`` /
+    ``artifact_updated``) already made that call live; here it survives as data
+    since a single ``ArtifactPart`` type covers both in the history union.
+
+    ``type`` is the file extension without the leading dot (``"md"``, ``"png"``,
+    ...), *not* a discriminator literal like the sibling ``Part`` dataclasses'
+    ``type`` field — the API layer's ``ArtifactPartOut`` renames it to
+    ``artifact_type`` so it never collides with that schema's own ``"artifact"``
+    discriminator.
+    """
+
+    path: str
+    title: str
+    type: str
+    kind: Literal["created", "updated"]
+    diff: dict[str, int] | None = None
+
+
+Part = ReasoningPart | TextPart | ToolCallPart | ArtifactPart
+
+
+@dataclass(frozen=True)
+class AttachmentRef:
+    """One user-attached file referenced by a ``HumanMessage`` (design-brief § «Вложения пользователя»).
+
+    Mirrors ``ArtifactPart``'s path+title pair on the input side. The model
+    sees these paths baked into a note appended to ``HumanMessage.content``
+    (``prompt_builder.render_attachment_note``); the UI renders a chip from
+    this list instead — reconstructed by ``checkpoint_history`` from
+    ``HumanMessage.additional_kwargs["attachments"]`` on replay, so the note
+    text is never re-parsed to find them.
+    """
+
+    path: str
+    title: str
 
 
 @dataclass(frozen=True)
@@ -76,6 +117,7 @@ class Message:
     created_at: datetime | None = None
     redacted: bool = False
     parts: list[Part] = field(default_factory=list)
+    attachments: list[AttachmentRef] = field(default_factory=list)
 
 
 class AgentRunner(Protocol):
@@ -88,6 +130,7 @@ class AgentRunner(Protocol):
         user_id: uuid.UUID,
         session: AsyncSession | None = None,
         model_config: ResolvedModelConfig | None = None,
+        attachments: list[str] | None = None,
     ) -> AsyncIterator[StreamEvent]: ...
 
     async def get_history(

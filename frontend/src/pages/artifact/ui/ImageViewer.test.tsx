@@ -8,17 +8,17 @@ import { renderWithProviders } from "@/test/test-utils";
 
 import { ImageViewer } from "./ImageViewer";
 
-// Integration: the live image viewer (feat-010, T2.2). Fetches the media blob
-// via useArtifactMedia, turns it into an objectURL, and drives three visual
-// states — loading (shimmer) / ready (img + download + zoom) / empty (404 or
-// error). Network via MSW; objectURL create/revoke are stubbed (jsdom has no
-// URL.createObjectURL) so we can observe the blob->url->img path and cleanup.
+// Integration: the live image viewer (feat-010, T2.2; path-addressed T2.2 of
+// feat-011). Fetches the media blob via useArtifactMedia, turns it into an
+// objectURL, and drives three visual states — loading (shimmer) / ready
+// (img + download + zoom) / empty (404 or error). Network via MSW;
+// objectURL create/revoke are stubbed (jsdom has no URL.createObjectURL) so
+// we can observe the blob->url->img path and cleanup.
 
-const MEDIA_URL = "/api/projects/p1/artifacts/a1/media";
+const MEDIA_URL = "/api/projects/p1/artifacts/media";
 const PNG_BYTES = new Uint8Array([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
 ]);
-const PROMPT = "a serene mountain lake at golden hour, wide-angle";
 
 let urlCounter = 0;
 const createObjectURL = vi.fn(() => `blob:mock/${++urlCounter}`);
@@ -42,32 +42,23 @@ function renderViewer() {
   return renderWithProviders(
     <ImageViewer
       projectId="p1"
-      artifactId="a1"
+      path="lecture-1/cover.png"
       title="Cover"
-      createdAt="16.07.2026"
-      content={PROMPT}
+      type="png"
+      updatedAt="16.07.2026"
     />,
   );
 }
 
 describe("ImageViewer", () => {
-  it("renders the fetched image with the prompt as alt text once loaded", async () => {
+  it("renders the fetched image with the title as alt text once loaded", async () => {
     server.use(http.get(MEDIA_URL, () => pngResponse()));
 
     renderViewer();
 
-    const img = await screen.findByRole("img", { name: PROMPT });
+    const img = await screen.findByRole("img", { name: "Cover" });
     expect(img).toHaveAttribute("src", "blob:mock/1");
     expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
-  });
-
-  it("shows the prompt as the caption under the image", async () => {
-    server.use(http.get(MEDIA_URL, () => pngResponse()));
-
-    renderViewer();
-
-    await screen.findByRole("img", { name: PROMPT });
-    expect(screen.getByText(PROMPT)).toBeInTheDocument();
   });
 
   it("shows a loading placeholder before the blob arrives", async () => {
@@ -85,7 +76,7 @@ describe("ImageViewer", () => {
       screen.getByLabelText("Изображение загружается"),
     ).toBeInTheDocument();
     // ...and gives way to the image once the blob resolves.
-    await screen.findByRole("img", { name: PROMPT });
+    await screen.findByRole("img", { name: "Cover" });
     expect(
       screen.queryByLabelText("Изображение загружается"),
     ).not.toBeInTheDocument();
@@ -134,7 +125,7 @@ describe("ImageViewer", () => {
     renderViewer();
     // Wait for the ready state (image present) — the download button enables
     // only once the objectURL backing it exists.
-    await screen.findByRole("img", { name: PROMPT });
+    await screen.findByRole("img", { name: "Cover" });
     const downloadBtn = screen.getByRole("button", { name: /\.png/ });
     expect(downloadBtn).toBeEnabled();
 
@@ -151,7 +142,7 @@ describe("ImageViewer", () => {
     server.use(http.get(MEDIA_URL, () => pngResponse()));
 
     const { unmount } = renderViewer();
-    await screen.findByRole("img", { name: PROMPT });
+    await screen.findByRole("img", { name: "Cover" });
 
     unmount();
 

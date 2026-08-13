@@ -46,10 +46,11 @@ subagents:
   - name: judge
     description: >-
       Independent reviewer with a clean context (no session history).
-      Give it a task describing the review pass and the artifact id(s)
-      to review; it returns a verdict with evidence (quotes/references
-      to specific spots), not a bare summary. Has web tools to
-      fact-check claims when the verdict depends on verifiable facts.
+      Give it a task describing the review pass and the artifact
+      path(s) to review; it returns a verdict with evidence
+      (quotes/references to specific spots), not a bare summary. Has
+      web tools to fact-check claims when the verdict depends on
+      verifiable facts.
     prompt: subagent-judge
     tools:
     - search_web
@@ -59,7 +60,7 @@ subagents:
     description: >-
       Researcher with web search/read tools and a clean
       context. Give it a research task (and optional reference
-      artifact ids); it returns a distilled summary with sources —
+      artifact paths); it returns a distilled summary with sources —
       the pages it reads never enter your context.
     prompt: subagent-web-research
     tools:

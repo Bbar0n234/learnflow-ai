@@ -46,9 +46,18 @@ export type SSEEvent =
     }
   | {
       type: "artifact_created";
-      id: string;
+      path: string;
       title: string;
       artifact_type: string;
+    }
+  | {
+      type: "artifact_updated";
+      path: string;
+      title: string;
+      artifact_type: string;
+      // Счётчики строк текстового обновления; `null` — бинарный файл или
+      // превышение лимита размера (§ Эмиссия artifact_updated, design-brief).
+      diff: { added: number; removed: number } | null;
     }
   | { type: "final_output_review_started" }
   | { type: "final_output_review_complete" }
@@ -85,6 +94,7 @@ const KNOWN_SSE_EVENT_TYPES: ReadonlySet<string> = new Set<SSEEventType>([
   "tool_result",
   "agent_event",
   "artifact_created",
+  "artifact_updated",
   "final_output_review_started",
   "final_output_review_complete",
   "title_updated",

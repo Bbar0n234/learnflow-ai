@@ -108,7 +108,10 @@ DATABASE_URL=postgresql+psycopg://learnflow:learnflow@localhost:5432/learnflow
 REDIS_URL=redis://localhost:6379/0
 REDIS_PORT=6379
 JWT_SECRET=<dev-secret-at-least-32-characters>
+EXECUTOR_AUTH_TOKEN=<dev-secret-at-least-32-characters>
 ```
+
+`EXECUTOR_AUTH_TOKEN` обязателен, хотя контейнер `executor` в этом режиме не поднимается: у поля нет дефолта, и `Settings()` backend'а без него не строится.
 
 Для SIEM service:
 

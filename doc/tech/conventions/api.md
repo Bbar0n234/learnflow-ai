@@ -24,7 +24,7 @@
 
 Приоритет: (1) истинно асинхронный вариант, если у библиотеки он есть (`httpx.AsyncClient` вместо sync `httpx`); (2) чисто синхронный handler без await внутри — объявлять `def`, FastAPI сам уведёт его в threadpool; (3) смешанный код (await БД + блокирующий вызов) — блокирующий кусок уводить через `anyio.to_thread.run_sync` (anyio — фундамент Starlette, отдельной зависимости asyncer не заводим).
 
-Эталонные случаи: argon2 hash/verify (`app/services/auth.py`), wkhtmltopdf (`app/api/routes/artifacts.py`), `langfuse.flush()` (`app/api/routes/feedback.py`).
+Эталонные случаи: argon2 hash/verify (`app/services/auth.py`), чтение файлов workspace (`app/api/routes/artifacts.py`, `app/api/routes/uploads.py`), `langfuse.flush()` (`app/api/routes/feedback.py`).
 
 ### CSV для списков в env
 

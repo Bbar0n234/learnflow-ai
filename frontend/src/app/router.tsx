@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Route, Routes } from "react-router";
+import { Route, Routes, useSearchParams } from "react-router";
 import { AppLayout } from "./layouts/AppLayout";
 import { ProjectLayout } from "./layouts/ProjectLayout";
 import { RequireAuth } from "./components/RequireAuth";
@@ -28,6 +28,28 @@ const LoadingFallback = () => (
   </div>
 );
 
+// Артефакт любой вложенности адресуется query-параметром `?path=` (T2.2) —
+// React-роут не матчит слэши внутри одного сегмента (`lecture-1/slides.md`).
+// Выбор между вьюером и пустым состоянием живёт здесь, в `app`, а не в
+// `pages/artifacts/ui/ArtifactsPage.tsx`: `pages/artifact` — соседний
+// слайс, и FSD-границы (`eslint.config.mjs`, `boundaries/dependencies`)
+// запрещают импорт pages→pages — `app` остаётся единственным слоем, которому
+// можно скомпоновать оба слайса напрямую.
+function ArtifactsViewerSlot() {
+  const [searchParams] = useSearchParams();
+  const path = searchParams.get("path");
+
+  if (!path) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+        Выберите артефакт из списка
+      </div>
+    );
+  }
+
+  return <ArtifactView />;
+}
+
 export function AppRoutes() {
   return (
     <Routes>
@@ -54,14 +76,7 @@ export function AppRoutes() {
             <Route path="chats/:cid" element={<ChatView />} />
             <Route path="sphere" element={<SphereView />} />
             <Route path="artifacts" element={<ArtifactsPage />}>
-              <Route
-                index
-                element={
-                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                    Выберите артефакт из списка
-                  </div>
-                }
-              />
+              <Route index element={<ArtifactsViewerSlot />} />
               <Route path=":aid" element={<ArtifactView />} />
             </Route>
             <Route path="settings" element={<ProjectSettingsPage />} />

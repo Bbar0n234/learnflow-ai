@@ -24,7 +24,6 @@ function message(parts: MessagePart[], content = "готово"): Message {
     role: "assistant",
     content,
     created_at: null,
-    artifacts: [],
     parts,
   };
 }
@@ -394,6 +393,146 @@ describe("инструмент вне реестра подписей", () => {
   });
 });
 
+// Вложения пользователя приезжают отдельным полем metadata (design-brief
+// § Вложения пользователя): пометку «[Прикреплены файлы: …]» видит только
+// модель, а UI рисует чипы, не парся текст сообщения.
+describe("вложения user-сообщения", () => {
+  function userMessage(over: Partial<Message> = {}): Message {
+    return {
+      id: "m-user",
+      role: "user",
+      content: "Разбери этот конспект",
+      created_at: "2026-07-01T10:00:00Z",
+      ...over,
+    };
+  }
+
+  it("показывает чип на каждый прикреплённый файл рядом с текстом", () => {
+    renderMessage(
+      userMessage({
+        attachments: [
+          { path: "uploads/notes.md", title: "notes.md" },
+          { path: "uploads/lecture.pdf", title: "lecture.pdf" },
+        ],
+      }),
+    );
+
+    expect(screen.getByText("notes.md")).toBeInTheDocument();
+    expect(screen.getByText("lecture.pdf")).toBeInTheDocument();
+    expect(screen.getByText("Разбери этот конспект")).toBeInTheDocument();
+  });
+
+  it("подписывает чип именем файла, а не путём в uploads/", () => {
+    renderMessage(
+      userMessage({
+        attachments: [{ path: "uploads/lecture-2.pdf", title: "lecture.pdf" }],
+      }),
+    );
+
+    // Путь бэкенд мог санитайзить и развести суффиксом — пользователю
+    // показываем то имя, которое он выбирал.
+    expect(screen.getByText("lecture.pdf")).toBeInTheDocument();
+    expect(screen.queryByText("uploads/lecture-2.pdf")).not.toBeInTheDocument();
+  });
+
+  it("чип истории некликабелен — читать uploads/ в v1 нечем", () => {
+    renderMessage(
+      userMessage({
+        attachments: [{ path: "uploads/notes.md", title: "notes.md" }],
+      }),
+    );
+
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+  });
+
+  it("заблокированное сообщение не показывает ни чипов, ни текста", () => {
+    renderMessage(
+      userMessage({
+        redacted: true,
+        attachments: [{ path: "uploads/notes.md", title: "notes.md" }],
+      }),
+    );
+
+    expect(
+      screen.getByText("[Сообщение скрыто в целях безопасности]"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("notes.md")).not.toBeInTheDocument();
+    expect(screen.queryByText("Разбери этот конспект")).not.toBeInTheDocument();
+  });
+});
+
+// Карточка артефакта рождается из части хода, а не из отдельного поля
+// сообщения (ADR-032): порядок карточек — порядок parts.
+describe("артефакты хода в истории", () => {
+  it("рисует карточку файла после текста ответа", () => {
+    renderMessage(
+      message([
+        { type: "text", content: "Конспект готов." },
+        {
+          type: "artifact",
+          path: "lecture-1/konspekt.md",
+          title: "Конспект лекции 1",
+          artifact_type: "md",
+          kind: "created",
+          diff: null,
+        },
+      ]),
+    );
+
+    expect(screen.getByText("Конспект готов.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Конспект лекции 1/ }),
+    ).toHaveAttribute(
+      "href",
+      "/projects/p1/artifacts?path=lecture-1%2Fkonspekt.md",
+    );
+  });
+
+  it("помечает перезапись бейджем с дельтой строк", () => {
+    renderMessage(
+      message([
+        {
+          type: "artifact",
+          path: "lecture-1/konspekt.md",
+          title: "Конспект лекции 1",
+          artifact_type: "md",
+          kind: "updated",
+          diff: { added: 12, removed: 3 },
+        },
+      ]),
+    );
+
+    expect(screen.getByText("обновлён · +12 −3")).toBeInTheDocument();
+  });
+
+  it("две записи в один ход дают две карточки", () => {
+    renderMessage(
+      message([
+        {
+          type: "artifact",
+          path: "lecture-1/konspekt.md",
+          title: "Конспект",
+          artifact_type: "md",
+          kind: "created",
+          diff: null,
+        },
+        {
+          type: "artifact",
+          path: "lecture-1/flashcards.md",
+          title: "Карточки",
+          artifact_type: "md",
+          kind: "created",
+          diff: null,
+        },
+      ]),
+    );
+
+    expect(screen.getByRole("link", { name: /Конспект/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Карточки/ })).toBeInTheDocument();
+  });
+});
+
 describe("рассуждения и совместимость", () => {
   it("рассуждение свёрнуто в строку и раскрывается своим текстом", async () => {
     renderMessage(
@@ -421,7 +560,6 @@ describe("рассуждения и совместимость", () => {
       role: "assistant",
       content: "Ответ из старого кэша",
       created_at: null,
-      artifacts: [],
     };
 
     renderMessage(legacy);

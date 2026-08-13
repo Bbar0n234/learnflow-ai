@@ -80,6 +80,29 @@ def render_skills_section(fragments: PromptFragmentsConfig, index: str) -> str:
     return _wrap_section(fragments, "available_skills", index)
 
 
+def render_attachment_note(
+    fragments: PromptFragmentsConfig, attachments: list[dict[str, str]]
+) -> str:
+    """One-line note listing attached-file paths, appended to a user turn's text.
+
+    Model-facing string sourced from config (``headers.attachment_note``,
+    same reasoning as the ``document`` XML wrapper's placeholders) — a
+    missing template key degrades to a built-in default instead of raising,
+    the same graceful-degradation policy ``SubagentRunner._build_input_message``
+    applies when the ``document`` wrapper itself is absent. ``attachments``
+    is the same ``[{"path": ..., "title": ...}]`` shape stored verbatim in
+    ``HumanMessage.additional_kwargs["attachments"]`` (design-brief §
+    «Вложения пользователя»); only ``path`` feeds the note — the model reads
+    the file itself via ``read_file``/``execute_code``, it doesn't need the
+    display title.
+    """
+    if not attachments:
+        return ""
+    template = fragments.headers.get("attachment_note", "[Attached files: {paths}]")
+    paths = ", ".join(a["path"] for a in attachments)
+    return template.format(paths=paths)
+
+
 def render_user_installed_mcp_section(
     fragments: PromptFragmentsConfig, tools: list[dict[str, str]]
 ) -> str:

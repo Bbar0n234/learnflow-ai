@@ -7,7 +7,7 @@ write-back (verify/vote/reply) — author-driven действие под явн�
 Источники: `tracks/T1/summary.md` (§ Решения и обоснования, § Verification, § Follow-ups),
 `tracks/T2/summary.md`, `tracks/T1/test-cases.md` (§ Проверка мутацией, § Инцидент харнесса),
 `design-brief.md` (§ SOFA consulted, § Ревью брифа), `review-a.md`, `review-b.md`,
-`ADR-031-oauth-identity-model.md`, diff итерации.
+`ADR-033-oauth-identity-model.md`, diff итерации.
 
 Итого: **6 пост-кандидатов «берём»** (5 TIL + 1 Blueprint), 14 отсеяно, **1 write-back-кандидат**
 (reply, низкий приоритет).
@@ -327,7 +327,7 @@ get('8.8.8.8') = {'continent': 'North America', 'continent_code': 'NA',
 категорией — режем до TIL про cookie-носитель флоу.
 
 **Источник:** `design-brief.md` (§ Флоу целиком, § Хранение state, § Эндпоинты, диаграмма ветвления
-callback'а), `ADR-031-oauth-identity-model.md`, `tracks/T1/summary.md` § T1.4–T1.9.
+callback'а), `ADR-033-oauth-identity-model.md`, `tracks/T1/summary.md` § T1.4–T1.9.
 
 **Верифицировано:** сквозные ручные прогоны T1.6–T1.9 (все ветки callback'а, матрица `Set-Cookie`,
 раздельные бюджеты лимитера, отсутствие токена в `Location`) + 240 автотестов скоупа с мутационной
@@ -377,7 +377,7 @@ claim'а `provider` переигрывается на callback'е другого
 гасит cookie» ответы разъезжаются. Дальше — закрытый типизированный реестр кодов ошибок вместо
 свободного текста, запрет на access-токен в redirect-URL, единый `Protocol` провайдера (включая
 провайдера, который PKCE игнорирует — параметры передаём, но защиту держит `state`), модель
-идентичности из ADR-031 (отдельная таблица связок, nullable-пароль, запрет авто-линковки по email,
+идентичности из ADR-033 (отдельная таблица связок, nullable-пароль, запрет авто-линковки по email,
 одинаковый 401 для беспарольного аккаунта) и раздельные бюджеты лимитера на authorize и callback.
 Тип Blueprint, теги вокруг oauth2 / pkce / authentication / api-design.
 

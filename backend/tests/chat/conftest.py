@@ -4,8 +4,8 @@ Two test styles live here:
 
 * **Service sociable-unit** — drive ``ChatService`` directly with in-memory fake
   collaborators (runner, repos, trace store). Fast, deterministic, exercises the
-  orchestration branches (trace-id filtering, artifact linking, error-vs-done,
-  graceful degradation) without DB or network.
+  orchestration branches (trace-id filtering, error-vs-done, graceful
+  degradation) without DB or network.
 * **HTTP / SSE integration** — go through the authenticated ASGI ``client`` with
   *real* repositories on the transactional ``db_session``, replacing only the
   agent runner (the LangGraph seam, out of this scope) via a ``get_chat_service``
@@ -25,7 +25,7 @@ import uuid
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import pytest
 from app.agent.config import TitleConfig, load_prompt_fragments
@@ -33,7 +33,6 @@ from app.api.deps import get_chat_service
 from app.config import Settings
 from app.infra.prompt_provider import PromptProvider
 from app.models.thread_view import ThreadView
-from app.repositories.artifact import ArtifactRepository
 from app.repositories.thread_view import ThreadViewRepository
 from app.services import chat_title as chat_title_module
 from app.services.agent_runner import Message, StreamEvent
@@ -110,7 +109,14 @@ _CONFIGS_DIR = Path(__file__).resolve().parents[3] / "configs"
 #                           reason/checkpoint/detection_layer: design-brief §
 #                           "Контракт SSE v2")
 #   trace_id            -> {"trace_id": str}       (consumed by ChatService)
-#   artifact_created    -> {"id": str, ...}        (stream_events.py)
+#   artifact_created    -> {"path": str, "title": str, "artifact_type": str}
+#                           (stream_events.py — one envelope per element of
+#                           ``ToolMessage.artifact``; the file's own type is
+#                           ``artifact_type``, since ``type`` carries the event)
+#   artifact_updated    -> {"path": str, "title": str, "artifact_type": str,
+#                           "diff": {"added": int, "removed": int} | None}
+#                           (stream_events.py — same source, ``kind="updated"``
+#                           element)
 
 # The wire types the runner produces and ChatService forwards verbatim
 # (trace_id is emitted by the runner but consumed internally and never
@@ -127,6 +133,7 @@ RUNNER_FORWARDED_TYPES = frozenset(
         "tool_result",
         "agent_event",
         "artifact_created",
+        "artifact_updated",
         "final_output_review_started",
         "final_output_review_complete",
         "security_block",
@@ -224,13 +231,62 @@ def trace_id_event(trace_id: str) -> StreamEvent:
     return StreamEvent(type="trace_id", data={"trace_id": trace_id})
 
 
-def artifact_created_event(artifact_id: uuid.UUID) -> StreamEvent:
-    return StreamEvent(type="artifact_created", data={"id": str(artifact_id)})
+def _artifact_type(path: str) -> str:
+    """The file's own type as prod computes it: the suffix without its dot.
+
+    Spelled out here rather than imported from ``app.storage.workspace`` on
+    purpose — these builders mirror prod by hand (module docstring), and a
+    builder that calls the production helper could not disagree with it. What
+    it must not do is *hardcode* a type: a fixture that says ``md`` for
+    ``chart.png`` pins data prod never produces, and a mapper that dropped the
+    real extension would still find its test green.
+    """
+    _, _, suffix = path.rpartition("/")[2].rpartition(".")
+    return suffix
+
+
+def artifact_created_event(path: str = "lecture-1/slides.md") -> StreamEvent:
+    return StreamEvent(
+        type="artifact_created",
+        data={
+            "path": path,
+            "title": path.rsplit("/", 1)[-1],
+            "artifact_type": _artifact_type(path),
+        },
+    )
+
+
+def artifact_updated_event(path: str = "lecture-1/slides.md") -> StreamEvent:
+    return StreamEvent(
+        type="artifact_updated",
+        data={
+            "path": path,
+            "title": path.rsplit("/", 1)[-1],
+            "artifact_type": _artifact_type(path),
+            "diff": {"added": 1, "removed": 1},
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
 # Fakes for service sociable-unit tests
 # ---------------------------------------------------------------------------
+
+
+class StreamCall(NamedTuple):
+    """One recorded ``AgentRunner.stream`` call — what the service passed on.
+
+    Named rather than a bare tuple because ``attachments`` is the field a test
+    actually reads: it is the only part of the call the route accepts from the
+    client, so it is the only one that can go missing between
+    ``POST /messages`` and the runner without anything else noticing.
+    """
+
+    thread_id: uuid.UUID
+    content: str
+    project_id: uuid.UUID
+    user_id: uuid.UUID
+    attachments: list[str] | None
 
 
 class FakeAgentRunner:
@@ -248,7 +304,7 @@ class FakeAgentRunner:
         self.cancel_result: bool = True
         self.raise_after: int | None = None
         self.raise_on_last_id: bool = False
-        self.stream_calls: list[tuple[uuid.UUID, str, uuid.UUID, uuid.UUID]] = []
+        self.stream_calls: list[StreamCall] = []
         self.deleted_threads: list[uuid.UUID] = []
         # Models a checkpointer outage during chat deletion: the DB-side delete
         # is already committed, the checkpoint cleanup is best-effort only.
@@ -269,8 +325,11 @@ class FakeAgentRunner:
         user_id: uuid.UUID,
         session: AsyncSession | None = None,
         model_config: object | None = None,
+        attachments: list[str] | None = None,
     ) -> AsyncIterator[StreamEvent]:
-        self.stream_calls.append((thread_id, content, project_id, user_id))
+        self.stream_calls.append(
+            StreamCall(thread_id, content, project_id, user_id, attachments)
+        )
 
         async def _gen() -> AsyncIterator[StreamEvent]:
             for index, event in enumerate(self.events):
@@ -346,32 +405,6 @@ class FakeThreadViewRepo:
 
     async def delete(self, thread_view: ThreadView) -> None:
         self.threads.pop(thread_view.thread_id, None)
-
-
-@dataclass
-class FakeArtifactRepo:
-    """In-memory artifact repo holding the message_id linkage as state.
-
-    ``set_message_id`` mutates ``linked`` (artifact_id -> message_id) so tests
-    assert the *effect* — which artifacts ended up bound to which message — not
-    merely that the method was called. ``set_message_id_calls`` is kept for tests
-    that need to observe call multiplicity/ordering.
-    """
-
-    linked: dict[uuid.UUID, str] = field(default_factory=dict)
-    set_message_id_calls: list[tuple[list[uuid.UUID], str]] = field(
-        default_factory=list
-    )
-
-    async def set_message_id(
-        self, artifact_ids: list[uuid.UUID], message_id: str
-    ) -> None:
-        self.set_message_id_calls.append((artifact_ids, message_id))
-        for artifact_id in artifact_ids:
-            self.linked[artifact_id] = message_id
-
-    async def list_by_thread(self, thread_id: uuid.UUID) -> list[object]:
-        return []
 
 
 @dataclass
@@ -810,19 +843,17 @@ def fake_runner() -> FakeAgentRunner:
 def wired_runner(
     app: FastAPI, db_session: AsyncSession, fake_runner: FakeAgentRunner
 ) -> FakeAgentRunner:
-    """Override ``get_chat_service`` to use real repos + the fake runner.
+    """Override ``get_chat_service`` to use a real repo + the fake runner.
 
     Returned so a test can program ``.events`` / ``.history`` before calling the
-    client. Real ``ThreadViewRepository`` / ``ArtifactRepository`` on the shared
-    transactional session keep the route's SQL path under test; only the graph
-    seam is faked.
+    client. Real ``ThreadViewRepository`` on the shared transactional session
+    keeps the route's SQL path under test; only the graph seam is faked.
     """
 
     def _override() -> ChatService:
         return ChatService(
             thread_view_repo=ThreadViewRepository(db_session),
             agent_runner=fake_runner,
-            artifact_repo=ArtifactRepository(db_session),
             trace_store=None,
             session=db_session,
         )
@@ -856,7 +887,6 @@ def wired_title_runner(
         return ChatService(
             thread_view_repo=ThreadViewRepository(db_session),
             agent_runner=fake_runner,
-            artifact_repo=ArtifactRepository(db_session),
             trace_store=None,
             session=db_session,
             title_generator=title_generator,  # type: ignore[arg-type]

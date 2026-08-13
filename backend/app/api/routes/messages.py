@@ -67,6 +67,7 @@ async def send_message(
         project_id=project.id,
         user_id=user.id,
         content=body.content,
+        attachments=body.attachments,
     )
     return StreamingResponse(
         _event_generator(events),

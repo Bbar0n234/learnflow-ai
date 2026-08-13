@@ -26,6 +26,7 @@ members = [
     "backend",
     "packages/siem-contracts",
     "packages/testing",
+    "services/executor",
     "services/siem-service",
     "tools/arch-checker",
     "tools/security-scan",
@@ -42,14 +43,6 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 check_untyped_defs = true
 no_implicit_reexport = true
-
-[[tool.mypy.overrides]]
-module = "pdfkit"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "mdx_math"
-ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "fuzzysearch"

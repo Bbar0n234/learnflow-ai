@@ -32,7 +32,7 @@
 | feat-008 | I | 🚧 In Progress | cross-cutting | OAuth (Яндекс ID/VK ID для РФ, Google/GitHub вне РФ — гео-разделение по 149-ФЗ) + auth-экраны |
 | feat-009 | J | ✅ Done | infra | Web search MCP: замена Firecrawl на Jina AI (hosted) |
 | feat-010 | K | 📋 Planned | cross-cutting | Voice input (STT) |
-| feat-011 | L | 🚧 In Progress | cross-cutting | Execution runtime: изолированное выполнение кода/CLI + файловый workspace + file attachments (поглотила E) — общий фундамент PDF (F), слайдов (G), ГОСТ-скилла (M) |
+| feat-011 | L | ✅ Done | cross-cutting | Execution runtime: изолированное выполнение кода/CLI + файловый workspace + file attachments (поглотила E) — общий фундамент PDF (F), слайдов (G), ГОСТ-скилла (M) |
 | feat-012 | M | 📋 Planned | agent | ГОСТ-скилл: bundle-скилл оформления студенческих работ по ГОСТ 7.32 (.docx) — оффер для студенческой волны |
 | feat-013 | N | 🚧 In Progress | frontend | UI/UX polish: пакет мелких правок — сайдбар-баг, скроллбары, loading/error, ModelSelector, empty-states, inline-edit имени проекта, 404-экран, токен `--success`, владелец состояния стрима |
 
@@ -326,7 +326,7 @@
 
 **Цель:** выполнение кода/CLI из графа агента в изолированном окружении — общий фундамент выходных форматов: PDF-экспорт (F), слайды (G), ГОСТ-скилл (M) и будущие скиллы, которым нужен shell. Проектируется один раз как переиспользуемый контракт, не точечное решение под фичу.
 
-**Статус:** 🚧 In Progress
+**Статус:** ✅ Done
 **Ветка:** `dogf/feat-011-execution-runtime`
 **Scope:** cross-cutting (Agent + Backend + Infra + Security)
 **Before:** feat-005 (F), feat-006 (G), feat-012 (M) — строятся на контракте runtime
@@ -352,6 +352,16 @@
 - ADR: [ADR-031](../tech/adr/ADR-031-execution-runtime-isolation.md) — изоляция execution runtime (дополнен принятыми в реализации решениями: `security_opt`, `tini`, `EXECUTOR_RUNTIME`-override, единый uid + запечённый `chown` volume); [ADR-032](../tech/adr/ADR-032-project-workspace-file-model.md) — workspace и файловая модель артефактов
 
 Предпроектные открытые вопросы решены брифом: изоляция — соседний сервис-executor (не DinD, не per-request контейнеры) + bwrap per job; образ — толстый, состав финализируют спайки feat-005/006, смоук-набор — ворота релиза; граница API — общие инструменты (`execute_code`/`run_command`), не рецепты (рамка «одна способность, не три режима»); артефакты — файлы workspace, не blob-хранилище (пересмотр раннего наброска, ADR-032).
+
+#### Реализация
+
+- Ревью: [review-a.md](iterations/dogfooding/feat-011-execution-runtime/review-a.md), [review-b.md](iterations/dogfooding/feat-011-execution-runtime/review-b.md)
+- **T1 backend (workspace, инструменты, вложения):** [plan](iterations/dogfooding/feat-011-execution-runtime/tracks/T1/plan.md), [summary](iterations/dogfooding/feat-011-execution-runtime/tracks/T1/summary.md), [test-cases](iterations/dogfooding/feat-011-execution-runtime/tracks/T1/test-cases.md)
+- **T2 frontend (артефакты по путям, композер вложений):** [plan](iterations/dogfooding/feat-011-execution-runtime/tracks/T2/plan.md), [summary](iterations/dogfooding/feat-011-execution-runtime/tracks/T2/summary.md), [test-cases](iterations/dogfooding/feat-011-execution-runtime/tracks/T2/test-cases.md)
+- **T3 executor (сервис, gVisor + bwrap, kill-контракт):** [plan](iterations/dogfooding/feat-011-execution-runtime/tracks/T3/plan.md), [summary](iterations/dogfooding/feat-011-execution-runtime/tracks/T3/summary.md), [test-cases](iterations/dogfooding/feat-011-execution-runtime/tracks/T3/test-cases.md)
+- Приёмка [acceptance.md](iterations/dogfooding/feat-011-execution-runtime/acceptance.md) закрыта целиком: 14 сценариев способностей агента, 9 проверок изоляции, 3 регрессионных. Блок изоляции прогнан на топологии с настоящим gVisor (ядро джобы `4.19.0-gvisor`): чужой workspace в mount-ns джобы не существует, сеть недостижима на уровне netns, дедлайн не оставляет ни потомков, ни зомби, секретов приложения в env executor'а нет.
+- Ручной E2E-прогон архитектора дал два дефекта фронта, закрытых в этой же ветке: лишний скролл страницы поверх скролла ленты (скрытый MathML-дубликат KaTeX без позиционированного предка + `scrollIntoView` без `block: "nearest"`) и позиция карточки артефакта в ходе (артефакты собираются в конец `parts`, по одной карточке на путь). Наблюдения без контракта — в [backlog](../backlog.md).
+- Прод-развёртывание описано в [tech/setup/production.md](../tech/setup/production.md): установка `runsc`, отдельная точка монтирования для тома workspace, проверка bwrap первым шагом деплоя, бэкапы.
 
 **Актуализация документации после реализации (DOC_UPDATE):** новый [tech/executor.md](../tech/executor.md) — контракт `POST /jobs`, слои изоляции, sandbox, конфигурация; правлены [backend.md](../tech/backend.md) (файловый слой, снос PG-цепочки артефактов, ER-диаграмма, `executor`-инфра, конфигурация), [streaming.md](../tech/streaming.md) (`artifact_updated`, `ArtifactPart`, invalidation, вложения), [agent-runtime.md](../tech/agent-runtime.md) (пять новых инструментов, снос `create_artifact`, `input_artifact_paths`, деградация execution runtime), [frontend.md](../tech/frontend.md) (рендер `ArtifactPart`, дерево артефактов, композер вложений), [conventions.md](../tech/conventions.md) + `conventions/api.md`/`agent.md`/`frontend.md` (живые примеры вместо снесённого кода), [security-events.md](../tech/security-events.md) (каталог пополнен `agent.runtime.path_denied`), [security/architecture.md](../security/architecture.md) (новые границы доверия executor/workspace), [design-system.md](../tech/design-system.md), [arch-checker.md](../tech/arch-checker.md), [vision.md](../vision.md) и [index.md](../index.md) (executor как четвёртый standalone-сервис), [product/roadmap.md](../product/roadmap.md). ADR-027 помечен Superseded by ADR-032; ADR-007/ADR-028 актуализированы под `write_file`/`input_artifact_paths`.
 

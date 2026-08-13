@@ -29,7 +29,7 @@
 | feat-005 | F | 📋 Planned | backend | PDF-экспорт: замена wkhtmltopdf, рендер формул, фирменный стиль |
 | feat-006 | G | 📋 Planned | agent | Генерация слайдов: spike → скилл/интеграция (паттерн ADR-026) |
 | feat-007 | H | 📋 Planned | cross-cutting | Кастомные скиллы пользователя + страница библиотеки скиллов |
-| feat-008 | I | 🚧 In Progress | cross-cutting | OAuth (Google/GitHub) + дизайн auth-экранов + 404-экран |
+| feat-008 | I | ✅ Done | cross-cutting | OAuth (Google/GitHub) + дизайн auth-экранов + 404-экран |
 | feat-009 | J | ✅ Done | infra | Web search MCP: замена Firecrawl на Jina AI (hosted) |
 | feat-010 | K | 📋 Planned | cross-cutting | Voice input (STT) |
 | feat-011 | L | 🚧 In Progress | cross-cutting | Execution runtime: изолированное выполнение кода/CLI — общий фундамент PDF (F), слайдов (G), ГОСТ-скилла (M) |
@@ -265,7 +265,7 @@
 
 **Цель:** авторизация через Google/GitHub + брендовые auth-экраны (одна связка — тот же экран, не красим дважды) + 404-экран. До показа преподавателям: вход без заведения отдельного пароля.
 
-**Статус:** 🚧 In Progress
+**Статус:** ✅ Done
 **Ветка:** `dogf/feat-008-oauth-auth-screens`
 **Scope:** cross-cutting (Frontend + Backend + Design-branding)
 

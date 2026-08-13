@@ -5,8 +5,11 @@
 отложенные развилки `ADR-031`/`design-brief.md § Scope boundaries`. Каждый кандидат сверен с
 `doc/backlog.md` (grep) и с кодом на HEAD — не задвоено и не закрыто явно.
 
-Только предложения — landing (запись в `doc/backlog.md`/`doc/tech/conventions.md`) требует апрува
-архитектора на pre-commit gate.
+**Landing выполнен (2026-08-13):** архитектор на pre-commit gate одобрил все backlog-кандидаты —
+12 записей внесены в `doc/backlog.md` (секции Frontend / UX, Backend, Security, Infra).
+Конвенция-кандидат (область запрета фазовых меток в комментариях кода) — оставлен открытым
+вопросом архитектору, в `conventions.md` не внесён. known-trivial — зафиксированы здесь, никуда
+не едут по определению класса.
 
 ## Открытый шаг итерации (не хвост, не backlog)
 

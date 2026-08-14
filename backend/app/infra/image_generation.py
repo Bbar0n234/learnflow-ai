@@ -86,7 +86,7 @@ async def generate_image(
         raise UpstreamUnavailableError(
             code="image-generation-failed",
             status=502,
-            detail="Image generation failed",
+            detail="Не удалось сгенерировать изображение",
         ) from e
     except (httpx.HTTPError, OSError) as e:
         logger.warning(
@@ -95,7 +95,7 @@ async def generate_image(
         raise UpstreamUnavailableError(
             code="image-generation-unavailable",
             status=503,
-            detail="Image generation service unavailable",
+            detail="Сервис генерации изображений недоступен, попробуйте позже",
         ) from e
 
     try:
@@ -116,7 +116,7 @@ async def generate_image(
         raise UpstreamUnavailableError(
             code="image-generation-malformed-response",
             status=502,
-            detail="Image generation returned an unexpected response",
+            detail="Сервис генерации изображений вернул некорректный ответ",
         ) from e
 
     try:
@@ -128,7 +128,7 @@ async def generate_image(
         raise UpstreamUnavailableError(
             code="image-generation-malformed-response",
             status=502,
-            detail="Image generation returned an unexpected response",
+            detail="Сервис генерации изображений вернул некорректный ответ",
         ) from e
 
     usage = payload.get("usage") or {}

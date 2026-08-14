@@ -63,7 +63,10 @@ async def test_reuse_of_rotated_token_trips_replay_and_revokes_all(
     # Replaying the superseded R1 is detected.
     replay = await do_refresh(auth_client, r1)
     assert replay.status_code == 401
-    assert replay.json()["detail"] == "Token reuse detected, all sessions revoked"
+    assert (
+        replay.json()["detail"]
+        == "Обнаружено повторное использование токена — все сессии завершены"
+    )
     assert "max-age=0" in replay.headers.get("set-cookie", "").lower()
 
     # Replay revoked every session, so the once-valid R2 is now rejected too.
@@ -80,7 +83,7 @@ async def test_refresh_without_cookie_is_unauthorized(
     response = await auth_client.post("/api/auth/refresh")
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Refresh token missing"
+    assert response.json()["detail"] == "Требуется вход"
 
 
 @pytest.mark.integration
@@ -90,7 +93,7 @@ async def test_refresh_with_unknown_token_is_unauthorized(
     response = await do_refresh(auth_client, "not-a-real-token")
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid or expired refresh token"
+    assert response.json()["detail"] == "Сессия истекла, войдите снова"
 
 
 @pytest.mark.integration
@@ -111,6 +114,6 @@ async def test_refresh_with_expired_stored_token_is_unauthorized(
     response = await do_refresh(auth_client, raw)
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid or expired refresh token"
+    assert response.json()["detail"] == "Сессия истекла, войдите снова"
     # sanity: the hash matched a real row (not the unknown-token path)
     assert hash_raw_token(raw) == token_hash

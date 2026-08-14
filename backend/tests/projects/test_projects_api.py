@@ -115,7 +115,7 @@ async def test_get_project_owned_by_other_user_returns_404(
 
     assert response.status_code == 404
     body = response.json()
-    assert body["detail"] == "Project not found"
+    assert body["detail"] == "Проект не найден"
 
 
 async def test_get_project_invalid_uuid_returns_422(client: AsyncClient) -> None:

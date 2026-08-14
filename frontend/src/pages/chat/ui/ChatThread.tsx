@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
-import { useChat } from "@/shared/api/chats";
+import { useChatHistory } from "../model/useChatHistory";
 import { uploadFile } from "@/shared/api/uploads";
 import { useAgentStream } from "../model/useAgentStream";
 import { useStreamStore } from "@/stores/stream-store";
@@ -49,9 +49,9 @@ export function ChatThread() {
   const isStreaming = useStreamStore(
     (s) => s.streamingChatId === cid && s.isStreaming,
   );
-  const { data, isLoading, isError, refetch } = useChat(id, cid, {
-    refetchOnWindowFocus: !isStreaming,
-  });
+  // Гейт фоновых рефетчей на время активного хода (см. `useChatHistory`) —
+  // иначе рефетч задваивает только что отправленное сообщение на экране.
+  const { data, isLoading, isError, refetch } = useChatHistory(id, cid);
   // Три транзиентных состояния экрана — оптимистичная копия отправленного
   // сообщения, ошибка потока и причина остановки хода — живут до следующей
   // отправки и все скоуплены чатом, как `isStreaming` выше. Причина одна:

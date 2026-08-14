@@ -87,7 +87,7 @@ async def get_artifacts(
             artifacts.get_artifact_detail, str(project.id), path
         )
         if detail is None:
-            raise HTTPException(status_code=404, detail="Artifact not found")
+            raise HTTPException(status_code=404, detail="Артефакт не найден")
         return ArtifactDetailResponse(
             path=detail.path,
             title=detail.title,
@@ -126,7 +126,7 @@ async def get_artifact_media(
         artifacts.stat_artifact_file, str(project.id), path
     )
     if file is None:
-        raise HTTPException(status_code=404, detail="Artifact media not found")
+        raise HTTPException(status_code=404, detail="Файл артефакта не найден")
 
     etag = _etag(mtime_ns=file.mtime_ns, size=file.size)
     headers = {
@@ -159,7 +159,7 @@ async def download_artifact(
         artifacts.stat_artifact_file, str(project.id), path
     )
     if file is None:
-        raise HTTPException(status_code=404, detail="Artifact not found")
+        raise HTTPException(status_code=404, detail="Артефакт не найден")
 
     # `filename=` is not passed to `FileResponse` on purpose: it would build
     # its own `Content-Disposition` (RFC 5987 only when the name happens to

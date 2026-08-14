@@ -164,7 +164,7 @@ describe("MCPServersSection", () => {
       screen.getByPlaceholderText("https://mcp.example.com/v1"),
       "https://fresh.example.com/v1",
     );
-    await user.click(screen.getByRole("button", { name: "Add Server" }));
+    await user.click(screen.getByRole("button", { name: "Добавить сервер" }));
 
     expect(await screen.findByText("fresh")).toBeInTheDocument();
   });

@@ -253,7 +253,7 @@ async def test_authorize_eleventh_start_within_the_window_is_rejected(
 
     assert statuses == [302] * 10
     assert response.status_code == 429
-    assert response.json()["detail"] == "Too many requests"
+    assert response.json()["detail"] == "Слишком много запросов, попробуйте позже"
     assert int(response.headers["retry-after"]) > 0
 
 

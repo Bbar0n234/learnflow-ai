@@ -16,16 +16,16 @@ export interface AuthLayoutProps {
 }
 
 /**
- * Полноэкранная брендовая композиция auth-экрана: wordmark + тэглайн +
- * иллюстрация `auth-hero` в левой колонке, слот карточки формы — в правой.
- * Мокап: `.auth-frame` / `.auth-brand` / `.auth-side`
- * (`mockups/ui-polish.html`, секция 7, строки 388–392), с поправкой «рамка
- * демо → полный экран»: корень растянут на весь вьюпорт (`min-h-screen`)
- * вместо `border` + `min-height: 640px` демо-рамки.
+ * Брендовая композиция auth-экрана: единый очерченный фрейм по центру
+ * вьюпорта — wordmark + тэглайн + иллюстрация `auth-hero` в левой колонке,
+ * слот карточки формы — в правой. Мокап: `.auth-frame` / `.auth-brand` /
+ * `.auth-side` (`mockups/ui-polish.html`, секция 7, строки 388–392): рамка
+ * `border` + radius, `min-height: 640px`, контейнер мокапа 1100px. Фрейм
+ * масштабируется как целое — колонки не разъезжаются к краям вьюпорта.
  *
  * Ниже брейкпоинта `lg` брендовая колонка мокапом не покрыта. Решение
- * оркестратора сверх мокапа (T6/plan.md § Резолюции, п.3): колонка
- * скрывается (`hidden lg:flex`), карточка формы растягивается на всю
+ * оркестратора сверх мокапа (T6/plan.md § Резолюции, п.3): колонка и рамка
+ * скрываются (`hidden lg:flex`), карточка формы растягивается на всю
  * ширину, а wordmark уменьшённым переезжает шапкой над ней — карточка
  * остаётся единственным носителем функции, иллюстрация уступает место.
  *
@@ -38,24 +38,31 @@ export function AuthLayout({
   className,
 }: AuthLayoutProps) {
   return (
-    <div className={cn("flex min-h-screen w-full bg-background", className)}>
-      {/* Брендовая колонка — только от `lg` и выше (мокап её не покрывает уже) */}
-      <div className="hidden flex-1 flex-col justify-center gap-[22px] p-14 lg:flex">
-        <Wordmark className="text-[38px]" />
-        <p className="max-w-[380px] text-[15px] leading-[1.55] text-muted-foreground">
-          {tagline}
-        </p>
-        <Illustration
-          scene="auth-hero"
-          alt="Иллюстрация: Электрик приветствует"
-          className="w-full max-w-[460px]"
-        />
-      </div>
+    <div
+      className={cn(
+        "flex min-h-screen w-full items-center justify-center bg-background px-6 py-10 lg:px-12",
+        className,
+      )}
+    >
+      <div className="flex w-full max-w-[1052px] flex-col items-center gap-8 lg:min-h-[640px] lg:flex-row lg:items-stretch lg:gap-0 lg:overflow-hidden lg:rounded-xl lg:border lg:border-border">
+        {/* Брендовая колонка — только от `lg` и выше (мокап её не покрывает уже) */}
+        <div className="hidden min-w-0 flex-1 flex-col justify-center gap-[22px] p-14 lg:flex">
+          <Wordmark className="text-[38px]" />
+          <p className="max-w-[380px] text-[15px] leading-[1.55] text-muted-foreground">
+            {tagline}
+          </p>
+          <Illustration
+            scene="auth-hero"
+            alt="Иллюстрация: Электрик приветствует"
+            className="w-full max-w-[460px]"
+          />
+        </div>
 
-      {/* Правая колонка — слот карточки формы; ниже `lg` несёт и уменьшённый wordmark */}
-      <div className="flex w-full shrink-0 flex-col items-center justify-center gap-8 px-6 py-10 lg:w-[440px] lg:gap-0 lg:px-12 lg:py-10">
-        <Wordmark className="text-[26px] lg:hidden" />
-        {children}
+        {/* Правая колонка — слот карточки формы; ниже `lg` несёт и уменьшённый wordmark */}
+        <div className="flex w-full shrink-0 flex-col items-center justify-center gap-8 lg:w-[440px] lg:gap-0 lg:px-12 lg:py-10">
+          <Wordmark className="text-[26px] lg:hidden" />
+          {children}
+        </div>
       </div>
     </div>
   );

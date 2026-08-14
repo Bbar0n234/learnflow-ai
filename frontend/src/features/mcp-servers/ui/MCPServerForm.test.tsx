@@ -59,9 +59,9 @@ describe("MCPServerForm", () => {
       />,
     );
 
-    await user.type(screen.getByLabelText("Name"), "my-mcp");
+    await user.type(screen.getByLabelText("Название"), "my-mcp");
     await user.type(screen.getByLabelText("URL"), "https://mcp.example.com/v1");
-    await user.click(screen.getByRole("button", { name: "Add Server" }));
+    await user.click(screen.getByRole("button", { name: "Добавить сервер" }));
 
     expect(onSubmit).toHaveBeenCalledWith({
       name: "my-mcp",
@@ -82,14 +82,14 @@ describe("MCPServerForm", () => {
       />,
     );
 
-    await user.type(screen.getByLabelText("Name"), "sse-server");
+    await user.type(screen.getByLabelText("Название"), "sse-server");
     await user.type(screen.getByLabelText("URL"), "https://mcp.example.com/v1");
 
     // Drive the Base UI Select: open the transport listbox and pick SSE.
     await user.click(screen.getByRole("combobox"));
     await user.click(await screen.findByRole("option", { name: "SSE" }));
 
-    await user.click(screen.getByRole("button", { name: "Add Server" }));
+    await user.click(screen.getByRole("button", { name: "Добавить сервер" }));
 
     expect(onSubmit).toHaveBeenCalledWith({
       name: "sse-server",
@@ -110,10 +110,10 @@ describe("MCPServerForm", () => {
       />,
     );
 
-    await user.type(screen.getByLabelText("Name"), "keyed");
+    await user.type(screen.getByLabelText("Название"), "keyed");
     await user.type(screen.getByLabelText("URL"), "https://mcp.example.com/v1");
-    await user.type(screen.getByLabelText(/API Key/), "secret-token");
-    await user.click(screen.getByRole("button", { name: "Add Server" }));
+    await user.type(screen.getByLabelText(/API-ключ/), "secret-token");
+    await user.click(screen.getByRole("button", { name: "Добавить сервер" }));
 
     expect(onSubmit).toHaveBeenCalledWith({
       name: "keyed",
@@ -141,7 +141,7 @@ describe("MCPServerForm", () => {
       screen.getByDisplayValue("https://old.example.com/v1"),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Save" }));
+    await user.click(screen.getByRole("button", { name: "Сохранить" }));
 
     expect(onSubmit).toHaveBeenCalledWith({
       name: "existing",
@@ -162,7 +162,7 @@ describe("MCPServerForm", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Отмена" }));
 
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
@@ -177,7 +177,7 @@ describe("MCPServerForm", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Adding..." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Добавляем…" })).toBeDisabled();
   });
 
   it("renders the security-policy message for a 422 violation error", () => {

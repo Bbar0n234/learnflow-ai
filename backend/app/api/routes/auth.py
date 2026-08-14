@@ -70,7 +70,7 @@ def _check_rate_limit(
         )
         raise HTTPException(
             status_code=429,
-            detail="Too many requests",
+            detail="Слишком много запросов, попробуйте позже",
             headers={"Retry-After": str(retry_after)},
         )
 
@@ -111,7 +111,7 @@ async def register(
             severity="warning",
             metadata={"username": body.name, "reason": "username_exists"},
         )
-        raise HTTPException(status_code=409, detail="Username already exists") from None
+        raise HTTPException(status_code=409, detail="Имя уже занято") from None
 
     set_refresh_cookie(response, refresh_raw, settings)
     return TokenResponse(access_token=access_token)
@@ -148,7 +148,7 @@ async def login(
             severity="warning",
             metadata={"username": body.name, "reason": "invalid_credentials"},
         )
-        raise HTTPException(status_code=401, detail="Invalid credentials") from None
+        raise HTTPException(status_code=401, detail="Неверное имя или пароль") from None
 
     set_refresh_cookie(response, refresh_raw, settings)
     return TokenResponse(access_token=access_token)
@@ -171,14 +171,14 @@ async def refresh(
         RATE_LIMIT_REFRESH_EXCEEDED,
     )
     if not refresh_token:
-        raise HTTPException(status_code=401, detail="Refresh token missing")
+        raise HTTPException(status_code=401, detail="Требуется вход")
 
     service = AuthService(session, settings)
     try:
         access_token, new_refresh_raw = await service.refresh(refresh_token)
     except (InvalidTokenError, TokenExpiredError):
         raise HTTPException(
-            status_code=401, detail="Invalid or expired refresh token"
+            status_code=401, detail="Сессия истекла, войдите снова"
         ) from None
     except ReplayDetectedError:
         logger.warning(
@@ -189,7 +189,7 @@ async def refresh(
         )
         raise HTTPException(
             status_code=401,
-            detail="Token reuse detected, all sessions revoked",
+            detail="Обнаружено повторное использование токена — все сессии завершены",
             headers=cookie_deletion_headers(settings),
         ) from None
 
@@ -217,4 +217,4 @@ async def logout(
         service = AuthService(session, settings)
         await service.logout(refresh_token)
     delete_refresh_cookie(response, settings)
-    return MessageResponse(detail="Logged out")
+    return MessageResponse(detail="Вы вышли из аккаунта")

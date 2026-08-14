@@ -80,7 +80,9 @@ def _resolve_provider(request: Request, provider: str) -> OAuthProvider:
     registry: dict[str, OAuthProvider] = request.app.state.oauth_providers
     impl = registry.get(provider)
     if impl is None:
-        raise HTTPException(status_code=404, detail="Unknown or inactive provider")
+        raise HTTPException(
+            status_code=404, detail="Провайдер входа не найден или отключён"
+        )
     return impl
 
 
@@ -105,7 +107,7 @@ def _check_oauth_rate_limit(rate_limiter: RateLimiter, key: str) -> None:
         )
         raise HTTPException(
             status_code=429,
-            detail="Too many requests",
+            detail="Слишком много запросов, попробуйте позже",
             headers={"Retry-After": str(retry_after)},
         )
 

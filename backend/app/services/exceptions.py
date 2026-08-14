@@ -20,7 +20,7 @@ class AppError(Exception):
         *,
         extensions: dict[str, Any] | None = None,
     ) -> None:
-        self.detail: str = detail or "An unexpected error occurred"
+        self.detail: str = detail or "Внутренняя ошибка — попробуйте позже"
         self.extensions: dict[str, Any] = extensions or {}
         super().__init__(self.detail)
 
@@ -29,7 +29,7 @@ class NotFoundError(AppError):
     code = "entity-not-found"
     status = 404
 
-    def __init__(self, detail: str = "Resource not found") -> None:
+    def __init__(self, detail: str = "Ресурс не найден") -> None:
         super().__init__(detail)
 
 
@@ -37,7 +37,9 @@ class ConflictError(AppError):
     code = "conflict"
     status = 409
 
-    def __init__(self, detail: str = "Conflict") -> None:
+    def __init__(
+        self, detail: str = "Конфликт данных — обновите страницу и попробуйте снова"
+    ) -> None:
         super().__init__(detail)
 
 
@@ -51,7 +53,7 @@ class SecurityPolicyViolationError(AppError):
         self,
         *,
         reason: str,
-        detail: str = "Security policy violation",
+        detail: str = "Запрос отклонён политикой безопасности",
     ) -> None:
         super().__init__(detail, extensions={"reason": reason})
         self.reason = reason
@@ -69,7 +71,7 @@ class UpstreamUnavailableError(AppError):
         *,
         code: str = "upstream-unavailable",
         status: int = 503,
-        detail: str = "Upstream service unavailable",
+        detail: str = "Внешний сервис недоступен, попробуйте позже",
     ) -> None:
         super().__init__(detail)
         self.code = code
@@ -92,7 +94,7 @@ class InvalidURLError(AppError):
     code = "invalid-url"
     status = 400
 
-    def __init__(self, detail: str = "Invalid URL") -> None:
+    def __init__(self, detail: str = "Невалидный URL") -> None:
         super().__init__(detail)
 
 
@@ -102,7 +104,7 @@ class PayloadTooLargeError(AppError):
     code = "payload-too-large"
     status = 413
 
-    def __init__(self, detail: str = "Upload exceeds the size limit") -> None:
+    def __init__(self, detail: str = "Файл слишком большой") -> None:
         super().__init__(detail)
 
 
@@ -118,7 +120,7 @@ class EntityNotFoundError(NotFoundError):
     def __init__(self, entity: str, entity_id: object) -> None:
         self.entity = entity
         self.entity_id = entity_id
-        super().__init__("Resource not found")
+        super().__init__("Ресурс не найден")
         # Override args so logs see entity + id (str(exc) / exc.args)
         self.args = (f"{entity} {entity_id} not found",)
 

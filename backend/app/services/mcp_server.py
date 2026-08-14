@@ -284,7 +284,7 @@ class McpServerService:
             raise UpstreamUnavailableError(
                 code="mcp-unreachable",
                 status=503,
-                detail="MCP server is unreachable",
+                detail="MCP-сервер недоступен",
             ) from exc
 
     async def _guard_blob(
@@ -379,7 +379,7 @@ class McpServerService:
                     raise UpstreamUnavailableError(
                         code="encryption-not-configured",
                         status=503,
-                        detail="API key storage unavailable: encryption not configured",
+                        detail="Хранилище API-ключей недоступно: шифрование не настроено",
                     )
                 data["api_key_encrypted"] = self._encryption.encrypt(api_key)
                 data["api_key_hint"] = (
@@ -406,7 +406,7 @@ class McpServerService:
                 raise UpstreamUnavailableError(
                     code="encryption-not-configured",
                     status=503,
-                    detail="API key storage unavailable: encryption not configured",
+                    detail="Хранилище API-ключей недоступно: шифрование не настроено",
                 )
             data["api_key_encrypted"] = self._encryption.encrypt(api_key)
             data["api_key_hint"] = (

@@ -514,6 +514,72 @@ describe("ChatThread — first message handed over by the entry path", () => {
     expect(screen.queryByText("Объясни производные")).not.toBeInTheDocument();
   });
 
+  it("возврат в стримящий чат не задваивает сообщение mount-рефетчем истории", async () => {
+    setAccessToken(fakeJwt());
+    const chatFetches = vi.fn();
+    const persisted: unknown[] = [];
+    server.use(
+      projectHandler(),
+      http.get(CHAT_URL, () => {
+        chatFetches();
+        return HttpResponse.json({
+          thread_id: CHAT_ID,
+          title: "Новый чат",
+          security_blocked: false,
+          messages: persisted,
+        });
+      }),
+      http.get(OTHER_CHAT_URL, () => otherChat()),
+      // Сервер сохраняет user-сообщение сразу, а ход не заканчивается: дубль
+      // возможен ровно в этом окне — серверная копия в отрефетченной истории
+      // рядом с живой оптимистичной. Терминального события нет намеренно.
+      http.post(MESSAGES_URL, async ({ request }) => {
+        const body = JSON.parse(await request.text()) as { content: string };
+        persisted.push({
+          id: "m-user-held",
+          role: "user",
+          content: body.content,
+          created_at: "2026-07-01T10:00:00Z",
+          artifacts: [],
+        });
+        return heldStream([
+          sseFrame({ type: "text_chunk", content: "Производная" }),
+        ]);
+      }),
+    );
+
+    // Отправка через композер, не через очередь входа: сначала дожидаемся,
+    // пока первый GET истории завершится пустым, — auto-send стартовал бы
+    // гонку «POST наполняет persisted до того, как первый GET его прочитал»,
+    // и дубль появился бы из стартовой загрузки, а не из рефетча.
+    renderChatWithSwitch(null);
+    await waitFor(() => expect(chatFetches).toHaveBeenCalled());
+    await userEvent.type(
+      screen.getByPlaceholderText("Сообщение..."),
+      "Объясни производные",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Отправить" }));
+    expect(await screen.findByText("Объясни производные")).toBeInTheDocument();
+    const fetchesBeforeSwitch = chatFetches.mock.calls.length;
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Открыть соседний чат" }),
+    );
+    expect(await screen.findByText(OTHER_CHAT_MESSAGE)).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Вернуться в первый чат" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText(OTHER_CHAT_MESSAGE)).not.toBeInTheDocument(),
+    );
+
+    // Пока ход идёт, историю стримящего чата не рефетчит ни mount, ни фокус —
+    // серверная копия сообщения не приезжает и не встаёт рядом с оптимистичной.
+    expect(chatFetches.mock.calls.length).toBe(fetchesBeforeSwitch);
+    expect(screen.getAllByText("Объясни производные")).toHaveLength(1);
+  });
+
   // Вложения композера (feat-011, T2.8): файл уезжает на сервер ровно в момент
   // отправки, и только подтверждённая загрузка заводит ход (design-brief
   // § Тайминг). Ошибка загрузки не должна ни отправлять сообщение, ни стирать

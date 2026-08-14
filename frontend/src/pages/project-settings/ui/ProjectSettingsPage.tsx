@@ -137,133 +137,133 @@ export function ProjectSettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[640px] px-6 py-8">
-      <h2 className="mb-6 font-serif text-xl font-semibold text-foreground">
-        Настройки проекта
-      </h2>
-      <div className="space-y-4">
-        <section className="rounded-xl border border-border bg-card p-5">
-          <ModelSelector scope="project" projectId={projectId} />
-        </section>
+    // `ProjectLayout` глушит переполнение вкладок (`flex-1 overflow-hidden`),
+    // поэтому страница, как и остальные вкладки проекта, прокручивается сама.
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto max-w-[640px] px-6 py-8">
+        <h2 className="mb-6 font-serif text-xl font-semibold text-foreground">
+          Настройки проекта
+        </h2>
+        <div className="space-y-4">
+          <section className="rounded-xl border border-border bg-card p-5">
+            <ModelSelector scope="project" projectId={projectId} />
+          </section>
 
-        <section className="rounded-xl border border-border bg-card p-5">
-          <MCPServersSection scope="project" projectId={projectId} />
-        </section>
+          <section className="rounded-xl border border-border bg-card p-5">
+            <MCPServersSection scope="project" projectId={projectId} />
+          </section>
 
-        <section className="rounded-xl border border-border bg-card p-5">
-          {/* Подпись — `<label htmlFor>` только там, где есть что подписывать:
+          <section className="rounded-xl border border-border bg-card p-5">
+            {/* Подпись — `<label htmlFor>` только там, где есть что подписывать:
               поле существует лишь в режиме редактирования. В просмотре на его
               месте статический текст с карандашом (у кнопки свой `aria-label`),
               поэтому подпись рендерится обычным абзацем, а не `<label>` с
               висящим `for`, который ни к какому контролу не ведёт. */}
-          {draft === null ? (
-            <p className="mb-1.5 text-sm font-medium text-foreground">
-              Имя проекта
-            </p>
-          ) : (
-            <label
-              htmlFor={nameInputId}
-              className="mb-1.5 block text-sm font-medium text-foreground"
-            >
-              Имя проекта
-            </label>
-          )}
-          {draft === null ? (
-            <div className="flex min-h-8 items-center gap-2">
-              <span className="text-sm font-medium text-foreground">
-                {displayName}
-              </span>
-              <Button
-                ref={pencilRef}
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Переименовать проект"
-                title="Переименовать проект"
-                onClick={startEdit}
+            {draft === null ? (
+              <p className="mb-1.5 text-sm font-medium text-foreground">
+                Имя проекта
+              </p>
+            ) : (
+              <label
+                htmlFor={nameInputId}
+                className="mb-1.5 block text-sm font-medium text-foreground"
               >
-                <Pencil className="size-3.5" />
-              </Button>
-              {showSaved && (
-                <span
-                  role="status"
-                  className="inline-flex items-center gap-1 text-xs text-success"
-                >
-                  <Check className="size-3.5" />
-                  Сохранено
+                Имя проекта
+              </label>
+            )}
+            {draft === null ? (
+              <div className="flex min-h-8 items-center gap-2">
+                <span className="text-sm font-medium text-foreground">
+                  {displayName}
                 </span>
-              )}
-            </div>
-          ) : (
-            <div className="flex min-h-8 items-center gap-2">
-              <Input
-                ref={inputRef}
-                id={nameInputId}
-                className="flex-1"
-                value={draft}
-                maxLength={100}
-                disabled={updateProject.isPending}
-                onChange={(e) => setDraft(e.target.value)}
-                onBlur={cancelEdit}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    commitEdit();
-                  } else if (e.key === "Escape") {
-                    e.preventDefault();
-                    cancelEdit();
-                  }
-                }}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="hover:text-success"
-                aria-label="Сохранить"
-                title="Сохранить (Enter)"
-                disabled={updateProject.isPending || !draft.trim()}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={commitEdit}
-              >
-                <Check />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="hover:text-destructive"
-                aria-label="Отменить"
-                title="Отменить (Esc)"
-                disabled={updateProject.isPending}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={cancelEdit}
-              >
-                <X />
-              </Button>
-            </div>
-          )}
-          <p className="mt-1 text-xs text-muted-foreground">
-            Клик по карандашу — редактирование · Enter — сохранить · Esc —
-            отменить
-          </p>
-        </section>
+                <Button
+                  ref={pencilRef}
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Переименовать проект"
+                  title="Переименовать проект"
+                  onClick={startEdit}
+                >
+                  <Pencil className="size-3.5" />
+                </Button>
+                {showSaved && (
+                  <span
+                    role="status"
+                    className="inline-flex items-center gap-1 text-xs text-success"
+                  >
+                    <Check className="size-3.5" />
+                    Сохранено
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="flex min-h-8 items-center gap-2">
+                <Input
+                  ref={inputRef}
+                  id={nameInputId}
+                  className="flex-1"
+                  value={draft}
+                  maxLength={100}
+                  disabled={updateProject.isPending}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onBlur={cancelEdit}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      commitEdit();
+                    } else if (e.key === "Escape") {
+                      e.preventDefault();
+                      cancelEdit();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="hover:text-success"
+                  aria-label="Сохранить"
+                  title="Сохранить (Enter)"
+                  disabled={updateProject.isPending || !draft.trim()}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={commitEdit}
+                >
+                  <Check />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="hover:text-destructive"
+                  aria-label="Отменить"
+                  title="Отменить (Esc)"
+                  disabled={updateProject.isPending}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={cancelEdit}
+                >
+                  <X />
+                </Button>
+              </div>
+            )}
+          </section>
 
-        <section className="rounded-xl border border-border bg-card p-5">
-          <p className="mb-0.5 text-sm font-medium text-foreground">
-            Удалить проект
-          </p>
-          <p className="mb-3 text-xs text-muted-foreground">
-            Необратимо — все чаты, артефакты и данные сферы будут потеряны.
-          </p>
-          <button
-            onClick={handleDelete}
-            disabled={deleteProject.isPending}
-            className="text-sm text-destructive-warm underline-offset-2 hover:underline disabled:opacity-50"
-          >
-            {deleteProject.isPending ? "Удаляем…" : "Удалить проект…"}
-          </button>
-        </section>
+          <section className="rounded-xl border border-border bg-card p-5">
+            <p className="mb-0.5 text-sm font-medium text-foreground">
+              Удалить проект
+            </p>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Необратимо — все чаты, артефакты и данные сферы будут потеряны.
+            </p>
+            <button
+              onClick={handleDelete}
+              disabled={deleteProject.isPending}
+              className="text-sm text-destructive-warm underline-offset-2 hover:underline disabled:opacity-50"
+            >
+              {deleteProject.isPending ? "Удаляем…" : "Удалить проект…"}
+            </button>
+          </section>
+        </div>
       </div>
     </div>
   );

@@ -65,19 +65,19 @@ async def get_current_user(
 ) -> User:
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        raise HTTPException(status_code=401, detail="Требуется вход")
 
     token = auth_header.removeprefix("Bearer ")
     try:
         user_id = decode_access_token(token, settings.jwt_secret)
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         raise HTTPException(
-            status_code=401, detail="Invalid or expired token"
+            status_code=401, detail="Сессия истекла, войдите снова"
         ) from None
 
     user = await UserRepository(session).get_by_id(user_id)
     if user is None:
-        raise HTTPException(status_code=401, detail="User not found")
+        raise HTTPException(status_code=401, detail="Пользователь не найден")
 
     # Bind user context for security events
     structlog.contextvars.bind_contextvars(user_id=str(user.id))
@@ -153,7 +153,7 @@ async def get_user_project(
 ) -> Project:
     project = await project_service.get_project(project_id)
     if project.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail="Проект не найден")
     return project
 
 
@@ -168,7 +168,7 @@ async def get_user_thread(
     """Resolve a chat by path param and verify it belongs to the user's project."""
     thread_view = await ThreadViewRepository(session).get_by_id(chat_id)
     if thread_view is None or thread_view.project_id != project.id:
-        raise HTTPException(status_code=404, detail="Chat not found")
+        raise HTTPException(status_code=404, detail="Чат не найден")
     return thread_view
 
 
@@ -198,4 +198,6 @@ async def require_unblocked_thread(
     """Reject requests against threads that are security-blocked."""
     repo = ThreadViewRepository(session)
     if await repo.is_security_blocked(chat_id):
-        raise HTTPException(status_code=403, detail="Thread blocked by security policy")
+        raise HTTPException(
+            status_code=403, detail="Чат заблокирован политикой безопасности"
+        )

@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http, HttpResponse } from "msw";
 import { MemoryRouter, Route, Routes, useNavigate } from "react-router";
@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getAccessToken } from "@/shared/api/client";
 import { logger } from "@/shared/lib/logger";
+import { PROVIDER_LABELS } from "@/test/provider-labels";
 import { authProvidersHandlers } from "@/test/msw/auth-providers";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/test-utils";
@@ -33,9 +34,11 @@ const NAME_FIELD = "Имя пользователя";
 const PASSWORD_FIELD = "Пароль";
 const CONFIRM_FIELD = "Повторите пароль";
 
-const YANDEX_BUTTON = "Войти с Яндекс ID";
-const GOOGLE_BUTTON = "Войти через Google";
-const GITHUB_BUTTON = "Войти через GitHub";
+// Подписи кнопок провайдеров — из общего тестового реестра (`getByRole`
+// доступное имя не нормализует NBSP в «Яндекс ID»).
+const YANDEX_BUTTON = PROVIDER_LABELS.yandex;
+const GOOGLE_BUTTON = PROVIDER_LABELS.google;
+const GITHUB_BUTTON = PROVIDER_LABELS.github;
 const SEPARATOR = "или";
 
 type Entry =
@@ -117,7 +120,9 @@ describe("LoginPage — парольные режимы", () => {
 
     renderLoginAt();
 
-    expect(screen.getByRole("heading", { name: "Вход" })).toBeInTheDocument();
+    // Заголовок карточки в `features/auth` LoginScreenView — типографский
+    // блок мокапа, не heading-элемент; ищем по тексту.
+    expect(screen.getByText("Вход")).toBeInTheDocument();
     expect(screen.getByLabelText(NAME_FIELD)).toBeInTheDocument();
     expect(screen.getByLabelText(PASSWORD_FIELD)).toBeInTheDocument();
     expect(screen.queryByLabelText(CONFIRM_FIELD)).not.toBeInTheDocument();
@@ -136,29 +141,37 @@ describe("LoginPage — парольные режимы", () => {
       screen.getByRole("button", { name: "Нет аккаунта? Зарегистрироваться" }),
     );
 
-    expect(
-      screen.getByRole("heading", { name: "Регистрация" }),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Регистрация")).toBeInTheDocument();
     expect(screen.getByLabelText(CONFIRM_FIELD)).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Зарегистрироваться" }),
+      screen.getByRole("button", { name: "Создать аккаунт" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Уже есть аккаунт? Войти" }),
     ).toBeInTheDocument();
   });
 
-  it("держит кнопку отправки выключенной, пока имя и пароль не заполнены", async () => {
+  it("на пустых полях показывает «Введите имя и пароль.», не дойдя до сервера", async () => {
     const user = userEvent.setup();
-    server.use(authProvidersHandlers.ru());
+    const loginCalls = vi.fn();
+    server.use(
+      authProvidersHandlers.ru(),
+      http.post(LOGIN_URL, () => {
+        loginCalls();
+        return tokenResponse();
+      }),
+    );
 
     renderLoginAt();
+    // Контракт `features/auth` LoginScreenView: сабмит не блокируется по
+    // пустоте полей — пустая отправка получает текст валидации из мокапа.
+    await user.click(screen.getByRole("button", { name: "Войти" }));
 
-    expect(screen.getByRole("button", { name: "Войти" })).toBeDisabled();
-    await user.type(screen.getByLabelText(NAME_FIELD), "vasya");
-    expect(screen.getByRole("button", { name: "Войти" })).toBeDisabled();
-    await user.type(screen.getByLabelText(PASSWORD_FIELD), "secret123");
-    expect(screen.getByRole("button", { name: "Войти" })).toBeEnabled();
+    expect(
+      await screen.findByText("Введите имя и пароль."),
+    ).toBeInTheDocument();
+    expect(loginCalls).not.toHaveBeenCalled();
+    expect(getAccessToken()).toBeNull();
   });
 
   it("отклоняет регистрацию с паролем короче 8 символов, не дойдя до сервера", async () => {
@@ -178,12 +191,10 @@ describe("LoginPage — парольные режимы", () => {
     );
     await fillCredentials(user, { password: "short7" });
     await user.type(screen.getByLabelText(CONFIRM_FIELD), "short7");
-    await user.click(
-      screen.getByRole("button", { name: "Зарегистрироваться" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Создать аккаунт" }));
 
     expect(
-      await screen.findByText("Пароль должен содержать не менее 8 символов"),
+      await screen.findByText("Пароль должен содержать не менее 8 символов."),
     ).toBeInTheDocument();
     expect(registerCalls).not.toHaveBeenCalled();
     expect(getAccessToken()).toBeNull();
@@ -206,11 +217,9 @@ describe("LoginPage — парольные режимы", () => {
     );
     await fillCredentials(user);
     await user.type(screen.getByLabelText(CONFIRM_FIELD), "secret124");
-    await user.click(
-      screen.getByRole("button", { name: "Зарегистрироваться" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Создать аккаунт" }));
 
-    expect(await screen.findByText("Пароли не совпадают")).toBeInTheDocument();
+    expect(await screen.findByText("Пароли не совпадают.")).toBeInTheDocument();
     expect(registerCalls).not.toHaveBeenCalled();
   });
 
@@ -232,9 +241,7 @@ describe("LoginPage — парольные режимы", () => {
     );
     await fillCredentials(user, { name: "  vasya  " });
     await user.type(screen.getByLabelText(CONFIRM_FIELD), "secret123");
-    await user.click(
-      screen.getByRole("button", { name: "Зарегистрироваться" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Создать аккаунт" }));
 
     expect(await screen.findByText(HOME_MARKER)).toBeInTheDocument();
     expect(submittedName).toBe("vasya");
@@ -280,9 +287,9 @@ describe("LoginPage — парольные режимы", () => {
     await fillCredentials(user);
     await user.click(screen.getByRole("button", { name: "Войти" }));
 
-    // Пока запрос в полёте, кнопка подписана «…» и выключена — второй клик по
-    // ней не порождает второго запроса на критпути auth.
-    const submitting = await screen.findByRole("button", { name: "…" });
+    // Пока запрос в полёте, кнопка подписана «Входим…» и выключена — второй
+    // клик по ней не порождает второго запроса на критпути auth.
+    const submitting = await screen.findByRole("button", { name: "Входим…" });
     expect(submitting).toBeDisabled();
     await user.click(submitting);
 
@@ -306,9 +313,7 @@ describe("LoginPage — парольные режимы", () => {
 
     // Назад — на страницу до входа, а не на уже пройденный `/login`.
     expect(await screen.findByText(HOME_MARKER)).toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", { name: "Вход" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Вход")).not.toBeInTheDocument();
   });
 
   it("показывает сообщение сервера при отказе входа и оставляет на странице", async () => {
@@ -333,7 +338,7 @@ describe("LoginPage — парольные режимы", () => {
     expect(
       await screen.findByText("Неверное имя или пароль"),
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Вход" })).toBeInTheDocument();
+    expect(screen.getByText("Вход")).toBeInTheDocument();
     expect(screen.queryByText(PROJECT_MARKER)).not.toBeInTheDocument();
     expect(getAccessToken()).toBeNull();
   });
@@ -369,14 +374,16 @@ describe("LoginPage — кнопки провайдеров", () => {
 
     renderLoginAt();
 
-    await screen.findByRole("button", { name: YANDEX_BUTTON });
-    const labels = screen
-      .getAllByRole("button")
-      .map((button) => button.textContent)
-      .filter((label) =>
-        [YANDEX_BUTTON, GOOGLE_BUTTON, GITHUB_BUTTON].includes(label ?? ""),
-      );
-    expect(labels).toEqual([YANDEX_BUTTON, GOOGLE_BUTTON, GITHUB_BUTTON]);
+    // Порядок наблюдаем по позициям кнопок в DOM: `textContent` для этого не
+    // годится — в него попадает и текст брендового SVG-знака.
+    const yandex = await screen.findByRole("button", { name: YANDEX_BUTTON });
+    const google = screen.getByRole("button", { name: GOOGLE_BUTTON });
+    const github = screen.getByRole("button", { name: GITHUB_BUTTON });
+
+    const follows = (a: Element, b: Element) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(follows(yandex, google)).toBe(true);
+    expect(follows(google, github)).toBe(true);
   });
 
   it("в РФ-гео показывает только кнопку Яндекса", async () => {
@@ -412,13 +419,15 @@ describe("LoginPage — кнопки провайдеров", () => {
     ).toBeInTheDocument();
     // Незнакомый id не превращается ни в кнопку с подписью, ни в кнопку с
     // сырым идентификатором — он просто отсутствует на экране.
-    const buttonLabels = screen
-      .getAllByRole("button")
-      .map((button) => button.textContent ?? "");
-    expect(buttonLabels).not.toContain("telegram");
     expect(
-      buttonLabels.filter((label) => /^Войти (с|через) /.test(label)),
-    ).toHaveLength(1);
+      screen.queryByRole("button", { name: /telegram/i }),
+    ).not.toBeInTheDocument();
+    const providerButtons = [
+      YANDEX_BUTTON,
+      GOOGLE_BUTTON,
+      GITHUB_BUTTON,
+    ].flatMap((name) => screen.queryAllByRole("button", { name }));
+    expect(providerButtons).toHaveLength(1);
   });
 
   it("выкладывает блоки в порядке мокапа: форма → разделитель → провайдеры → смена режима", async () => {
@@ -454,7 +463,11 @@ describe("LoginPage — кнопки провайдеров", () => {
     renderLoginAt();
     await fillCredentials(user);
 
-    expect(screen.queryByText(SEPARATOR)).not.toBeInTheDocument();
+    // Ждём разрешения запроса состава: на время полёта место держит
+    // skeleton-плашка с разделителем, после `[]` блок исчезает целиком.
+    await waitFor(() =>
+      expect(screen.queryByText(SEPARATOR)).not.toBeInTheDocument(),
+    );
     expect(
       screen.queryByRole("button", { name: YANDEX_BUTTON }),
     ).not.toBeInTheDocument();
@@ -473,7 +486,10 @@ describe("LoginPage — кнопки провайдеров", () => {
     renderLoginAt();
     await fillCredentials(user);
 
-    expect(screen.queryByText(SEPARATOR)).not.toBeInTheDocument();
+    // Отказ запроса деградирует до пустого состава — блока и разделителя нет.
+    await waitFor(() =>
+      expect(screen.queryByText(SEPARATOR)).not.toBeInTheDocument(),
+    );
     expect(
       screen.queryByRole("button", { name: YANDEX_BUTTON }),
     ).not.toBeInTheDocument();
@@ -481,7 +497,7 @@ describe("LoginPage — кнопки провайдеров", () => {
     expect(await screen.findByText(HOME_MARKER)).toBeInTheDocument();
   });
 
-  it("пока список провайдеров в полёте, форма доступна и разделитель не висит", async () => {
+  it("пока список провайдеров в полёте, место держит skeleton-плашка", async () => {
     server.use(
       http.get("/api/auth/providers", async () => {
         await delay(50);
@@ -489,14 +505,22 @@ describe("LoginPage — кнопки провайдеров", () => {
       }),
     );
 
-    renderLoginAt();
+    const { container } = renderLoginAt();
 
+    // Контракт LoginScreenView: `providers === undefined` → разделитель и
+    // skeleton резервируют место под блок, чтобы карточка не прыгала; форма
+    // при этом доступна сразу.
     expect(screen.getByLabelText(NAME_FIELD)).toBeEnabled();
-    expect(screen.queryByText(SEPARATOR)).not.toBeInTheDocument();
+    expect(screen.getByText(SEPARATOR)).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="skeleton"]')).not.toBeNull();
+    expect(
+      screen.queryByRole("button", { name: YANDEX_BUTTON }),
+    ).not.toBeInTheDocument();
+
     expect(
       await screen.findByRole("button", { name: YANDEX_BUTTON }),
     ).toBeInTheDocument();
-    expect(screen.getByText(SEPARATOR)).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="skeleton"]')).toBeNull();
   });
 
   it("уводит браузер на /authorize с запомненным путём в next, без XHR", async () => {
@@ -585,7 +609,7 @@ describe("LoginPage — коды ?error= из OAuth-флоу", () => {
     expect(
       await screen.findByText("Не удалось войти — попробуйте ещё раз"),
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Вход" })).toBeInTheDocument();
+    expect(screen.getByText("Вход")).toBeInTheDocument();
   });
 
   it("без параметра error не показывает сообщения об ошибке", async () => {
@@ -613,9 +637,7 @@ describe("LoginPage — коды ?error= из OAuth-флоу", () => {
     // Отказ прошлого OAuth-флоу не относится к новой форме — он не должен
     // висеть над регистрацией.
     expect(screen.queryByText(message)).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Регистрация" }),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Регистрация")).toBeInTheDocument();
   });
 
   it("не мешает парольному входу: после успешной отправки сообщение уходит вместе со страницей", async () => {

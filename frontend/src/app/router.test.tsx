@@ -321,6 +321,7 @@ describe("AppRoutes — the artifacts tab without a selection", () => {
 // случаях на экране `/login`), поэтому наблюдаем ту самую запись истории,
 // которую делает роутер.
 
+// Заголовок карточки входа — типографский блок мокапа, не heading-элемент.
 const LOGIN_HEADING = "Вход";
 
 function LocationProbe() {
@@ -350,9 +351,7 @@ describe("AppRoutes — guard входа и публичный /login", () => {
 
     renderRoutedAt("/projects/p1/artifacts?tab=all#top");
 
-    expect(
-      await screen.findByRole("heading", { name: LOGIN_HEADING }),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(LOGIN_HEADING)).toBeInTheDocument();
     expect(
       screen.getByText("probe:/login|/projects/p1/artifacts?tab=all#top"),
     ).toBeInTheDocument();
@@ -365,9 +364,7 @@ describe("AppRoutes — guard входа и публичный /login", () => {
 
     renderRoutedAt("/login");
 
-    expect(
-      await screen.findByRole("heading", { name: LOGIN_HEADING }),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(LOGIN_HEADING)).toBeInTheDocument();
     expect(screen.getByText("probe:/login|")).toBeInTheDocument();
   });
 });

@@ -36,6 +36,7 @@ const REFRESH_URL = "/api/auth/refresh";
 const ACCESS_TOKEN = "bootstrapped.access.token";
 
 const LOADING_TEXT = "Загрузка...";
+// Заголовок карточки входа — типографский блок мокапа, не heading-элемент.
 const LOGIN_HEADING = "Вход";
 const WELCOME_HEADING = "Добро пожаловать";
 
@@ -117,9 +118,7 @@ describe("App — бутстрап аутентификации", () => {
     // Синхронно после рендера: маршруты ещё не смонтированы, а значит guard не
     // успел увести на `/login` — на экране паттерн загрузки, не форма входа.
     expect(screen.getByText(LOADING_TEXT)).toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", { name: LOGIN_HEADING }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(LOGIN_HEADING)).not.toBeInTheDocument();
 
     expect(
       await screen.findByRole("heading", { name: WELCOME_HEADING }),
@@ -129,9 +128,7 @@ describe("App — бутстрап аутентификации", () => {
     // уходит анонимным и сессия после OAuth-callback'а не поднимется.
     expect(refresh.calls).toHaveBeenCalledWith("include");
     expect(window.location.pathname).toBe("/");
-    expect(
-      screen.queryByRole("heading", { name: LOGIN_HEADING }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(LOGIN_HEADING)).not.toBeInTheDocument();
     expect(queryErrors).not.toHaveBeenCalled();
     expect(loggerError).not.toHaveBeenCalled();
   });
@@ -143,9 +140,7 @@ describe("App — бутстрап аутентификации", () => {
 
     const { queryErrors } = renderApp("/projects/p1");
 
-    expect(
-      await screen.findByRole("heading", { name: LOGIN_HEADING }),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(LOGIN_HEADING)).toBeInTheDocument();
     expect(window.location.pathname).toBe("/login");
     expect(getAccessToken()).toBeNull();
     // Ожидаемый путь анонима — не ошибка: ни глобальный error-канал Query, ни
@@ -173,9 +168,7 @@ describe("App — бутстрап аутентификации", () => {
 
     const { queryErrors } = renderApp("/projects/p1");
 
-    expect(
-      await screen.findByRole("heading", { name: LOGIN_HEADING }),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(LOGIN_HEADING)).toBeInTheDocument();
     expect(getAccessToken()).toBeNull();
     // Оборвавшийся по таймауту бутстрап — тот же тихий путь анонима, что и
     // 401: гейт обязан открыться (`ready`), а error-канал остаться молчащим.

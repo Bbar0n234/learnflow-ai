@@ -7,8 +7,13 @@
 Машинно-различимые ошибки получают ``type`` вида ``urn:learnflow:<code>``;
 для остальных ``type`` = ``about:blank`` и клиент ориентируется на ``status``.
 
-Барьерный стек (три слоя, от специфичного к общему):
+Барьерный стек (от специфичного к общему):
   1. AppError → доменный статус problem+json (4xx/409/422).
+  1b. WorkspacePathError (app.storage.workspace, ADR-032) → 422. Не входит в
+      AppError-иерархию — `app.storage` лежит ниже `app.services` в контракте
+      import-linter и не может импортировать `AppError` (см. класса докстринг
+      в workspace.py). Отдельный узкий handler здесь — то самое «место,
+      которому позволено» это исключение поймать.
   2. Инфра-исключения (DBAPIError→503, TimeoutError→504) + лог exc_info.
   3. generic Exception (last-resort) — перехватывается в request_id_middleware
      в main.py; CORSMiddleware регистрируется последним и потому оборачивает
@@ -32,6 +37,7 @@ from sqlalchemy.exc import DBAPIError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.services.exceptions import AppError
+from app.storage.workspace import WorkspacePathError
 
 logger = structlog.get_logger()
 
@@ -86,6 +92,28 @@ async def _app_error_handler(request: Request, exc: AppError) -> JSONResponse:
         detail=exc.detail,
         type_=type_,
         **extensions,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Layer 1b: WorkspacePathError → 422 (path escaped both workspace roots)
+# ---------------------------------------------------------------------------
+
+
+async def _workspace_path_error_handler(
+    request: Request, exc: WorkspacePathError
+) -> JSONResponse:
+    # 422, not 404: the request itself is malformed/adversarial (the resolved
+    # path escapes both the project workspace and /skills), the same class of
+    # rejection as SecurityPolicyViolationError — distinct from a syntactically
+    # valid path whose file just doesn't exist (a route-local 404, § REST
+    # артефакты). The security log (`agent.runtime.path_denied`) already fired
+    # inside `Workspace.resolve_path`/`resolve_skill_path` — no exc_info here.
+    return problem_response(
+        status=422,
+        detail=f"Path {exc.path!r} is not allowed",
+        type_=TYPE_PREFIX + "invalid-path",
+        reason=exc.reason,
     )
 
 
@@ -177,3 +205,14 @@ def register_problem_handlers(app: FastAPI) -> None:
     app.add_exception_handler(asyncio.TimeoutError, _timeout_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(StarletteHTTPException, _http_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(RequestValidationError, _validation_exception_handler)  # type: ignore[arg-type]
+
+
+# `register_problem_handlers` above is one of the `problem-mirrors`-checked
+# defs (arch_checker, doc/tech/arch-checker.md) — its AST must stay identical
+# to `siem_service/api/problem.py`'s copy, byte-for-byte modulo docstrings.
+# `WorkspacePathError` has no SIEM-side equivalent (siem doesn't run agent
+# tools or REST artifact routes), so its registration lives in a separate,
+# unchecked function instead of a new line inside the mirrored one — kept the
+# mirror intact instead of forking it further apart.
+def register_workspace_path_error_handler(app: FastAPI) -> None:
+    app.add_exception_handler(WorkspacePathError, _workspace_path_error_handler)  # type: ignore[arg-type]

@@ -1,3 +1,4 @@
+import { File } from "lucide-react";
 import type { Message } from "@/shared/api/chats";
 import { MarkdownRenderer } from "@/shared/ui/MarkdownRenderer";
 import { fromMessageParts, groupFeedBlocks } from "@/shared/lib/agent-feed";
@@ -24,7 +25,22 @@ export function MessageItem({ message, projectId, chatId }: MessageItemProps) {
               [Сообщение скрыто в целях безопасности]
             </p>
           ) : (
-            <p className="whitespace-pre-wrap text-sm">{message.content}</p>
+            <>
+              {message.attachments && message.attachments.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-1.5">
+                  {message.attachments.map((attachment) => (
+                    <span
+                      key={attachment.path}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-xs"
+                    >
+                      <File className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      {attachment.title}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <p className="whitespace-pre-wrap text-sm">{message.content}</p>
+            </>
           )}
         </div>
       </div>
@@ -51,6 +67,12 @@ export function MessageItem({ message, projectId, chatId }: MessageItemProps) {
                 <MarkdownRenderer key={block.item.id}>
                   {block.item.content}
                 </MarkdownRenderer>
+              ) : block.type === "artifact" ? (
+                <ArtifactCard
+                  key={block.item.id}
+                  artifact={block.item}
+                  projectId={projectId}
+                />
               ) : (
                 <ActivityFeed
                   key={block.items[0]?.id ?? `feed-${index}`}
@@ -62,13 +84,6 @@ export function MessageItem({ message, projectId, chatId }: MessageItemProps) {
         ) : (
           <MarkdownRenderer>{message.content}</MarkdownRenderer>
         )}
-        {message.artifacts.map((artifact) => (
-          <ArtifactCard
-            key={artifact.id}
-            artifact={artifact}
-            projectId={projectId}
-          />
-        ))}
         {message.trace_id && (
           <FeedbackButtons
             projectId={projectId}

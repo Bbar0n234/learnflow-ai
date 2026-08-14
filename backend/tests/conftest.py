@@ -32,9 +32,11 @@ from learnflow_testing.factories import UserFactory, bind_session
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
-# Settings() requires JWT_SECRET; default it before any fixture builds the app or
-# runs migrations. Placed after imports so the import block stays at the top.
+# Settings() requires JWT_SECRET and EXECUTOR_AUTH_TOKEN (both secrets, both
+# without defaults); default them before any fixture builds the app or runs
+# migrations. Placed after imports so the import block stays at the top.
 os.environ.setdefault("JWT_SECRET", "test-secret")
+os.environ.setdefault("EXECUTOR_AUTH_TOKEN", "test-executor-token")
 
 _BACKEND_ROOT = Path(__file__).resolve().parents[1]
 _ALEMBIC_INI = str(_BACKEND_ROOT / "alembic.ini")

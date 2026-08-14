@@ -1,8 +1,37 @@
-from app.storage.blob_storage import BlobStorage, PgBlobStorage
 from app.storage.trace_store import TraceStore
+from app.storage.workspace import (
+    ArtifactDiffEntry,
+    ArtifactSnapshot,
+    DiffCounts,
+    ListEntry,
+    ReadResult,
+    SnapshotEntry,
+    Workspace,
+    WorkspacePathError,
+    WriteResult,
+    artifact_type,
+    extension_from_mime,
+    resolve_under_root,
+    sanitize_filename,
+    to_artifact_path,
+    unique_path,
+)
 
 __all__ = [
-    "BlobStorage",
-    "PgBlobStorage",
     "TraceStore",
+    "Workspace",
+    "WorkspacePathError",
+    "ReadResult",
+    "WriteResult",
+    "ListEntry",
+    "SnapshotEntry",
+    "ArtifactSnapshot",
+    "ArtifactDiffEntry",
+    "DiffCounts",
+    "to_artifact_path",
+    "artifact_type",
+    "sanitize_filename",
+    "unique_path",
+    "extension_from_mime",
+    "resolve_under_root",
 ]

@@ -1,9 +1,21 @@
-import { useState, type KeyboardEvent } from "react";
-import { SendHorizontal, Square } from "lucide-react";
+import { useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { Paperclip, SendHorizontal, Square } from "lucide-react";
 import { Textarea } from "@/shared/ui/textarea";
+import { AttachmentChip } from "@/shared/ui/AttachmentChip";
+import { DragOverlay } from "@/shared/ui/DragOverlay";
+import { logger } from "@/shared/lib/logger";
+import { useComposerAttachments } from "@/shared/lib/use-composer-attachments";
+import { useFileDrop } from "@/shared/lib/use-file-drop";
 
 interface ChatInputProps {
-  onSend: (content: string) => void;
+  // Второй параметр — файлы, прикреплённые в композере (T2.8, § Вложения
+  // пользователя): пусто, когда вложений нет — сигнатура одна на оба случая,
+  // а не перегрузка. Возврат — признак успеха отправки: `false` (или
+  // отклонённый промис) держит текст и чипы в композере вместо их сброса
+  // (§ Тайминг: ошибка загрузки не должна стирать то, что пользователь уже
+  // набрал и прикрепил). `void`/`undefined` — как «успех», для обратной
+  // совместимости с вызовами без вложений.
+  onSend: (content: string, files: File[]) => void | Promise<boolean>;
   disabled?: boolean;
   isStreaming?: boolean;
   onCancel?: () => void;
@@ -27,10 +39,27 @@ export function ChatInput({
   onValueChange,
 }: ChatInputProps) {
   const [internalValue, setInternalValue] = useState("");
+  // Идёт отправка: захватывает окно между кликом «Отправить» и резолвом
+  // `onSend` — то есть, при наличии вложений, время их загрузки (до самого
+  // `send()`, который лишь заводит стрим и возвращается сразу). `isStreaming`
+  // это окно не покрывает: он становится `true` только после того, как
+  // `send()` уже вызван.
+  const [busy, setBusy] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const {
+    attachments,
+    addFiles,
+    removeAttachment,
+    clear: clearAttachments,
+  } = useComposerAttachments();
+  const { isDragging, dragHandlers } = useFileDrop(addFiles);
+
   const isControlled = controlledValue !== undefined;
   const value = isControlled ? controlledValue : internalValue;
 
   const trimmed = value.trim();
+  const hasContent = trimmed.length > 0 || attachments.length > 0;
+  const isDisabled = disabled || isStreaming || busy;
 
   function setValue(next: string) {
     if (isControlled) {
@@ -40,38 +69,103 @@ export function ChatInput({
     }
   }
 
-  function handleSend() {
-    if (!trimmed) return;
-    onSend(trimmed);
-    // Uncontrolled: always clear after dispatch (existing chat behaviour).
-    // Controlled: leave clearing to the parent — the draft composer never
-    // clears on error, so the message isn't lost.
-    if (!isControlled) setInternalValue("");
+  async function handleSend() {
+    if (!hasContent || isDisabled) return;
+    const files = attachments.map((a) => a.file);
+    setBusy(true);
+    try {
+      // Отправка допустима при пустом тексте, если есть вложения (§ Тайминг) —
+      // `trimmed` тогда пустая строка, `onSend` сам решает, что с ней делать.
+      // Докстринг пропа объявляет отклонённый промис поддерживаемым исходом
+      // наравне с `false`: оба вызывающих места делают `void handleSend()`, так
+      // что необработанный тут отказ всплывал бы дальше как unhandled rejection
+      // (Vitest красит прогон, в браузере — unhandledrejection). Реальные
+      // вызывающие (`ChatThread`, `ChatDraft`) сами ловят свои ошибки и
+      // показывают их пользователю (inline под композером), никогда не отклоняя
+      // промис, — здесь только страхуемся и логируем на случай, если какой-то
+      // будущий caller решит отклонить.
+      let ok: boolean | void;
+      try {
+        ok = await onSend(trimmed, files);
+      } catch (err) {
+        logger.error("[ChatInput] onSend rejected", err);
+        return;
+      }
+      if (ok === false) return;
+      // Uncontrolled: always clear after a successful dispatch (existing chat
+      // behaviour). Controlled: leave clearing to the parent — the draft
+      // composer never clears on error, so the message isn't lost.
+      if (!isControlled) setInternalValue("");
+      clearAttachments();
+    } finally {
+      // A rejected `onSend` (docstring above: a supported outcome, same as
+      // returning `false`) must not leave the composer disabled forever —
+      // `finally` resets `busy` on every exit path, not just the resolved one.
+      setBusy(false);
+    }
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      void handleSend();
     }
+  }
+
+  function handleFileInputChange(e: ChangeEvent<HTMLInputElement>) {
+    if (e.target.files) addFiles(e.target.files);
+    // Тот же файл повторно даёт `change` только после сброса значения.
+    e.target.value = "";
   }
 
   return (
     <div className="px-4 pb-4 pt-3">
       <div
-        className="mx-auto rounded-[var(--radius)] bg-card"
+        className="relative mx-auto rounded-[var(--radius)] bg-card"
         style={{
           maxWidth: "var(--content-max-w)",
           boxShadow: "var(--shadow-input)",
         }}
+        {...dragHandlers}
       >
+        {isDragging && <DragOverlay />}
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 px-3 pt-3">
+            {attachments.map((a) => (
+              <AttachmentChip
+                key={a.id}
+                name={a.file.name}
+                size={a.file.size}
+                uploading={busy}
+                onRemove={() => removeAttachment(a.id)}
+              />
+            ))}
+          </div>
+        )}
         <div className="flex items-end gap-2 p-3">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isDisabled}
+            aria-label="Прикрепить файл"
+            title="Прикрепить файл"
+            className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-40"
+          >
+            <Paperclip className="h-4 w-4" />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            hidden
+            onChange={handleFileInputChange}
+          />
           <Textarea
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder ?? "Сообщение..."}
-            disabled={disabled || isStreaming}
+            disabled={isDisabled}
             className="min-h-10 resize-none border-0 shadow-none focus-visible:ring-0 dark:bg-transparent"
           />
           {isStreaming ? (
@@ -86,8 +180,8 @@ export function ChatInput({
           ) : (
             <button
               type="button"
-              onClick={handleSend}
-              disabled={disabled || !trimmed}
+              onClick={() => void handleSend()}
+              disabled={disabled || busy || !hasContent}
               aria-label="Отправить"
               className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-40"
             >

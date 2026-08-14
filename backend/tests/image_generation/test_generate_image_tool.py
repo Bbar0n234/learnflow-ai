@@ -1,403 +1,180 @@
-"""Behavior tests for the ``generate_image`` agent tool (T1.5).
+"""Unit: `generate_image` after the move onto workspace files (T1.7).
 
-The tool orchestrates: call the OpenRouter helper -> write artifact + blob in one
-transaction -> (optional) Langfuse generation-observation -> return a text
-ToolMessage plus the artifact dict that drives ``artifact_created``.
+The image call itself is unchanged and irrelevant here — it is faked at the
+`app.infra.image_generation` seam (network, cost, non-determinism). What this
+suite covers is the half that changed: where the bytes land and what the tool
+reports back. The result is now a file under `artifacts/`, named from a slug
+of the model-supplied title, and the envelope carries the *saved filename* on
+both `path` and `title` — not the raw title argument, or the card in the chat
+feed would disagree with the row in the artifacts list for the same file.
 
-The external OpenRouter call (``call_generate_image``, tested on its own in
-``test_openrouter_image.py``) is replaced with a fake here; the transaction runs
-against real Postgres through ``tool_session_factory`` (see the scope conftest),
-so the atomic write is observed end to end. We drive the tool's ``.coroutine``
-directly with a constructed ``ToolRuntime`` — the injected ``runtime`` arg is
-excluded from the public tool schema, matching the KS/user-memory tool tests.
+Naming is the risky part and gets the negatives: a repeated title must not
+overwrite the image an earlier turn's history still points at, and a title
+made of nothing usable must still produce a name that reads as an image.
 """
 
 from __future__ import annotations
 
-import uuid
-from collections.abc import Awaitable, Callable
-from types import SimpleNamespace
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
 from app.agent.config import ImageConfig
-from app.agent.graph import AgentContext
+from app.agent.tools import image_generation as image_module
 from app.agent.tools.image_generation import make_generate_image_tool
+from app.config import Settings
 from app.infra.image_generation import ImageGenerationResult
-from app.models.project import Project
-from app.models.thread_view import ThreadView
-from app.repositories.artifact import ArtifactRepository
-from app.services.exceptions import UpstreamUnavailableError
-from app.storage.blob_storage import PgBlobStorage
-from langchain_core.tools import StructuredTool
-from langgraph.prebuilt import ToolRuntime
-from sqlalchemy.ext.asyncio import AsyncSession
+from app.storage.workspace import TMP_FILE_PREFIX, Workspace
+from langchain_core.tools import BaseTool, StructuredTool
+from learnflow_testing.workspace import (
+    PROJECT_ID,
+    runtime,
+    runtime_without_context,
+)
 
-from tests.image_generation.conftest import ThreadViewFactory
-
-pytestmark = pytest.mark.integration
-
-_PNG = b"\x89PNG\r\n\x1a\n fake image bytes"
+pytestmark = pytest.mark.unit
 
 
-def _coro(tool: object) -> Callable[..., Awaitable[Any]]:
-    return cast(Callable[..., Awaitable[Any]], cast(StructuredTool, tool).coroutine)
+@pytest.fixture
+def workspaces_root(tmp_path: Path) -> Path:
+    root = tmp_path / "workspaces"
+    root.mkdir()
+    return root
 
 
-def _runtime(
-    *, project_id: uuid.UUID, thread_id: uuid.UUID, with_context: bool = True
-) -> ToolRuntime[AgentContext | None, dict[str, Any]]:
-    context = (
-        AgentContext(project_id=str(project_id), user_id="user-1")
-        if with_context
-        else None
-    )
-    return ToolRuntime(
-        state={},
-        context=context,
-        config={"configurable": {"thread_id": str(thread_id)}},
-        stream_writer=lambda _: None,
-        tool_call_id="call-1",
-        store=None,
+@pytest.fixture
+def workspace(workspaces_root: Path, tmp_path: Path) -> Workspace:
+    skills_root = tmp_path / "skills"
+    skills_root.mkdir()
+    return Workspace(
+        workspaces_root=workspaces_root,
+        skills_root=skills_root,
+        read_limit_chars=50_000,
+        diff_file_limit_bytes=1_000_000,
+        diff_total_limit_bytes=10_000_000,
     )
 
 
-def _fake_helper(
-    result: ImageGenerationResult | None = None,
+@pytest.fixture
+def artifacts_dir(workspaces_root: Path) -> Path:
+    return workspaces_root / PROJECT_ID / "artifacts"
+
+
+def _tool(
+    workspace: Workspace,
+    monkeypatch: pytest.MonkeyPatch,
     *,
-    raises: Exception | None = None,
-    calls: list[dict[str, Any]] | None = None,
-) -> Callable[..., Awaitable[ImageGenerationResult]]:
-    async def _call(
-        settings: Any, image_config: Any, **kwargs: Any
-    ) -> ImageGenerationResult:
-        if calls is not None:
-            calls.append(kwargs)
-        if raises is not None:
-            raise raises
-        assert result is not None
-        return result
+    data: bytes = b"\x89PNG-bytes",
+    media_type: str = "image/png",
+) -> BaseTool:
+    """The tool with the image API replaced by a programmed result."""
 
-    return _call
+    async def fake_call(*_args: Any, **_kwargs: Any) -> ImageGenerationResult:
+        return ImageGenerationResult(data=data, media_type=media_type, cost=0.01)
+
+    monkeypatch.setattr(image_module, "call_generate_image", fake_call)
+    return make_generate_image_tool(
+        workspace, Settings(), ImageConfig(model="fake-image-model")
+    )
 
 
-async def _seed_project_and_thread(session: AsyncSession) -> tuple[Project, ThreadView]:
-    thread: ThreadView = await ThreadViewFactory.create()
-    project = thread.project
-    return project, thread
+async def _call(tool: BaseTool, **kwargs: Any) -> Any:
+    coroutine = cast("StructuredTool", tool).coroutine
+    assert coroutine is not None
+    return await coroutine(**kwargs)
 
 
-async def test_generate_image_writes_artifact_and_blob_atomically(
-    seed_session: AsyncSession,
-    tool_session_factory: Callable[[], AsyncSession],
-    monkeypatch: pytest.MonkeyPatch,
+async def test_generate_image_saves_the_bytes_as_an_artifact_file(
+    workspace: Workspace, artifacts_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    project, thread = await _seed_project_and_thread(seed_session)
-    result = ImageGenerationResult(data=_PNG, media_type="image/png", cost=0.067)
-    monkeypatch.setattr(
-        "app.agent.tools.image_generation.call_generate_image",
-        _fake_helper(result),
-    )
-    tool = make_generate_image_tool(
-        cast(Any, tool_session_factory),
-        cast(Any, SimpleNamespace()),
-        ImageConfig(model="google/gemini-3.1-flash-image"),
+    tool = _tool(workspace, monkeypatch)
+
+    text, artifacts = await _call(
+        tool, prompt="a neon city", title="Neon City", runtime=runtime()
     )
 
-    text, artifact_payload = await _coro(tool)(
-        prompt="a wide-angle cover of a neon city at golden hour",
-        title="Neon City",
-        aspect_ratio="16:9",
-        resolution="2K",
-        runtime=_runtime(project_id=project.id, thread_id=thread.thread_id),
-    )
-
-    # The artifact dict is what the SSE mapper turns into ``artifact_created``.
-    assert artifact_payload["type"] == "image"
-    assert artifact_payload["title"] == "Neon City"
-    artifact_id = uuid.UUID(artifact_payload["id"])
-
-    # Both rows are readable on the same connection -> the single transaction
-    # committed the artifact and its blob together.
-    artifact = await ArtifactRepository(seed_session).get_by_id(artifact_id)
-    assert artifact is not None
-    assert artifact.type == "image"
-    assert artifact.content == "a wide-angle cover of a neon city at golden hour"
-    assert artifact.project_id == project.id
-    assert artifact.thread_id == thread.thread_id
-
-    blob = await PgBlobStorage(seed_session).get(artifact_id)
-    assert blob is not None
-    data, mime_type = blob
-    assert data == _PNG
-    assert mime_type == "image/png"
-
-    # ToolMessage text confirms title, id, resolution and cost to the agent.
-    assert "Neon City" in text
-    assert str(artifact_id) in text
-    assert "2K" in text
-    assert "0.0670" in text
+    assert (artifacts_dir / "Neon City.png").read_bytes() == b"\x89PNG-bytes"
+    assert artifacts == [
+        {
+            "path": "Neon City.png",
+            "title": "Neon City.png",
+            "type": "png",
+            "kind": "created",
+        }
+    ]
+    assert "Neon City.png" in text
 
 
-async def test_generate_image_forwards_prompt_and_params_to_helper(
-    seed_session: AsyncSession,
-    tool_session_factory: Callable[[], AsyncSession],
-    monkeypatch: pytest.MonkeyPatch,
+async def test_generate_image_takes_the_extension_from_the_response_mime(
+    workspace: Workspace, artifacts_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    project, thread = await _seed_project_and_thread(seed_session)
-    calls: list[dict[str, Any]] = []
-    result = ImageGenerationResult(data=_PNG, media_type="image/png", cost=None)
-    monkeypatch.setattr(
-        "app.agent.tools.image_generation.call_generate_image",
-        _fake_helper(result, calls=calls),
-    )
-    tool = make_generate_image_tool(
-        cast(Any, tool_session_factory),
-        cast(Any, SimpleNamespace()),
-        ImageConfig(model="m"),
-    )
+    tool = _tool(workspace, monkeypatch, data=b"webp", media_type="image/webp")
 
-    await _coro(tool)(
-        prompt="an icon",
-        title="Icon",
-        aspect_ratio="1:1",
-        resolution="512",
-        runtime=_runtime(project_id=project.id, thread_id=thread.thread_id),
-    )
+    _, artifacts = await _call(tool, prompt="p", title="Cover", runtime=runtime())
 
-    # The composition/creative args reach the OpenRouter helper unchanged.
-    assert calls == [{"prompt": "an icon", "aspect_ratio": "1:1", "resolution": "512"}]
+    assert artifacts[0]["path"] == "Cover.webp"
+    assert (artifacts_dir / "Cover.webp").exists()
 
 
-async def test_generate_image_omits_cost_label_when_cost_unknown(
-    seed_session: AsyncSession,
-    tool_session_factory: Callable[[], AsyncSession],
-    monkeypatch: pytest.MonkeyPatch,
+async def test_generate_image_with_a_repeated_title_does_not_overwrite(
+    workspace: Workspace, artifacts_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    project, thread = await _seed_project_and_thread(seed_session)
-    result = ImageGenerationResult(data=_PNG, media_type="image/png", cost=None)
-    monkeypatch.setattr(
-        "app.agent.tools.image_generation.call_generate_image",
-        _fake_helper(result),
-    )
-    tool = make_generate_image_tool(
-        cast(Any, tool_session_factory),
-        cast(Any, SimpleNamespace()),
-        ImageConfig(model="m"),
-    )
+    # The earlier image is what an older chat message's card still points at.
+    tool = _tool(workspace, monkeypatch, data=b"first")
+    await _call(tool, prompt="p", title="Cover", runtime=runtime())
+    tool = _tool(workspace, monkeypatch, data=b"second")
 
-    text, _ = await _coro(tool)(
-        prompt="p",
-        title="T",
-        runtime=_runtime(project_id=project.id, thread_id=thread.thread_id),
-    )
+    _, artifacts = await _call(tool, prompt="p", title="Cover", runtime=runtime())
 
-    # No provider cost -> a literal "unknown", never a fabricated "$0.0000".
-    assert "unknown" in text
-    assert "provider default" in text  # resolution omitted by the agent
+    assert artifacts[0]["path"] == "Cover-1.png"
+    assert (artifacts_dir / "Cover.png").read_bytes() == b"first"
+    assert (artifacts_dir / "Cover-1.png").read_bytes() == b"second"
 
 
-async def test_generate_image_provider_error_writes_nothing(
-    seed_session: AsyncSession,
-    tool_session_factory: Callable[[], AsyncSession],
-    monkeypatch: pytest.MonkeyPatch,
+async def test_generate_image_falls_back_to_an_image_name_for_an_unusable_title(
+    workspace: Workspace, artifacts_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    project, thread = await _seed_project_and_thread(seed_session)
-    monkeypatch.setattr(
-        "app.agent.tools.image_generation.call_generate_image",
-        _fake_helper(
-            raises=UpstreamUnavailableError(
-                code="image-generation-failed", status=502, detail="boom"
-            )
-        ),
-    )
-    tool = make_generate_image_tool(
-        cast(Any, tool_session_factory),
-        cast(Any, SimpleNamespace()),
-        ImageConfig(model="m"),
-    )
+    tool = _tool(workspace, monkeypatch)
 
-    with pytest.raises(UpstreamUnavailableError):
-        await _coro(tool)(
-            prompt="p",
-            title="T",
-            runtime=_runtime(project_id=project.id, thread_id=thread.thread_id),
-        )
+    _, artifacts = await _call(tool, prompt="p", title="\x00\x01", runtime=runtime())
 
-    # Atomicity: the helper raised before the transaction opened, so no artifact
-    # (and thus no blob) exists for this project.
-    artifacts = await ArtifactRepository(seed_session).list_by_project(project.id)
-    assert artifacts == []
+    assert artifacts[0]["path"].startswith("image-")
+    assert artifacts[0]["path"].endswith(".png")
+    assert (artifacts_dir / artifacts[0]["path"]).exists()
 
 
-async def test_generate_image_blob_write_failure_rolls_back_artifact(
-    seed_session: AsyncSession,
-    tool_session_factory: Callable[[], AsyncSession],
-    monkeypatch: pytest.MonkeyPatch,
+async def test_generate_image_keeps_a_cyrillic_title_in_the_filename(
+    workspace: Workspace, artifacts_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Blob write failing *inside* ``session.begin()`` rolls the artifact back.
+    # Path *is* identity here and the REST layer carries Unicode fine — the
+    # slug only strips what a filesystem cannot take.
+    tool = _tool(workspace, monkeypatch)
 
-    The provider-error case above proves nothing survives when the helper fails
-    *before* the transaction opens. This case pins the harder invariant the
-    ``_atomically`` design leans on: the artifact row is created and flushed, then
-    the blob write raises within the same ``session.begin()`` — the whole
-    transaction must roll back, leaving neither the artifact nor its blob.
-    """
-    project, thread = await _seed_project_and_thread(seed_session)
-    result = ImageGenerationResult(data=_PNG, media_type="image/png", cost=0.067)
-    monkeypatch.setattr(
-        "app.agent.tools.image_generation.call_generate_image",
-        _fake_helper(result),
+    _, artifacts = await _call(
+        tool, prompt="p", title="Обложка лекции", runtime=runtime()
     )
 
-    async def _boom_put(_self: Any, **_kwargs: Any) -> None:
-        raise RuntimeError("blob storage exploded mid-transaction")
-
-    # Fail the blob write after ``ArtifactRepository.create`` has flushed the
-    # artifact row, i.e. strictly inside the tool's ``session.begin()``.
-    monkeypatch.setattr(PgBlobStorage, "put", _boom_put)
-
-    tool = make_generate_image_tool(
-        cast(Any, tool_session_factory),
-        cast(Any, SimpleNamespace()),
-        ImageConfig(model="m"),
-    )
-
-    with pytest.raises(RuntimeError, match="blob storage exploded"):
-        await _coro(tool)(
-            prompt="p",
-            title="T",
-            runtime=_runtime(project_id=project.id, thread_id=thread.thread_id),
-        )
-
-    # All-or-nothing: the artifact flushed before the failing blob write is gone,
-    # and no blob leaked either — the reader on the same connection sees neither.
-    artifacts = await ArtifactRepository(seed_session).list_by_project(project.id)
-    assert artifacts == []
+    assert artifacts[0]["path"] == "Обложка лекции.png"
 
 
-async def test_generate_image_without_context_raises(
-    tool_session_factory: Callable[[], AsyncSession],
-    monkeypatch: pytest.MonkeyPatch,
+async def test_generate_image_leaves_no_temp_file_behind(
+    workspace: Workspace, artifacts_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(
-        "app.agent.tools.image_generation.call_generate_image",
-        _fake_helper(
-            ImageGenerationResult(data=_PNG, media_type="image/png", cost=1.0)
-        ),
-    )
-    tool = make_generate_image_tool(
-        cast(Any, tool_session_factory),
-        cast(Any, SimpleNamespace()),
-        ImageConfig(model="m"),
-    )
+    tool = _tool(workspace, monkeypatch)
 
-    with pytest.raises(RuntimeError, match="AgentContext"):
-        await _coro(tool)(
-            prompt="p",
-            title="T",
-            runtime=_runtime(
-                project_id=uuid.uuid4(), thread_id=uuid.uuid4(), with_context=False
-            ),
-        )
+    await _call(tool, prompt="p", title="Cover", runtime=runtime())
+
+    assert [
+        p.name for p in artifacts_dir.iterdir() if p.name.startswith(TMP_FILE_PREFIX)
+    ] == []
 
 
-async def test_generate_image_emits_langfuse_observation_with_cost(
-    seed_session: AsyncSession,
-    tool_session_factory: Callable[[], AsyncSession],
-    monkeypatch: pytest.MonkeyPatch,
+async def test_generate_image_without_an_agent_context_raises(
+    workspace: Workspace, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    project, thread = await _seed_project_and_thread(seed_session)
-    result = ImageGenerationResult(data=_PNG, media_type="image/png", cost=0.101)
-    monkeypatch.setattr(
-        "app.agent.tools.image_generation.call_generate_image",
-        _fake_helper(result),
-    )
+    # `project_id` decides whose workspace the file lands in — no context
+    # means no safe default, so the tool must refuse rather than guess.
+    tool = _tool(workspace, monkeypatch)
 
-    recorded: list[dict[str, Any]] = []
-
-    class _Obs:
-        def __enter__(self) -> _Obs:
-            return self
-
-        def __exit__(self, *exc: object) -> None:
-            return None
-
-    class _Client:
-        def start_as_current_observation(self, **kwargs: Any) -> _Obs:
-            recorded.append(kwargs)
-            return _Obs()
-
-    monkeypatch.setattr(
-        "app.agent.tools.image_generation.get_client", lambda: _Client()
-    )
-
-    tool = make_generate_image_tool(
-        cast(Any, tool_session_factory),
-        cast(Any, SimpleNamespace()),
-        ImageConfig(model="google/gemini-3.1-flash-image"),
-        langfuse_enabled=True,
-    )
-
-    await _coro(tool)(
-        prompt="p",
-        title="T",
-        runtime=_runtime(project_id=project.id, thread_id=thread.thread_id),
-    )
-
-    # The cost-carrying generation observation is the only accounting hook for an
-    # image call (it bypasses the token-usage callback) — assert the payload.
-    assert len(recorded) == 1
-    obs = recorded[0]
-    assert obs["as_type"] == "generation"
-    assert obs["model"] == "google/gemini-3.1-flash-image"
-    assert obs["cost_details"] == {"total": 0.101}
-
-
-async def test_generate_image_langfuse_observation_omits_cost_when_unknown(
-    seed_session: AsyncSession,
-    tool_session_factory: Callable[[], AsyncSession],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    project, thread = await _seed_project_and_thread(seed_session)
-    result = ImageGenerationResult(data=_PNG, media_type="image/png", cost=None)
-    monkeypatch.setattr(
-        "app.agent.tools.image_generation.call_generate_image",
-        _fake_helper(result),
-    )
-
-    recorded: list[dict[str, Any]] = []
-
-    class _Obs:
-        def __enter__(self) -> _Obs:
-            return self
-
-        def __exit__(self, *exc: object) -> None:
-            return None
-
-    class _Client:
-        def start_as_current_observation(self, **kwargs: Any) -> _Obs:
-            recorded.append(kwargs)
-            return _Obs()
-
-    monkeypatch.setattr(
-        "app.agent.tools.image_generation.get_client", lambda: _Client()
-    )
-
-    tool = make_generate_image_tool(
-        cast(Any, tool_session_factory),
-        cast(Any, SimpleNamespace()),
-        ImageConfig(model="m"),
-        langfuse_enabled=True,
-    )
-
-    await _coro(tool)(
-        prompt="p",
-        title="T",
-        runtime=_runtime(project_id=project.id, thread_id=thread.thread_id),
-    )
-
-    # None cost -> the observation is still opened, but with no cost_details
-    # (a fabricated 0 would read as "free" in Langfuse reports).
-    assert len(recorded) == 1
-    assert "cost_details" not in recorded[0]
+    with pytest.raises(RuntimeError):
+        await _call(tool, prompt="p", title="Cover", runtime=runtime_without_context())

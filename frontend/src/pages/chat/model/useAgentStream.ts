@@ -105,7 +105,7 @@ export function useAgentStream(
   }, []);
 
   const send = useCallback(
-    (content: string) => {
+    (content: string, attachments?: string[]) => {
       const { startStream, applyEvent, redact, setReviewing, endStream } =
         useStreamStore.getState();
 
@@ -132,6 +132,16 @@ export function useAgentStream(
       };
       armSilenceWatch();
 
+      // Пути вложений — рядом с текстом, в теле того же POST (design-brief §
+      // Вложения пользователя: upload на файл уже прошёл до вызова `send`, тут
+      // летят только пути). Поле отсутствует вовсе без вложений — не пустой
+      // массив, — тело неотличимо от хода без файлов, как было до T2.7.
+      const body = JSON.stringify(
+        attachments && attachments.length > 0
+          ? { content, attachments }
+          : { content },
+      );
+
       (async () => {
         try {
           const token = await ensureFreshToken();
@@ -149,7 +159,7 @@ export function useAgentStream(
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${token}`,
               },
-              body: JSON.stringify({ content }),
+              body,
               signal: controller.signal,
             },
           );
@@ -170,7 +180,7 @@ export function useAgentStream(
                   "Content-Type": "application/json",
                   Authorization: `Bearer ${freshToken}`,
                 },
-                body: JSON.stringify({ content }),
+                body,
                 signal: controller.signal,
               },
             );
@@ -249,12 +259,24 @@ export function useAgentStream(
                   applyEvent(chatId, event);
                   break;
                 case "artifact_created":
-                  // В живом ходе карточка не рисуется: факт создания виден
-                  // строкой ленты, а полную карточку рисует история после
-                  // завершения хода. Здесь — только инвалидация списка
-                  // артефактов проекта, чтобы он открылся уже с новым.
+                case "artifact_updated":
+                  // В живом ходе карточка не рисуется: факт создания/обновления
+                  // виден строкой ленты, а полную карточку рисует история после
+                  // завершения хода (§ Кэш media). Точечная инвалидация ключа
+                  // пути (префикс задевает и media — иерархия query-keys) держит
+                  // вьюер/миниатюру свежими, если артефакт уже открыт; список
+                  // артефактов — с `exact: true`, иначе префиксная инвалидация
+                  // списка снесла бы и все detail/media ключи, обнуляя смысл
+                  // точечной инвалидации выше.
+                  queryClient.invalidateQueries({
+                    queryKey: queryKeys.projects.artifact(
+                      projectId,
+                      event.path,
+                    ),
+                  });
                   queryClient.invalidateQueries({
                     queryKey: queryKeys.projects.artifacts(projectId),
+                    exact: true,
                   });
                   break;
                 case "final_output_review_started":
@@ -317,6 +339,15 @@ export function useAgentStream(
                   queryClient.invalidateQueries({
                     queryKey: queryKeys.chats.recent,
                   });
+                  // Терминальная ветка хода: событий удаления/переименования
+                  // артефакта в контракте нет, поэтому список довозится до
+                  // актуального состояния на каждом завершении хода, а не
+                  // только по artifact_created/artifact_updated выше
+                  // (§ Идентификатор = путь, A6c).
+                  queryClient.invalidateQueries({
+                    queryKey: queryKeys.projects.artifacts(projectId),
+                    exact: true,
+                  });
                   optionsRef.current?.onDone?.({ chatId, messageId, traceId });
                   break;
                 }
@@ -339,6 +370,14 @@ export function useAgentStream(
                   });
                   queryClient.invalidateQueries({
                     queryKey: queryKeys.chats.recent,
+                  });
+                  // Отменённая джоба может успеть дописать файлы в artifacts/
+                  // без парного artifact_created (executor не убивается по
+                  // обрыву — design-brief § Отмена, «сироты приняты»): список
+                  // довозится до актуального состояния и здесь.
+                  queryClient.invalidateQueries({
+                    queryKey: queryKeys.projects.artifacts(projectId),
+                    exact: true,
                   });
                   // Отмена — не ошибка: error-баннера здесь нет.
                   optionsRef.current?.onCancelled?.(chatId);
@@ -385,6 +424,12 @@ export function useAgentStream(
                   });
                   queryClient.invalidateQueries({
                     queryKey: queryKeys.chats.recent,
+                  });
+                  // Терминальная ветка: джоба могла успеть записать файлы до
+                  // ошибки — тот же довоз списка, что на `done`/`cancelled`.
+                  queryClient.invalidateQueries({
+                    queryKey: queryKeys.projects.artifacts(projectId),
+                    exact: true,
                   });
                   if (!isCancellingRef.current) {
                     optionsRef.current?.onError?.(chatId, event.detail);

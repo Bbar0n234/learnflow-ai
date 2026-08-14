@@ -10,20 +10,21 @@ Building blocks shared across the subagent runner / graph / tool tests:
   assertable without a live Langfuse/file lookup;
 - duck-typed fakes for the two seams the runner/graph program against — the
   chat model (``CapturingModel`` / ``ScriptedToolModel`` /
-  ``InfiniteToolCallModel``) and the security guard (``SelectiveGuard``);
-- the real-Postgres transactional harness the ``run_subagent`` tool needs to
-  fetch artifacts (``tool_session_factory`` / ``seed_session``), copied from
-  the image-generation scope because the tool — like ``generate_image`` —
-  opens its *own* session through an injected factory.
+  ``InfiniteToolCallModel``) and the security guard (``SelectiveGuard``).
+
+T1.5: the real-Postgres transactional harness the ``run_subagent`` tool used
+to need for its old UUID-keyed artifact fetch (``tool_session_factory`` /
+``seed_session`` / ``outer_conn``) is gone along with that mechanism — the
+tool now resolves ``input_artifact_paths`` through the workspace file layer
+(``Workspace``), not a DB session.
 """
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Callable, Iterable
+from collections.abc import Callable, Iterable
 from typing import Any
 
 import pytest
-import pytest_asyncio
 from app.agent.config import (
     AgentConfig,
     PromptFragmentsConfig,
@@ -41,8 +42,6 @@ from app.agent.subagents.graph import build_subagent_graph, compile_subagent_gra
 from app.infra.prompt_provider import PromptProvider
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.tools import BaseTool
-from learnflow_testing.factories import ProjectFactory, bind_session
-from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession
 
 # --- config fixtures --------------------------------------------------------
 
@@ -205,53 +204,3 @@ def subagent_react_graph() -> Callable[..., Any]:
         return compile_subagent_graph(builder, checkpointer=False)
 
     return _build
-
-
-# --- real-Postgres harness for the tool's artifact fetch --------------------
-# Mirrors the image-generation scope: the ``run_subagent`` tool opens its own
-# session via an injected factory, so every session in a test binds to one
-# outer connection + transaction rolled back in teardown.
-
-
-@pytest_asyncio.fixture
-async def outer_conn(engine: AsyncEngine) -> AsyncIterator[AsyncConnection]:
-    """One connection with an outer transaction rolled back in teardown."""
-    conn = await engine.connect()
-    trans = await conn.begin()
-    try:
-        yield conn
-    finally:
-        await trans.rollback()
-        await conn.close()
-
-
-def _bound_session(conn: AsyncConnection) -> AsyncSession:
-    return AsyncSession(
-        bind=conn,
-        expire_on_commit=False,
-        join_transaction_mode="create_savepoint",
-    )
-
-
-@pytest.fixture
-def tool_session_factory(
-    outer_conn: AsyncConnection,
-) -> Callable[[], AsyncSession]:
-    """A ``session_factory`` for the tool: fresh sibling session on ``outer_conn``."""
-
-    def _make() -> AsyncSession:
-        return _bound_session(outer_conn)
-
-    return _make
-
-
-@pytest_asyncio.fixture
-async def seed_session(outer_conn: AsyncConnection) -> AsyncIterator[AsyncSession]:
-    """A reader/seeder session on ``outer_conn`` with factories bound to it."""
-    session = _bound_session(outer_conn)
-    bind_session(session)
-    bind_session(session, ProjectFactory)
-    try:
-        yield session
-    finally:
-        await session.close()

@@ -1,6 +1,9 @@
 // Возврат в уже загруженный чат оставляет шапку смонтированной, а её
 // `TypedTitle` спрашивает `prefers-reduced-motion` — в jsdom `matchMedia` нет.
 import "@/test/match-media-polyfill";
+// jsdom не умеет читать `Blob` — без полифилла multipart-загрузка вложения
+// не доезжает до обработчика MSW (см. сам модуль).
+import "@/test/blob-polyfill";
 
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -18,6 +21,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { setAccessToken } from "@/shared/api/client";
 import { Button } from "@/shared/ui/button";
+import { attachFiles as attach } from "@/test/file-input";
 import { server } from "@/test/msw/server";
 import { fakeJwt, sseFrame, sseResponseStream } from "@/test/sse-stream";
 import { createTestQueryClient, renderWithProviders } from "@/test/test-utils";
@@ -36,6 +40,8 @@ const CHAT_ID = "c1";
 const CHAT_URL = `/api/projects/${PROJECT_ID}/chats/${CHAT_ID}`;
 const MESSAGES_URL = `${CHAT_URL}/messages`;
 const PROJECT_URL = `/api/projects/${PROJECT_ID}`;
+/** Загрузка вложения идёт в проект, а не в чат (feat-011, § Вложения). */
+const UPLOADS_URL = `/api/projects/${PROJECT_ID}/uploads`;
 /** Соседний чат того же проекта — цель переключения в кейсе скоупинга ниже. */
 const OTHER_CHAT_ID = "c2";
 const OTHER_CHAT_URL = `/api/projects/${PROJECT_ID}/chats/${OTHER_CHAT_ID}`;
@@ -189,6 +195,16 @@ function recordingChat() {
   return { sentBodies, handlers };
 }
 
+/**
+ * Очередь входа: текст первого сообщения плюс уже загруженные пути вложений
+ * (feat-011, T2.8 — draft-композер и поле первого сообщения грузят файлы до
+ * навигации и передают сюда готовые пути).
+ */
+interface EntryState {
+  initialMessage?: string;
+  attachments?: { path: string; title: string }[];
+}
+
 /** Reports what router state the chat screen is currently sitting on. */
 function StateProbe() {
   const location = useLocation();
@@ -212,7 +228,7 @@ function EffectPassProbe({ passes }: { passes: string[] }) {
 }
 
 function renderChatThread(
-  state: { initialMessage?: string } | null,
+  state: EntryState | null,
   // `strict` mounts the screen the way `main.tsx` does in dev — React then runs
   // effects as mount → cleanup → mount (see the Strict Mode case below).
   { strict = false }: { strict?: boolean } = {},
@@ -496,6 +512,231 @@ describe("ChatThread — first message handed over by the entry path", () => {
 
     expect(await screen.findByText(OTHER_CHAT_MESSAGE)).toBeInTheDocument();
     expect(screen.queryByText("Объясни производные")).not.toBeInTheDocument();
+  });
+
+  // Вложения композера (feat-011, T2.8): файл уезжает на сервер ровно в момент
+  // отправки, и только подтверждённая загрузка заводит ход (design-brief
+  // § Тайминг). Ошибка загрузки не должна ни отправлять сообщение, ни стирать
+  // набранное.
+  describe("вложения в отправке", () => {
+    function mdFile(name = "notes.md"): File {
+      return new File(["конспект"], name, { type: "text/markdown" });
+    }
+
+    it("грузит файл и только потом заводит ход с его путём", async () => {
+      setAccessToken(fakeJwt());
+      const calls: string[] = [];
+      const bodies: string[] = [];
+      server.use(
+        projectHandler(),
+        http.get(CHAT_URL, () => emptyChat()),
+        http.post(UPLOADS_URL, () => {
+          calls.push("upload");
+          return HttpResponse.json({ path: "uploads/notes.md" });
+        }),
+        http.post(MESSAGES_URL, async ({ request }) => {
+          calls.push("message");
+          bodies.push(await request.text());
+          return streamResponse([
+            { type: "done", message_id: "m-1", trace_id: null },
+          ]);
+        }),
+      );
+      const user = userEvent.setup();
+      const { container } = renderChatThread(null);
+
+      const field = await screen.findByPlaceholderText("Сообщение...");
+      await user.type(field, "Разбери конспект");
+      attach(container, mdFile());
+      await user.click(screen.getByRole("button", { name: "Отправить" }));
+
+      await waitFor(() => expect(bodies).toHaveLength(1));
+      // Порядок — часть контракта: сообщение с путём, которого ещё нет на
+      // сервере, агент прочитать не сможет.
+      expect(calls).toEqual(["upload", "message"]);
+      expect(JSON.parse(bodies[0]!) as unknown).toEqual({
+        content: "Разбери конспект",
+        attachments: ["uploads/notes.md"],
+      });
+    });
+
+    it("показывает отправленное сообщение с чипом сразу, не дожидаясь истории", async () => {
+      setAccessToken(fakeJwt());
+      server.use(
+        projectHandler(),
+        http.get(CHAT_URL, () => emptyChat()),
+        http.post(UPLOADS_URL, () =>
+          HttpResponse.json({ path: "uploads/notes-2.md" }),
+        ),
+        // Ход не заканчивается: оптимистичная копия живёт, пока он идёт.
+        http.post(MESSAGES_URL, () =>
+          heldStream([sseFrame({ type: "text_chunk", content: "Смотрю" })]),
+        ),
+      );
+      const user = userEvent.setup();
+      const { container } = renderChatThread(null);
+
+      const field = await screen.findByPlaceholderText("Сообщение...");
+      await user.type(field, "Разбери конспект");
+      attach(container, mdFile("notes.md"));
+      await user.click(screen.getByRole("button", { name: "Отправить" }));
+
+      // Состояния до и после отправки различает наличие ✕ у чипа: она есть
+      // только в композере (чип истории некликабелен), поэтому её отсутствие —
+      // признак «композер очищён», а не «ждём». Без этой половины ожидание
+      // резолвилось бы и на чипе композера, то есть до отправки.
+      // Оба ассерта в одном `waitFor`: единственное состояние, которое их
+      // проходит, — чип уехал из композера и остался ровно один, в истории,
+      // подписанный выбранным пользователем именем, а не путём, которым файл
+      // переименовал сервер.
+      await waitFor(() => {
+        expect(
+          screen.queryByRole("button", { name: "Убрать notes.md" }),
+        ).not.toBeInTheDocument();
+        expect(screen.getAllByText("notes.md")).toHaveLength(1);
+      });
+      expect(screen.getByText("Разбери конспект")).toBeInTheDocument();
+    });
+
+    it("на провале загрузки сообщение не уходит, а текст и чип остаются", async () => {
+      // A14: сервер отверг файл по лимиту — ход не заводится вовсе, а причина
+      // видна под композером. Обработчик отправки зарегистрирован намеренно:
+      // без него ушедшее сообщение просто упало бы на MSW, и кейс остался бы
+      // зелёным при отправленном сообщении.
+      setAccessToken(fakeJwt());
+      const bodies: string[] = [];
+      server.use(
+        projectHandler(),
+        http.get(CHAT_URL, () => emptyChat()),
+        http.post(UPLOADS_URL, () =>
+          HttpResponse.json({ detail: "Файл больше 20 МБ" }, { status: 413 }),
+        ),
+        http.post(MESSAGES_URL, async ({ request }) => {
+          bodies.push(await request.text());
+          return streamResponse([
+            { type: "done", message_id: "m-1", trace_id: null },
+          ]);
+        }),
+      );
+      const user = userEvent.setup();
+      const { container } = renderChatThread(null);
+
+      const field = await screen.findByPlaceholderText("Сообщение...");
+      await user.type(field, "Разбери конспект");
+      attach(container, mdFile("huge.pdf"));
+      await user.click(screen.getByRole("button", { name: "Отправить" }));
+
+      expect(await screen.findByText("Файл больше 20 МБ")).toBeInTheDocument();
+      // Сообщение не ушло на сервер — «не отправлено» в буквальном смысле, а
+      // не «отправлено, но не показано».
+      expect(bodies).toEqual([]);
+      expect(field).toHaveValue("Разбери конспект");
+      expect(screen.getByText("huge.pdf")).toBeInTheDocument();
+    });
+
+    it("роняет всю партию, если из двух вложений не взлетело одно", async () => {
+      // Файлы уезжают `Promise.all`, поэтому отказ на одном отменяет отправку
+      // целиком: сообщение не уходит, и на повторную попытку остаются оба чипа
+      // — включая уже загруженный файл (он становится сиротой в `uploads/`, и
+      // второй заход разведёт его суффиксом). Поведение принято брифом
+      // § Вложения пользователя; кейс сторожит именно его, чтобы «частичная»
+      // отправка с половиной вложений не появилась незамеченной.
+      setAccessToken(fakeJwt());
+      const uploaded: string[] = [];
+      const bodies: string[] = [];
+      server.use(
+        projectHandler(),
+        http.get(CHAT_URL, () => emptyChat()),
+        http.post(UPLOADS_URL, async ({ request }) => {
+          // Какой файл приехал, видно только по сырому телу: `formData()` в
+          // jsdom отдаёт часть-файл объектом чужого realm (см. blob-polyfill).
+          const body = await request.text();
+          const huge = body.includes('filename="huge.pdf"');
+          uploaded.push(huge ? "huge.pdf" : "notes.md");
+          return huge
+            ? HttpResponse.json(
+                { detail: "Файл больше 20 МБ" },
+                { status: 413 },
+              )
+            : HttpResponse.json({ path: "uploads/notes.md" });
+        }),
+        http.post(MESSAGES_URL, async ({ request }) => {
+          bodies.push(await request.text());
+          return streamResponse([
+            { type: "done", message_id: "m-1", trace_id: null },
+          ]);
+        }),
+      );
+      const user = userEvent.setup();
+      const { container } = renderChatThread(null);
+
+      const field = await screen.findByPlaceholderText("Сообщение...");
+      await user.type(field, "Разбери оба");
+      attach(container, mdFile("notes.md"), mdFile("huge.pdf"));
+      await user.click(screen.getByRole("button", { name: "Отправить" }));
+
+      expect(await screen.findByText("Файл больше 20 МБ")).toBeInTheDocument();
+      // Ход не заведён вовсе — ни с одним вложением, ни с обрезанным списком.
+      expect(bodies).toEqual([]);
+      // Обе загрузки успели уйти: сирота на сервере — принятое следствие, а не
+      // признак того, что партия остановилась на первом отказе.
+      expect([...uploaded].sort()).toEqual(["huge.pdf", "notes.md"]);
+      // Повторная попытка возможна без пересбора: текст и оба чипа на месте.
+      expect(field).toHaveValue("Разбери оба");
+      expect(screen.getByText("notes.md")).toBeInTheDocument();
+      expect(screen.getByText("huge.pdf")).toBeInTheDocument();
+    });
+
+    it("заводит ход, когда очередь входа принесла одни вложения без текста", async () => {
+      // Путь «лекция №1»: файл прикреплён на экране создания чата, текста нет.
+      // Пустая строка — законная очередь входа, и ход обязан начаться.
+      setAccessToken(fakeJwt());
+      const bodies: string[] = [];
+      server.use(
+        projectHandler(),
+        http.get(CHAT_URL, () => emptyChat()),
+        http.post(MESSAGES_URL, async ({ request }) => {
+          bodies.push(await request.text());
+          return streamResponse([
+            { type: "done", message_id: "m-1", trace_id: null },
+          ]);
+        }),
+      );
+
+      renderChatThread({
+        initialMessage: "",
+        attachments: [{ path: "uploads/lecture.pdf", title: "lecture.pdf" }],
+      });
+
+      await waitFor(() => expect(bodies).toHaveLength(1));
+      expect(JSON.parse(bodies[0]!) as unknown).toEqual({
+        content: "",
+        attachments: ["uploads/lecture.pdf"],
+      });
+    });
+
+    it("не заводит ход на пустой очереди без текста и без вложений", async () => {
+      setAccessToken(fakeJwt());
+      const bodies: string[] = [];
+      server.use(
+        projectHandler(),
+        http.get(CHAT_URL, () => emptyChat()),
+        http.post(MESSAGES_URL, async ({ request }) => {
+          bodies.push(await request.text());
+          return streamResponse([
+            { type: "done", message_id: "m-1", trace_id: null },
+          ]);
+        }),
+      );
+
+      renderChatThread({ initialMessage: "", attachments: [] });
+
+      expect(
+        await screen.findByPlaceholderText("Сообщение..."),
+      ).toBeInTheDocument();
+      // Вырожденная очередь — ни текста, ни файлов: отправлять нечего.
+      expect(bodies).toEqual([]);
+    });
   });
 
   it("does not wait for the chat history to load before sending", async () => {

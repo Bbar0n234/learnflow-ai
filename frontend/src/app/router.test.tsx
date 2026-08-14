@@ -3,7 +3,7 @@ import "@/test/match-media-polyfill";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http, HttpResponse } from "msw";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useLocation, useNavigationType } from "react-router";
 import {
   afterEach,
   beforeAll,
@@ -15,6 +15,7 @@ import {
 } from "vitest";
 
 import { setAccessToken } from "@/shared/api/client";
+import { authProvidersHandlers } from "@/test/msw/auth-providers";
 import { server } from "@/test/msw/server";
 import { fakeJwt } from "@/test/sse-stream";
 import { renderWithProviders } from "@/test/test-utils";
@@ -215,6 +216,7 @@ describe("AppRoutes — the /security route under the SIEM flag", () => {
 
 describe("AppRoutes — the catch-all 404", () => {
   it("answers an unknown URL with the 404 screen", async () => {
+    setAccessToken(fakeJwt());
     server.use(...appHandlers());
 
     renderAppAt("/чепуха");
@@ -230,6 +232,7 @@ describe("AppRoutes — the catch-all 404", () => {
   });
 
   it("keeps the sidebar on screen, so the user stays inside the app", async () => {
+    setAccessToken(fakeJwt());
     server.use(...appHandlers());
 
     renderAppAt("/projects/p1/несуществующая-вкладка");
@@ -243,6 +246,7 @@ describe("AppRoutes — the catch-all 404", () => {
   });
 
   it("takes the user home from the 404, without a page reload", async () => {
+    setAccessToken(fakeJwt());
     server.use(...appHandlers());
     const user = userEvent.setup();
 
@@ -271,23 +275,25 @@ describe("AppRoutes — the catch-all 404", () => {
 
 // Integration on the artifacts tab index route (design-brief блок 6.2): with
 // nothing selected the viewer panel carries a prompt of its own instead of the
-// inline markup the router used to hold. The prompt gives way to the artifact
-// once one is opened.
+// inline markup the router used to hold. Адрес артефакта — `?path=` (feat-011),
+// поэтому «ничего не выбрано» — это отсутствие query-параметра, а не индекса.
 
 describe("AppRoutes — the artifacts tab without a selection", () => {
   const ARTIFACT_PROMPT =
     "Выберите артефакт из списка слева, чтобы посмотреть его.";
 
-  function artifactHandlers() {
-    return [
+  it("prompts to pick an artifact while none is open", async () => {
+    setAccessToken(fakeJwt());
+    server.use(
+      ...appHandlers(),
       http.get(`/api/projects/${PROJECT_ID}/artifacts`, () =>
         HttpResponse.json({
           items: [
             {
-              id: "a1",
+              path: "konspekt.md",
               title: "Конспект лекции",
-              type: "summary",
-              created_at: "2026-07-01T10:00:00Z",
+              type: "md",
+              updated_at: "2026-07-01T10:00:00Z",
             },
           ],
           total: 1,
@@ -295,40 +301,73 @@ describe("AppRoutes — the artifacts tab without a selection", () => {
           offset: 0,
         }),
       ),
-      http.get(`/api/projects/${PROJECT_ID}/artifacts/a1`, () =>
-        HttpResponse.json({
-          id: "a1",
-          title: "Конспект лекции",
-          type: "summary",
-          content: "Тело конспекта",
-          thread_id: null,
-          message_id: null,
-          created_at: "2026-07-01T10:00:00Z",
-        }),
-      ),
-    ];
-  }
-
-  it("prompts to pick an artifact while none is open", async () => {
-    server.use(...appHandlers(), ...artifactHandlers());
+    );
 
     renderAppAt(`/projects/${PROJECT_ID}/artifacts`);
 
     expect(await screen.findByText(ARTIFACT_PROMPT)).toBeInTheDocument();
   });
+});
 
-  it("replaces the prompt with the artifact the user opens", async () => {
-    server.use(...appHandlers(), ...artifactHandlers());
-    const user = userEvent.setup();
+// Integration (feat-008, трек T2): вход в SPA как маршрут, а не модалка. Guard
+// `RequireAuth` стоит над группой защищённых роутов, `/login` лежит снаружи.
+// Наблюдаем через сам роутер: зонд рядом с `<AppRoutes />` печатает текущий путь
+// и строку `from`, положенную guard'ом в `location.state` — то самое значение,
+// которое потом уходит и в `navigate(from)`, и в query-параметр `next`
+// (design-brief § Frontend). Зонд печатает и тип навигации: редирект guard'а
+// обязан заменять запись истории, иначе Back с `/login` возвращает на
+// защищённый URL, который тут же редиректит обратно — Back для пользователя
+// перестаёт работать. Отличить push от replace рендером нельзя (в обоих
+// случаях на экране `/login`), поэтому наблюдаем ту самую запись истории,
+// которую делает роутер.
 
-    renderAppAt(`/projects/${PROJECT_ID}/artifacts`);
-    await screen.findByText(ARTIFACT_PROMPT);
+const LOGIN_HEADING = "Вход";
 
-    await user.click(
-      await screen.findByRole("link", { name: /Конспект лекции/ }),
-    );
+function LocationProbe() {
+  const location = useLocation();
+  const navigationType = useNavigationType();
+  const state = location.state as { from?: string } | null;
+  return (
+    <>
+      <div>{`probe:${location.pathname}|${state?.from ?? ""}`}</div>
+      <div>{`nav:${navigationType}`}</div>
+    </>
+  );
+}
 
-    expect(await screen.findByText("Тело конспекта")).toBeInTheDocument();
-    expect(screen.queryByText(ARTIFACT_PROMPT)).not.toBeInTheDocument();
+function renderRoutedAt(entry: string) {
+  return renderWithProviders(
+    <MemoryRouter initialEntries={[entry]}>
+      <AppRoutes />
+      <LocationProbe />
+    </MemoryRouter>,
+  );
+}
+
+describe("AppRoutes — guard входа и публичный /login", () => {
+  it("уводит анонима с защищённого маршрута на /login, запоминая исходный путь строкой", async () => {
+    server.use(authProvidersHandlers.ru());
+
+    renderRoutedAt("/projects/p1/artifacts?tab=all#top");
+
+    expect(
+      await screen.findByRole("heading", { name: LOGIN_HEADING }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("probe:/login|/projects/p1/artifacts?tab=all#top"),
+    ).toBeInTheDocument();
+    // Защищённый URL заменён в истории, а не задвинут под `/login`.
+    expect(screen.getByText("nav:REPLACE")).toBeInTheDocument();
+  });
+
+  it("открывает /login без токена — маршрут публичный, вне guard'а", async () => {
+    server.use(authProvidersHandlers.ru());
+
+    renderRoutedAt("/login");
+
+    expect(
+      await screen.findByRole("heading", { name: LOGIN_HEADING }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("probe:/login|")).toBeInTheDocument();
   });
 });

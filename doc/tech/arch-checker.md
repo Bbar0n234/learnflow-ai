@@ -94,6 +94,8 @@ import-linter требует `PYTHONPATH=backend:services/siem-service`: Grimp �
 | `except Exception` только на барьере; нет глушащих `except: pass` | весь Python | смысловое (контекст «есть ли решение») | → LLM-reviewer | — |
 | Восстановление fail-fast/graceful/fail-safe; наблюдаемость деградаций | runtime | смысловое | → LLM-reviewer | — |
 
+`problem_mirrors` сравнивает только `register_problem_handlers`. Backend держит второе, сознательно не зеркалируемое место регистрации — `register_workspace_path_error_handler` (`backend/app/api/problem.py`, вызывается из `main.py` сразу за `register_problem_handlers`), обрабатывающее `WorkspacePathError` (файловый workspace, ADR-032) в 422. Домен у SIEM отсутствует, поэтому зеркалить нечего — правка внутри мирруемой функции сломала бы AST-сравнение с siem-service.
+
 ### Прочее (вне детерминированного слоя)
 
 `Protocol` vs `ABC`; ось состояния (серверное в Query, клиентское в Zustand);

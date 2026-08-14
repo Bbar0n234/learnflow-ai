@@ -529,39 +529,223 @@ describe("useAgentStream", () => {
     expect(refreshCount).toBeGreaterThanOrEqual(1);
   });
 
-  it("инвалидирует список артефактов проекта на artifact_created", async () => {
-    // Карточку в живом ходе `artifact_created` больше не рисует: факт создания
-    // виден строкой ленты, полная карточка приезжает из истории после
-    // завершения хода. За событием остаётся его побочный эффект — инвалидация
-    // списка артефактов проекта.
-    setAccessToken(fakeJwt());
-    const live = liveStream();
-    server.use(http.post(MESSAGES_URL, () => live.response));
-    const onDone = vi.fn();
-    const { result, queryClient } = renderAgentStream({ onDone });
+  // Карточку в живом ходе фронт по `artifact_created` больше не рисует: факт
+  // создания виден строкой ленты, полная карточка приезжает из истории после
+  // завершения хода. За событием остаётся его побочный эффект — инвалидация
+  // кэшей, и ниже проверяется именно она.
+  //
+  // Артефакт файловой модели адресуется путём, и кэши держатся свежими двумя
+  // разными механизмами: точечной инвалидацией пути на событии и довозом
+  // списка по завершении хода. Ниже проверяется, что один не съедает другой.
+  const NOTES = "lecture-1/konspekt.md";
+  const OTHER = "lecture-1/flashcards.md";
+
+  function primeArtifactCaches(
+    queryClient: ReturnType<typeof renderAgentStream>["queryClient"],
+  ) {
     queryClient.setQueryData(queryKeys.projects.artifacts(PROJECT_ID), {
       items: [],
       total: 0,
-      limit: 50,
+      limit: 200,
       offset: 0,
     });
+    for (const path of [NOTES, OTHER]) {
+      queryClient.setQueryData(queryKeys.projects.artifact(PROJECT_ID, path), {
+        path,
+        title: path,
+        type: "md",
+        updated_at: "2026-02-01T12:00:00Z",
+        content: "тело",
+      });
+      queryClient.setQueryData(
+        queryKeys.projects.artifactMedia(PROJECT_ID, path),
+        new Blob(["тело"]),
+      );
+    }
+  }
 
-    result.current.send("hi");
-    live.push({
-      type: "artifact_created",
-      id: "a-1",
-      title: "Notes",
-      artifact_type: "markdown",
+  function invalidated(
+    queryClient: ReturnType<typeof renderAgentStream>["queryClient"],
+    key: readonly unknown[],
+  ): boolean | undefined {
+    return queryClient.getQueryState(key)?.isInvalidated;
+  }
+
+  it.each(["artifact_created", "artifact_updated"] as const)(
+    "%s освежает свой путь вместе с его медиа, не задевая соседний артефакт",
+    async (type) => {
+      setAccessToken(fakeJwt());
+      const live = liveStream();
+      server.use(http.post(MESSAGES_URL, () => live.response));
+      const onDone = vi.fn();
+      const { result, queryClient } = renderAgentStream({ onDone });
+      primeArtifactCaches(queryClient);
+
+      result.current.send("hi");
+      live.push({
+        type,
+        path: NOTES,
+        title: "Конспект",
+        artifact_type: "md",
+        ...(type === "artifact_updated"
+          ? { diff: { added: 12, removed: 3 } }
+          : {}),
+      });
+
+      await waitFor(() =>
+        expect(
+          invalidated(
+            queryClient,
+            queryKeys.projects.artifact(PROJECT_ID, NOTES),
+          ),
+        ).toBe(true),
+      );
+      // Миниатюра карточки и картинка вьюера живут потомком того же ключа —
+      // перезаписанный по пути файл обязан перерисоваться вместе с деталью.
+      expect(
+        invalidated(
+          queryClient,
+          queryKeys.projects.artifactMedia(PROJECT_ID, NOTES),
+        ),
+      ).toBe(true);
+      expect(
+        invalidated(queryClient, queryKeys.projects.artifacts(PROJECT_ID)),
+      ).toBe(true);
+      // Событие про один файл не имеет права сбрасывать соседний: список
+      // инвалидируется точно своим ключом, а не префиксом всех артефактов.
+      expect(
+        invalidated(
+          queryClient,
+          queryKeys.projects.artifact(PROJECT_ID, OTHER),
+        ),
+      ).toBe(false);
+
+      live.push({ type: "done", message_id: "m-art", trace_id: null });
+      live.close();
+      await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+    },
+  );
+
+  it.each([
+    {
+      name: "done",
+      event: { type: "done", message_id: "m-1", trace_id: null },
+    },
+    { name: "cancelled", event: { type: "cancelled" } },
+    { name: "error", event: { type: "error", detail: "джоба упала" } },
+  ])(
+    "довозит список артефактов на терминальном событии $name",
+    async ({ event }) => {
+      // Событий удаления и переименования в контракте нет: файл, который джоба
+      // снесла или переименовала, иначе остался бы призраком в списке до
+      // перезагрузки страницы (A6c, B9 — сироты отменённой джобы).
+      setAccessToken(fakeJwt());
+      server.use(http.post(MESSAGES_URL, () => streamResponse([event])));
+      const { result, queryClient } = renderAgentStream({
+        onError: vi.fn(),
+        onCancelled: vi.fn(),
+        onDone: vi.fn(),
+      });
+      primeArtifactCaches(queryClient);
+
+      result.current.send("hi");
+
+      await waitFor(() =>
+        expect(
+          invalidated(queryClient, queryKeys.projects.artifacts(PROJECT_ID)),
+        ).toBe(true),
+      );
+      // Довоз списка — не сброс открытого артефакта: `exact` держит детали и
+      // медиа тех же путей нетронутыми.
+      expect(
+        invalidated(
+          queryClient,
+          queryKeys.projects.artifact(PROJECT_ID, NOTES),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  // Пути вложений едут в теле того же POST, что и текст (design-brief
+  // § Вложения пользователя): upload к этому моменту уже прошёл.
+  describe("вложения в теле сообщения", () => {
+    function recordingMessages(bodies: string[]) {
+      return http.post(MESSAGES_URL, async ({ request }) => {
+        bodies.push(await request.text());
+        return streamResponse([
+          { type: "done", message_id: "m-1", trace_id: null },
+        ]);
+      });
+    }
+
+    it("кладёт пути вложений рядом с текстом", async () => {
+      setAccessToken(fakeJwt());
+      const bodies: string[] = [];
+      server.use(recordingMessages(bodies));
+      const onDone = vi.fn();
+      const { result } = renderAgentStream({ onDone });
+
+      result.current.send("Разбери конспект", [
+        "uploads/notes.md",
+        "uploads/lecture.pdf",
+      ]);
+
+      await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+      expect(JSON.parse(bodies[0]!) as unknown).toEqual({
+        content: "Разбери конспект",
+        attachments: ["uploads/notes.md", "uploads/lecture.pdf"],
+      });
     });
 
-    live.push({ type: "done", message_id: "m-art", trace_id: null });
-    live.close();
+    it("ход без файлов отправляет тело без поля вложений", async () => {
+      setAccessToken(fakeJwt());
+      const bodies: string[] = [];
+      server.use(recordingMessages(bodies));
+      const onDone = vi.fn();
+      const { result } = renderAgentStream({ onDone });
 
-    await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
-    expect(
-      queryClient.getQueryState(queryKeys.projects.artifacts(PROJECT_ID))
-        ?.isInvalidated,
-    ).toBe(true);
+      result.current.send("Просто вопрос");
+
+      await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+      expect(JSON.parse(bodies[0]!) as unknown).toEqual({
+        content: "Просто вопрос",
+      });
+    });
+
+    it("повторяет вложения и в ретрае после протухшего токена", async () => {
+      // Ретрай пересобирает запрос целиком — потерянные на нём пути означали
+      // бы, что агент не увидит уже загруженных файлов.
+      setAccessToken(fakeJwt(10));
+      const bodies: string[] = [];
+      server.use(
+        http.post(REFRESH_URL, () =>
+          HttpResponse.json({
+            access_token: fakeJwt(3600),
+            token_type: "bearer",
+          }),
+        ),
+        http.post(MESSAGES_URL, async ({ request }) => {
+          bodies.push(await request.text());
+          if (bodies.length === 1) {
+            return HttpResponse.json({ detail: "expired" }, { status: 401 });
+          }
+          return streamResponse([
+            { type: "done", message_id: "m-1", trace_id: null },
+          ]);
+        }),
+      );
+      const onDone = vi.fn();
+      const { result } = renderAgentStream({ onDone });
+
+      result.current.send("Разбери конспект", ["uploads/notes.md"]);
+
+      await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+      expect(bodies).toHaveLength(2);
+      expect(JSON.parse(bodies[1]!) as unknown).toEqual({
+        content: "Разбери конспект",
+        attachments: ["uploads/notes.md"],
+      });
+    });
   });
 
   // Пара review-событий — единственный источник индикатора «Проверяем ответ...»:

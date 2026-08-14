@@ -26,6 +26,22 @@ class Settings(BaseSettings):
     client_ip_source: Literal["socket", "x-real-ip", "x-forwarded-for"] = "socket"
     client_ip_xff_hops: int = Field(1, ge=1)
 
+    # OAuth providers — пустой креды-дефолт выключает провайдера (не fail-fast-секрет)
+    oauth_yandex_client_id: str = ""
+    oauth_yandex_client_secret: str = ""
+    oauth_google_client_id: str = ""
+    oauth_google_client_secret: str = ""
+    oauth_github_client_id: str = ""
+    oauth_github_client_secret: str = ""
+    # Local dev через Vite; docker-compose разводит свой дефолт (:8000, SPA отдаёт backend)
+    oauth_redirect_base_url: str = "http://localhost:5173"
+    oauth_http_timeout_seconds: int = 10
+
+    # GeoIP (гео-gate) — путь к MMDB (IPinfo Lite); пусто/недоступна → fallback-страна.
+    # Разрешённые для RU провайдеры ({"yandex"}) — бизнес-инвариант в коде, не env.
+    geoip_db_path: str = ""
+    geoip_fallback_country: str = "RU"
+
     # Langfuse Observability
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""
@@ -65,7 +81,48 @@ class Settings(BaseSettings):
     llm_image_timeout_seconds: float = 120
     llm_title_timeout_seconds: float = 20
     mcp_timeout_seconds: int = 30
-    pdf_conversion_timeout_seconds: int = 30
+
+    # Workspace (file layer, ADR-032) — two allowed roots for agent/REST path
+    # resolution. Defaults are the container mount points (docker-compose);
+    # local dev (host mode, make dev) overrides both in .env.local.
+    workspaces_root: str = "/workspaces"
+    skills_root: str = "/skills"
+    # read_file: truncation limit, mirrors text_limits.truncate's UX
+    # (truncation + a flag) but is an operational knob, not the fixed
+    # wire-truncation business invariant text_limits carries.
+    workspace_read_limit_chars: int = 50_000
+    # Before-copy limits for the artifacts/ diff snapshot taken around a job
+    # (execute_code/run_command): per-file and total-per-job. Either one
+    # being exceeded drops the line-diff for that path (kind still reported,
+    # just diff=None) rather than holding unbounded content in memory for
+    # the duration of a job.
+    workspace_diff_file_limit_bytes: int = 1_000_000
+    workspace_diff_total_limit_bytes: int = 10_000_000
+    # POST /uploads size ceiling.
+    upload_max_size_bytes: int = 20_000_000
+
+    # Executor (execute_code / run_command, ADR-031) — client-side knobs of
+    # the httpx wrapper around the executor service. The executor's own
+    # EXECUTOR_* Settings (services/executor) are the authority on the
+    # numbers referenced below.
+    executor_base_url: str = "http://executor:8002"
+    # Shared secret presented to the executor on every POST /jobs
+    # (`Authorization: Bearer`). Required, no default (conventions.md
+    # § Секреты и fail-fast) — the same value must be set on the executor
+    # container as its own EXECUTOR_AUTH_TOKEN.
+    executor_auth_token: str
+    # Job deadline sent to the executor. Must stay ≤ EXECUTOR_MAX_TIMEOUT_SECONDS
+    # (300 — the executor's clamp ceiling): going over it just means the
+    # executor silently clamps to its own ceiling instead of respecting this
+    # value, which would desync the two ends of the kill contract.
+    executor_job_timeout_seconds: int = 60
+    # Added on top of the job deadline for the httpx client timeout. Must
+    # stay ≥ EXECUTOR_KILL_GRACE_SECONDS (5s — the pause between the
+    # executor's SIGTERM and SIGKILL on a timed-out job) plus slack: the
+    # executor's response to a timed-out job only arrives after
+    # deadline + kill-grace, so a smaller margin would turn every job timeout
+    # into a false "runtime unavailable" from the client's point of view.
+    executor_client_timeout_grace_seconds: int = 10
 
     # NoDecode: иначе pydantic-settings декодирует list[str] из env как JSON
     # ещё до field validator'а

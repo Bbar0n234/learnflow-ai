@@ -40,7 +40,6 @@ import pytest_asyncio
 from app.models.project import Project
 from app.models.thread_view import ThreadView
 from app.models.user import User
-from app.repositories.artifact import ArtifactRepository
 from app.repositories.thread_view import ThreadViewRepository
 from app.services.chat import ChatService
 from app.services.constants import DEFAULT_CHAT_TITLE
@@ -148,7 +147,6 @@ async def test_send_message_leaves_the_chat_row_writable_while_streaming(
         service = ChatService(
             thread_view_repo=ThreadViewRepository(request_session),
             agent_runner=fake_runner,
-            artifact_repo=ArtifactRepository(request_session),
             session=request_session,
         )
         stream = service.send_message(

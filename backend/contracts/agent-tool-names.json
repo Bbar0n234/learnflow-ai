@@ -1,9 +1,5 @@
 [
   {
-    "name": "create_artifact",
-    "origin": "internal"
-  },
-  {
     "name": "create_section",
     "origin": "internal"
   },
@@ -17,6 +13,10 @@
   },
   {
     "name": "delete_user_memory",
+    "origin": "internal"
+  },
+  {
+    "name": "execute_code",
     "origin": "internal"
   },
   {
@@ -40,12 +40,24 @@
     "origin": "internal"
   },
   {
+    "name": "list_files",
+    "origin": "internal"
+  },
+  {
     "name": "load_skill",
+    "origin": "internal"
+  },
+  {
+    "name": "read_file",
     "origin": "internal"
   },
   {
     "name": "read_url",
     "origin": "builtin_mcp"
+  },
+  {
+    "name": "run_command",
+    "origin": "internal"
   },
   {
     "name": "run_subagent",
@@ -65,6 +77,10 @@
   },
   {
     "name": "update_section",
+    "origin": "internal"
+  },
+  {
+    "name": "write_file",
     "origin": "internal"
   }
 ]

@@ -1,3 +1,7 @@
+// jsdom не умеет читать `Blob` — без полифилла multipart-загрузка вложения
+// не доезжает до обработчика MSW (см. сам модуль).
+import "@/test/blob-polyfill";
+
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http, HttpResponse } from "msw";
@@ -5,6 +9,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { describe, expect, it } from "vitest";
 
 import type { Chat } from "@/shared/api/chats";
+import { attachFiles as attach } from "@/test/file-input";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/test-utils";
 
@@ -18,6 +23,7 @@ import { ChatList } from "./ChatList";
 
 const PROJECT_ID = "p1";
 const CHATS_URL = `/api/projects/${PROJECT_ID}/chats`;
+const UPLOADS_URL = `/api/projects/${PROJECT_ID}/uploads`;
 const FIRST_MESSAGE_PLACEHOLDER = "Спросите о чём угодно — начнётся новый чат…";
 
 function chat(over: Partial<Chat> = {}): Chat {
@@ -43,11 +49,19 @@ function chatsResponse(items: Chat[]) {
 /** Landing screen of the handoff — reports where we ended up and with what. */
 function ChatEntryProbe() {
   const location = useLocation();
-  const state = location.state as { initialMessage?: string } | null;
+  const state = location.state as {
+    initialMessage?: string;
+    // Пути уже загруженных вложений (feat-011, T2.8): файл уезжает в проект
+    // до создания чата, дальше едет только путь.
+    attachments?: { path: string; title: string }[];
+  } | null;
   return (
     <div>
       <p>Открыт чат: {location.pathname}</p>
       <p>Первое сообщение: {state?.initialMessage ?? "—"}</p>
+      <p>
+        Вложения: {state?.attachments?.map((a) => a.path).join(", ") || "—"}
+      </p>
     </div>
   );
 }
@@ -117,7 +131,7 @@ describe("ChatList", () => {
       await screen.findByPlaceholderText(FIRST_MESSAGE_PLACEHOLDER),
       "Объясни производные",
     );
-    await user.click(screen.getByRole("button"));
+    await user.click(screen.getByRole("button", { name: "Отправить" }));
 
     expect(
       await screen.findByText(
@@ -174,7 +188,7 @@ describe("ChatList", () => {
     renderChatList();
 
     await screen.findByPlaceholderText(FIRST_MESSAGE_PLACEHOLDER);
-    expect(screen.getByRole("button")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Отправить" })).toBeDisabled();
   });
 
   it("keeps the typed message when the chat could not be created", async () => {
@@ -189,7 +203,7 @@ describe("ChatList", () => {
 
     const field = await screen.findByPlaceholderText(FIRST_MESSAGE_PLACEHOLDER);
     await user.type(field, "Объясни интегралы");
-    await user.click(screen.getByRole("button"));
+    await user.click(screen.getByRole("button", { name: "Отправить" }));
 
     expect(await screen.findByText("Проект недоступен")).toBeInTheDocument();
     expect(field).toHaveValue("Объясни интегралы");
@@ -285,6 +299,114 @@ describe("ChatList", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Вложения в поле первого сообщения (feat-011, T2.8): догфудинг-сценарий
+  // «лекция №1» начинается именно отсюда — файл прикрепляется до того, как чат
+  // вообще существует, поэтому загрузка идёт в проект и обгоняет создание чата.
+  describe("вложения первого сообщения", () => {
+    function pdfFile(name = "lecture.pdf"): File {
+      return new File(["%PDF"], name, { type: "application/pdf" });
+    }
+
+    it("грузит файл в проект до создания чата и передаёт путь в новый чат", async () => {
+      const calls: string[] = [];
+      server.use(
+        http.get(CHATS_URL, () => chatsResponse([])),
+        http.post(UPLOADS_URL, () => {
+          calls.push("upload");
+          return HttpResponse.json({ path: "uploads/lecture.pdf" });
+        }),
+        http.post(CHATS_URL, () => {
+          calls.push("create");
+          return HttpResponse.json(chat({ thread_id: "c-new" }), {
+            status: 201,
+          });
+        }),
+      );
+      const user = userEvent.setup();
+      const { container } = renderChatList();
+
+      await screen.findByPlaceholderText(FIRST_MESSAGE_PLACEHOLDER);
+      attach(container, pdfFile());
+      await user.click(screen.getByRole("button", { name: "Отправить" }));
+
+      expect(
+        await screen.findByText("Вложения: uploads/lecture.pdf"),
+      ).toBeInTheDocument();
+      // Провалившаяся загрузка не должна оставлять пустой чат без сообщения,
+      // поэтому файл уезжает первым.
+      expect(calls).toEqual(["upload", "create"]);
+    });
+
+    it("разрешает отправку одного файла без текста", async () => {
+      server.use(
+        http.get(CHATS_URL, () => chatsResponse([])),
+        http.post(UPLOADS_URL, () =>
+          HttpResponse.json({ path: "uploads/lecture.pdf" }),
+        ),
+        http.post(CHATS_URL, () =>
+          HttpResponse.json(chat({ thread_id: "c-file" }), { status: 201 }),
+        ),
+      );
+      const user = userEvent.setup();
+      const { container } = renderChatList();
+
+      await screen.findByPlaceholderText(FIRST_MESSAGE_PLACEHOLDER);
+      const send = screen.getByRole("button", { name: "Отправить" });
+      expect(send).toBeDisabled();
+      attach(container, pdfFile());
+      expect(send).toBeEnabled();
+      await user.click(send);
+
+      expect(
+        await screen.findByText(
+          `Открыт чат: /projects/${PROJECT_ID}/chats/c-file`,
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("на провале загрузки чат не создаётся, а чип остаётся в поле", async () => {
+      // Обработчика `POST /chats` нет намеренно: создание чата после
+      // неудачной загрузки уронило бы кейс на MSW.
+      server.use(
+        http.get(CHATS_URL, () => chatsResponse([])),
+        http.post(UPLOADS_URL, () =>
+          HttpResponse.json({ detail: "Файл больше 20 МБ" }, { status: 413 }),
+        ),
+      );
+      const user = userEvent.setup();
+      const { container } = renderChatList();
+
+      const field = await screen.findByPlaceholderText(
+        FIRST_MESSAGE_PLACEHOLDER,
+      );
+      await user.type(field, "Разбери лекцию");
+      attach(container, pdfFile("huge.pdf"));
+      await user.click(screen.getByRole("button", { name: "Отправить" }));
+
+      expect(await screen.findByText("Файл больше 20 МБ")).toBeInTheDocument();
+      expect(field).toHaveValue("Разбери лекцию");
+      expect(screen.getByText("huge.pdf")).toBeInTheDocument();
+      expect(screen.queryByText(/Открыт чат/)).not.toBeInTheDocument();
+    });
+
+    it("✕ до отправки убирает файл, не тронув сервер", async () => {
+      // A13 на второй точке входа: пока сообщение не отправлено, файл живёт
+      // только в браузере — обработчика загрузки нет, и он не понадобится.
+      server.use(http.get(CHATS_URL, () => chatsResponse([])));
+      const user = userEvent.setup();
+      const { container } = renderChatList();
+
+      await screen.findByPlaceholderText(FIRST_MESSAGE_PLACEHOLDER);
+      attach(container, pdfFile());
+      await user.click(
+        screen.getByRole("button", { name: "Убрать lecture.pdf" }),
+      );
+
+      expect(screen.queryByText("lecture.pdf")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Отправить" })).toBeDisabled();
+    });
+  });
+
   it("does not create a chat while the previous request is still in flight", async () => {
     let postCount = 0;
     // The creation is held open by the test, so the second click really lands
@@ -309,7 +431,7 @@ describe("ChatList", () => {
 
     const field = await screen.findByPlaceholderText(FIRST_MESSAGE_PLACEHOLDER);
     await user.type(field, "Дважды");
-    const sendButton = screen.getByRole("button");
+    const sendButton = screen.getByRole("button", { name: "Отправить" });
     await user.click(sendButton);
     await waitFor(() => expect(sendButton).toBeDisabled());
     await user.click(sendButton);

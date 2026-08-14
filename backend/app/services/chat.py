@@ -9,7 +9,6 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.thread_view import ThreadView
-from app.repositories.artifact import ArtifactRepository
 from app.repositories.mcp_server import MCPServerRepository
 from app.repositories.thread_view import ThreadViewRepository
 from app.services.agent_runner import AgentRunner, Message, StreamEvent
@@ -43,6 +42,7 @@ _TITLE_GUARD_CLEARED_TYPES = frozenset(
         "tool_call_cancelled",
         "tool_result",
         "artifact_created",
+        "artifact_updated",
         "agent_event",
         "final_output_review_started",
         "final_output_review_complete",
@@ -67,14 +67,12 @@ class ChatService:
         *,
         thread_view_repo: ThreadViewRepository,
         agent_runner: AgentRunner,
-        artifact_repo: ArtifactRepository,
         trace_store: TraceStore | None = None,
         session: AsyncSession | None = None,
         title_generator: ChatTitleGenerator | None = None,
     ) -> None:
         self._thread_view_repo = thread_view_repo
         self._agent_runner = agent_runner
-        self._artifact_repo = artifact_repo
         self._trace_store = trace_store
         self._session = session
         self._title_generator = title_generator
@@ -233,6 +231,7 @@ class ChatService:
         project_id: uuid.UUID,
         user_id: uuid.UUID,
         content: str,
+        attachments: list[str] | None = None,
     ) -> AsyncIterator[StreamEvent]:
         """Stream agent response.
 
@@ -263,7 +262,6 @@ class ChatService:
         if self._session is not None:
             await self._session.commit()
 
-        artifact_ids: list[str] = []
         stream_ended_without_done = False
         trace_id = ""
 
@@ -291,12 +289,11 @@ class ChatService:
             project_id=project_id,
             user_id=user_id,
             session=self._session,
+            attachments=attachments,
         ):
             if event.type == "trace_id":
                 trace_id = event.data.get("trace_id", "")
                 continue
-            if event.type == "artifact_created":
-                artifact_ids.append(event.data["id"])
             if event.type in ("error", "security_block", "cancelled"):
                 stream_ended_without_done = True
 
@@ -337,17 +334,15 @@ class ChatService:
         if stream_ended_without_done:
             return
 
-        # Post-hoc: resolve message_id + link artifacts
+        # Post-hoc: resolve message_id (for the `done` event and the trace_id
+        # save below). Artifact-to-message linkage no longer goes through here
+        # — `ArtifactPart` in the checkpoint carries that association now
+        # (design-brief § «Артефакты»), so there is nothing left to link.
         message_id: str | None = None
         try:
             message_id = await self._agent_runner.get_last_ai_message_id(
                 thread_id=thread_id
             )
-            if message_id and artifact_ids:
-                await self._artifact_repo.set_message_id(
-                    [uuid.UUID(aid) for aid in artifact_ids],
-                    message_id,
-                )
         except Exception:
             logger.warning(
                 "post-hoc message resolution failed",

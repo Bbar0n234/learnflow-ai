@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "./client";
-import type { Artifact } from "./artifacts";
 import type { ListResponse } from "./pagination";
 import { queryKeys } from "./query-keys";
 
@@ -30,6 +29,14 @@ export interface ChatDetail {
  * без парного результата, ход оборвался (отмена, ошибка). `args` — JSON-строка,
  * а не объект, и при `args_truncated: true` она обрезана посреди JSON и
  * невалидна. Аргументы и результат усекаются независимо, поэтому флага два.
+ *
+ * `artifact` — связь «ход ↝ файл» (ADR-032, design-brief § Артефакты):
+ * выводится из `ToolMessage.artifact` при реплее чекпоинта, PG-маппинга нет.
+ * `kind: "created" | "updated"` различает создание и перезапись существующего
+ * пути — карточка чата несёт бейдж «обновлён» только во втором случае.
+ * `artifact_type` (не `type` — тот занят дискриминатором union'а) — расширение
+ * файла, тот же словарь `getArtifactCategory` выбирает иконку/превью. `diff` —
+ * компактные счётчики строк, `null` для бинарного обновления и для создания.
  */
 export type MessagePart =
   | { type: "reasoning"; content: string }
@@ -43,6 +50,14 @@ export type MessagePart =
       status: "success" | "error" | "pending";
       result_preview: string;
       result_truncated: boolean;
+    }
+  | {
+      type: "artifact";
+      path: string;
+      title: string;
+      artifact_type: string;
+      kind: "created" | "updated";
+      diff: { added: number; removed: number } | null;
     };
 
 export interface Message {
@@ -50,7 +65,6 @@ export interface Message {
   role: "user" | "assistant";
   content: string;
   created_at: string | null;
-  artifacts: Artifact[];
   trace_id?: string | null;
   feedback_score?: boolean | null;
   redacted?: boolean;
@@ -59,6 +73,13 @@ export interface Message {
    * дают пустой список, и сообщение рендерится по плоскому `content`.
    */
   parts?: MessagePart[];
+  /**
+   * Вложения user-сообщения (design-brief § Вложения пользователя): чип
+   * истории рендерится из metadata, не парсит текст — `content` уже чистый
+   * пользовательский текст, пометку «[Прикреплены файлы: …]» видит только
+   * модель. Без размера (OQ-4 плана T2): чип истории показывает только имя.
+   */
+  attachments?: { path: string; title: string }[];
 }
 
 export interface RecentChat {
@@ -76,6 +97,9 @@ export interface UpdateChatRequest {
 
 export interface SendMessageRequest {
   content: string;
+  // Список путей `uploads/…`, полученных от `uploadFile` (shared/api/uploads.ts)
+  // до отправки — см. § Вложения пользователя, OQ-4 плана T2.
+  attachments?: string[];
 }
 
 // === Domain constants ===
@@ -150,13 +174,13 @@ export function useChats(projectId: string | undefined) {
 export function useChat(
   projectId: string | undefined,
   chatId: string | undefined,
-  options?: { refetchOnWindowFocus?: boolean },
+  options?: { staleTime?: number },
 ) {
   return useQuery({
     queryKey: queryKeys.projects.chat(projectId, chatId),
     queryFn: () => getChat(projectId!, chatId!),
     enabled: !!projectId && !!chatId,
-    refetchOnWindowFocus: options?.refetchOnWindowFocus,
+    staleTime: options?.staleTime,
   });
 }
 

@@ -12,11 +12,14 @@ AUTH_REFRESH_SUCCESS = "auth.refresh.success"
 AUTH_REFRESH_REPLAY_DETECTED = "auth.refresh.replay_detected"
 AUTH_REGISTER_SUCCESS = "auth.register.success"
 AUTH_REGISTER_FAILED = "auth.register.failed"
+AUTH_OAUTH_SUCCESS = "auth.oauth.success"
+AUTH_OAUTH_FAILED = "auth.oauth.failed"
 
 # Rate limiter events
 RATE_LIMIT_LOGIN_EXCEEDED = "rate_limit.login.exceeded"
 RATE_LIMIT_REFRESH_EXCEEDED = "rate_limit.refresh.exceeded"
 RATE_LIMIT_REGISTER_EXCEEDED = "rate_limit.register.exceeded"
+RATE_LIMIT_OAUTH_EXCEEDED = "rate_limit.oauth.exceeded"
 
 # Agent security guard events - cross-checkpoint degradation
 AGENT_GUARD_DEGRADED = "agent.guard.degraded"
@@ -36,6 +39,7 @@ AGENT_GUARD_OUTPUT_DETERMINISTIC_HIT = "agent.guard.output.deterministic_hit"
 
 # Agent runtime events
 AGENT_RUNTIME_CANARY_STREAM_ABORTED = "agent.runtime.canary.stream_aborted"
+AGENT_RUNTIME_PATH_DENIED = "agent.runtime.path_denied"
 
 # SIEM administrative events
 SIEM_ALERT_ACKNOWLEDGED = "siem.alert.acknowledged"
@@ -53,10 +57,13 @@ EventType = Literal[
     "auth.refresh.replay_detected",
     "auth.register.success",
     "auth.register.failed",
+    "auth.oauth.success",
+    "auth.oauth.failed",
     # Rate limit
     "rate_limit.login.exceeded",
     "rate_limit.refresh.exceeded",
     "rate_limit.register.exceeded",
+    "rate_limit.oauth.exceeded",
     # Agent guard - cross-checkpoint degradation
     "agent.guard.degraded",
     # Agent guard - input
@@ -72,6 +79,7 @@ EventType = Literal[
     "agent.guard.output.deterministic_hit",
     # Agent runtime
     "agent.runtime.canary.stream_aborted",
+    "agent.runtime.path_denied",
     # SIEM
     "siem.alert.acknowledged",
     "siem.alert.resolved",

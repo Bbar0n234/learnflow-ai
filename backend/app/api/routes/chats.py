@@ -5,15 +5,16 @@ import uuid
 from fastapi import APIRouter, HTTPException, Response, status
 
 from app.api.deps import (
-    ArtifactServiceDep,
     ChatServiceDep,
     CurrentUser,
     Pagination,
     UserProject,
     UserThread,
 )
-from app.api.schemas.artifacts import ArtifactListItem
 from app.api.schemas.chats import (
+    ArtifactDiffOut,
+    ArtifactPartOut,
+    AttachmentOut,
     ChatDetailResponse,
     ChatListResponse,
     ChatRecentItem,
@@ -26,7 +27,13 @@ from app.api.schemas.chats import (
     TextPartOut,
     ToolCallPartOut,
 )
-from app.services.agent_runner import Part, ReasoningPart, TextPart, ToolCallPart
+from app.services.agent_runner import (
+    ArtifactPart,
+    Part,
+    ReasoningPart,
+    TextPart,
+    ToolCallPart,
+)
 from app.services.exceptions import EntityNotFoundError
 
 router = APIRouter(tags=["chats"])
@@ -47,6 +54,14 @@ def _part_out(part: Part) -> MessagePartOut:
             status=part.status,
             result_preview=part.result_preview,
             result_truncated=part.result_truncated,
+        )
+    if isinstance(part, ArtifactPart):
+        return ArtifactPartOut(
+            path=part.path,
+            title=part.title,
+            artifact_type=part.type,
+            kind=part.kind,
+            diff=ArtifactDiffOut(**part.diff) if part.diff else None,
         )
     raise AssertionError(f"unhandled part type: {type(part).__name__}")
 
@@ -92,7 +107,7 @@ async def delete_chat(
     except EntityNotFoundError:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     if thread_view.project_id != project.id:
-        raise HTTPException(status_code=404, detail="Chat not found")
+        raise HTTPException(status_code=404, detail="Чат не найден")
     await service.delete_chat(thread_view.thread_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -118,17 +133,8 @@ async def list_chats(
 async def get_chat(
     thread: UserThread,
     service: ChatServiceDep,
-    artifact_service: ArtifactServiceDep,
 ) -> ChatDetailResponse:
     chat_detail = await service.get_chat(thread.thread_id)
-
-    # Get artifacts for this thread, group by message_id
-    artifacts = await artifact_service.list_by_thread(thread.thread_id)
-    artifacts_by_msg: dict[str | None, list[ArtifactListItem]] = {}
-    for a in artifacts:
-        artifacts_by_msg.setdefault(a.message_id, []).append(
-            ArtifactListItem.model_validate(a)
-        )
 
     def _feedback_for(msg_id: str) -> bool | None:
         tid = chat_detail.trace_ids.get(msg_id)
@@ -146,11 +152,13 @@ async def get_chat(
                 role=m.role,
                 content=m.content,
                 created_at=m.created_at,
-                artifacts=artifacts_by_msg.get(m.id, []),
                 trace_id=chat_detail.trace_ids.get(m.id),
                 feedback_score=_feedback_for(m.id),
                 redacted=m.redacted,
                 parts=[_part_out(p) for p in m.parts],
+                attachments=[
+                    AttachmentOut(path=a.path, title=a.title) for a in m.attachments
+                ],
             )
             for m in chat_detail.messages
         ],

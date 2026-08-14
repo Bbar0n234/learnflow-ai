@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Any, Literal
 
@@ -19,6 +19,8 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from app.agent.security.types import Checkpoint, DetectionLayer, SecurityMessages
 from app.agent.text_limits import truncate
 from app.services.agent_runner import (
+    ArtifactPart,
+    AttachmentRef,
     Message,
     Part,
     ReasoningPart,
@@ -40,6 +42,57 @@ def _parse_created_at(value: str | None) -> datetime | None:
     if value is None:
         return None
     return datetime.fromisoformat(value)
+
+
+def _attachment_refs(raw: Any) -> list[AttachmentRef]:
+    """``AttachmentRef`` per element of ``HumanMessage.additional_kwargs["attachments"]``.
+
+    Mirrors ``_artifact_parts`` on the input side — reads the ``{path,
+    title}`` list `agent/runner.py` stores verbatim, doesn't touch
+    ``content``/the in-model note (design-brief § «Вложения пользователя»:
+    the UI chip renders from this metadata, never by re-parsing the note).
+    """
+    if not raw:
+        return []
+    return [
+        AttachmentRef(path=item.get("path", ""), title=item.get("title", ""))
+        for item in raw
+    ]
+
+
+def _artifact_parts(tool_message: ToolMessage) -> list[ArtifactPart]:
+    """``ArtifactPart`` per element of ``tool_message.artifact`` (may be several).
+
+    Mirrors ``stream_events.artifact_envelopes``' reading of the same list —
+    this is the checkpoint-replay half, this module's one job (module
+    docstring: the single place that knows the ``channel_values["messages"]``
+    shape). Every artifact-producing tool keys its element as ``"path"``.
+
+    Older checkpoints (written before this iteration) carry ``artifact`` as a
+    single ``dict``, not a list of dicts — ADR-032 does not design history
+    back-compat for that shape, so it is a defensive guard, not a migration:
+    a non-list value is skipped entirely (zero parts), the turn still renders,
+    just without artifact cards.
+    """
+    artifact = tool_message.artifact
+    if not artifact:
+        return []
+    if not isinstance(artifact, list):
+        logger.warning(
+            "legacy non-list ToolMessage.artifact skipped",
+            tool_call_id=tool_message.tool_call_id,
+        )
+        return []
+    return [
+        ArtifactPart(
+            path=item.get("path", ""),
+            title=item.get("title", ""),
+            type=item.get("type", ""),
+            kind=item.get("kind", "created"),
+            diff=item.get("diff"),
+        )
+        for item in artifact
+    ]
 
 
 class CheckpointHistory:
@@ -110,10 +163,19 @@ class CheckpointHistory:
                 flush_segment()
                 segment = []
                 redacted = bool(m.additional_kwargs.get("security_redacted"))
+                # `additional_kwargs["text"]` is the clean text `agent/runner.py`
+                # stored alongside the model-facing note it appended to
+                # `content` — only present when the turn carried attachments;
+                # otherwise `content` itself already is the clean text.
+                raw_content = m.content if isinstance(m.content, str) else ""
+                clean_text = m.additional_kwargs.get("text", raw_content)
                 content = (
-                    self._messages.redacted_user_facing
+                    self._messages.redacted_user_facing if redacted else clean_text
+                )
+                attachments = (
+                    []
                     if redacted
-                    else (m.content if isinstance(m.content, str) else "")
+                    else _attachment_refs(m.additional_kwargs.get("attachments"))
                 )
                 result.append(
                     Message(
@@ -124,6 +186,7 @@ class CheckpointHistory:
                             m.additional_kwargs.get("created_at")
                         ),
                         redacted=redacted,
+                        attachments=attachments,
                     )
                 )
             else:
@@ -168,6 +231,8 @@ class CheckpointHistory:
                 parts.append(
                     TextPart(content=ai.content if isinstance(ai.content, str) else "")
                 )
+
+        parts.extend(self._turn_artifact_parts(segment))
 
         anchor = final_ai if final_ai is not None else ai_messages[-1]
         redacted = bool(anchor.additional_kwargs.get("security_redacted"))
@@ -227,6 +292,31 @@ class CheckpointHistory:
                 )
             )
         return parts
+
+    @staticmethod
+    def _turn_artifact_parts(segment: list[Any]) -> list[Part]:
+        """Every artifact the turn produced, as one trailing group of cards.
+
+        Placement is a product call, not a data one: a card reads as an outcome
+        of the turn, so it follows the final text instead of sitting inline
+        after the tool call that happened to write the file.
+
+        One card per path — a path written twice in the same turn (a job
+        rewriting what an earlier call created) collapses into a single entry:
+        order comes from its first appearance, data from the last event, except
+        that ``created`` never degrades to ``updated`` — for the reader the file
+        is new in this turn.
+        """
+        by_path: dict[str, ArtifactPart] = {}
+        for m in segment:
+            if not isinstance(m, ToolMessage):
+                continue
+            for part in _artifact_parts(m):
+                previous = by_path.get(part.path)
+                if previous is not None and previous.kind == "created":
+                    part = replace(part, kind="created")
+                by_path[part.path] = part
+        return list(by_path.values())
 
     async def last_ai_message_id(self, thread_id: uuid.UUID) -> str | None:
         messages = await self.raw_messages(thread_id)

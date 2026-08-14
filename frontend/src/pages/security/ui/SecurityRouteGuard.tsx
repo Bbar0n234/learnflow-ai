@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/shared/api/query-keys";
 import { getIsAdminFromAccessToken, getMe } from "@/shared/api/auth";
 import { getAccessToken } from "@/shared/api/client";
+import { LoadingState } from "@/shared/ui/StateScreen";
 
 interface UserWithAdmin {
   id: string;
@@ -25,11 +26,7 @@ export function SecurityRouteGuard({ children }: { children: ReactNode }) {
   });
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Загрузка...</p>
-      </div>
-    );
+    return <LoadingState className="h-full" />;
   }
 
   // Check JWT for is_admin claim as fallback.

@@ -11,11 +11,14 @@ export function ProjectLayout() {
   const { data: project, isLoading } = useProject(id!);
   const isChatView = useMatch("/projects/:id/chats/:cid");
 
-  const projectName = isLoading ? "Loading..." : (project?.name ?? id);
+  const projectName = isLoading ? "Загрузка…" : (project?.name ?? id);
 
   if (isChatView) {
+    // `overflow-hidden` — тот же страж переполнения, что у остальных вкладок
+    // проекта (ниже): чат сам управляет своей прокруткой, наружу переполнение
+    // не выпускает, иначе внешний контейнер получает второй скролл в пустоту.
     return (
-      <div className="flex h-full flex-col">
+      <div className="flex h-full flex-col overflow-hidden">
         <Outlet />
       </div>
     );

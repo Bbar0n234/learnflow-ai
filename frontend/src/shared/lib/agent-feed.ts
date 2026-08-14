@@ -68,11 +68,30 @@ export interface AgentEventFeedItem {
   payload: Record<string, unknown>;
 }
 
+/**
+ * Связь «ход ↝ файл» из `ArtifactPart` истории (ADR-032, design-brief
+ * § Артефакты). Живого варианта нет — SSE `artifact_created`/`artifact_updated`
+ * в редьюсер не подаются (§ Состояние стрима, T2.4): карточка встаёт из
+ * истории по завершении хода, не рисуется вживую. `artifactType` — расширение
+ * файла (камелкейс по образцу `callId`/`argsTruncated` — `type` занят
+ * дискриминатором элемента ленты).
+ */
+export interface ArtifactFeedItem {
+  id: string;
+  type: "artifact";
+  path: string;
+  title: string;
+  artifactType: string;
+  kind: "created" | "updated";
+  diff: { added: number; removed: number } | null;
+}
+
 export type AgentFeedItem =
   | ReasoningFeedItem
   | TextFeedItem
   | ToolCallFeedItem
-  | AgentEventFeedItem;
+  | AgentEventFeedItem
+  | ArtifactFeedItem;
 
 export interface AgentFeedState {
   /** Элементы ленты в порядке прихода событий / порядке parts. */
@@ -364,6 +383,17 @@ export function fromMessageParts(
           children: [],
         });
         break;
+      case "artifact":
+        feed.push({
+          id: itemId("artifact", feed),
+          type: "artifact",
+          path: part.path,
+          title: part.title,
+          artifactType: part.artifact_type,
+          kind: part.kind,
+          diff: part.diff,
+        });
+        break;
     }
   }
   return feed;
@@ -372,17 +402,25 @@ export function fromMessageParts(
 /**
  * Блоки ленты: подряд идущие строки-действия рендерятся одной лентой на общей
  * соединительной нити, текст ассистента — отдельным блоком прозы
- * (`.feed` и `.part-text` мокапа).
+ * (`.feed` и `.part-text` мокапа), артефакт — отдельной карточкой в порядке
+ * parts (мокап блок 1: карточка после блока текста). Карточка строкой ленты
+ * активности не становится и с соседями не сливается — каждый `ArtifactPart`
+ * даёт свой блок, даже если их несколько подряд.
  */
 export type AgentFeedBlock =
   | { type: "feed"; items: AgentFeedItem[] }
-  | { type: "text"; item: TextFeedItem };
+  | { type: "text"; item: TextFeedItem }
+  | { type: "artifact"; item: ArtifactFeedItem };
 
 export function groupFeedBlocks(feed: AgentFeedItem[]): AgentFeedBlock[] {
   const blocks: AgentFeedBlock[] = [];
   for (const item of feed) {
     if (item.type === "text") {
       blocks.push({ type: "text", item });
+      continue;
+    }
+    if (item.type === "artifact") {
+      blocks.push({ type: "artifact", item });
       continue;
     }
     const last = blocks.at(-1);

@@ -1,3 +1,10 @@
+// Возврат в уже загруженный чат оставляет шапку смонтированной, а её
+// `TypedTitle` спрашивает `prefers-reduced-motion` — в jsdom `matchMedia` нет.
+import "@/test/match-media-polyfill";
+// jsdom не умеет читать `Blob` — без полифилла multipart-загрузка вложения
+// не доезжает до обработчика MSW (см. сам модуль).
+import "@/test/blob-polyfill";
+
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -13,6 +20,8 @@ import {
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { setAccessToken } from "@/shared/api/client";
+import { Button } from "@/shared/ui/button";
+import { attachFiles as attach } from "@/test/file-input";
 import { server } from "@/test/msw/server";
 import { fakeJwt, sseFrame, sseResponseStream } from "@/test/sse-stream";
 import { createTestQueryClient, renderWithProviders } from "@/test/test-utils";
@@ -31,9 +40,12 @@ const CHAT_ID = "c1";
 const CHAT_URL = `/api/projects/${PROJECT_ID}/chats/${CHAT_ID}`;
 const MESSAGES_URL = `${CHAT_URL}/messages`;
 const PROJECT_URL = `/api/projects/${PROJECT_ID}`;
+/** Загрузка вложения идёт в проект, а не в чат (feat-011, § Вложения). */
+const UPLOADS_URL = `/api/projects/${PROJECT_ID}/uploads`;
 /** Соседний чат того же проекта — цель переключения в кейсе скоупинга ниже. */
 const OTHER_CHAT_ID = "c2";
 const OTHER_CHAT_URL = `/api/projects/${PROJECT_ID}/chats/${OTHER_CHAT_ID}`;
+const OTHER_CHAT_MESSAGES_URL = `${OTHER_CHAT_URL}/messages`;
 const OTHER_CHAT_MESSAGE = "Сообщение соседнего чата";
 /** Текст, с которым поток падает в кейсе скоупинга красной плашки. */
 const STREAM_ERROR = "Модель не ответила";
@@ -66,6 +78,30 @@ function heldStream(frames: string[]): Response {
   }) as unknown as Response;
 }
 
+/**
+ * Ход, идущий прямо сейчас и управляемый тестом: кадры доталкиваются по мере
+ * надобности, поток живёт, пока его не закроют. Нужен там, где терминальное
+ * событие должно прийти **после** переключения чата — `heldStream` выше отдаёт
+ * все кадры сразу и на это не годится.
+ */
+function liveStream() {
+  const encoder = new TextEncoder();
+  let ctrl!: ReadableStreamDefaultController<Uint8Array>;
+  const body = new ReadableStream<Uint8Array>({
+    start(c) {
+      ctrl = c;
+    },
+  });
+  const response = new HttpResponse(body, {
+    headers: { "Content-Type": "text/event-stream" },
+  }) as unknown as Response;
+  return {
+    response,
+    push: (event: unknown) => ctrl.enqueue(encoder.encode(sseFrame(event))),
+    close: () => ctrl.close(),
+  };
+}
+
 function emptyChat() {
   return HttpResponse.json({
     thread_id: CHAT_ID,
@@ -79,7 +115,7 @@ function emptyChat() {
  * Соседний чат с собственным сообщением: его появление на экране — признак
  * того, что переключение состоялось и чат **загрузился**. Без этого признака
  * кейсы скоупинга ниже были бы зелёными и с багом — пока идёт запрос истории,
- * экран занят «Loading chat...» и не показывает ничего чужого просто потому,
+ * экран занят состоянием загрузки и не показывает ничего чужого просто потому,
  * что не показывает ничего.
  */
 function otherChat() {
@@ -159,6 +195,16 @@ function recordingChat() {
   return { sentBodies, handlers };
 }
 
+/**
+ * Очередь входа: текст первого сообщения плюс уже загруженные пути вложений
+ * (feat-011, T2.8 — draft-композер и поле первого сообщения грузят файлы до
+ * навигации и передают сюда готовые пути).
+ */
+interface EntryState {
+  initialMessage?: string;
+  attachments?: { path: string; title: string }[];
+}
+
 /** Reports what router state the chat screen is currently sitting on. */
 function StateProbe() {
   const location = useLocation();
@@ -182,7 +228,7 @@ function EffectPassProbe({ passes }: { passes: string[] }) {
 }
 
 function renderChatThread(
-  state: { initialMessage?: string } | null,
+  state: EntryState | null,
   // `strict` mounts the screen the way `main.tsx` does in dev — React then runs
   // effects as mount → cleanup → mount (see the Strict Mode case below).
   { strict = false }: { strict?: boolean } = {},
@@ -229,12 +275,24 @@ function renderChatThread(
 function ChatSwitch() {
   const navigate = useNavigate();
   return (
-    <button
-      type="button"
-      onClick={() => navigate(`/projects/${PROJECT_ID}/chats/${OTHER_CHAT_ID}`)}
-    >
-      Открыть соседний чат
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() =>
+          navigate(`/projects/${PROJECT_ID}/chats/${OTHER_CHAT_ID}`)
+        }
+      >
+        Открыть соседний чат
+      </button>
+      {/* Возврат тем же маршрутом: чат-владелец должен встретить пользователя
+          состоянием своего хода, а не пустым экраном. */}
+      <button
+        type="button"
+        onClick={() => navigate(`/projects/${PROJECT_ID}/chats/${CHAT_ID}`)}
+      >
+        Вернуться в первый чат
+      </button>
+    </>
   );
 }
 
@@ -400,7 +458,7 @@ describe("ChatThread — first message handed over by the entry path", () => {
     );
 
     // Ждём именно загруженного соседнего чата: пока он грузится, экран занят
-    // «Loading chat...» и уведомления не показал бы даже с багом.
+    // состоянием загрузки и уведомления не показал бы даже с багом.
     expect(await screen.findByText(OTHER_CHAT_MESSAGE)).toBeInTheDocument();
     expect(screen.queryByText("Генерация остановлена")).not.toBeInTheDocument();
   });
@@ -456,6 +514,297 @@ describe("ChatThread — first message handed over by the entry path", () => {
     expect(screen.queryByText("Объясни производные")).not.toBeInTheDocument();
   });
 
+  it("возврат в стримящий чат не задваивает сообщение mount-рефетчем истории", async () => {
+    setAccessToken(fakeJwt());
+    const chatFetches = vi.fn();
+    const persisted: unknown[] = [];
+    server.use(
+      projectHandler(),
+      http.get(CHAT_URL, () => {
+        chatFetches();
+        return HttpResponse.json({
+          thread_id: CHAT_ID,
+          title: "Новый чат",
+          security_blocked: false,
+          messages: persisted,
+        });
+      }),
+      http.get(OTHER_CHAT_URL, () => otherChat()),
+      // Сервер сохраняет user-сообщение сразу, а ход не заканчивается: дубль
+      // возможен ровно в этом окне — серверная копия в отрефетченной истории
+      // рядом с живой оптимистичной. Терминального события нет намеренно.
+      http.post(MESSAGES_URL, async ({ request }) => {
+        const body = JSON.parse(await request.text()) as { content: string };
+        persisted.push({
+          id: "m-user-held",
+          role: "user",
+          content: body.content,
+          created_at: "2026-07-01T10:00:00Z",
+          artifacts: [],
+        });
+        return heldStream([
+          sseFrame({ type: "text_chunk", content: "Производная" }),
+        ]);
+      }),
+    );
+
+    // Отправка через композер, не через очередь входа: сначала дожидаемся,
+    // пока первый GET истории завершится пустым, — auto-send стартовал бы
+    // гонку «POST наполняет persisted до того, как первый GET его прочитал»,
+    // и дубль появился бы из стартовой загрузки, а не из рефетча.
+    renderChatWithSwitch(null);
+    await waitFor(() => expect(chatFetches).toHaveBeenCalled());
+    await userEvent.type(
+      screen.getByPlaceholderText("Сообщение..."),
+      "Объясни производные",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Отправить" }));
+    expect(await screen.findByText("Объясни производные")).toBeInTheDocument();
+    const fetchesBeforeSwitch = chatFetches.mock.calls.length;
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Открыть соседний чат" }),
+    );
+    expect(await screen.findByText(OTHER_CHAT_MESSAGE)).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Вернуться в первый чат" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText(OTHER_CHAT_MESSAGE)).not.toBeInTheDocument(),
+    );
+
+    // Пока ход идёт, историю стримящего чата не рефетчит ни mount, ни фокус —
+    // серверная копия сообщения не приезжает и не встаёт рядом с оптимистичной.
+    expect(chatFetches.mock.calls.length).toBe(fetchesBeforeSwitch);
+    expect(screen.getAllByText("Объясни производные")).toHaveLength(1);
+  });
+
+  // Вложения композера (feat-011, T2.8): файл уезжает на сервер ровно в момент
+  // отправки, и только подтверждённая загрузка заводит ход (design-brief
+  // § Тайминг). Ошибка загрузки не должна ни отправлять сообщение, ни стирать
+  // набранное.
+  describe("вложения в отправке", () => {
+    function mdFile(name = "notes.md"): File {
+      return new File(["конспект"], name, { type: "text/markdown" });
+    }
+
+    it("грузит файл и только потом заводит ход с его путём", async () => {
+      setAccessToken(fakeJwt());
+      const calls: string[] = [];
+      const bodies: string[] = [];
+      server.use(
+        projectHandler(),
+        http.get(CHAT_URL, () => emptyChat()),
+        http.post(UPLOADS_URL, () => {
+          calls.push("upload");
+          return HttpResponse.json({ path: "uploads/notes.md" });
+        }),
+        http.post(MESSAGES_URL, async ({ request }) => {
+          calls.push("message");
+          bodies.push(await request.text());
+          return streamResponse([
+            { type: "done", message_id: "m-1", trace_id: null },
+          ]);
+        }),
+      );
+      const user = userEvent.setup();
+      const { container } = renderChatThread(null);
+
+      const field = await screen.findByPlaceholderText("Сообщение...");
+      await user.type(field, "Разбери конспект");
+      attach(container, mdFile());
+      await user.click(screen.getByRole("button", { name: "Отправить" }));
+
+      await waitFor(() => expect(bodies).toHaveLength(1));
+      // Порядок — часть контракта: сообщение с путём, которого ещё нет на
+      // сервере, агент прочитать не сможет.
+      expect(calls).toEqual(["upload", "message"]);
+      expect(JSON.parse(bodies[0]!) as unknown).toEqual({
+        content: "Разбери конспект",
+        attachments: ["uploads/notes.md"],
+      });
+    });
+
+    it("показывает отправленное сообщение с чипом сразу, не дожидаясь истории", async () => {
+      setAccessToken(fakeJwt());
+      server.use(
+        projectHandler(),
+        http.get(CHAT_URL, () => emptyChat()),
+        http.post(UPLOADS_URL, () =>
+          HttpResponse.json({ path: "uploads/notes-2.md" }),
+        ),
+        // Ход не заканчивается: оптимистичная копия живёт, пока он идёт.
+        http.post(MESSAGES_URL, () =>
+          heldStream([sseFrame({ type: "text_chunk", content: "Смотрю" })]),
+        ),
+      );
+      const user = userEvent.setup();
+      const { container } = renderChatThread(null);
+
+      const field = await screen.findByPlaceholderText("Сообщение...");
+      await user.type(field, "Разбери конспект");
+      attach(container, mdFile("notes.md"));
+      await user.click(screen.getByRole("button", { name: "Отправить" }));
+
+      // Состояния до и после отправки различает наличие ✕ у чипа: она есть
+      // только в композере (чип истории некликабелен), поэтому её отсутствие —
+      // признак «композер очищён», а не «ждём». Без этой половины ожидание
+      // резолвилось бы и на чипе композера, то есть до отправки.
+      // Оба ассерта в одном `waitFor`: единственное состояние, которое их
+      // проходит, — чип уехал из композера и остался ровно один, в истории,
+      // подписанный выбранным пользователем именем, а не путём, которым файл
+      // переименовал сервер.
+      await waitFor(() => {
+        expect(
+          screen.queryByRole("button", { name: "Убрать notes.md" }),
+        ).not.toBeInTheDocument();
+        expect(screen.getAllByText("notes.md")).toHaveLength(1);
+      });
+      expect(screen.getByText("Разбери конспект")).toBeInTheDocument();
+    });
+
+    it("на провале загрузки сообщение не уходит, а текст и чип остаются", async () => {
+      // A14: сервер отверг файл по лимиту — ход не заводится вовсе, а причина
+      // видна под композером. Обработчик отправки зарегистрирован намеренно:
+      // без него ушедшее сообщение просто упало бы на MSW, и кейс остался бы
+      // зелёным при отправленном сообщении.
+      setAccessToken(fakeJwt());
+      const bodies: string[] = [];
+      server.use(
+        projectHandler(),
+        http.get(CHAT_URL, () => emptyChat()),
+        http.post(UPLOADS_URL, () =>
+          HttpResponse.json({ detail: "Файл больше 20 МБ" }, { status: 413 }),
+        ),
+        http.post(MESSAGES_URL, async ({ request }) => {
+          bodies.push(await request.text());
+          return streamResponse([
+            { type: "done", message_id: "m-1", trace_id: null },
+          ]);
+        }),
+      );
+      const user = userEvent.setup();
+      const { container } = renderChatThread(null);
+
+      const field = await screen.findByPlaceholderText("Сообщение...");
+      await user.type(field, "Разбери конспект");
+      attach(container, mdFile("huge.pdf"));
+      await user.click(screen.getByRole("button", { name: "Отправить" }));
+
+      expect(await screen.findByText("Файл больше 20 МБ")).toBeInTheDocument();
+      // Сообщение не ушло на сервер — «не отправлено» в буквальном смысле, а
+      // не «отправлено, но не показано».
+      expect(bodies).toEqual([]);
+      expect(field).toHaveValue("Разбери конспект");
+      expect(screen.getByText("huge.pdf")).toBeInTheDocument();
+    });
+
+    it("роняет всю партию, если из двух вложений не взлетело одно", async () => {
+      // Файлы уезжают `Promise.all`, поэтому отказ на одном отменяет отправку
+      // целиком: сообщение не уходит, и на повторную попытку остаются оба чипа
+      // — включая уже загруженный файл (он становится сиротой в `uploads/`, и
+      // второй заход разведёт его суффиксом). Поведение принято брифом
+      // § Вложения пользователя; кейс сторожит именно его, чтобы «частичная»
+      // отправка с половиной вложений не появилась незамеченной.
+      setAccessToken(fakeJwt());
+      const uploaded: string[] = [];
+      const bodies: string[] = [];
+      server.use(
+        projectHandler(),
+        http.get(CHAT_URL, () => emptyChat()),
+        http.post(UPLOADS_URL, async ({ request }) => {
+          // Какой файл приехал, видно только по сырому телу: `formData()` в
+          // jsdom отдаёт часть-файл объектом чужого realm (см. blob-polyfill).
+          const body = await request.text();
+          const huge = body.includes('filename="huge.pdf"');
+          uploaded.push(huge ? "huge.pdf" : "notes.md");
+          return huge
+            ? HttpResponse.json(
+                { detail: "Файл больше 20 МБ" },
+                { status: 413 },
+              )
+            : HttpResponse.json({ path: "uploads/notes.md" });
+        }),
+        http.post(MESSAGES_URL, async ({ request }) => {
+          bodies.push(await request.text());
+          return streamResponse([
+            { type: "done", message_id: "m-1", trace_id: null },
+          ]);
+        }),
+      );
+      const user = userEvent.setup();
+      const { container } = renderChatThread(null);
+
+      const field = await screen.findByPlaceholderText("Сообщение...");
+      await user.type(field, "Разбери оба");
+      attach(container, mdFile("notes.md"), mdFile("huge.pdf"));
+      await user.click(screen.getByRole("button", { name: "Отправить" }));
+
+      expect(await screen.findByText("Файл больше 20 МБ")).toBeInTheDocument();
+      // Ход не заведён вовсе — ни с одним вложением, ни с обрезанным списком.
+      expect(bodies).toEqual([]);
+      // Обе загрузки успели уйти: сирота на сервере — принятое следствие, а не
+      // признак того, что партия остановилась на первом отказе.
+      expect([...uploaded].sort()).toEqual(["huge.pdf", "notes.md"]);
+      // Повторная попытка возможна без пересбора: текст и оба чипа на месте.
+      expect(field).toHaveValue("Разбери оба");
+      expect(screen.getByText("notes.md")).toBeInTheDocument();
+      expect(screen.getByText("huge.pdf")).toBeInTheDocument();
+    });
+
+    it("заводит ход, когда очередь входа принесла одни вложения без текста", async () => {
+      // Путь «лекция №1»: файл прикреплён на экране создания чата, текста нет.
+      // Пустая строка — законная очередь входа, и ход обязан начаться.
+      setAccessToken(fakeJwt());
+      const bodies: string[] = [];
+      server.use(
+        projectHandler(),
+        http.get(CHAT_URL, () => emptyChat()),
+        http.post(MESSAGES_URL, async ({ request }) => {
+          bodies.push(await request.text());
+          return streamResponse([
+            { type: "done", message_id: "m-1", trace_id: null },
+          ]);
+        }),
+      );
+
+      renderChatThread({
+        initialMessage: "",
+        attachments: [{ path: "uploads/lecture.pdf", title: "lecture.pdf" }],
+      });
+
+      await waitFor(() => expect(bodies).toHaveLength(1));
+      expect(JSON.parse(bodies[0]!) as unknown).toEqual({
+        content: "",
+        attachments: ["uploads/lecture.pdf"],
+      });
+    });
+
+    it("не заводит ход на пустой очереди без текста и без вложений", async () => {
+      setAccessToken(fakeJwt());
+      const bodies: string[] = [];
+      server.use(
+        projectHandler(),
+        http.get(CHAT_URL, () => emptyChat()),
+        http.post(MESSAGES_URL, async ({ request }) => {
+          bodies.push(await request.text());
+          return streamResponse([
+            { type: "done", message_id: "m-1", trace_id: null },
+          ]);
+        }),
+      );
+
+      renderChatThread({ initialMessage: "", attachments: [] });
+
+      expect(
+        await screen.findByPlaceholderText("Сообщение..."),
+      ).toBeInTheDocument();
+      // Вырожденная очередь — ни текста, ни файлов: отправлять нечего.
+      expect(bodies).toEqual([]);
+    });
+  });
+
   it("does not wait for the chat history to load before sending", async () => {
     setAccessToken(fakeJwt());
     let sent = 0;
@@ -489,12 +838,371 @@ describe("ChatThread — first message handed over by the entry path", () => {
     await waitFor(() => expect(sent).toBe(1));
     // The history has not been answered yet — the send went first.
     expect(historyDelivered).toBe(false);
-    expect(screen.getByText("Loading chat...")).toBeInTheDocument();
+    // Панельная загрузка чата — общий для продукта `LoadingState` с русской
+    // подписью (feat-013, блоки 2 и 3): англоязычная строка `Loading chat...`
+    // отменена вместе с ad-hoc вёрсткой этого состояния. Подпись именует
+    // загружаемое («Загрузка чата…»), как на сфере и артефакте, а не остаётся
+    // безличным дефолтом примитива.
+    expect(screen.getByText("Загрузка чата…")).toBeInTheDocument();
     // Let the held history land before the test ends — a request still in
     // flight at teardown resolves into a torn-down environment.
     releaseHistory();
     expect(
       await screen.findByPlaceholderText("Сообщение..."),
     ).toBeInTheDocument();
+  });
+});
+
+/**
+ * Транзиентное состояние экрана принадлежит чату, в котором ход **шёл**, а не
+ * тому, что открыт в момент терминального события. Проверить это можно только
+ * на переключении посреди хода: компонент при смене `:cid` не перемонтируется,
+ * и до фикса колбэк штамповал состояние идентификатором нового чата. Кейсы выше
+ * (`не переносит … в соседний чат`) страхуют соседнюю половину — фильтры
+ * рендера; здесь ход заканчивается уже после ухода пользователя.
+ */
+describe("ChatThread — состояние принадлежит чату, в котором шёл ход", () => {
+  it.each<[string, Record<string, unknown>, string]>([
+    ["cancelled", { type: "cancelled" }, "Генерация остановлена"],
+    ["error", { type: "error", detail: STREAM_ERROR }, STREAM_ERROR],
+    [
+      "security_block",
+      { type: "security_block" },
+      "Ход остановлен системой безопасности",
+    ],
+  ])(
+    "оставляет исход хода (%s) в чате-владельце, а не в открытом чате",
+    async (_event, terminal, expectedText) => {
+      setAccessToken(fakeJwt());
+      const live = liveStream();
+      server.use(
+        projectHandler(),
+        http.get(CHAT_URL, () => emptyChat()),
+        http.get(OTHER_CHAT_URL, () => otherChat()),
+        http.post(MESSAGES_URL, () => live.response),
+      );
+
+      renderChatWithSwitch({ initialMessage: "Объясни производные" });
+      expect(
+        await screen.findByText("Объясни производные"),
+      ).toBeInTheDocument();
+
+      // Пользователь уходит в соседний чат, не дождавшись конца хода.
+      await userEvent.click(
+        screen.getByRole("button", { name: "Открыть соседний чат" }),
+      );
+      expect(await screen.findByText(OTHER_CHAT_MESSAGE)).toBeInTheDocument();
+
+      // …и ход заканчивается уже здесь.
+      live.push(terminal);
+      live.close();
+
+      // Исход ждёт пользователя в том чате, где ход шёл: это же и признак того,
+      // что терминальное событие обработано, — на нём держится ассерт ниже.
+      await userEvent.click(
+        screen.getByRole("button", { name: "Вернуться в первый чат" }),
+      );
+      expect(await screen.findByText(expectedText)).toBeInTheDocument();
+
+      // А в соседнем чате его нет и не было.
+      await userEvent.click(
+        screen.getByRole("button", { name: "Открыть соседний чат" }),
+      );
+      expect(await screen.findByText(OTHER_CHAT_MESSAGE)).toBeInTheDocument();
+      expect(screen.queryByText(expectedText)).not.toBeInTheDocument();
+    },
+  );
+
+  // Вторая половина того же правила, и она про **отправку**, а не про терминал:
+  // новый ход гасит ошибку и уведомление своего чата, чужие не трогает. Порядок
+  // «терминал в A, потом отправка в B» не покрывал ни один кейс — выше
+  // пользователь отправляет в соседнем чате раньше, чем ход A закончится, и
+  // гасить в слоте ещё нечего. Без сверки владельца обещание трека отменялось
+  // первой же отправкой в соседнем чате: плашка A стиралась до возвращения.
+  it("не гасит исход чужого хода отправкой сообщения в соседнем чате", async () => {
+    setAccessToken(fakeJwt());
+    const liveFirst = liveStream();
+    const liveOther = liveStream();
+    server.use(
+      projectHandler(),
+      http.get(CHAT_URL, () => emptyChat()),
+      http.get(OTHER_CHAT_URL, () => otherChat()),
+      http.post(MESSAGES_URL, () => liveFirst.response),
+      http.post(OTHER_CHAT_MESSAGES_URL, () => liveOther.response),
+    );
+
+    renderChatWithSwitch({ initialMessage: "Объясни производные" });
+    expect(await screen.findByText("Объясни производные")).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Открыть соседний чат" }),
+    );
+    expect(await screen.findByText(OTHER_CHAT_MESSAGE)).toBeInTheDocument();
+
+    // Ход первого чата падает уже после ухода пользователя.
+    liveFirst.push({ type: "error", detail: STREAM_ERROR });
+    liveFirst.close();
+
+    // Возврат здесь — точка синхронизации: плашка на экране означает, что
+    // терминал A разобран и в слоте есть что гасить. Без этого отправка в B
+    // успевала бы раньше ошибки, и кейс был бы зелёным вместе с багом.
+    await userEvent.click(
+      screen.getByRole("button", { name: "Вернуться в первый чат" }),
+    );
+    expect(await screen.findByText(STREAM_ERROR)).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Открыть соседний чат" }),
+    );
+    expect(await screen.findByText(OTHER_CHAT_MESSAGE)).toBeInTheDocument();
+    await userEvent.type(
+      screen.getByPlaceholderText("Сообщение..."),
+      "Вопрос в соседнем чате",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Отправить" }));
+    expect(
+      await screen.findByText("Вопрос в соседнем чате"),
+    ).toBeInTheDocument();
+
+    // Исход хода дождался пользователя: отправка в соседнем чате к нему
+    // отношения не имеет.
+    await userEvent.click(
+      screen.getByRole("button", { name: "Вернуться в первый чат" }),
+    );
+    expect(await screen.findByText(STREAM_ERROR)).toBeInTheDocument();
+  });
+
+  // Обратная половина того же признака: внутри своего чата отправка гасит
+  // плашку как и раньше — сверка владельца не имеет права превратить сброс в
+  // no-op, иначе ошибка прошлого хода висела бы поверх нового.
+  it("гасит собственную плашку следующей отправкой в том же чате", async () => {
+    setAccessToken(fakeJwt());
+    let posts = 0;
+    // Второй ход обязан дойти до конца: живой регион прячет плашку сам
+    // (`streamError && !isStreaming`), поэтому её отсутствие посреди хода не
+    // означало бы ничего. Признак сброса снимается уже после `done`.
+    const persisted: unknown[] = [];
+    server.use(
+      projectHandler(),
+      http.get(CHAT_URL, () =>
+        HttpResponse.json({
+          thread_id: CHAT_ID,
+          title: "Новый чат",
+          security_blocked: false,
+          messages: persisted,
+        }),
+      ),
+      http.post(MESSAGES_URL, async ({ request }) => {
+        posts += 1;
+        if (posts === 1) {
+          return streamResponse([{ type: "error", detail: STREAM_ERROR }]);
+        }
+        const body = await request.text();
+        persisted.push(
+          {
+            id: "m-user",
+            role: "user",
+            content: (JSON.parse(body) as { content: string }).content,
+            created_at: "2026-07-01T10:00:00Z",
+            artifacts: [],
+          },
+          {
+            id: "m-agent",
+            role: "assistant",
+            content: STORED_ANSWER,
+            created_at: "2026-07-01T10:00:01Z",
+            artifacts: [],
+          },
+        );
+        return streamResponse([
+          { type: "done", message_id: "m-2", trace_id: null },
+        ]);
+      }),
+    );
+
+    renderChatThread({ initialMessage: "Объясни производные" });
+    expect(await screen.findByText(STREAM_ERROR)).toBeInTheDocument();
+
+    await userEvent.type(
+      screen.getByPlaceholderText("Сообщение..."),
+      "Попробуй ещё раз",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Отправить" }));
+
+    // Сохранённый ответ на экране — второй ход закончился, стрим погас: плашке
+    // прошлого хода ничто не мешало бы показаться, если бы её не сняли.
+    expect(await screen.findByText(STORED_ANSWER)).toBeInTheDocument();
+    expect(screen.queryByText(STREAM_ERROR)).not.toBeInTheDocument();
+    expect(posts).toBe(2);
+  });
+
+  it("не стирает оптимистичную копию соседнего чата терминалом чужого хода", async () => {
+    setAccessToken(fakeJwt());
+    const liveFirst = liveStream();
+    const liveOther = liveStream();
+    // История первого чата пополняется отправкой — после `done` рефетч покажет
+    // сохранённый ответ, и это единственный признак того, что терминал чужого
+    // хода уже обработан.
+    const persisted: unknown[] = [];
+    server.use(
+      projectHandler(),
+      http.get(CHAT_URL, () =>
+        HttpResponse.json({
+          thread_id: CHAT_ID,
+          title: "Новый чат",
+          security_blocked: false,
+          messages: persisted,
+        }),
+      ),
+      http.get(OTHER_CHAT_URL, () => otherChat()),
+      http.post(MESSAGES_URL, () => {
+        persisted.push(
+          {
+            id: "m-user",
+            role: "user",
+            content: "Объясни производные",
+            created_at: "2026-07-01T10:00:00Z",
+            artifacts: [],
+          },
+          {
+            id: "m-agent",
+            role: "assistant",
+            content: STORED_ANSWER,
+            created_at: "2026-07-01T10:00:01Z",
+            artifacts: [],
+          },
+        );
+        return liveFirst.response;
+      }),
+      http.post(OTHER_CHAT_MESSAGES_URL, () => liveOther.response),
+    );
+
+    renderChatWithSwitch({ initialMessage: "Объясни производные" });
+    expect(await screen.findByText("Объясни производные")).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Открыть соседний чат" }),
+    );
+    expect(await screen.findByText(OTHER_CHAT_MESSAGE)).toBeInTheDocument();
+
+    // Своя отправка в соседнем чате — своя оптимистичная копия, которую сервер
+    // ещё не подтвердил: её снимает только терминал **этого** чата.
+    await userEvent.type(
+      screen.getByPlaceholderText("Сообщение..."),
+      "Вопрос в соседнем чате",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Отправить" }));
+    expect(
+      await screen.findByText("Вопрос в соседнем чате"),
+    ).toBeInTheDocument();
+
+    // Ход первого чата доезжает до конца, пока открыт соседний.
+    liveFirst.push({ type: "done", message_id: "m-1", trace_id: null });
+    liveFirst.close();
+
+    // Возврат в первый чат: сохранённый ответ на экране — значит `done` уже
+    // разобран и его копию сняли именно там, где она была отправлена.
+    await userEvent.click(
+      screen.getByRole("button", { name: "Вернуться в первый чат" }),
+    );
+    expect(await screen.findByText(STORED_ANSWER)).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Открыть соседний чат" }),
+    );
+    expect(await screen.findByText(OTHER_CHAT_MESSAGE)).toBeInTheDocument();
+    // Копия соседнего чата на месте: его собственный ход всё ещё идёт, сервер
+    // сообщения не подтвердил, и стереть его чужому `done` нечем. Сам ход
+    // обрывает cleanup экрана — как настоящий уход со страницы.
+    expect(screen.getByText("Вопрос в соседнем чате")).toBeInTheDocument();
+  });
+});
+
+/**
+ * Загрузка и ошибка экрана чата — те же формы, что получают остальные экраны
+ * продукта (feat-013, блоки 2/3/4): панельный `LoadingState` вместо
+ * англоязычной строки и полная форма `StateScreen` со сценой ошибки вместо
+ * голой красной строки, из которой не было выхода, кроме F5.
+ */
+describe("ChatThread — состояния загрузки и ошибки", () => {
+  it("предлагает «Повторить» на упавшей истории и перезапрашивает её", async () => {
+    setAccessToken(fakeJwt());
+    let attempts = 0;
+    server.use(
+      projectHandler(),
+      http.get(CHAT_URL, () => {
+        attempts += 1;
+        if (attempts === 1) {
+          return HttpResponse.json(
+            { detail: "Внутренняя ошибка" },
+            {
+              status: 500,
+            },
+          );
+        }
+        return HttpResponse.json({
+          thread_id: CHAT_ID,
+          title: "Производные",
+          security_blocked: false,
+          messages: [
+            {
+              id: "m-old",
+              role: "user",
+              content: "Старое сообщение",
+              created_at: "2026-07-01T10:00:00Z",
+              artifacts: [],
+            },
+          ],
+        });
+      }),
+    );
+
+    renderChatThread(null);
+
+    // Полная форма, а не компактная карточка и не голая красная строка:
+    // serif-заголовок + подпись + сцена + действие. Заголовок отдельным
+    // ассертом — именно его отсутствие и было главным расхождением экрана
+    // чата с мокапом (секция 2г) и с соседними панелями.
+    expect(
+      await screen.findByRole("heading", { name: "Не удалось загрузить чат" }),
+    ).toBeInTheDocument();
+    // Подпись — общая для всех «не удалось загрузить» формулировка, а не
+    // персональная строка экрана: тот же текст несут сфера, артефакт и 404.
+    expect(
+      screen.getByText(
+        "Что-то пошло не так при загрузке. Проверьте соединение и попробуйте ещё раз.",
+      ),
+    ).toBeInTheDocument();
+    // Сцена та же и **названа** так же, как на сфере, артефакте и в
+    // `ErrorBoundary`: доступное имя одной и той же картинки не имеет права
+    // разъезжаться по экранам.
+    expect(
+      screen.getByRole("img", { name: "Иллюстрация: ошибка" }),
+    ).toBeInTheDocument();
+    expect(attempts).toBe(1);
+
+    const retry = screen.getByRole("button", { name: "Повторить" });
+    // Вид действия — `variant="outline"`, как в мокапе и у соседей, а не
+    // primary. Единственный признак варианта, наблюдаемый в jsdom (CSS он не
+    // исполняет), — набор классов, который выдаёт сам примитив `Button`.
+    // Сверяем не с захардкоженными токенами Tailwind, а с эталоном,
+    // отрендеренным тем же примитивом: кейс сторожит принадлежность к
+    // варианту и переживает любую перекраску палитры. Это осознанное
+    // отступление от «не ассертим className» — другого шва у варианта нет, а
+    // без сторожа форма экрана снова разъедется незамеченной.
+    const outlineReference = render(
+      <Button variant="outline">Повторить</Button>,
+    );
+    expect(retry.className).toBe(
+      outlineReference.container.querySelector("button")!.className,
+    );
+    outlineReference.unmount();
+
+    await userEvent.click(retry);
+
+    // Путь восстановления, которого у экрана не было: до фикса из ошибки
+    // выводила только перезагрузка страницы.
+    expect(await screen.findByText("Старое сообщение")).toBeInTheDocument();
+    expect(attempts).toBeGreaterThan(1);
   });
 });

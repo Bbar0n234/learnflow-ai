@@ -6,6 +6,7 @@ import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { setAccessToken } from "@/shared/api/client";
 import { server } from "@/test/msw/server";
 import { renderWithProviders } from "@/test/test-utils";
 
@@ -229,5 +230,68 @@ describe("Sidebar — the Security entry point", () => {
       screen.getByRole("button", { name: /Новый проект/ }),
     ).toBeInTheDocument();
     expect(screen.getByText("Проекты")).toBeInTheDocument();
+  });
+});
+
+// The user footer (feat-013 § 10 and § 2 «Заодно»). Two things are pinned here:
+// that the footer survives a cold session whose access token has already
+// expired — the reported bug, where /auth/me was the one request the refresh
+// interceptor refused to retry, leaving `user` undefined and the whole footer
+// unrendered — and that its icon buttons speak Russian, since `title` is what
+// gives an icon-only button its accessible name.
+
+const STALE_TOKEN = "stale-token";
+const FRESH_TOKEN = "fresh-token";
+
+/**
+ * A cold session: the stored access token has expired, the refresh cookie is
+ * still good. Every protected call answers 401 until it is re-sent with the
+ * refreshed token — exactly the state the app wakes up in after a long pause.
+ */
+function staleSessionNetwork() {
+  const isFresh = (request: Request) =>
+    request.headers.get("Authorization") === `Bearer ${FRESH_TOKEN}`;
+
+  server.use(
+    http.post("/api/auth/refresh", () =>
+      HttpResponse.json({ access_token: FRESH_TOKEN }),
+    ),
+    http.get("/api/auth/me", ({ request }) =>
+      isFresh(request)
+        ? HttpResponse.json({ id: "u1", name: "tester", is_admin: false })
+        : new HttpResponse(null, { status: 401 }),
+    ),
+    http.get("/api/projects", ({ request }) =>
+      isFresh(request) ? emptyList() : new HttpResponse(null, { status: 401 }),
+    ),
+    http.get("/api/chats/recent", ({ request }) =>
+      isFresh(request) ? emptyList() : new HttpResponse(null, { status: 401 }),
+    ),
+  );
+}
+
+describe("Sidebar — the user footer", () => {
+  it("shows the user footer on a session whose access token has expired", async () => {
+    staleSessionNetwork();
+    setAccessToken(STALE_TOKEN);
+
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/"]}>
+        <Sidebar />
+      </MemoryRouter>,
+    );
+
+    // React Query does not retry a 4xx, so the footer appears only if the API
+    // client itself refreshed the token and re-sent /auth/me.
+    expect(await screen.findByText("tester")).toBeInTheDocument();
+  });
+
+  it("labels the footer actions in Russian", async () => {
+    await renderSecuritySidebar({ isAdmin: false });
+
+    expect(
+      screen.getByRole("button", { name: "Настройки" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Выйти" })).toBeInTheDocument();
   });
 });

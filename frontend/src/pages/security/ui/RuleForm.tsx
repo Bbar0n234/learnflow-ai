@@ -465,7 +465,7 @@ export function RuleForm({
             Отмена
           </Button>
           <Button onClick={handleSubmit} disabled={isLoading}>
-            {isLoading ? "Сохранение..." : "Сохранить"}
+            {isLoading ? "Сохранение…" : "Сохранить"}
           </Button>
         </DialogFooter>
       </DialogContent>

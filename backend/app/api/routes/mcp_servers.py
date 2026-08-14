@@ -182,7 +182,7 @@ async def create_user_server(
     if count >= MAX_SERVERS_PER_SCOPE:
         raise HTTPException(
             status_code=409,
-            detail=f"Maximum {MAX_SERVERS_PER_SCOPE} servers per scope",
+            detail=f"Достигнут лимит: не более {MAX_SERVERS_PER_SCOPE} серверов",
         )
     service = _build_mcp_service(request, session)
     server = await service.guard_and_persist(
@@ -203,7 +203,7 @@ async def update_user_server(
     repo = MCPServerRepository(session)
     server = await repo.get_user_server(server_id)
     if server is None or server.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Server not found")
+        raise HTTPException(status_code=404, detail="Сервер не найден")
     service = _build_mcp_service(request, session)
     server = await service.update_and_reguard(
         scope="user", owner_id=user.id, server=server, payload=body
@@ -222,7 +222,7 @@ async def delete_user_server(
     repo = MCPServerRepository(session)
     server = await repo.get_user_server(server_id)
     if server is None or server.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Server not found")
+        raise HTTPException(status_code=404, detail="Сервер не найден")
     await repo.cleanup_disables_for_server(server_id)
     await repo.delete(server)
     _get_tool_resolver(request).invalidate("user", user.id)
@@ -242,7 +242,7 @@ async def test_user_server(
     enc = _get_encryption(request)
     server = await repo.get_user_server(server_id)
     if server is None or server.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Server not found")
+        raise HTTPException(status_code=404, detail="Сервер не найден")
     api_key = None
     if server.api_key_encrypted and enc.is_available:
         api_key = enc.decrypt(server.api_key_encrypted)
@@ -299,7 +299,7 @@ async def create_project_server(
     if count >= MAX_SERVERS_PER_SCOPE:
         raise HTTPException(
             status_code=409,
-            detail=f"Maximum {MAX_SERVERS_PER_SCOPE} servers per scope",
+            detail=f"Достигнут лимит: не более {MAX_SERVERS_PER_SCOPE} серверов",
         )
     service = _build_mcp_service(request, session)
     server = await service.guard_and_persist(
@@ -323,7 +323,7 @@ async def update_project_server(
     repo = MCPServerRepository(session)
     server = await repo.get_project_server(server_id)
     if server is None or server.project_id != project.id:
-        raise HTTPException(status_code=404, detail="Server not found")
+        raise HTTPException(status_code=404, detail="Сервер не найден")
     service = _build_mcp_service(request, session)
     server = await service.update_and_reguard(
         scope="project", owner_id=project.id, server=server, payload=body
@@ -342,7 +342,7 @@ async def delete_project_server(
     repo = MCPServerRepository(session)
     server = await repo.get_project_server(server_id)
     if server is None or server.project_id != project.id:
-        raise HTTPException(status_code=404, detail="Server not found")
+        raise HTTPException(status_code=404, detail="Сервер не найден")
     await repo.cleanup_disables_for_server(server_id)
     await repo.delete(server)
     _get_tool_resolver(request).invalidate("project", project.id)
@@ -362,7 +362,7 @@ async def test_project_server(
     enc = _get_encryption(request)
     server = await repo.get_project_server(server_id)
     if server is None or server.project_id != project.id:
-        raise HTTPException(status_code=404, detail="Server not found")
+        raise HTTPException(status_code=404, detail="Сервер не найден")
     api_key = None
     if server.api_key_encrypted and enc.is_available:
         api_key = enc.decrypt(server.api_key_encrypted)
@@ -449,7 +449,7 @@ async def create_thread_server(
     if count >= MAX_SERVERS_PER_SCOPE:
         raise HTTPException(
             status_code=409,
-            detail=f"Maximum {MAX_SERVERS_PER_SCOPE} servers per scope",
+            detail=f"Достигнут лимит: не более {MAX_SERVERS_PER_SCOPE} серверов",
         )
     service = _build_mcp_service(request, session)
     server = await service.guard_and_persist(
@@ -474,7 +474,7 @@ async def update_thread_server(
     repo = MCPServerRepository(session)
     server = await repo.get_thread_server(server_id)
     if server is None or server.thread_id != thread.thread_id:
-        raise HTTPException(status_code=404, detail="Server not found")
+        raise HTTPException(status_code=404, detail="Сервер не найден")
     service = _build_mcp_service(request, session)
     server = await service.update_and_reguard(
         scope="thread", owner_id=thread.thread_id, server=server, payload=body
@@ -497,7 +497,7 @@ async def delete_thread_server(
     repo = MCPServerRepository(session)
     server = await repo.get_thread_server(server_id)
     if server is None or server.thread_id != thread.thread_id:
-        raise HTTPException(status_code=404, detail="Server not found")
+        raise HTTPException(status_code=404, detail="Сервер не найден")
     await repo.cleanup_disables_for_server(server_id)
     await repo.delete(server)
     _get_tool_resolver(request).invalidate("thread", thread.thread_id)
@@ -518,7 +518,7 @@ async def test_thread_server(
     enc = _get_encryption(request)
     server = await repo.get_thread_server(server_id)
     if server is None or server.thread_id != thread.thread_id:
-        raise HTTPException(status_code=404, detail="Server not found")
+        raise HTTPException(status_code=404, detail="Сервер не найден")
     api_key = None
     if server.api_key_encrypted and enc.is_available:
         api_key = enc.decrypt(server.api_key_encrypted)

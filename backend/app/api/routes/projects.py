@@ -74,6 +74,6 @@ async def delete_project(
     except EntityNotFoundError:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     if project.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail="Проект не найден")
     await service.delete_project(project.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -183,7 +183,7 @@ export function Sidebar() {
               variant="ghost"
               size="icon-sm"
               onClick={() => navigate("/settings")}
-              title="Settings"
+              title="Настройки"
             >
               <Settings className="h-4 w-4" />
             </Button>
@@ -191,7 +191,7 @@ export function Sidebar() {
               variant="ghost"
               size="icon-sm"
               onClick={handleLogout}
-              title="Logout"
+              title="Выйти"
             >
               <LogOut className="h-4 w-4" />
             </Button>

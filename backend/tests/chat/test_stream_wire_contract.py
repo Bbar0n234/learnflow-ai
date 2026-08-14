@@ -37,6 +37,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tests.chat.conftest import (
     FakeAgentRunner,
     agent_event_event,
+    artifact_created_event,
+    artifact_updated_event,
     cancelled_event,
     heartbeat_event,
     reasoning_chunk_event,
@@ -221,3 +223,40 @@ async def test_an_event_type_the_transport_has_never_heard_of_still_ships(
     payloads = await _run(client, project, thread)
 
     assert payloads[0] == {"type": "title_updated", "title": "New title"}
+
+
+async def test_artifact_events_keep_both_their_event_type_and_the_files_type(
+    client: AsyncClient,
+    current_user: User,
+    db_session: AsyncSession,
+    wired_runner: FakeAgentRunner,
+) -> None:
+    # The frame is flat (`{"type": event.type, **event.data}`), so a payload
+    # key literally named `type` would overwrite the event's own — which is
+    # why the file's type travels as `artifact_type`. The update also has to
+    # arrive with its line counters intact: that is what the "обновлён · +N −M"
+    # badge is drawn from.
+    project, thread = await _make_thread(db_session, current_user)
+    wired_runner.last_ai_message_id = "m1"
+    wired_runner.events = [
+        artifact_created_event("chart.png"),
+        artifact_updated_event("lecture-1/slides.md"),
+    ]
+
+    payloads = await _run(client, project, thread)
+
+    assert payloads[:2] == [
+        {
+            "type": "artifact_created",
+            "path": "chart.png",
+            "title": "chart.png",
+            "artifact_type": "png",
+        },
+        {
+            "type": "artifact_updated",
+            "path": "lecture-1/slides.md",
+            "title": "slides.md",
+            "artifact_type": "md",
+            "diff": {"added": 1, "removed": 1},
+        },
+    ]

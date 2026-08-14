@@ -113,6 +113,11 @@ function rowView(item: AgentFeedItem, active: boolean): RowView | null {
       // Текст ассистента — отдельный блок прозы (`groupFeedBlocks`), строкой
       // ленты он не рендерится: строки «Ответил» ради симметрии нет.
       return null;
+    case "artifact":
+      // Артефакт — отдельный блок карточки (`groupFeedBlocks`), строкой ленты
+      // не рендерится и сюда доходить не должен; ветка — для исчерпанности
+      // switch по `AgentFeedItem`.
+      return null;
   }
 }
 
@@ -155,7 +160,7 @@ function StatusMeta({ status }: { status: FeedItemStatus }) {
     case "success":
       return (
         <>
-          <Check aria-hidden="true" className="size-3.5" />
+          <Check aria-hidden="true" className="size-3.5 text-success" />
           <span className="sr-only">успешно</span>
         </>
       );

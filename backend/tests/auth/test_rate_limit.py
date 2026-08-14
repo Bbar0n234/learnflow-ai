@@ -103,7 +103,7 @@ async def test_login_over_limit_returns_429_with_retry_after(
 
     assert statuses[:5] == [401, 401, 401, 401, 401]
     assert response.status_code == 429
-    assert response.json()["detail"] == "Too many requests"
+    assert response.json()["detail"] == "Слишком много запросов, попробуйте позже"
     assert "retry-after" in {k.lower() for k in response.headers}
 
 
@@ -120,7 +120,7 @@ async def test_register_over_limit_returns_429_with_retry_after(
 
     assert statuses[:3] == [200, 200, 200]
     assert response.status_code == 429
-    assert response.json()["detail"] == "Too many requests"
+    assert response.json()["detail"] == "Слишком много запросов, попробуйте позже"
     assert "retry-after" in {k.lower() for k in response.headers}
 
 
@@ -138,5 +138,5 @@ async def test_refresh_over_limit_returns_429_with_retry_after(
 
     assert statuses[:10] == [401] * 10
     assert response.status_code == 429
-    assert response.json()["detail"] == "Too many requests"
+    assert response.json()["detail"] == "Слишком много запросов, попробуйте позже"
     assert "retry-after" in {k.lower() for k in response.headers}

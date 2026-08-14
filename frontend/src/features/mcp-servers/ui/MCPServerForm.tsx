@@ -52,7 +52,7 @@ export function MCPServerForm({
     <form onSubmit={handleSubmit} className="space-y-3">
       <div>
         <label htmlFor="mcp-name" className="mb-1 block text-xs font-medium">
-          Name
+          Название
         </label>
         <input
           id="mcp-name"
@@ -69,7 +69,7 @@ export function MCPServerForm({
           id="mcp-transport-label"
           className="mb-1 block text-xs font-medium"
         >
-          Transport
+          Транспорт
         </label>
         <Select
           value={transport}
@@ -103,7 +103,8 @@ export function MCPServerForm({
       </div>
       <div>
         <label htmlFor="mcp-api-key" className="mb-1 block text-xs font-medium">
-          API Key {isEdit ? "(leave empty to keep current)" : "(optional)"}
+          API-ключ{" "}
+          {isEdit ? "(оставьте пустым, чтобы не менять)" : "(необязательно)"}
         </label>
         <input
           id="mcp-api-key"
@@ -113,8 +114,8 @@ export function MCPServerForm({
           onChange={(e) => setApiKey(e.target.value)}
           placeholder={
             isEdit && initialData?.api_key_hint
-              ? `Current: ${initialData.api_key_hint}`
-              : "Bearer token"
+              ? `Сейчас: ${initialData.api_key_hint}`
+              : "Токен доступа"
           }
         />
       </div>
@@ -122,14 +123,14 @@ export function MCPServerForm({
         <Button size="sm" type="submit" disabled={isPending}>
           {isPending
             ? isEdit
-              ? "Saving..."
-              : "Adding..."
+              ? "Сохраняем…"
+              : "Добавляем…"
             : isEdit
-              ? "Save"
-              : "Add Server"}
+              ? "Сохранить"
+              : "Добавить сервер"}
         </Button>
         <Button size="sm" variant="ghost" type="button" onClick={onCancel}>
-          Cancel
+          Отмена
         </Button>
       </div>
       {isSecurityViolation(error) ? (

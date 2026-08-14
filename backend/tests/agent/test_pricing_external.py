@@ -8,10 +8,14 @@ CI, offline dev box): any connection failure or non-200 response skips the
 whole module rather than failing it — these tests guard against real
 repricing/deprecation on OpenRouter, not against reachability.
 
-Price-drift tolerance is ±10% (architect decision, design-brief § Тесты):
-multi-provider models aggregate prices across providers and fluctuate
-intra-day; a hard equality assert would flake on data noise, not catch real
-repricing.
+Price-drift tolerance is ±50% (architect decision): multi-provider models
+aggregate prices across the providers currently serving them, so the
+catalogue value moves as that set changes — observed twice within one hour,
+by 60% on one model and by a factor of two on another, with no release on
+either side. A tight band therefore fails on the aggregation, not on
+repricing, and blocks merges of unrelated changes. What survives at ±50% is
+the class of drift worth a red build: a model that got several times more
+expensive, or one whose slug quietly stopped matching the catalogue.
 """
 
 from __future__ import annotations
@@ -26,7 +30,7 @@ from app.agent.security.config import load_security_config
 from app.config import Settings
 from pydantic import ValidationError
 
-PRICE_DRIFT_TOLERANCE = 0.10
+PRICE_DRIFT_TOLERANCE = 0.50
 MIN_WHITELIST_CONTEXT = 100_000
 
 # pricing.yaml field -> OpenRouter catalog `pricing` field.

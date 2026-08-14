@@ -1,4 +1,6 @@
+import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "./client";
+import { queryKeys } from "./query-keys";
 
 interface TokenResponse {
   access_token: string;
@@ -65,4 +67,24 @@ export async function getMe(): Promise<UserInfo> {
 
 export async function logout(): Promise<void> {
   await apiClient.post("/auth/logout");
+}
+
+export interface AuthProvidersResponse {
+  providers: string[];
+  password: boolean;
+}
+
+// Анонимный запрос: `client.ts` уже исключает `/auth/`-URL из refresh-retry
+// (правку интерцептора эта фаза не требует — design-brief.md § Контракты).
+export async function getAuthProviders(): Promise<AuthProvidersResponse> {
+  const { data } =
+    await apiClient.get<AuthProvidersResponse>("/auth/providers");
+  return data;
+}
+
+export function useAuthProviders() {
+  return useQuery({
+    queryKey: queryKeys.auth.providers,
+    queryFn: getAuthProviders,
+  });
 }

@@ -2,7 +2,7 @@
 
 ## Статус
 
-Принято
+Superseded by [ADR-032](ADR-032-project-workspace-file-model.md). Артефакты (включая бинарные — изображения) переехали из PostgreSQL (`artifacts`/`artifact_blobs`, `BlobStorage`/`PgBlobStorage`) в файлы workspace per project; таблицы и протокол, описанные ниже, упразднены. Документ остаётся историей решения PG-эпохи хранения артефактов — детали ниже не отражают текущее состояние кода.
 
 ## Контекст
 

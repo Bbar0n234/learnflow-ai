@@ -11,7 +11,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base
 
 if TYPE_CHECKING:
-    from app.models.artifact import Artifact
     from app.models.thread_view import ThreadView
     from app.models.user import User
 
@@ -38,8 +37,5 @@ class Project(Base):
     # Relationships
     user: Mapped[User] = relationship(back_populates="projects")
     thread_views: Mapped[list[ThreadView]] = relationship(
-        back_populates="project", cascade="all, delete-orphan"
-    )
-    artifacts: Mapped[list[Artifact]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )

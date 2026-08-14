@@ -348,7 +348,19 @@ describe("agent-feed: события вне ленты", () => {
     { type: "final_output_review_started" },
     { type: "final_output_review_complete" },
     { type: "title_updated", title: "Производные" },
-    { type: "artifact_created", id: "a1", title: "Notes", artifact_type: "md" },
+    {
+      type: "artifact_created",
+      path: "lecture-1/notes.md",
+      title: "Notes",
+      artifact_type: "md",
+    },
+    {
+      type: "artifact_updated",
+      path: "lecture-1/notes.md",
+      title: "Notes",
+      artifact_type: "md",
+      diff: { added: 3, removed: 1 },
+    },
     { type: "security_block" },
     { type: "cancelled" },
     { type: "error", detail: "модель упала" },
@@ -762,5 +774,99 @@ describe("agent-feed: блоки", () => {
 
     expect(blocks).toHaveLength(1);
     expect(blocks[0]?.type).toBe("text");
+  });
+});
+
+// Связь «ход ↝ файл» приезжает частью истории (`ArtifactPart`, ADR-032):
+// живого источника у неё нет — SSE-события артефакта в редьюсер не подаются,
+// карточка встаёт по завершении хода. Отсюда две обязанности модели: перенести
+// часть без потери полей и дать карточке собственный блок, чтобы она не
+// превратилась в строку ленты действий.
+describe("agent-feed: артефакт из истории", () => {
+  const artifactPart: MessagePart = {
+    type: "artifact",
+    path: "lecture-1/konspekt.md",
+    title: "Конспект лекции 1",
+    artifact_type: "md",
+    kind: "updated",
+    diff: { added: 12, removed: 3 },
+  };
+
+  it("переносит путь, тип, вид записи и дельту строк", () => {
+    const [item] = fromMessageParts([artifactPart]);
+
+    expect(item).toMatchObject({
+      type: "artifact",
+      path: "lecture-1/konspekt.md",
+      title: "Конспект лекции 1",
+      artifactType: "md",
+      kind: "updated",
+      diff: { added: 12, removed: 3 },
+    });
+  });
+
+  it("сохраняет отсутствие дельты у бинарной перезаписи", () => {
+    // `diff: null` — не «нулевая дельта»: у бинарного файла и у превышения
+    // лимитов счётчиков нет вовсе, и бейдж карточки обязан это различать.
+    const [item] = fromMessageParts([
+      { ...artifactPart, artifact_type: "png", diff: null },
+    ]);
+
+    expect(item).toMatchObject({ kind: "updated", diff: null });
+  });
+
+  it("отличает созданный артефакт от перезаписанного", () => {
+    const [item] = fromMessageParts([
+      { ...artifactPart, kind: "created", diff: null },
+    ]);
+
+    expect(item).toMatchObject({ kind: "created" });
+  });
+
+  it("карточка идёт отдельным блоком после текста, а не строкой ленты", () => {
+    // Мокап блок 1: сначала проза ответа, затем карточка файла.
+    const blocks = groupFeedBlocks(
+      fromMessageParts([{ type: "text", content: "Готово." }, artifactPart]),
+    );
+
+    expect(blocks.map((block) => block.type)).toEqual(["text", "artifact"]);
+  });
+
+  it("не сливает соседние карточки в один блок", () => {
+    const blocks = groupFeedBlocks(
+      fromMessageParts([
+        artifactPart,
+        { ...artifactPart, path: "lecture-1/flashcards.md" },
+      ]),
+    );
+
+    expect(blocks.map((block) => block.type)).toEqual(["artifact", "artifact"]);
+  });
+
+  it("разрывает ленту действий, а не встраивается в неё", () => {
+    // Карточка — не строка активности: вызовы по обе стороны от неё остаются
+    // разными лентами, а сама она в них не подмешивается.
+    const toolCall = (callId: string): MessagePart => ({
+      type: "tool_call",
+      call_id: callId,
+      tool: "write_file",
+      args: '{"path": "lecture-1/konspekt.md"}',
+      args_truncated: false,
+      status: "success",
+      result_preview: "ok",
+      result_truncated: false,
+    });
+
+    const blocks = groupFeedBlocks(
+      fromMessageParts([toolCall("c1"), artifactPart, toolCall("c2")]),
+    );
+
+    expect(blocks.map((block) => block.type)).toEqual([
+      "feed",
+      "artifact",
+      "feed",
+    ]);
+    const firstFeed = blocks[0];
+    expect(firstFeed?.type === "feed" ? firstFeed.items : []).toHaveLength(1);
   });
 });

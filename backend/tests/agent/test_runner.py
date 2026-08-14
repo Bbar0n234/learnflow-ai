@@ -59,7 +59,7 @@ from app.agent.tracing import AgentRunTracer
 from app.config import Settings
 from app.services.agent_runner import StreamEvent
 from app.services.model_config_resolver import ModelConfigResolver
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import tool
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
@@ -68,6 +68,7 @@ from structlog.testing import capture_logs
 from tests.agent.conftest import (
     RaisingFakeChatModel,
     RecordingPromptProvider,
+    ToolBindingFakeChatModel,
     reasoning_streaming_fake,
     streaming_tool_fake,
     tool_binding_fake,
@@ -551,7 +552,7 @@ async def test_subagent_steps_reach_the_parent_stream_with_parent_call_id(
         tool_pool={"remember": remember},
     )
     run_subagent_tool = make_run_subagent_tool(
-        cast(Any, None),  # session factory: only used for input_artifact_ids
+        cast(Any, None),  # workspace: only used for input_artifact_paths
         subagent_runner,
         subagent_config.subagents.registry if subagent_config.subagents else [],
     )
@@ -713,3 +714,88 @@ async def test_pending_cancel_is_scoped_to_its_thread() -> None:
     text = "".join(e.data["content"] for e in events if e.type == "text_chunk")
     assert text == "Hello world"
     assert "error" not in types
+
+
+# --- attachments ------------------------------------------------------------
+
+
+def _recording_fake(sink: list[list[Any]], reply: str) -> Any:
+    """Replay fake that records the message list each turn was invoked with.
+
+    The note the backend appends for attachments is model-facing and lives
+    nowhere else — the stored ``HumanMessage`` keeps the clean text — so the
+    only place to observe it is what the model actually received.
+    """
+
+    class _Recording(ToolBindingFakeChatModel):
+        async def _astream(self, messages: Any, *args: Any, **kwargs: Any) -> Any:
+            sink.append(list(messages))
+            async for chunk in super()._astream(messages, *args, **kwargs):
+                yield chunk
+
+    return _Recording(messages=iter([AIMessage(content=reply)]))
+
+
+@pytest.mark.integration
+async def test_attachments_reach_the_model_as_a_note_and_history_as_metadata() -> None:
+    # One turn, two audiences: the model is told the canonical `uploads/…`
+    # paths inline (only the backend knows them), while the history keeps the
+    # user's own text plus a {path, title} list for the UI chip.
+    seen: list[list[Any]] = []
+    runner = _make_runner(_recording_fake(seen, "read it"))
+    ids = _ids()
+
+    await _collect(
+        runner,
+        content="summarize this",
+        attachments=["uploads/lecture.pdf"],
+        **ids,
+    )
+
+    prompt_to_model = "\n".join(
+        str(m.content) for m in seen[0] if isinstance(m, HumanMessage)
+    )
+    assert "summarize this" in prompt_to_model
+    assert "uploads/lecture.pdf" in prompt_to_model
+
+    history = await runner.get_history(thread_id=ids["thread_id"])
+    assert history[0].content == "summarize this"
+    assert [(a.path, a.title) for a in history[0].attachments] == [
+        ("uploads/lecture.pdf", "lecture.pdf")
+    ]
+
+
+@pytest.mark.integration
+async def test_an_attachment_only_message_still_reaches_the_model() -> None:
+    # The composer allows sending a file with no text at all.
+    seen: list[list[Any]] = []
+    runner = _make_runner(_recording_fake(seen, "read it"))
+    ids = _ids()
+
+    await _collect(runner, content="", attachments=["uploads/notes.md"], **ids)
+
+    prompt_to_model = "\n".join(
+        str(m.content) for m in seen[0] if isinstance(m, HumanMessage)
+    )
+    assert "uploads/notes.md" in prompt_to_model
+
+    history = await runner.get_history(thread_id=ids["thread_id"])
+    assert history[0].content == ""
+    assert [a.path for a in history[0].attachments] == ["uploads/notes.md"]
+
+
+@pytest.mark.integration
+async def test_a_message_without_attachments_carries_no_note() -> None:
+    seen: list[list[Any]] = []
+    runner = _make_runner(_recording_fake(seen, "sure"))
+    ids = _ids()
+
+    await _collect(runner, content="plain question", **ids)
+
+    prompt_to_model = "\n".join(
+        str(m.content) for m in seen[0] if isinstance(m, HumanMessage)
+    )
+    assert prompt_to_model == "plain question"
+
+    history = await runner.get_history(thread_id=ids["thread_id"])
+    assert history[0].attachments == []

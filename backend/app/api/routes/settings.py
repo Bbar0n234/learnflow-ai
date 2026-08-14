@@ -24,7 +24,7 @@ def _validate_model(model_name: str | None, allowed: set[str]) -> None:
     if model_name is not None and model_name not in allowed:
         raise HTTPException(
             status_code=422,
-            detail=f"Model '{model_name}' is not in the allowed models list",
+            detail=f"Модель '{model_name}' недоступна",
         )
 
 

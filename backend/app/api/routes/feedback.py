@@ -30,11 +30,13 @@ async def _get_owned_trace_store(
     """Verify the trace belongs to the user's chat; return the trace store."""
     redis_client = getattr(request.app.state, "redis", None)
     if redis_client is None:
-        raise HTTPException(status_code=503, detail="Feedback store unavailable")
+        raise HTTPException(
+            status_code=503, detail="Хранилище фидбека недоступно, попробуйте позже"
+        )
     store = TraceStore(redis_client)
     trace_ids = await store.get_by_thread(thread.thread_id)
     if trace_id not in trace_ids.values():
-        raise HTTPException(status_code=404, detail="Trace not found")
+        raise HTTPException(status_code=404, detail="Трейс не найден")
     return store
 
 
@@ -46,7 +48,7 @@ def _get_langfuse_client() -> Any:
         raise UpstreamUnavailableError(
             code="langfuse-unavailable",
             status=503,
-            detail="Observability service unavailable",
+            detail="Сервис фидбека недоступен, попробуйте позже",
         ) from exc
 
 
@@ -78,7 +80,7 @@ async def set_feedback(
         raise UpstreamUnavailableError(
             code="langfuse-unavailable",
             status=503,
-            detail="Observability service unavailable",
+            detail="Сервис фидбека недоступен, попробуйте позже",
         ) from e
     # Other exceptions (TypeError, AttributeError, etc.) bubble to the
     # generic barrier (500) — not masked as 503.
@@ -122,14 +124,14 @@ async def delete_feedback(
             raise UpstreamUnavailableError(
                 code="langfuse-unavailable",
                 status=503,
-                detail="Observability service unavailable",
+                detail="Сервис фидбека недоступен, попробуйте позже",
             ) from e
     except (httpx.HTTPError, httpx.TimeoutException, OSError, ConnectionError) as e:
         logger.warning("langfuse feedback delete error", exc_info=True)
         raise UpstreamUnavailableError(
             code="langfuse-unavailable",
             status=503,
-            detail="Observability service unavailable",
+            detail="Сервис фидбека недоступен, попробуйте позже",
         ) from e
     # Other exceptions (TypeError, AttributeError, etc.) bubble to the
     # generic barrier (500) — not masked as 503.

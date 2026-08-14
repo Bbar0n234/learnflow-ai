@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from siem_contracts import (
     AUTH_LOGIN_FAILED,
     AUTH_LOGIN_SUCCESS,
@@ -15,6 +15,12 @@ from siem_contracts import (
     RATE_LIMIT_REGISTER_EXCEEDED,
 )
 
+from app.api.cookies import (
+    RefreshCookie,
+    cookie_deletion_headers,
+    delete_refresh_cookie,
+    set_refresh_cookie,
+)
 from app.api.deps import CurrentUser, DBSession, SettingsDep
 from app.api.schemas.auth import (
     LoginRequest,
@@ -23,7 +29,6 @@ from app.api.schemas.auth import (
     TokenResponse,
     UserResponse,
 )
-from app.config import Settings
 from app.infra.client_ip import get_client_ip
 from app.infra.rate_limit import RateLimiter
 from app.services.auth import AuthService
@@ -39,16 +44,12 @@ logger = structlog.get_logger()
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-_COOKIE_NAME = "refresh_token"
-
 
 def _get_rate_limiter(request: Request) -> RateLimiter:
     return request.app.state.rate_limiter
 
 
 RateLimiterDep = Annotated[RateLimiter, Depends(_get_rate_limiter)]
-
-RefreshCookie = Annotated[str | None, Cookie(alias=_COOKIE_NAME)]
 
 
 def _check_rate_limit(
@@ -69,43 +70,9 @@ def _check_rate_limit(
         )
         raise HTTPException(
             status_code=429,
-            detail="Too many requests",
+            detail="Слишком много запросов, попробуйте позже",
             headers={"Retry-After": str(retry_after)},
         )
-
-
-def _set_refresh_cookie(response: Response, token: str, settings: Settings) -> None:
-    response.set_cookie(
-        key=_COOKIE_NAME,
-        value=token,
-        httponly=True,
-        secure=settings.secure_cookies,
-        samesite="lax",
-        path="/api/auth",
-        max_age=settings.refresh_token_expire_days * 24 * 60 * 60,
-    )
-
-
-def _delete_refresh_cookie(response: Response, settings: Settings) -> None:
-    response.delete_cookie(
-        key=_COOKIE_NAME,
-        httponly=True,
-        secure=settings.secure_cookies,
-        samesite="lax",
-        path="/api/auth",
-    )
-
-
-def _cookie_deletion_headers(settings: Settings) -> dict[str, str]:
-    """Set-Cookie удаления refresh-cookie для HTTPException-ответов.
-
-    Заголовки injected `Response` теряются, когда handler поднимает
-    HTTPException (FastAPI строит новый ответ), — передаём удаление cookie
-    через `HTTPException(headers=...)`.
-    """
-    response = Response()
-    _delete_refresh_cookie(response, settings)
-    return {"set-cookie": response.headers["set-cookie"]}
 
 
 @router.post("/register", response_model=TokenResponse)
@@ -144,9 +111,9 @@ async def register(
             severity="warning",
             metadata={"username": body.name, "reason": "username_exists"},
         )
-        raise HTTPException(status_code=409, detail="Username already exists") from None
+        raise HTTPException(status_code=409, detail="Имя уже занято") from None
 
-    _set_refresh_cookie(response, refresh_raw, settings)
+    set_refresh_cookie(response, refresh_raw, settings)
     return TokenResponse(access_token=access_token)
 
 
@@ -181,9 +148,9 @@ async def login(
             severity="warning",
             metadata={"username": body.name, "reason": "invalid_credentials"},
         )
-        raise HTTPException(status_code=401, detail="Invalid credentials") from None
+        raise HTTPException(status_code=401, detail="Неверное имя или пароль") from None
 
-    _set_refresh_cookie(response, refresh_raw, settings)
+    set_refresh_cookie(response, refresh_raw, settings)
     return TokenResponse(access_token=access_token)
 
 
@@ -204,14 +171,14 @@ async def refresh(
         RATE_LIMIT_REFRESH_EXCEEDED,
     )
     if not refresh_token:
-        raise HTTPException(status_code=401, detail="Refresh token missing")
+        raise HTTPException(status_code=401, detail="Требуется вход")
 
     service = AuthService(session, settings)
     try:
         access_token, new_refresh_raw = await service.refresh(refresh_token)
     except (InvalidTokenError, TokenExpiredError):
         raise HTTPException(
-            status_code=401, detail="Invalid or expired refresh token"
+            status_code=401, detail="Сессия истекла, войдите снова"
         ) from None
     except ReplayDetectedError:
         logger.warning(
@@ -222,11 +189,11 @@ async def refresh(
         )
         raise HTTPException(
             status_code=401,
-            detail="Token reuse detected, all sessions revoked",
-            headers=_cookie_deletion_headers(settings),
+            detail="Обнаружено повторное использование токена — все сессии завершены",
+            headers=cookie_deletion_headers(settings),
         ) from None
 
-    _set_refresh_cookie(response, new_refresh_raw, settings)
+    set_refresh_cookie(response, new_refresh_raw, settings)
     return TokenResponse(access_token=access_token)
 
 
@@ -249,5 +216,5 @@ async def logout(
     if refresh_token:
         service = AuthService(session, settings)
         await service.logout(refresh_token)
-    _delete_refresh_cookie(response, settings)
-    return MessageResponse(detail="Logged out")
+    delete_refresh_cookie(response, settings)
+    return MessageResponse(detail="Вы вышли из аккаунта")

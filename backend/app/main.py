@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any
 
+import httpx
 import structlog
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -50,7 +51,8 @@ from app.agent.security.types import Checkpoint, Verdict
 from app.agent.stream_events import StreamEventMapper
 from app.agent.subagents import SubagentRunner
 from app.agent.tools import (
-    make_create_artifact_tool,
+    make_execution_tools,
+    make_file_tools,
     make_generate_image_tool,
     make_load_skill_tool,
     make_run_subagent_tool,
@@ -60,7 +62,12 @@ from app.agent.tools import (
 )
 from app.agent.tools.registry import assemble_internal_tools
 from app.agent.tracing import AgentRunTracer
-from app.api.problem import TYPE_PREFIX, problem_response, register_problem_handlers
+from app.api.problem import (
+    TYPE_PREFIX,
+    problem_response,
+    register_problem_handlers,
+    register_workspace_path_error_handler,
+)
 from app.api.routes import (
     artifacts,
     auth,
@@ -69,15 +76,18 @@ from app.api.routes import (
     mcp_servers,
     messages,
     models,
+    oauth,
     projects,
     skill_context,
     sphere,
+    uploads,
     user_memory,
 )
 from app.api.routes import settings as settings_routes
 from app.config import Settings
 from app.infra.client_ip import get_client_ip, is_health_path
 from app.infra.db import create_engine, create_session_factory
+from app.infra.geoip import open_reader as open_geoip_reader
 from app.infra.langfuse import (
     ensure_model_definitions,
     ensure_security_score_config,
@@ -88,6 +98,7 @@ from app.infra.langgraph import create_checkpointer, create_store
 from app.infra.llm import create_guard_llm
 from app.infra.logging import setup_logging
 from app.infra.mcp import create_mcp_client
+from app.infra.oauth import build_oauth_registry
 from app.infra.prompt_provider import PromptProvider
 from app.infra.rate_limit import RateLimiter
 from app.infra.redis import create_redis
@@ -104,6 +115,7 @@ from app.services.mcp_server import (
 )
 from app.services.mcp_tool_resolver import MCPToolResolver
 from app.services.model_config_resolver import ModelConfigResolver
+from app.storage.workspace import Workspace
 
 logger = structlog.get_logger()
 
@@ -335,6 +347,28 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.security_publisher_task = publisher_task
         logger.info("security event publisher started")
 
+    # OAuth: shared httpx.AsyncClient (connection pool, one instance for all
+    # provider calls — per-request clients are not created) with a timeout
+    # sourced from Settings (conventions.md § Таймауты — no hardcoded value),
+    # and the active-provider registry built from it. Both live in
+    # app.state, wired here — no module-level state (conventions.md §
+    # Module-level state). Registry composition is logged, credentials never
+    # are.
+    oauth_http_client = httpx.AsyncClient(timeout=settings.oauth_http_timeout_seconds)
+    app.state.oauth_http_client = oauth_http_client
+    app.state.oauth_providers = build_oauth_registry(settings, oauth_http_client)
+    logger.info(
+        "oauth providers registry built",
+        active_providers=sorted(app.state.oauth_providers),
+    )
+
+    # Гео-gate: MMDB reader (mmap) opened once, stored on app.state — no
+    # module-level singleton. Missing/unset/unopenable database degrades to
+    # a warning, not a blocked start (open_geoip_reader logs it); every
+    # lookup then falls back to GEOIP_FALLBACK_COUNTRY (fail-closed in the
+    # direction the law requires — design-brief.md § Гео-gate).
+    app.state.geoip_reader = open_geoip_reader(settings.geoip_db_path)
+
     # PromptProvider
     prompts_dir = Path(__file__).resolve().parents[2] / "configs" / "prompts"
     langfuse_client = None
@@ -390,15 +424,29 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.checkpointer = checkpointer
 
         # Tools
-        skills_dir = Path(__file__).resolve().parents[2] / "skills"
+        skills_dir = Path(settings.skills_root)
         load_skill = make_load_skill_tool(skills_dir)
         skills_idx = scan_skills_index(skills_dir)
         skill_names = scan_skill_names(skills_dir)
         app.state.skill_names = skill_names
         skill_context_tools = make_skill_context_tools(skill_names)
-        create_artifact = make_create_artifact_tool(app.state.session_factory)
+        workspace = Workspace(
+            workspaces_root=Path(settings.workspaces_root),
+            skills_root=skills_dir,
+            read_limit_chars=settings.workspace_read_limit_chars,
+            diff_file_limit_bytes=settings.workspace_diff_file_limit_bytes,
+            diff_total_limit_bytes=settings.workspace_diff_total_limit_bytes,
+        )
+        # REST artifacts routes (app/api/routes/artifacts.py) read this via
+        # WorkspaceDep — same instance the agent's file/execution tools close
+        # over below (lifespan → app.state → Depends, conventions/api.md).
+        app.state.workspace = workspace
+        file_tools = make_file_tools(workspace)
+        execution_tools = make_execution_tools(
+            workspace, settings, langfuse_enabled=langfuse_enabled
+        )
         generate_image = make_generate_image_tool(
-            app.state.session_factory,
+            workspace,
             settings,
             agent_config.image,
             langfuse_enabled=langfuse_enabled,
@@ -406,8 +454,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         internal_tools: list[BaseTool] = assemble_internal_tools(
             skill_context_tools=skill_context_tools,
+            file_tools=file_tools,
+            execution_tools=execution_tools,
             load_skill=load_skill,
-            create_artifact=create_artifact,
             generate_image=generate_image,
         )
 
@@ -567,14 +616,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 security_messages=security_config.messages,
             )
             run_subagent = make_run_subagent_tool(
-                app.state.session_factory,
+                workspace,
                 subagent_runner,
                 agent_config.subagents.registry,
             )
             internal_tools = assemble_internal_tools(
                 skill_context_tools=skill_context_tools,
+                file_tools=file_tools,
+                execution_tools=execution_tools,
                 load_skill=load_skill,
-                create_artifact=create_artifact,
                 generate_image=generate_image,
                 run_subagent=run_subagent,
             )
@@ -648,6 +698,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             if settings.llm_defense_enabled
             else "",
             checkpointer=checkpointer,
+            prompt_fragments=prompt_fragments,
         )
         app.state.agent_config = agent_config
         app.state.security_config = security_config
@@ -678,6 +729,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     shutdown_langfuse()
     if app.state.redis:
         await app.state.redis.aclose()
+    await app.state.oauth_http_client.aclose()
+    if app.state.geoip_reader is not None:
+        app.state.geoip_reader.close()
     await engine.dispose()
 
 
@@ -734,6 +788,10 @@ def create_app() -> FastAPI:
 
     # Exception handlers — RFC 9457 problem+json
     register_problem_handlers(app)
+    # WorkspacePathError (ADR-032) — kept out of the mirrored
+    # register_problem_handlers (arch_checker's problem-mirrors check), see
+    # that function's docstring in app/api/problem.py.
+    register_workspace_path_error_handler(app)
 
     # Health check — honest 503 when DB is down (F-API-02).
     # response_model=None: the handler returns either a plain dict (200) or a
@@ -756,10 +814,12 @@ def create_app() -> FastAPI:
     # API routes
     api_prefix = "/api"
     app.include_router(auth.router, prefix=api_prefix)
+    app.include_router(oauth.router, prefix=api_prefix)
     app.include_router(projects.router, prefix=api_prefix)
     app.include_router(chats.router, prefix=api_prefix)
     app.include_router(messages.router, prefix=api_prefix)
     app.include_router(artifacts.router, prefix=api_prefix)
+    app.include_router(uploads.router, prefix=api_prefix)
     app.include_router(sphere.router, prefix=api_prefix)
     app.include_router(feedback.router, prefix=api_prefix)
     app.include_router(models.router, prefix=api_prefix)

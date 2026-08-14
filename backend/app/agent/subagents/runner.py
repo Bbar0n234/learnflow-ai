@@ -2,10 +2,10 @@
 
 Resolves a ``SubagentSpec`` by ``agent_type``, builds the model + prompt for
 it, assembles the input (``task`` + attributed documents), compiles the
-subagent graph per invocation, and runs it. The ``run_subagent`` tool (T1.3)
-is a thin wrapper around this class: fetching artifacts by
-``input_artifact_ids`` and mapping errors into tool-visible strings both live
-there, not here — this module raises plain exceptions.
+subagent graph per invocation, and runs it. The ``run_subagent`` tool (T1.3,
+T1.5) is a thin wrapper around this class: fetching documents by
+``input_artifact_paths`` and mapping errors into tool-visible strings both
+live there, not here — this module raises plain exceptions.
 
 T1.6 adds the nested-lifecycle reporting: when the caller (the
 ``run_subagent`` tool, executing inside the main graph) hands over its own
@@ -67,8 +67,9 @@ class SubagentDocument:
     ``id``/``title`` feed the ``document`` XML-wrapper placeholders in
     ``configs/prompt_fragments.yaml`` (attribution so a judge verdict can
     cite a specific document); ``content`` is injected byte-for-byte — the
-    tool fetches it from ``ArtifactRepository``, the Runner does not touch
-    persistence.
+    tool fetches it through the workspace file layer (``Workspace``,
+    keyed by ``input_artifact_paths``), the Runner does not touch storage.
+    ``id`` holds the file's workspace-relative path (T1.5) — not a PG UUID.
     """
 
     id: str

@@ -72,12 +72,12 @@ def validate_url(url: str) -> None:
     parsed = urlparse(url)
     hostname = parsed.hostname
     if not hostname:
-        raise InvalidURLError(f"Invalid URL: no hostname in {url!r}")
+        raise InvalidURLError(f"Невалидный URL — нет hostname: {url!r}")
 
     try:
         addr_infos = socket.getaddrinfo(hostname, None)
     except socket.gaierror as e:
-        raise InvalidURLError(f"Cannot resolve hostname: {hostname!r}") from e
+        raise InvalidURLError(f"Не удалось найти хост {hostname!r}") from e
 
     for addr_info in addr_infos:
         ip_str = addr_info[4][0]
@@ -91,5 +91,5 @@ def validate_url(url: str) -> None:
                 logger.error("ssrf validation failed", url=url, resolved_ip=ip_str)
                 raise SecurityPolicyViolationError(
                     reason="ssrf_private_ip",
-                    detail="URL resolves to a private or internal address",
+                    detail="URL указывает на приватный или внутренний адрес",
                 )

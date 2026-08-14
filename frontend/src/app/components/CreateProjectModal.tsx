@@ -52,10 +52,10 @@ export function CreateProjectModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New Project</DialogTitle>
+          <DialogTitle>Новый проект</DialogTitle>
         </DialogHeader>
         <Input
-          placeholder="Project name"
+          placeholder="Название проекта"
           value={name}
           onChange={(e) => {
             setName(e.target.value);
@@ -73,7 +73,7 @@ export function CreateProjectModal({
             onClick={handleCreate}
             disabled={!name.trim() || createProject.isPending}
           >
-            Create
+            Создать
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -8,5 +8,6 @@ them, so the ``pytest11`` plugin loads without pulling in backend-only modules
 * :mod:`learnflow_testing.factories` — factory_boy factories for backend models.
 * :mod:`learnflow_testing.db` — testcontainers + alembic + transactional rollback.
 * :mod:`learnflow_testing.sse` — SSE collection helpers.
+* :mod:`learnflow_testing.workspace` — project-workspace file layer builders.
 * :mod:`learnflow_testing.plugin` — cross-project pytest fixtures (entry point).
 """

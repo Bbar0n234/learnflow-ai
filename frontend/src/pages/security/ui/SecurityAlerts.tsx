@@ -10,6 +10,8 @@ import { SeverityBadge } from "./SeverityBadge";
 import { StatusBadge } from "./StatusBadge";
 import { AlertStatus, Severity } from "@/shared/api/security";
 import { Button } from "@/shared/ui/button";
+import { ErrorCard } from "@/shared/ui/StateScreen";
+import { Skeleton } from "@/shared/ui/skeleton";
 import { logger } from "@/shared/lib/logger";
 import { getApiErrorMessage } from "@/shared/lib/api-error";
 
@@ -30,7 +32,7 @@ export function SecurityAlerts() {
   const [filters, setFilters] = useState<AlertsFilterState>({});
   const [successMessage, setSuccessMessage] = useState("");
 
-  const { data, isLoading, error } = useAlerts(limit, offset, {
+  const { data, isLoading, error, refetch } = useAlerts(limit, offset, {
     severity: filters.severity,
     status: filters.status,
   });
@@ -64,9 +66,10 @@ export function SecurityAlerts() {
 
   if (error) {
     return (
-      <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-destructive">
-        Ошибка загрузки алертов: {getApiErrorMessage(error)}
-      </div>
+      <ErrorCard
+        message={`Не удалось загрузить алерты: ${getApiErrorMessage(error)}`}
+        onRetry={() => void refetch()}
+      />
     );
   }
 
@@ -85,8 +88,27 @@ export function SecurityAlerts() {
       />
 
       {isLoading ? (
-        <div className="text-center py-8 text-muted-foreground">
-          Загрузка алертов...
+        <div className="rounded-lg border border-border bg-card">
+          <div className="divide-y divide-border">
+            <div className="flex items-center gap-4 px-4 py-3">
+              <Skeleton className="h-3 w-28" />
+              <Skeleton className="h-3 w-40" />
+              <Skeleton className="h-4 w-16 rounded-full" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+            <div className="flex items-center gap-4 px-4 py-3">
+              <Skeleton className="h-3 w-36" />
+              <Skeleton className="h-3 w-32" />
+              <Skeleton className="h-4 w-16 rounded-full" />
+              <Skeleton className="h-3 w-20" />
+            </div>
+            <div className="flex items-center gap-4 px-4 py-3">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-3 w-44" />
+              <Skeleton className="h-4 w-16 rounded-full" />
+              <Skeleton className="h-3 w-28" />
+            </div>
+          </div>
         </div>
       ) : !data || data.items.length === 0 ? (
         <div className="rounded-lg border border-border bg-card p-8 text-center text-muted-foreground">
@@ -115,7 +137,7 @@ export function SecurityAlerts() {
                       className="hover:bg-muted/40 transition-colors"
                     >
                       <td className="px-4 py-3 text-sm font-medium">
-                        Rule #{alert.rule_id}
+                        Правило №{alert.rule_id}
                       </td>
                       <td className="px-4 py-3">
                         <SeverityBadge severity={alert.severity} />

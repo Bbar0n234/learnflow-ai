@@ -67,6 +67,14 @@ def test_fixture_covers_the_tools_the_agent_is_actually_built_with() -> None:
     # the fixture drifted away from the assembly it claims to describe.
     committed = {record["name"] for record in json.loads(_FIXTURE_PATH.read_text())}
 
-    assert {"run_subagent", "create_artifact", "generate_image"} <= committed
+    assert {
+        "run_subagent",
+        "generate_image",
+        "read_file",
+        "write_file",
+        "list_files",
+        "execute_code",
+        "run_command",
+    } <= committed
     assert set(internal_tool_names()) <= committed
     assert set(builtin_mcp_tool_names(load_agent_config())) <= committed

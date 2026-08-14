@@ -31,11 +31,11 @@ graph TD
 | Метод | Назначение |
 |-------|------------|
 | `stream(thread_id, content, project_id, user_id, session?, model_config?)` | Генерация ответа, поток `StreamEvent` |
-| `get_history(thread_id)` | История чата: один `Message` на ход (user или assistant), ассистентский `Message` несёт `parts` — typed-разбор хода (`reasoning`/`text`/`tool_call`), собранный из чекпоинта, → [streaming.md § История: typed parts](streaming.md#история-typed-parts) |
-| `get_last_ai_message_id(thread_id)` | ID последнего ответа агента (для привязки артефактов) |
+| `get_history(thread_id)` | История чата: один `Message` на ход (user или assistant), ассистентский `Message` несёт `parts` — typed-разбор хода (`reasoning`/`text`/`tool_call`/`artifact`), собранный из чекпоинта, → [streaming.md § История: typed parts](streaming.md#история-typed-parts) |
+| `get_last_ai_message_id(thread_id)` | ID последнего ответа агента (для `done`-события и сохранения trace_id) |
 | `cancel(thread_id)` | Отмена генерации через `asyncio.Event` |
 
-Реализация: `LangGraphAgentRunner`. ChatService оркестрирует (thread mapping, artifact linking, trace saving), AgentRunner — генерация.
+Реализация: `LangGraphAgentRunner`. ChatService оркестрирует (thread mapping, trace saving), AgentRunner — генерация.
 
 ### Per-Request Flow
 
@@ -80,8 +80,8 @@ graph LR
 graph.astream(input_msg, config, stream_mode=["messages", "updates", "custom"], context=context)
 ```
 - `stream_mode=["messages"]` — сырые чанки LLM → `text_chunk` / `reasoning_chunk` / ранние `tool_call_started` / `tool_call_args` (`TokenChunkMapper`)
-- `stream_mode=["updates"]` — результаты узлов → `tool_call_cancelled` (`StreamEventMapper`); `tool_result` / `artifact_created` идут повызовно в custom-канал прямо из узла `tools`
-- `stream_mode=["custom"]` — writer рана из tools/узлов графа → `agent_event` (доменные записи, факт компакции), повызовные `tool_result` / `artifact_created` узла `tools` и, для инструментов субагента, те же lifecycle-события с `parent_call_id`
+- `stream_mode=["updates"]` — результаты узлов → `tool_call_cancelled` (`StreamEventMapper`); `tool_result` / `artifact_created` / `artifact_updated` идут повызовно в custom-канал прямо из узла `tools`
+- `stream_mode=["custom"]` — writer рана из tools/узлов графа → `agent_event` (доменные записи, факт компакции), повызовные `tool_result` / `artifact_created` / `artifact_updated` узла `tools` и, для инструментов субагента, те же lifecycle-события с `parent_call_id`
 
 Полный контракт событий и их payload'ы — [streaming.md](streaming.md).
 
@@ -101,7 +101,7 @@ graph.astream(input_msg, config, stream_mode=["messages", "updates", "custom"], 
 </tools>
 <knowledge_sphere>              ← Knowledge Sphere Index (per-project)
 <custom_instructions>           ← user-provided (per-user)
-[guidelines: artifacts, skills, user_memory, error_handling]
+[guidelines: execution_environment, artifacts, skills, user_memory, error_handling]
 <instruction_reminder>          ← sandwich defense
 ```
 
@@ -187,7 +187,7 @@ flowchart TD
 
 ## Tools
 
-Пять категорий, объединяются при компиляции графа. Internal non-MCP tools — PROTECTED implementation surface: их имена, параметры и схемы не должны попадать в final output (→ [security/architecture.md](../security/architecture.md)).
+Несколько категорий, объединяются при компиляции графа. Internal non-MCP tools — PROTECTED implementation surface: их имена, параметры и схемы не должны попадать в final output (→ [security/architecture.md](../security/architecture.md)).
 
 ### Internal Tools
 
@@ -200,16 +200,34 @@ flowchart TD
 | `update_section` | Обновить секцию (fuzzy patch или overwrite) |
 | `delete_section` | Удалить секцию |
 
+**Files** (файловый слой workspace, ADR-032 — подробнее устройство хранения, границы путей и REST-адресация артефактов в [backend.md](backend.md#persistence)):
+
+| Tool | Назначение |
+|------|------------|
+| `read_file` | Прочитать текстовый файл из workspace проекта или из общей библиотеки `/skills` (ro). Лимит размера — операционный knob, превышение усекается с пометкой; бинарный файл на чтение отдаёт error-строку («use media endpoint»), не сырые байты |
+| `write_file` | Записать текстовый файл в workspace (только rw-корень — `/skills` неизменяем). Родительские директории создаются автоматически, перезапись молчаливая (норма рабочей директории), атомарность — tmp+rename. Запись в `artifacts/` — это и есть публикация результата: отдельного «создать артефакт» действия не существует, состоявшийся `write_file` в этой зоне сам становится артефактным событием |
+| `list_files` | Нерекурсивный листинг директории workspace/`/skills` (рекурсия — опциональным флагом) |
+
+**Execution** (execution runtime, ADR-031 — контракт джобы, песочница и границы изоляции в [executor.md](executor.md)):
+
+| Tool | Назначение |
+|------|------------|
+| `execute_code` | Выполнить Python-код в изолированной среде исполнения (executor). Код уходит во временный файл workspace и исполняется системным Python образа — не `python -c`, чтобы трейсбеки оставались читаемыми |
+| `run_command` | Выполнить bash-команду в той же изолированной среде (инструменты тулчейна образа — pandoc и т.п.) |
+
+Обе — `cwd` = workspace текущего проекта, без сети и без установки пакетов в рантайме (толстый образ, состав фиксирован релизом). Ошибка выполнения (ненулевой exit code, таймаут джобы) — обычный текстовый результат tool'а, агент видит её и чинит код сам; отдельно обрабатывается только транспортный отказ достучаться до executor'а — см. [Graceful Degradation](#graceful-degradation).
+
+`write_file`, `execute_code` и `run_command` объявлены с `response_format="content_and_artifact"` — возвращают текстовый ответ и **список** элементов артефактов (`path`, `title`, `artifact_type`, `kind: created|updated`, `diff?`), не единственный dict: `write_file` даёт список из одного элемента, джоба (`execute_code`/`run_command`) — по одному элементу на файл, появившийся или изменившийся в `artifacts/` за время джобы (backend снимает snapshot зоны `artifacts/` до и после джобы, а не полагается на отчёт executor'а — он остаётся тупым исполнителем без продуктовой логики). Список передаётся через SSE как события `artifact_created`/`artifact_updated`, по одному на элемент ([streaming.md](streaming.md)).
+
 **Artifacts:**
 
 | Tool | Назначение |
 |------|------------|
-| `create_artifact` | Сохранить результат работы агента как артефакт проекта |
-| `generate_image` | Сгенерировать изображение через OpenRouter Image API и сохранить как артефакт `type="image"` (bytes — в `artifact_blobs`, [backend.md](backend.md#persistence)) |
+| `generate_image` | Сгенерировать изображение через OpenRouter Image API и сохранить как файл в `artifacts/` |
 
-`response_format="content_and_artifact"` — оба tool'а возвращают текстовый ответ и metadata артефакта (`id`, `title`, `type`). Metadata передаётся через SSE как `artifact_created` event ([streaming.md](streaming.md)).
+`generate_image` возвращает тот же список-конверт `content_and_artifact`, что и файловые/исполняющие tools (единственный элемент, `kind` всегда `"created"`). Имя файла — слаг от `title` + расширение из mime ответа модели, запись — tmp+rename.
 
-`generate_image(prompt, title, aspect_ratio?, resolution?)` разделяет параметры «творческое агенту, операционное оператору»: агент задаёт содержание (`prompt`) и композицию (`aspect_ratio`, `resolution`); модель провайдера и дефолт-параметры вызова — в конфиге (секция `image` в `agent.yaml`, см. [Configuration](#configuration)). Изображение в контекст агента не возвращается — ToolMessage текстовый (title, id, resolution, cost); байты уходят в БД мимо истории диалога. Стоимость вызова учитывается в Langfuse вручную, не через `CallbackHandler` — [observability.md](observability.md#model-definitions--cost-tracking).
+`generate_image(prompt, title, aspect_ratio?, resolution?)` разделяет параметры «творческое агенту, операционное оператору»: агент задаёт содержание (`prompt`) и композицию (`aspect_ratio`, `resolution`); модель провайдера и дефолт-параметры вызова — в конфиге (секция `image` в `agent.yaml`, см. [Configuration](#configuration)). Изображение в контекст агента не возвращается — ToolMessage текстовый (title, filename, resolution, cost). Стоимость вызова учитывается в Langfuse вручную, не через `CallbackHandler` — [observability.md](observability.md#model-definitions--cost-tracking).
 
 **User Memory** — автономное управление фактами о пользователе (подробнее — [user-memory.md](user-memory.md)):
 
@@ -238,7 +256,7 @@ flowchart TD
 
 | Tool | Назначение |
 |------|------------|
-| `run_subagent` | Делегировать изолированную подзадачу субагенту (`agent_type`, `task`, `input_artifact_ids?`) — подробнее в [Субагенты](#субагенты) |
+| `run_subagent` | Делегировать изолированную подзадачу субагенту (`agent_type`, `task`, `input_artifact_paths?`) — подробнее в [Субагенты](#субагенты) |
 
 ### External Tools (MCP)
 
@@ -316,12 +334,12 @@ CRUD и каскадная видимость — [backend.md](backend.md).
 
 ## Субагенты
 
-Паттерн **subagent-as-tool**: основной агент делегирует изолированную подзадачу отдельному скомпилированному `StateGraph`, вызываемому `ainvoke` изнутри обычного tool `run_subagent(agent_type, task, input_artifact_ids?)` — наружу возвращается только результат. Чистота контекста не требует отдельного механизма фильтрации: канал в субагента — аргументы tool-вызова, а не общий state, поэтому история сессии физически туда не попадает. Полное обоснование паттерна, отклонённые альтернативы (`langgraph-supervisor`/`langgraph-swarm`/`deepagents`, generic-tool без реестра, tool-per-role) и sync v1 vs async v2 — [ADR-028](adr/ADR-028-product-subagents.md).
+Паттерн **subagent-as-tool**: основной агент делегирует изолированную подзадачу отдельному скомпилированному `StateGraph`, вызываемому `ainvoke` изнутри обычного tool `run_subagent(agent_type, task, input_artifact_paths?)` — наружу возвращается только результат. Чистота контекста не требует отдельного механизма фильтрации: канал в субагента — аргументы tool-вызова, а не общий state, поэтому история сессии физически туда не попадает. Полное обоснование паттерна, отклонённые альтернативы (`langgraph-supervisor`/`langgraph-swarm`/`deepagents`, generic-tool без реестра, tool-per-role) и sync v1 vs async v2 — [ADR-028](adr/ADR-028-product-subagents.md).
 
 ```mermaid
 flowchart LR
     NODE["agent node"] -->|tool_calls| TOOL["tool: run_subagent"]
-    TOOL -->|"agent_type, task,<br/>input_artifact_ids?"| RUNNER["SubagentRunner"]
+    TOOL -->|"agent_type, task,<br/>input_artifact_paths?"| RUNNER["SubagentRunner"]
     RUNNER -->|"ainvoke,<br/>tags: [subagent]"| SGRAPH["Subagent StateGraph<br/>(ReAct)"]
     SGRAPH -->|result text| RUNNER
     RUNNER -->|ToolMessage| NODE
@@ -331,11 +349,11 @@ flowchart LR
 
 - **`SubagentSpec`** — декларация типа: `name`, `description` (видна модели при выборе tool'а), `prompt` (имя в Langfuse-контуре, → [prompt-management.md](prompt-management.md)), `model` (опциональный override дефолтной модели), `tools` (непустой список имён из built-in пула), `persistence` (`none | inherit`). Реестр — секция `subagents` в `configs/agent.yaml` (`llm`-дефолт + `registry`). Текущий реестр — три типа с общим web-toolset (`search_web`/`read_url`): `judge` (независимый ревьюер с вердиктом-с-evidence; веб-инструменты — для выборочного фактчека), `web-research` (ресёрчер с выжимкой источников), `general-purpose` (generic изолированная подзадача).
 - **`SubagentRunner`** — резолвит спеку по `agent_type`, строит модель (`spec.model` или `subagents.llm`), берёт промпт через `PromptProvider`, собирает вход, компилирует граф per-invoke и вызывает `ainvoke`. Неизвестный `agent_type` → ошибка со списком доступных типов. Инвариант: `run_subagent` исключается из собственного toolset субагента безусловно, независимо от содержимого спеки — рекурсия исключена на уровне Runner'а.
-- **tool `run_subagent`** — единственная точка, которую видит основной граф; description собирается на старте из реестра (паттерн Skills Index — `тип: описание` на строку). Опциональный `input_artifact_ids` резолвится кодом, не моделью: артефакты подтягиваются через `ArtifactRepository` (скоуп по `project_id` из контекста вызова), каждый — в `HumanMessage` в XML-обёртке `document` (`configs/prompt_fragments.yaml`) с атрибуцией `id`/`title`. Разрешение — всё или ничего: любой чужой/несуществующий id обрывает вызов целиком (error-строка с перечнем именно проблемных id), частичный вход не собирается никогда.
+- **tool `run_subagent`** — единственная точка, которую видит основной граф; description собирается на старте из реестра (паттерн Skills Index — `тип: описание` на строку). Опциональный `input_artifact_paths` резолвится кодом, не моделью: каждый путь читается через файловый слой (`Workspace.read_text`, скоуп по `project_id` из контекста вызова — тот же резолв и те же границы, что у `read_file`), содержимое — в `HumanMessage` в XML-обёртке `document` (`configs/prompt_fragments.yaml`) с атрибуцией `id`/`title` (`id` несёт путь, не PG UUID). Разрешение — всё или ничего: любой путь, выходящий за workspace, несуществующий или бинарный, обрывает вызов целиком (error-строка с перечнем именно проблемных путей), частичный вход не собирается никогда. Субагенту при этом не выдаётся ни один файловый/исполняющий tool (следующий пункт) — он получает уже прочитанное содержимое, а не доступ к workspace.
 
 **Граф субагента** (`build_subagent_graph`) — всегда один и тот же ReAct-граф `START → llm → (tools_condition) → tools → llm/END`; любой субагент — ReAct-агент, single-turn как отдельная форма не существует. Прогон без tool-вызовов — вырожденный случай того же графа: один super-step, `tools_condition` уводит в END. Строительные блоки — те же, что в основном графе: `ToolNode(tools, handle_tool_errors=...)` + `tools_condition`. System message — только промпт спеки (без KS/memory/skills/compaction, без trust-boundary обёрток). Guard-проверки переиспользуются из общего модуля-коллаборатора `backend/app/agent/tool_guards.py` и стоят там же, где в основном графе: `TOOL_CALL_ARG` — в llm-узле, на только что полученном ответе модели; `TOOL_RESULT` — в узле `tools`, повызовно, до отчёта о вызове и до возврата результатов (`execute_tools_guarded`), потому что выход узла идёт и в чекпоинтер, и на провод (→ [ADR-030](adr/ADR-030-per-call-tool-result-guard.md)). Семантика та же fail-safe redact, что в основном графе (заражённый результат → заглушка, цикл продолжает; инъекция в аргументах → `tool_calls` срезаются, граф уходит в END); пока в диалоге нет tool-вызовов, проверки структурно бездействуют. `recursion_limit` ограничивает цикл (invoke-time ключ `RunnableConfig`, не compile-time параметр графа); значение — операционный knob `subagents.recursion_limit` в `configs/agent.yaml` (дефолт 10, общий для реестра).
 
-**Пул tools субагента** — `internal_tools + built-in MCP` (собирается в `main.py` при старте), **без** user-installed MCP — trust-граница между продуктовыми и пользовательскими интеграциями (→ [security/architecture.md](../security/architecture.md)). Имена в `spec.tools` резолвятся против этого пула fail-fast при старте приложения: неизвестное имя — как и пустой `tools` (субагент обязан объявить непустой toolset) — валит boot, как и любая другая опечатка в `configs/*.yaml`.
+**Пул tools субагента** — `internal_tools + built-in MCP` (собирается в `main.py` при старте), **без** user-installed MCP — trust-граница между продуктовыми и пользовательскими интеграциями (→ [security/architecture.md](../security/architecture.md)). Имена в `spec.tools` резолвятся против этого пула fail-fast при старте приложения: неизвестное имя — как и пустой `tools` (субагент обязан объявить непустой toolset) — валит boot, как и любая другая опечатка в `configs/*.yaml`. Файловые и исполняющие инструменты (`read_file`/`write_file`/`list_files`/`execute_code`/`run_command`) технически входят в `internal_tools`, но ни одна текущая спека их не перечисляет в своём `tools` — в v1 субагенту доступ к workspace не даётся, вход ограничен содержимым, которое родитель уже прочитал через `input_artifact_paths`.
 
 **Persistence** — `none` (v1, все три типа): `compile(checkpointer=False)`, субагент полностью stateless между вызовами. `inherit` — субграф наследует PG checkpointer родителя под отдельным `checkpoint_ns`; свойство архитектуры, доступное сменой одного поля спеки, не задействовано ни одним v1-типом.
 
@@ -372,6 +390,7 @@ Langfuse выполняет две роли: tracing (observability) + prompt ma
 | Model override | Модель не в whitelist | Validation error → 422 до запуска графа |
 | Summarization model | Ошибка суммаризации | Fallback на trim-only |
 | Langfuse | Недоступен / не сконфигурирован | No-op span + file fallback для промптов |
+| Execution runtime (executor) | Транспортный отказ (`connect refused`, HTTP-таймаут) при `execute_code`/`run_command` | In-band error-текст инструмента («execution runtime unavailable — инфраструктурная проблема, не ошибка кода»), агент не пытается «чинить» код; прочие исключения — обычный `handle_tool_errors` |
 
 Каждый компонент деградирует изолированно, не роняя систему.
 

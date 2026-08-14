@@ -18,6 +18,10 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  /* Нативные UA-виджеты (в т.ч. системный скроллбар до применения кастомного
+     стиля ниже) рендерятся в светлой палитре — без этого на тёмной теме
+     местами светится белым. */
+  color-scheme: light;
   /* Чернила / Электрик — light tokens */
   --background: #faf7f1;
   --foreground: #2e2a24;
@@ -54,6 +58,8 @@
   /* MCP server status indicators */
   --mcp-connected: #4c9a6e;
   --mcp-disabled: #c8c0ae;
+  /* Токен успеха (галочка активности, success-тост) */
+  --success: #3d7a45;
   /* Shadows */
   --shadow-input: 0 2px 10px rgba(80, 70, 50, 0.06);
   --shadow-lens: 0 24px 80px rgba(24, 16, 36, 0.35);
@@ -62,6 +68,23 @@
   /* Slides viewer — намеренно dark независимо от темы приложения (slides viewer design, T6c) */
   --slides-bg: #181420;
   --slides-fg: #ede8e2;
+  /* Брендовые знаки OAuth-провайдеров (auth-экран, `shared/ui/ProviderButton`).
+     Это чужие фирменные цвета, а не палитра продукта: с темой они не меняются
+     (кроме знака GitHub, у которого мокап даёт свой оттенок на тёмном фоне).
+     Живут переменными, а не литералами в `.tsx`, потому что граница «нет hex
+     в компонентах» абсолютна — design-system.md § Границы, тот же приём, что
+     у `--slides-*` и `--scrim-overlay`. Значения — из mockups/ui-polish.html
+     (секция 7, символы `#p-google` / `#p-github` / `#p-yandex`).
+     `--provider-yandex-stroke` — не цвет Яндекса, а наша декоративная обводка
+     белого круга под знаком «Я». */
+  --provider-google-blue: #4285f4;
+  --provider-google-green: #34a853;
+  --provider-google-yellow: #fbbc05;
+  --provider-google-red: #ea4335;
+  --provider-github-fg: #24292f;
+  --provider-yandex-bg: #ffffff;
+  --provider-yandex-fg: #fc3f1d;
+  --provider-yandex-stroke: rgba(0, 0, 0, 0.14);
   /* Layout geometry */
   --content-max-w: 680px;
   /* Орб-токены (единственное место с градиентом) */
@@ -83,6 +106,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   /* Чернила / Электрик — dark tokens */
   --background: #181420;
   --foreground: #ede8e2;
@@ -115,9 +139,16 @@
   /* MCP server status indicators */
   --mcp-connected: #6ab88a;
   --mcp-disabled: #7e7490;
+  /* Токен успеха (галочка активности, success-тост) */
+  --success: #6fbf78;
   /* Extra brand tokens */
   --brand-lavender: #b194ff;
   --bubble-user: #262031;
+  /* Знак GitHub — единственный провайдерский цвет, зависящий от темы
+     (мокап: `.dark .prov-btn .p-github { color: #f0f0f0 }`). Остальные
+     `--provider-*` намеренно не переопределяются: фирменные цвета бренда
+     одинаковы в обеих темах. */
+  --provider-github-fg: #f0f0f0;
   /* Орб-токены — dark */
   --orb-gradient: radial-gradient(
     circle at 38% 32%,
@@ -141,6 +172,7 @@
   --font-serif: "Source Serif 4", serif;
   --font-mono: "IBM Plex Mono", monospace;
   --color-destructive-warm: var(--destructive-warm);
+  --color-success: var(--success);
   --color-mcp-connected: var(--mcp-connected);
   --color-mcp-disabled: var(--mcp-disabled);
   --color-brand-lavender: var(--brand-lavender);
@@ -200,6 +232,70 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* ─── Скроллбары уровня дизайн-системы (T1.2) ──────────────────────────────
+   Единый тонкий стиль на токенах для всех overflow-контейнеров (~19 нативных
+   `overflow-auto`/`overflow-y-auto` в src), согласованный по ширине/радиусу/
+   /цвету с Base UI `ScrollArea` (shared/ui/scroll-area.tsx — не правится,
+   примитив shadcn).
+
+   Паритет ширины с thumb'ом ScrollArea (резолюция plan-review, T1/plan.md
+   п.3): дорожка ScrollArea — `w-2.5` (10px), но видимый thumb внутри неё
+   уже не 10px, а 7px — `Scrollbar` несёт `p-px` (padding 1px со всех сторон)
+   и `border-l`/`border-t` шириной 1px (transparent) только с ведущей стороны:
+   10 − border(1) − padding-ведущий(1) − padding-ведомый(1) = 7px, смещение
+   2px с ведущей стороны (лево у вертикальной полосы, верх у горизонтальной)
+   и 1px с ведомой. Тот же эффект здесь получен рамкой thumb'а с
+   `background-clip: padding-box`: 10 − 2 − 1 = 7px видимой полосы, то же
+   асимметричное смещение. Замерено на dev-сборке в обеих темах — ширина и
+   положение полос неотличимы визуально. Hover-акцент у ScrollArea нет и
+   без правки сгенерированного файла недостижим — расхождение принято
+   (см. tracks/T1/summary.md § Follow-ups). */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  background-clip: padding-box;
+  border-style: solid;
+  border-color: transparent;
+  border-width: 2px 1px 1px 2px;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--muted-foreground) 45%,
+    var(--border)
+  );
+}
+/* Firefox не поддерживает ::-webkit-scrollbar — гард обязателен: без него
+   современный Chromium тоже применил бы scrollbar-width/scrollbar-color
+   (свойства поддержаны и там) и перебил бы webkit-правила выше, обнулив
+   10px-ширину и hover. Точная ширина и hover-акцент в Firefox недостижимы —
+   расхождение принято как норма (design-brief.md § 1.2). */
+@supports not selector(::-webkit-scrollbar) {
+  /* `scrollbar-width` не наследуется, поэтому объявляется на всех элементах:
+     на одном `:root` тонкую полосу получил бы только корневой скроллер, а
+     вложенные overflow-контейнеры (те самые ~19 нативных) остались бы с
+     дефолтной шириной. `scrollbar-color` наследуется — ему достаточно корня.
+     Мокап вешает фолбэк на сам скролл-контейнер (`.scroll-new`,
+     ui-polish.html:259) — здесь тот же охват, но глобальным правилом, как
+     требует design-brief § 1.2 («без точечных классов по контейнерам»). */
+  * {
+    scrollbar-width: thin;
+  }
+  :root {
+    scrollbar-color: var(--border) transparent;
   }
 }
 
@@ -369,4 +465,19 @@
   .typed-title-caret::after {
     animation: none;
   }
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   KaTeX: containing block для скрытого MathML-дубликата.
+
+   Рядом с визуальной формулой KaTeX печатает MathML-копию для скринридеров и
+   копипасты, пряча её через `position: absolute` + clip. Без позиционированного
+   предка такая копия отсчитывается от корня документа, а не от блока текста, —
+   и, будучи невидимой, растягивает высоту документа на всю длину переписки:
+   у страницы появляется второй скролл в пустоту поверх собственного скролла
+   ленты. `position: relative` на самой формуле замыкает копию внутрь неё;
+   геометрия рендера не меняется (KaTeX position у `.katex` не задаёт).
+   ─────────────────────────────────────────────────────────────────────────── */
+.katex {
+  position: relative;
 }

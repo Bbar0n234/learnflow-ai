@@ -13,12 +13,10 @@ dependencies = [
     "langchain-openai>=0.3",
     "langgraph>=0.4",
     "langgraph-checkpoint-postgres>=2.0",
-    "markdown>=3.5",
-    "pdfkit>=1.0.0",
     "psycopg[binary,pool]>=3.3.3",
     "pydantic>=2.0",
     "pydantic-settings>=2.13.1",
-    "python-markdown-math>=0.8",
+    "python-multipart>=0.0.22",
     "pyyaml>=6.0",
     "sqlalchemy[asyncio]>=2.0.48",
     "structlog>=25.0",
@@ -31,6 +29,7 @@ dependencies = [
     "siem-contracts>=0.1.0",
     "anyio>=4.12.1",
     "httpx>=0.28.1",
+    "maxminddb>=3.1.1",
 ]
 
 [tool.pytest.ini_options]

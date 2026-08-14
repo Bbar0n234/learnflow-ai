@@ -40,7 +40,7 @@ function page(items: CorrelationRule[]) {
 }
 
 describe("SecurityRules", () => {
-  it("shows a loading hint while rules are in flight", () => {
+  it("holds the table with placeholder rows while rules are in flight", async () => {
     server.use(
       http.get(RULES_URL, async () => {
         await delay(50);
@@ -48,9 +48,19 @@ describe("SecurityRules", () => {
       }),
     );
 
-    renderWithProviders(<SecurityRules />);
+    const { container } = renderWithProviders(<SecurityRules />);
 
-    expect(screen.getByText("Загрузка правил...")).toBeInTheDocument();
+    // Плашки скелетона не имеют доступного имени — берём публичный маркер
+    // примитива дизайн-системы (`data-slot="skeleton"`), последнюю ступень
+    // лестницы запросов из testing.md § Frontend. Число строк, ширины плашек
+    // и мерцание jsdom не исполняет: их сторожит ручной кейс.
+    expect(
+      container.querySelectorAll('[data-slot="skeleton"]').length,
+    ).toBeGreaterThan(0);
+    // Пока данные в пути, «правил нет» не объявляется.
+    expect(screen.queryByText("Правила не найдены")).not.toBeInTheDocument();
+
+    await screen.findByText("Правила не найдены");
   });
 
   it("shows an empty-state message when there are no rules", async () => {
@@ -70,9 +80,41 @@ describe("SecurityRules", () => {
 
     renderWithProviders(<SecurityRules />);
 
+    // Формулировка канонизирована блоком 4 брифа («Не удалось загрузить …»),
+    // детали ответа сохранены рядом с ней.
     expect(
-      await screen.findByText(/Ошибка загрузки правил/),
+      await screen.findByText(/Не удалось загрузить правила: boom/),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Повторить" }),
+    ).toBeInTheDocument();
+  });
+
+  it("recovers the rules table through «Повторить»", async () => {
+    let failing = true;
+    server.use(
+      http.get(RULES_URL, () => {
+        if (failing) {
+          return HttpResponse.json({ detail: "boom" }, { status: 500 });
+        }
+        return page([rule()]);
+      }),
+    );
+    const user = userEvent.setup();
+
+    renderWithProviders(<SecurityRules />);
+
+    await screen.findByText(/Не удалось загрузить правила/);
+    failing = false;
+    // Путь восстановления помимо F5: кнопка перезапрашивает ту же квери.
+    // Проводка `onRetry → refetch` у каждой вкладки своя, поэтому проверяется
+    // отдельно — иначе сломанное «Повторить» именно здесь никто бы не поймал.
+    await user.click(screen.getByRole("button", { name: "Повторить" }));
+
+    expect(await screen.findByText("brute_force_auth")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Не удалось загрузить правила/),
+    ).not.toBeInTheDocument();
   });
 
   it("lists a configured rule with its type", async () => {
@@ -82,6 +124,22 @@ describe("SecurityRules", () => {
 
     expect(await screen.findByText("brute_force_auth")).toBeInTheDocument();
     expect(screen.getByText("Порог")).toBeInTheDocument();
+  });
+
+  it("names the row actions in Russian for a screen reader", async () => {
+    server.use(http.get(RULES_URL, () => page([rule()])));
+
+    renderWithProviders(<SecurityRules />);
+    const row = (await screen.findByText("brute_force_auth")).closest("tr")!;
+
+    // Кнопки строки — иконки без подписи, их единственное имя для скринридера
+    // задаётся `aria-label`; в русском продукте оно русское (бриф блок 2).
+    expect(
+      within(row).getByRole("button", { name: "Редактировать правило" }),
+    ).toBeInTheDocument();
+    expect(
+      within(row).getByRole("button", { name: "Удалить правило" }),
+    ).toBeInTheDocument();
   });
 
   it("deletes a rule after confirmation and refetches", async () => {
@@ -99,7 +157,9 @@ describe("SecurityRules", () => {
     const row = (await screen.findByText("brute_force_auth")).closest("tr")!;
 
     // The row holds two icon-only buttons reached by accessible name.
-    await user.click(within(row).getByRole("button", { name: "Delete rule" }));
+    await user.click(
+      within(row).getByRole("button", { name: "Удалить правило" }),
+    );
 
     // Confirm in the modal.
     await user.click(await screen.findByRole("button", { name: "Удалить" }));

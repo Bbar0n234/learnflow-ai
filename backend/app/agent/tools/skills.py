@@ -10,6 +10,7 @@ from langchain_core.tools import BaseTool, tool
 from langgraph.prebuilt import ToolRuntime
 
 from app.agent.tools.store_helpers import format_index
+from app.storage.workspace import resolve_under_root
 
 _SKILL_NAME_RE = re.compile(r"^[a-z0-9_-]+$")
 _SAFE_PATH_SEGMENT_RE = re.compile(r"^[\w.-]+$")
@@ -87,15 +88,23 @@ async def _skill_context_index(runtime: ToolRuntime, skill_name: str) -> str | N
 
 
 def _load_skill_sync(skills_dir: Path, skill_name: str, file: str | None) -> str:
-    """Synchronous body of `load_skill`, run off the event loop via `asyncio.to_thread`."""
+    """Synchronous body of `load_skill`, run off the event loop via `asyncio.to_thread`.
+
+    Path validation goes through the file layer's shared resolution
+    primitive (`resolve_under_root`, `app/storage/workspace.py`) rather than
+    a hand-rolled `resolve()` + `is_relative_to()` pair duplicated here —
+    same two-layer defense `Workspace.resolve_skill_path` runs, without
+    needing a full `Workspace` instance (`load_skill` has no `project_id`
+    and no read/write/diff surface to justify one).
+    """
     if not _SKILL_NAME_RE.match(skill_name):
         available = _list_available(skills_dir)
         return (
             f"Error: invalid skill name '{skill_name}'. Available skills: {available}"
         )
 
-    skill_path = (skills_dir / skill_name / "SKILL.md").resolve()
-    if not skill_path.is_relative_to(skills_dir.resolve()):
+    skill_path = resolve_under_root(skills_dir, f"{skill_name}/SKILL.md")
+    if skill_path is None:
         return f"Error: invalid skill path for '{skill_name}'."
 
     if not skill_path.is_file():
@@ -122,8 +131,8 @@ def _load_skill_sync(skills_dir: Path, skill_name: str, file: str | None) -> str
         available_files = ", ".join(skill_files) if skill_files else "(none)"
         return f"Error: invalid file path '{file}'. Available files: {available_files}"
 
-    file_path = (skill_dir / file).resolve()
-    if not file_path.is_relative_to(skill_dir):
+    file_path = resolve_under_root(skill_dir, file)
+    if file_path is None:
         skill_files = _list_skill_files(skill_dir)
         available_files = ", ".join(skill_files) if skill_files else "(none)"
         return f"Error: invalid file path '{file}'. Available files: {available_files}"
@@ -172,7 +181,6 @@ def _list_skill_files(skill_dir: Path) -> list[str]:
     """
     if not skill_dir.is_dir():
         return []
-    resolved_skill_dir = skill_dir.resolve()
     files: list[str] = []
     for path in skill_dir.rglob("*"):
         if not path.is_file():
@@ -182,7 +190,7 @@ def _list_skill_files(skill_dir: Path) -> list[str]:
             continue
         if any(part.startswith(".") for part in relative.parts):
             continue
-        if not path.resolve().is_relative_to(resolved_skill_dir):
+        if resolve_under_root(skill_dir, relative.as_posix()) is None:
             continue
         files.append(relative.as_posix())
     return sorted(files)

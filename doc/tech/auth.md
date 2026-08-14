@@ -195,7 +195,7 @@ Enforcement — в трёх точках: `GET /api/auth/providers` (соста�
 
 Request interceptor добавляет заголовок `Authorization: Bearer` с access token из localStorage (ключ `learnflow-access-token`).
 
-Response interceptor перехватывает ошибки 401 (кроме запросов к `/auth/*`) и инициирует обновление токена:
+Response interceptor перехватывает 401-ошибки и инициирует обновление токена. Исключение из refresh-flow — не по префиксу пути, а семантическое: эндпоинты, не требующие access token (`CREDENTIAL_ENDPOINTS` в `shared/api/client.ts` — `/auth/refresh`, `/auth/login`, `/auth/register`), 401 от них не значит «сессия истекла» и в refresh не идёт; `/auth/refresh` остаётся в списке отдельно — иначе refresh рекурсировал бы сам в себя. `/auth/me` и `/auth/logout` вызываются от имени уже аутентифицированного пользователя и проходят стандартный single-flight refresh + retry наравне с остальными запросами. Правило переформулировано с префиксного на семантическое из-за бага «сайдбар без user-футера на холодной сессии»: старое условие `!url.includes("/auth/")` случайно накрывало и `GET /auth/me`, поэтому 401 от нативно протухшего токена не ретраился, `user` оставался `undefined`, и футер сайдбара не рендерился до ручного reload. Классификация для будущих OAuth-эндпоинтов (feat-008) — тот же принцип: анонимные start/callback-эндпоинты, достижимые до выдачи токена, идут в исключения; эндпоинты, вызываемые с токеном, — под refresh-retry (комментарий с правилом — `client.ts:53-67`, рядом с константой).
 
 ```mermaid
 flowchart TD

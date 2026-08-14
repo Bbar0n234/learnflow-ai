@@ -28,6 +28,9 @@ const CHAT_ID = "c1";
 const MESSAGES_URL = `/api/projects/${PROJECT_ID}/chats/${CHAT_ID}/messages`;
 const CANCEL_URL = `/api/projects/${PROJECT_ID}/chats/${CHAT_ID}/cancel`;
 const REFRESH_URL = "/api/auth/refresh";
+/** Соседний чат того же проекта — куда пользователь уходит посреди хода. */
+const OTHER_CHAT_ID = "c2";
+const OTHER_MESSAGES_URL = `/api/projects/${PROJECT_ID}/chats/${OTHER_CHAT_ID}/messages`;
 
 function streamResponse(events: unknown[]): Response {
   return new HttpResponse(sseResponseStream(events.map((e) => sseFrame(e))), {
@@ -69,6 +72,44 @@ function renderAgentStream(options?: Parameters<typeof useAgentStream>[2]) {
   return { result, queryClient, unmount };
 }
 
+/**
+ * Хук, переживающий смену чата **без перемонтирования**, — ровно как в
+ * приложении: маршрут `chats/:cid` рендерит один и тот же `ChatThread` без
+ * `key`, поэтому уже начатый ход остаётся жив, а `chatId` под ним меняется.
+ * Именно в этом зазоре и терялся владелец потока.
+ */
+function renderSwitchableStream(
+  options?: Parameters<typeof useAgentStream>[2],
+) {
+  const queryClient = createTestQueryClient();
+  const wrapper = ({ children }: { children: ReactNode }) =>
+    createElement(QueryClientProvider, { client: queryClient }, children);
+  const { result, rerender, unmount } = renderHook(
+    ({ chatId }: { chatId: string }) =>
+      useAgentStream(PROJECT_ID, chatId, options),
+    { wrapper, initialProps: { chatId: CHAT_ID } },
+  );
+  return {
+    result,
+    queryClient,
+    unmount,
+    switchTo: (chatId: string) => rerender({ chatId }),
+  };
+}
+
+/**
+ * Ответ сервера, который тест придерживает до нужного момента: даёт увести
+ * пользователя в соседний чат раньше, чем ветка без SSE-событий (не-ok статус,
+ * сетевой сбой) успеет позвать колбэк.
+ */
+function heldResponse() {
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { held, release };
+}
+
 afterEach(() => {
   localStorage.clear();
   vi.useRealTimers();
@@ -101,6 +142,11 @@ async function isReviewing(): Promise<boolean> {
   return useStreamStore.getState().isReviewing;
 }
 
+/** Чат, которому стор принадлежит прямо сейчас. */
+function streamOwner(): string | null {
+  return useStreamStore.getState().streamingChatId;
+}
+
 describe("useAgentStream", () => {
   it("invokes onDone with the message and trace ids on a done event", async () => {
     setAccessToken(fakeJwt());
@@ -119,6 +165,7 @@ describe("useAgentStream", () => {
 
     await waitFor(() =>
       expect(onDone).toHaveBeenCalledWith({
+        chatId: CHAT_ID,
         messageId: "m-1",
         traceId: "t-1",
       }),
@@ -198,7 +245,9 @@ describe("useAgentStream", () => {
 
     result.current.send("hi");
 
-    await waitFor(() => expect(onError).toHaveBeenCalledWith("model exploded"));
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledWith(CHAT_ID, "model exploded"),
+    );
   });
 
   it("reports a problem message when the POST returns a non-ok status", async () => {
@@ -214,7 +263,7 @@ describe("useAgentStream", () => {
     result.current.send("hi");
 
     await waitFor(() =>
-      expect(onError).toHaveBeenCalledWith("Доступ запрещён"),
+      expect(onError).toHaveBeenCalledWith(CHAT_ID, "Доступ запрещён"),
     );
   });
 
@@ -241,7 +290,11 @@ describe("useAgentStream", () => {
     result.current.send("hi");
 
     await waitFor(() =>
-      expect(onDone).toHaveBeenCalledWith({ messageId: "m-9", traceId: null }),
+      expect(onDone).toHaveBeenCalledWith({
+        chatId: CHAT_ID,
+        messageId: "m-9",
+        traceId: null,
+      }),
     );
     expect(onError).not.toHaveBeenCalled();
   });
@@ -335,7 +388,7 @@ describe("useAgentStream", () => {
     expect(onError).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(2000);
 
-    expect(onError).toHaveBeenCalledWith("Превышено время ожидания");
+    expect(onError).toHaveBeenCalledWith(CHAT_ID, "Превышено время ожидания");
   });
 
   it("keeps a silent-but-alive stream running while heartbeats arrive", async () => {
@@ -379,7 +432,11 @@ describe("useAgentStream", () => {
     result.current.send("hi");
 
     await waitFor(() =>
-      expect(onDone).toHaveBeenCalledWith({ messageId: "m-fc", traceId: null }),
+      expect(onDone).toHaveBeenCalledWith({
+        chatId: CHAT_ID,
+        messageId: "m-fc",
+        traceId: null,
+      }),
     );
     expect(onError).not.toHaveBeenCalled();
   });
@@ -463,6 +520,7 @@ describe("useAgentStream", () => {
 
     await waitFor(() =>
       expect(onDone).toHaveBeenCalledWith({
+        chatId: CHAT_ID,
         messageId: "m-401",
         traceId: null,
       }),
@@ -731,7 +789,7 @@ describe("useAgentStream", () => {
     result.current.send("hi");
 
     await waitFor(() =>
-      expect(onError).toHaveBeenCalledWith("Соединение прервано"),
+      expect(onError).toHaveBeenCalledWith(CHAT_ID, "Соединение прервано"),
     );
     expect(onDone).not.toHaveBeenCalled();
   });
@@ -745,7 +803,7 @@ describe("useAgentStream", () => {
     result.current.send("hi");
 
     await waitFor(() =>
-      expect(onError).toHaveBeenCalledWith("Ошибка соединения"),
+      expect(onError).toHaveBeenCalledWith(CHAT_ID, "Ошибка соединения"),
     );
   });
 
@@ -1015,7 +1073,7 @@ describe("useAgentStream", () => {
 
     // Сторож при этом не разоружён — новая тишина его дожигает.
     await vi.advanceTimersByTimeAsync(6000);
-    expect(onError).toHaveBeenCalledWith("Превышено время ожидания");
+    expect(onError).toHaveBeenCalledWith(CHAT_ID, "Превышено время ожидания");
   });
 
   // Снятие сторожа на терминальном событии: сервер, придержавший соединение
@@ -1056,7 +1114,9 @@ describe("useAgentStream", () => {
 
     result.current.send("hi");
 
-    await waitFor(() => expect(onError).toHaveBeenCalledWith("модель упала"));
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledWith(CHAT_ID, "модель упала"),
+    );
     expect(
       queryClient.getQueryState(queryKeys.projects.chats(PROJECT_ID))
         ?.isInvalidated,
@@ -1187,4 +1247,289 @@ describe("useAgentStream", () => {
     // Пачка доехала до ленты целиком, а не оборвалась на пороге сторожа.
     expect(streamedOnScreen).toContain("фрагмент 79");
   }, 15000);
+});
+
+/**
+ * Владелец хода: чат, зафиксированный в момент `send()`. Пользователь волен уйти
+ * в соседний чат посреди хода — компонент при этом не перемонтируется, поэтому
+ * колбэк, разбирающий терминальное событие, обязан узнать чат-владельца из
+ * контракта, а не из текущего рендера. Кейсы ниже проверяют это на каждой
+ * ветке, включая те, где SSE-события не было вовсе, и на двух одновременно
+ * живых ходах — том, ради которого трек и заведён.
+ */
+describe("useAgentStream: владелец хода при переключении чата", () => {
+  it("отдаёт onDone владельца хода, а не чата, открытого к моменту события", async () => {
+    setAccessToken(fakeJwt());
+    const live = liveStream();
+    server.use(http.post(MESSAGES_URL, () => live.response));
+    const onDone = vi.fn();
+    const { result, switchTo } = renderSwitchableStream({ onDone });
+
+    result.current.send("hi");
+    live.push({ type: "text_chunk", content: "идёт ответ" });
+    await waitFor(async () => expect(await streamedText()).toBe("идёт ответ"));
+
+    switchTo(OTHER_CHAT_ID);
+    live.push({ type: "done", message_id: "m-a", trace_id: "t-a" });
+    live.close();
+
+    await waitFor(() =>
+      expect(onDone).toHaveBeenCalledWith({
+        chatId: CHAT_ID,
+        messageId: "m-a",
+        traceId: "t-a",
+      }),
+    );
+  });
+
+  it("отдаёт onError владельца хода на событии error после переключения", async () => {
+    setAccessToken(fakeJwt());
+    const live = liveStream();
+    server.use(http.post(MESSAGES_URL, () => live.response));
+    const onError = vi.fn();
+    const { result, switchTo } = renderSwitchableStream({ onError });
+
+    result.current.send("hi");
+    live.push({ type: "text_chunk", content: "идёт ответ" });
+    await waitFor(async () => expect(await streamedText()).toBe("идёт ответ"));
+
+    switchTo(OTHER_CHAT_ID);
+    live.push({ type: "error", detail: "модель упала" });
+    live.close();
+
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledWith(CHAT_ID, "модель упала"),
+    );
+  });
+
+  it("отдаёт onCancelled владельца хода после переключения", async () => {
+    setAccessToken(fakeJwt());
+    const live = liveStream();
+    server.use(http.post(MESSAGES_URL, () => live.response));
+    const onCancelled = vi.fn();
+    const { result, switchTo } = renderSwitchableStream({ onCancelled });
+
+    result.current.send("hi");
+    live.push({ type: "text_chunk", content: "идёт ответ" });
+    await waitFor(async () => expect(await streamedText()).toBe("идёт ответ"));
+
+    switchTo(OTHER_CHAT_ID);
+    live.push({ type: "cancelled" });
+    live.close();
+
+    await waitFor(() => expect(onCancelled).toHaveBeenCalledWith(CHAT_ID));
+  });
+
+  it("отдаёт onSecurityBlock владельца хода после переключения", async () => {
+    setAccessToken(fakeJwt());
+    const live = liveStream();
+    server.use(http.post(MESSAGES_URL, () => live.response));
+    const onSecurityBlock = vi.fn();
+    const { result, switchTo } = renderSwitchableStream({ onSecurityBlock });
+
+    result.current.send("hi");
+    live.push({ type: "text_chunk", content: "идёт ответ" });
+    await waitFor(async () => expect(await streamedText()).toBe("идёт ответ"));
+
+    switchTo(OTHER_CHAT_ID);
+    live.push({ type: "security_block" });
+    live.close();
+
+    await waitFor(() => expect(onSecurityBlock).toHaveBeenCalledWith(CHAT_ID));
+  });
+
+  // Ветки без единого SSE-события — там владельца неоткуда взять «из потока»,
+  // и именно на них его легче всего потерять.
+  it("несёт владельца в таймауте сторожа тишины", async () => {
+    setAccessToken(fakeJwt());
+    vi.useFakeTimers();
+    // Сервер не отвечает вовсе — событий не будет ни одного.
+    server.use(http.post(MESSAGES_URL, () => delay("infinite")));
+    const onError = vi.fn();
+    const { result, switchTo } = renderSwitchableStream({ onError });
+
+    result.current.send("hi");
+    switchTo(OTHER_CHAT_ID);
+    await vi.advanceTimersByTimeAsync(16000);
+
+    expect(onError).toHaveBeenCalledWith(CHAT_ID, "Превышено время ожидания");
+  });
+
+  it("несёт владельца в не-ok ответе на отправку", async () => {
+    setAccessToken(fakeJwt());
+    const { held, release } = heldResponse();
+    server.use(
+      http.post(MESSAGES_URL, async () => {
+        await held;
+        return HttpResponse.json(
+          { detail: "Доступ запрещён" },
+          { status: 403 },
+        );
+      }),
+    );
+    const onError = vi.fn();
+    const { result, switchTo } = renderSwitchableStream({ onError });
+
+    result.current.send("hi");
+    switchTo(OTHER_CHAT_ID);
+    release();
+
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledWith(CHAT_ID, "Доступ запрещён"),
+    );
+  });
+
+  it("несёт владельца в обрыве потока без терминального события", async () => {
+    setAccessToken(fakeJwt());
+    const live = liveStream();
+    server.use(http.post(MESSAGES_URL, () => live.response));
+    const onError = vi.fn();
+    const { result, switchTo } = renderSwitchableStream({ onError });
+
+    result.current.send("hi");
+    live.push({ type: "text_chunk", content: "недописанный ответ" });
+    await waitFor(async () =>
+      expect(await streamedText()).toBe("недописанный ответ"),
+    );
+
+    switchTo(OTHER_CHAT_ID);
+    live.close();
+
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledWith(CHAT_ID, "Соединение прервано"),
+    );
+  });
+
+  // Уход с экрана — единственный неохраняемый путь: cleanup зовёт `reset()`, а
+  // не гашение по чату. Владельцем к этому моменту может быть уже покинутый
+  // чат, и скоупленное гашение (`endStream` текущего чата) стало бы no-op —
+  // стор остался бы с `isStreaming: true` от чужого хода на весь остаток
+  // сессии, с композером в режиме отмены на всех экранах.
+  it("сбрасывает стор на unmount после ухода в соседний чат", async () => {
+    setAccessToken(fakeJwt());
+    const live = liveStream();
+    server.use(http.post(MESSAGES_URL, () => live.response));
+    const { result, switchTo, unmount } = renderSwitchableStream();
+
+    result.current.send("hi");
+    live.push({ type: "text_chunk", content: "идёт ответ" });
+    await waitFor(async () => expect(await streamedText()).toBe("идёт ответ"));
+
+    // Пользователь в соседнем чате, а стором по-прежнему владеет ход в A —
+    // ровно то расхождение, которого нет у одночатового кейса на unmount.
+    switchTo(OTHER_CHAT_ID);
+    expect(streamOwner()).toBe(CHAT_ID);
+
+    unmount();
+
+    expect(await isStreaming()).toBe(false);
+    expect(streamOwner()).toBeNull();
+    expect(await streamedFeed()).toEqual([]);
+  });
+
+  it("несёт владельца в исключении транспорта", async () => {
+    setAccessToken(fakeJwt());
+    const { held, release } = heldResponse();
+    server.use(
+      http.post(MESSAGES_URL, async () => {
+        await held;
+        return HttpResponse.error();
+      }),
+    );
+    const onError = vi.fn();
+    const { result, switchTo } = renderSwitchableStream({ onError });
+
+    result.current.send("hi");
+    switchTo(OTHER_CHAT_ID);
+    release();
+
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledWith(CHAT_ID, "Ошибка соединения"),
+    );
+  });
+});
+
+/**
+ * Два хода разом. Поток чата A при переключении не абортится (решение брифа: он
+ * дотекает в никуда, результат приезжает рефетчем по `done`), поэтому пока в
+ * чате B идёт свой ход, поток A продолжает слать события и рано или поздно
+ * пришлёт терминал. Ни то, ни другое не имеет права коснуться живого стрима B —
+ * это и есть класс бага, ради которого заведён трек.
+ */
+describe("useAgentStream: догорающий ход соседнего чата", () => {
+  /** Ход в чате A начат и жив; поверх него в чате B начат свой. Стором владеет B. */
+  async function startTwoTurns(options?: Parameters<typeof useAgentStream>[2]) {
+    const liveA = liveStream();
+    const liveB = liveStream();
+    server.use(
+      http.post(MESSAGES_URL, () => liveA.response),
+      http.post(OTHER_MESSAGES_URL, () => liveB.response),
+    );
+    const rendered = renderSwitchableStream(options);
+
+    rendered.result.current.send("вопрос в A");
+    liveA.push({ type: "text_chunk", content: "ответ A" });
+    await waitFor(async () => expect(await streamedText()).toBe("ответ A"));
+
+    rendered.switchTo(OTHER_CHAT_ID);
+    rendered.result.current.send("вопрос в B");
+    liveB.push({ type: "text_chunk", content: "ответ B" });
+    await waitFor(async () => expect(await streamedText()).toBe("ответ B"));
+    expect(streamOwner()).toBe(OTHER_CHAT_ID);
+
+    return { liveA, liveB, ...rendered };
+  }
+
+  it("не пишет события догорающего потока в ленту нового чата", async () => {
+    setAccessToken(fakeJwt());
+    const onDone = vi.fn();
+    const { liveA } = await startTwoTurns({ onDone });
+
+    liveA.push({ type: "text_chunk", content: " и ещё кусок" });
+    liveA.push({
+      type: "tool_call_started",
+      call_id: "call-a",
+      tool: "firecrawl_search",
+    });
+    // Терминал того же потока — точка синхронизации: кадры одного потока
+    // разбираются по порядку, значит к моменту `onDone` события выше уже
+    // прошли через стор.
+    liveA.push({ type: "done", message_id: "m-a", trace_id: null });
+    liveA.close();
+    await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+
+    // Владелец в колбэке — чат A, хотя открыт (и владеет стором) чат B. Именно
+    // это отличает контракт «владелец из замыкания `send()`» от ссылки на чат
+    // идущего потока: при живом ходе в B такая ссылка указывала бы на B.
+    expect(onDone).toHaveBeenCalledWith({
+      chatId: CHAT_ID,
+      messageId: "m-a",
+      traceId: null,
+    });
+    expect(await streamedText()).toBe("ответ B");
+    expect(await streamedFeed()).toEqual([
+      { id: "text-0", type: "text", content: "ответ B" },
+    ]);
+    // Ход B закрывать нечем и незачем: его обрывает cleanup хука на unmount —
+    // тем же путём, что и уход пользователя со страницы.
+  });
+
+  it("не гасит терминалом догорающего потока живой стрим нового чата", async () => {
+    setAccessToken(fakeJwt());
+    const onDone = vi.fn();
+    const { liveA, liveB } = await startTwoTurns({ onDone });
+
+    liveA.push({ type: "done", message_id: "m-a", trace_id: null });
+    liveA.close();
+    await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+
+    // Ход в B продолжается: композер остаётся в режиме отмены, живой регион
+    // рисует ленту — до собственного терминала B.
+    expect(await isStreaming()).toBe(true);
+    expect(streamOwner()).toBe(OTHER_CHAT_ID);
+
+    liveB.push({ type: "done", message_id: "m-b", trace_id: null });
+    liveB.close();
+    await waitFor(async () => expect(await isStreaming()).toBe(false));
+  });
 });

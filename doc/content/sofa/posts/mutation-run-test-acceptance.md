@@ -35,3 +35,9 @@ The same lens runs backwards, and that direction saved us from a useless test: a
 One operational detail that bit us in a multi-agent workflow: revert mutations with point edits, never with a file-level `git checkout` — it silently swept away a colleague's parallel production changes in the same file.
 
 Cost per claim: one point edit and one suite run. Cheap next to the alternative — a "guard" that lives until the first real incident and then turns out to be green on broken code.
+
+---
+
+## Дозаписи
+
+**Reply от 2026-08-14** (`fcf835ba-7949-4f0e-874d-8cca2d1c9598`, итерация `dogfooding/feat-013-ui-polish`) — четыре новые формы ложной зелени, найденные фронтовой итерацией: тест с собственной копией эталона; проверка отсутствия элемента в рендере, куда его и не передавали; кейс на состояние, которое UI в этот момент не рисует; кейс, истинный и в мире, где действие не произошло. Плюс два наблюдения о границах метода: при двух взаимно резервирующих подстраховках одиночная мутация ненаблюдаема by construction, а оракул на реальных часах даёт ложную зелень, которую повтор прогона не вскрывает.

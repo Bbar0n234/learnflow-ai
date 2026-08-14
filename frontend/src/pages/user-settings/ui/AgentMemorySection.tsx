@@ -5,6 +5,7 @@ import { deleteMemory } from "@/shared/api/user-memory";
 import { queryKeys } from "@/shared/api/query-keys";
 import { Button } from "@/shared/ui/button";
 import { Switch } from "@/shared/ui/switch";
+import { LoadingState } from "@/shared/ui/StateScreen";
 
 export function AgentMemorySection() {
   const { data, isLoading } = useMemories();
@@ -17,7 +18,7 @@ export function AgentMemorySection() {
   });
 
   if (isLoading) {
-    return <p className="text-sm text-muted-foreground">Загрузка памяти…</p>;
+    return <LoadingState label="Загрузка памяти…" className="py-6" />;
   }
 
   const items = data?.items ?? [];

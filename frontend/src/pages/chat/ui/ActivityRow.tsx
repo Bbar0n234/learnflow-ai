@@ -160,7 +160,7 @@ function StatusMeta({ status }: { status: FeedItemStatus }) {
     case "success":
       return (
         <>
-          <Check aria-hidden="true" className="size-3.5" />
+          <Check aria-hidden="true" className="size-3.5 text-success" />
           <span className="sr-only">успешно</span>
         </>
       );

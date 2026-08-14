@@ -6,6 +6,8 @@ import { useAgentStream } from "../model/useAgentStream";
 import { useStreamStore } from "@/stores/stream-store";
 import { useStudio } from "../model/useStudio";
 import { cn } from "@/shared/lib/utils";
+import { Button } from "@/shared/ui/button";
+import { LoadingState, StateScreen } from "@/shared/ui/StateScreen";
 import { getApiErrorMessage } from "@/shared/lib/api-error";
 import { logger } from "@/shared/lib/logger";
 import { ChatHeader } from "./ChatHeader";
@@ -47,16 +49,19 @@ export function ChatThread() {
   const isStreaming = useStreamStore(
     (s) => s.streamingChatId === cid && s.isStreaming,
   );
-  const { data, isLoading, isError } = useChat(id, cid, {
+  const { data, isLoading, isError, refetch } = useChat(id, cid, {
     refetchOnWindowFocus: !isStreaming,
   });
   // Три транзиентных состояния экрана — оптимистичная копия отправленного
   // сообщения, ошибка потока и причина остановки хода — живут до следующей
   // отправки и все скоуплены чатом, как `isStreaming` выше. Причина одна:
   // переключение чата этот компонент не перемонтирует (`chats/:cid` рендерит
-  // один и тот же `ChatThread` без `key`), поэтому нескоупленное состояние
-  // уезжает в соседний чат — там всплывали бы чужое сообщение, чужая красная
-  // плашка и сообщение об остановке чужого хода, висящие до первой отправки.
+  // один и тот же `ChatThread` без `key`), поэтому колбэки `useAgentStream`,
+  // замкнутые на рендер, не могут сами знать, какому чату принадлежит
+  // завершившийся ход, — владельца несёт сам колбэк (`chatId` из аргумента, а
+  // не текущий `cid`). Без этого нескоупленное состояние уезжало бы в соседний
+  // чат — там всплывали бы чужое сообщение, чужая красная плашка и сообщение
+  // об остановке чужого хода, висящие до первой отправки.
   const [localMessages, setLocalMessages] = useState<{
     chatId: string;
     messages: Message[];
@@ -84,35 +89,45 @@ export function ChatThread() {
 
   const studio = useStudio();
 
-  // Терминальные колбэки снимают оптимистичную копию безусловно, без сверки с
-  // текущим `cid`: копия принадлежит закончившемуся ходу, и его сообщение уже
-  // приехало с сервера — держать её дальше значило бы задваивать сообщение в
-  // том чате, где ход шёл, независимо от того, на каком экране пользователь.
-  const handleDone = useCallback(() => {
-    setLocalMessages(null);
+  // Терминальные колбэки снимают оптимистичную копию, только если она
+  // принадлежит владельцу закончившегося хода: копия отправлена в этот же
+  // чат, и его сообщение уже приехало с сервера — держать её дальше значило
+  // бы задваивать сообщение в том чате, где ход шёл. Сверка нужна именно
+  // потому, что владелец из колбэка и `cid` текущего рендера теперь могут
+  // разойтись — снятие идёт через функциональный апдейт, а не через `cid` из
+  // замыкания, иначе хендлер снова обзавёлся бы зависимостью от состояния.
+  const handleDone = useCallback((info: { chatId: string }) => {
+    setLocalMessages((prev) =>
+      prev !== null && prev.chatId === info.chatId ? null : prev,
+    );
   }, []);
 
-  const handleSecurityBlock = useCallback(() => {
+  const handleSecurityBlock = useCallback((ownerChatId: string) => {
     // Server-side already persisted the user message + redacted placeholder
     // and we invalidated the chat query — drop the optimistic local copy
     // to avoid duplicates after refetch.
-    setLocalMessages(null);
+    setLocalMessages((prev) =>
+      prev !== null && prev.chatId === ownerChatId ? null : prev,
+    );
     // Заглушку заблокированного хода показывает история; карточка объясняет,
     // почему ход схлопнулся и почему ввод заблокирован.
-    setEndNotice({ chatId: cid!, reason: "blocked" });
-  }, [cid]);
+    setEndNotice({ chatId: ownerChatId, reason: "blocked" });
+  }, []);
 
-  const handleCancelled = useCallback(() => {
+  const handleCancelled = useCallback((ownerChatId: string) => {
     // Хук уже инвалидировал detail: отменённый ход приезжает из истории вместе
     // с незавершёнными вызовами. Оптимистичную копию снимаем по той же причине,
     // что и на `done`, — иначе после рефетча она задвоится.
-    setLocalMessages(null);
-    setEndNotice({ chatId: cid!, reason: "cancelled" });
-  }, [cid]);
+    setLocalMessages((prev) =>
+      prev !== null && prev.chatId === ownerChatId ? null : prev,
+    );
+    setEndNotice({ chatId: ownerChatId, reason: "cancelled" });
+  }, []);
 
   const { send, cancel } = useAgentStream(id!, cid!, {
     onDone: handleDone,
-    onError: (detail) => setStreamError({ chatId: cid!, detail }),
+    onError: (ownerChatId, detail) =>
+      setStreamError({ chatId: ownerChatId, detail }),
     onSecurityBlock: handleSecurityBlock,
     onCancelled: handleCancelled,
   });
@@ -127,6 +142,18 @@ export function ChatThread() {
   const dispatchSend = useCallback(
     (content: string, attachments: EntryAttachment[] = []) => {
       const chatId = cid!;
+      // Новый ход гасит ошибку и уведомление о завершении **своего** чата —
+      // держать их поверх только что отправленного сообщения незачем. Чужие
+      // остаются: исход хода ждёт пользователя в чате, где ход шёл, и отправка
+      // сообщения в соседнем чате не имеет к нему отношения. Сверка идёт
+      // функциональным апдейтом — по той же причине, что и в терминальных
+      // хендлерах.
+      setStreamError((prev) =>
+        prev !== null && prev.chatId === chatId ? null : prev,
+      );
+      setEndNotice((prev) =>
+        prev !== null && prev.chatId === chatId ? null : prev,
+      );
       const message: Message = {
         id: crypto.randomUUID(),
         role: "user",
@@ -158,8 +185,15 @@ export function ChatThread() {
   // для повторной попытки (A14), а причину показываем inline под ним.
   const handleSend = useCallback(
     async (content: string, files: File[] = []): Promise<boolean> => {
-      setStreamError(null);
-      setEndNotice(null);
+      // Гасим исход **своего** чата, а не любой лежащий в слоте: ход мог идти
+      // в соседнем чате и завершиться, пока пользователь был здесь. Сверка —
+      // тем же функциональным апдейтом, что и в `dispatchSend` ниже.
+      setStreamError((prev) =>
+        prev !== null && prev.chatId === cid ? null : prev,
+      );
+      setEndNotice((prev) =>
+        prev !== null && prev.chatId === cid ? null : prev,
+      );
       setAttachError(null);
       if (files.length === 0) {
         dispatchSend(content);
@@ -238,18 +272,24 @@ export function ChatThread() {
   }, [cid, location.pathname, location.state, navigate, dispatchSend]);
 
   if (isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center text-muted-foreground">
-        Loading chat...
-      </div>
-    );
+    return <LoadingState className="h-full" label="Загрузка чата…" />;
   }
 
   if (isError) {
     return (
-      <div className="flex h-full items-center justify-center text-destructive">
-        Не удалось загрузить чат.
-      </div>
+      <StateScreen
+        scene="error-state"
+        alt="Иллюстрация: ошибка"
+        illustrationClassName="max-w-[280px] w-full"
+        title="Не удалось загрузить чат"
+        description="Что-то пошло не так при загрузке. Проверьте соединение и попробуйте ещё раз."
+        action={
+          <Button variant="outline" onClick={() => void refetch()}>
+            Повторить
+          </Button>
+        }
+        className="h-full"
+      />
     );
   }
 

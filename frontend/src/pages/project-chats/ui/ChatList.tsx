@@ -5,6 +5,8 @@ import { Textarea } from "@/shared/ui/textarea";
 import { Button } from "@/shared/ui/button";
 import { Illustration } from "@/shared/ui/Illustration";
 import { TypedTitle } from "@/shared/ui/TypedTitle";
+import { Skeleton } from "@/shared/ui/skeleton";
+import { ErrorCard } from "@/shared/ui/StateScreen";
 import { AttachmentChip } from "@/shared/ui/AttachmentChip";
 import { DragOverlay } from "@/shared/ui/DragOverlay";
 import { DEFAULT_CHAT_TITLE, useChats } from "@/shared/api/chats";
@@ -20,7 +22,7 @@ import { useFileDrop } from "@/shared/lib/use-file-drop";
 export function ChatList() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data, isLoading, isError } = useChats(id);
+  const { data, isLoading, isError, refetch } = useChats(id);
   const createChat = useCreateChat();
   const [newChatText, setNewChatText] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
@@ -117,7 +119,7 @@ export function ChatList() {
               setCreateError(null);
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Спросите о чём угодно — начнётся новый чат..."
+            placeholder="Спросите о чём угодно — начнётся новый чат…"
             disabled={busy}
             className="min-h-[52px] resize-none border-0 bg-transparent text-sm focus-visible:ring-0"
           />
@@ -157,10 +159,30 @@ export function ChatList() {
 
       {/* Chat list */}
       {isLoading && (
-        <p className="text-sm text-muted-foreground">Загрузка чатов...</p>
+        <div className="flex flex-col gap-0.5">
+          <div className="flex flex-col gap-2 rounded-[var(--radius)] p-3">
+            <Skeleton className="h-3.5 w-[46%]" />
+            <Skeleton className="mt-[7px] h-2.5 w-[68%]" />
+            <div className="mt-[9px] flex items-center gap-2">
+              <Skeleton className="h-4 w-16 rounded-full" />
+              <Skeleton className="mt-[3px] h-2.5 w-[34px]" />
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 rounded-[var(--radius)] p-3">
+            <Skeleton className="h-3.5 w-[58%]" />
+            <Skeleton className="mt-[7px] h-2.5 w-[44%]" />
+            <div className="mt-[9px] flex items-center gap-2">
+              <Skeleton className="h-4 w-[52px] rounded-full" />
+              <Skeleton className="mt-[3px] h-2.5 w-[34px]" />
+            </div>
+          </div>
+        </div>
       )}
       {isError && (
-        <p className="text-sm text-destructive">Не удалось загрузить чаты.</p>
+        <ErrorCard
+          message="Не удалось загрузить чаты."
+          onRetry={() => void refetch()}
+        />
       )}
       {data && data.items.length === 0 && (
         <div className="flex flex-col items-center gap-4 py-8">

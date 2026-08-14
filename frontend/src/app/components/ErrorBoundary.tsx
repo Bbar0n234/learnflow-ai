@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { logger } from "@/shared/lib/logger";
-import { Illustration } from "@/shared/ui/Illustration";
+import { Button } from "@/shared/ui/button";
+import { StateScreen } from "@/shared/ui/StateScreen";
 
 interface Props {
   children: ReactNode;
@@ -24,25 +25,19 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex h-screen flex-col items-center justify-center gap-8 bg-background text-foreground">
-          <Illustration
-            scene="error-state"
-            alt="Иллюстрация ошибки"
-            className="h-48 w-auto select-none"
-          />
-          <div className="flex flex-col items-center gap-2 text-center">
-            <h1 className="text-2xl font-semibold">Что-то пошло не так</h1>
-            <p className="text-muted-foreground">
-              Произошла непредвиденная ошибка. Попробуйте обновить страницу.
-            </p>
-          </div>
-          <button
-            onClick={() => window.location.reload()}
-            className="rounded-lg border border-border bg-card px-4 py-2 text-base text-foreground hover:bg-muted"
-          >
-            Обновить страницу
-          </button>
-        </div>
+        <StateScreen
+          scene="error-state"
+          alt="Иллюстрация: ошибка"
+          illustrationClassName="max-w-[280px]"
+          title="Что-то пошло не так"
+          description="Произошла непредвиденная ошибка. Попробуйте обновить страницу."
+          action={
+            <Button variant="outline" onClick={() => window.location.reload()}>
+              Обновить страницу
+            </Button>
+          }
+          className="h-screen bg-background text-foreground"
+        />
       );
     }
 

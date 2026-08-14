@@ -1,7 +1,11 @@
-.PHONY: docker-up docker-up-db docker-up-redis docker-down docker-build docker-build-executor docker-logs lint format type-check arch-check check ci lint-fe check-fe format-fe build-fe dev dev-remote dev-fe test test-contracts test-parallel test-scope test-cov test-fe migrate migration downgrade migrate-siem sync-prompts security-scan-validate security-scan-redteam security-scan-report grant-admin seed-demo smoke-executor
+.PHONY: bootstrap docker-up docker-up-db docker-up-redis docker-down docker-build docker-build-executor docker-logs lint format type-check arch-check check ci lint-fe check-fe format-fe build-fe dev dev-remote dev-fe test test-contracts test-parallel test-scope test-cov test-fe migrate migration downgrade migrate-siem sync-prompts security-scan-validate security-scan-redteam security-scan-report grant-admin seed-demo smoke-executor
 
 # Load .env (base) then .env.local (overrides) into shell environment
 LOAD_ENV = set -a && [ -f .env ] && . ./.env; [ -f .env.local ] && . ./.env.local; set +a
+
+bootstrap:  ## Install deps in a fresh checkout/worktree (Python venv + frontend node_modules)
+	uv sync --all-packages
+	cd frontend && npm ci
 
 # smoke-executor passes a placeholder EXECUTOR_AUTH_TOKEN: the smoke scenarios
 # call the runner directly (no HTTP, no auth barrier), but `Settings()` has no

@@ -105,7 +105,7 @@ export function ProjectActions({
             }}
           >
             <Pencil />
-            Rename
+            Переименовать
           </DropdownMenuItem>
           <DropdownMenuItem
             variant="destructive"
@@ -115,7 +115,7 @@ export function ProjectActions({
             }}
           >
             <Trash2 />
-            Delete
+            Удалить
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -125,9 +125,9 @@ export function ProjectActions({
         <DialogContent>
           <form onSubmit={handleRename}>
             <DialogHeader>
-              <DialogTitle>Rename project</DialogTitle>
+              <DialogTitle>Переименовать проект</DialogTitle>
               <DialogDescription>
-                Enter a new name for the project.
+                Введите новое название проекта.
               </DialogDescription>
             </DialogHeader>
             <div className="py-4 space-y-2">
@@ -149,7 +149,7 @@ export function ProjectActions({
                 type="button"
                 onClick={() => setRenameOpen(false)}
               >
-                Cancel
+                Отмена
               </Button>
               <Button
                 type="submit"
@@ -159,7 +159,7 @@ export function ProjectActions({
                   updateProject.isPending
                 }
               >
-                Save
+                Сохранить
               </Button>
             </DialogFooter>
           </form>
@@ -170,10 +170,10 @@ export function ProjectActions({
       <Dialog open={deleteOpen} onOpenChange={(open) => setDeleteOpen(open)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete project</DialogTitle>
+            <DialogTitle>Удалить проект</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete &ldquo;{projectName}&rdquo;? This
-              action cannot be undone.
+              Удалить «{projectName}»? Все чаты, артефакты и сфера знаний
+              проекта будут удалены. Это действие нельзя отменить.
             </DialogDescription>
           </DialogHeader>
           {deleteError && (
@@ -181,14 +181,14 @@ export function ProjectActions({
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteOpen(false)}>
-              Cancel
+              Отмена
             </Button>
             <Button
               variant="destructive"
               onClick={handleDelete}
               disabled={deleteProject.isPending}
             >
-              Delete
+              Удалить
             </Button>
           </DialogFooter>
         </DialogContent>

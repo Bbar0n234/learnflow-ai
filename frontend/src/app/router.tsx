@@ -8,24 +8,20 @@ import { LoginPage } from "@/pages/login";
 import { ChatList } from "@/pages/project-chats";
 import { ChatView } from "@/pages/chat";
 import { SphereView } from "@/pages/sphere";
-import { ArtifactsPage } from "@/pages/artifacts";
+import { ArtifactsPage, NoArtifactSelected } from "@/pages/artifacts";
 import { ArtifactView } from "@/pages/artifact";
 import { SettingsPage } from "@/pages/user-settings";
 import { ProjectSettingsPage } from "@/pages/project-settings";
 import { SecurityRouteGuard } from "@/pages/security";
+import { NotFoundPage } from "@/pages/not-found";
 import { SIEM_ENABLED } from "@/shared/config/feature-flags";
+import { LoadingState } from "@/shared/ui/StateScreen";
 
 // Lazy load Security page
 const SecurityPage = lazy(() =>
   import("@/pages/security").then((m) => ({
     default: m.SecurityPage,
   })),
-);
-
-const LoadingFallback = () => (
-  <div className="flex items-center justify-center h-full">
-    <p className="text-muted-foreground">Загрузка...</p>
-  </div>
 );
 
 // Артефакт любой вложенности адресуется query-параметром `?path=` (T2.2) —
@@ -40,11 +36,7 @@ function ArtifactsViewerSlot() {
   const path = searchParams.get("path");
 
   if (!path) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Выберите артефакт из списка
-      </div>
-    );
+    return <NoArtifactSelected />;
   }
 
   return <ArtifactView />;
@@ -63,7 +55,7 @@ export function AppRoutes() {
               path="security"
               element={
                 <SecurityRouteGuard>
-                  <Suspense fallback={<LoadingFallback />}>
+                  <Suspense fallback={<LoadingState className="h-full" />}>
                     <SecurityPage />
                   </Suspense>
                 </SecurityRouteGuard>
@@ -81,6 +73,7 @@ export function AppRoutes() {
             </Route>
             <Route path="settings" element={<ProjectSettingsPage />} />
           </Route>
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Route>
     </Routes>

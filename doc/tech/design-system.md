@@ -37,6 +37,7 @@
 | `--brand-lavender` | сиреневые маркеры: неактивные точки-статусы, искры орба, обрамление аватара агента, строка вызова субагента в ленте активности (`#C5A9F9` → `#B194FF`) |
 | `--bubble-user` | фон bubble сообщения пользователя (`#EDE7DA` → `#262031`) |
 | `--destructive-warm` | терракота для деструктивных текстовых ссылок («Удалить проект», «Откатить») — мягче красной кнопки (`#B0573F` → `#D06050`) |
+| `--success` | цвет успеха общего назначения: галочка завершённого шага в ленте активности (`ActivityRow`), иконка success-тоста `sonner`, подтверждение inline-сохранения имени проекта (`#3D7A45` → `#6FBF78`). Не путать с `--mcp-connected` — тот узкоспециальный (точка статуса MCP-соединения), `--success` — общий семантический зелёный для положительного исхода где угодно в продукте |
 | `--mcp-connected` / `--mcp-disabled` | точки статуса MCP-серверов: зелёная / серая |
 | `--shadow-input` | единственная штатная тень UI — инпут-бары и карточки ввода |
 | `--shadow-lens` / `--scrim-overlay` | тень и скрим оверлея-линзы сферы (S2) |
@@ -49,6 +50,16 @@
 ### Радиусы
 
 Базовый `--radius: 0.7rem`; шкала `--radius-sm…4xl` выводится множителями в `@theme inline`. Ориентиры из хэндоффа: кнопки 9–11px, карточки 11–14px, модалы 14–18px, чипы — `999px` (pill).
+
+### Скроллбары и `color-scheme`
+
+Глобальная стилизация в `index.css` — единый тонкий скроллбар на токене `--border` для всех ~19 нативных `overflow-auto`-контейнеров продукта, без точечных классов по местам: `::-webkit-scrollbar` шириной 10px, прозрачный трек, thumb `background-color: var(--border)` с `background-clip: padding-box` (даёт видимую полосу уже дорожки — тот же приём, которым Base UI `ScrollArea` рисует свой thumb), hover-усиление через `color-mix(in srgb, var(--muted-foreground) 45%, var(--border))`. Firefox не поддерживает `::-webkit-scrollbar`: под `@supports not selector(::-webkit-scrollbar)` — `scrollbar-width: thin` + статичный `scrollbar-color`; точная ширина 10px и hover-акцент там недостижимы, расхождение принято как норма, обходов не искать.
+
+**Инвариант: глобальный стиль подогнан под `ScrollArea`, менять один — проверять второй.** `shared/ui/scroll-area.tsx` — сгенерированный shadcn-примитив (не правится, см. § Границы), его thumb уже `bg-border rounded-full`; глобальные правила выше специально держат ту же ширину/радиус/цвет, иначе на соседних экранах видны две разные полосы. Правка любой стороны требует сверки визуального паритета в обеих темах.
+
+`color-scheme: light` / `color-scheme: dark` объявлены на `:root`/`.dark` рядом с токенами — без этого нативные UA-виджеты (в т.ч. системный скроллбар до применения кастомного стиля) рендерятся в светлой палитре независимо от темы приложения и светятся белым на тёмном фоне.
+
+`scrollbar-gutter: stable` — на основных скролл-контейнерах с центрированным `max-width`-контентом (лента сообщений чата, `main` в `AppLayout`): резервирует место под полосу, чтобы её появление/исчезновение на переходах не двигало центрированный контент по горизонтали.
 
 ## Типографика
 
@@ -92,7 +103,7 @@ flowchart TD
     style HTML fill:#58a6ff1a,stroke:#58a6ff,color:#58a6ff
 ```
 
-Компоненты тему напрямую не читают — они потребляют токены через Tailwind-утилиты (`bg-background`, `text-foreground`, …), а значение токена меняет класс `.dark`. Исключения, которым нужно знать тему явно: `Illustration` (выбирает light/dark PNG) и обёртка `sonner` (тема тостов) — оба подписаны на `theme-store` через селектор.
+Компоненты тему напрямую не читают — они потребляют токены через Tailwind-утилиты (`bg-background`, `text-foreground`, …), а значение токена меняет класс `.dark`. Исключения, которым нужно знать тему явно: `Illustration` (выбирает light/dark PNG) и обёртка `sonner` (тема тостов) — оба читают её shared-хуком `useTheme` (`shared/lib/use-theme.ts`, `useSyncExternalStore` над классом `.dark` на `<html>`), а не подпиской на `theme-store` напрямую: `shared/ui` не имеет права зависеть от `stores` (граница FSD — `shared` импортирует только `shared`), поэтому источник истины (стор, который вешает/снимает класс) и точка чтения результата (DOM) разведены.
 
 ## Бренд-примитивы
 
@@ -105,19 +116,37 @@ flowchart TD
 
 ## Иллюстрации
 
-Растровые сцены (welcome-hero, sidebar-vignette, empty-states, error-state) лежат в `shared/assets/illustrations/{light,dark}/` — по теме на сцену. Доступ — **только через централизованную карту** `shared/assets/illustrations/index.ts`: функция `getIllustration(scene, theme)` возвращает URL ассета. Компоненты PNG напрямую не импортируют.
+Растровые сцены — `welcome-hero`, `sidebar-vignette`, `empty-chats`, `empty-sphere`, `empty-artifacts`, `error-state`, `not-found`, `artifacts-select`, `auth-hero` — лежат в `shared/assets/illustrations/{light,dark}/`, по теме на сцену. Доступ — **только через централизованную карту** `shared/assets/illustrations/index.ts`: функция `getIllustration(scene, theme)` возвращает URL ассета, тип `Scene` — источник истины по составу сцен. Компоненты PNG напрямую не импортируют.
 
 Обёртка `shared/ui/Illustration` принимает `{ scene, alt, className }`, читает тему из `theme-store` и рендерит правильный `<img>` — переключение light↔dark реактивно вместе с темой.
+
+**Канонические ширины подачи** — зафиксированы мокапом, каждый потребитель передаёт их через `illustrationClassName` на `StateScreen`:
+
+| Сцена | Ширина | Потребитель |
+|-------|--------|-------------|
+| `error-state` | 280px | `ErrorBoundary`, error-состояния чата/сферы/артефакта |
+| `artifacts-select` | 300px | `NoArtifactSelected` (empty-state «Артефакты») |
+| `not-found` | 360px | `NotFoundPage` (404) |
+| `empty-sphere` | 440px | `SphereViewer` (empty-state «Сфера знаний») |
+| `auth-hero` | 460px | `AuthLayout` (брендовая колонка auth-экрана) |
 
 Карта — **единственная точка свапа ассетов.** Это сознательное проектное решение: production-версии иллюстраций (чистый cutout, возможно SVG) заменят текущие точечной правкой карты, а не охотой по кодовой базе. Текущие ассеты — `soft-balanced` cutout с дефектами края; production-свап вынесен в предпродакшн-гейт (см. ниже).
 
 ## Error UX
 
-Ошибки доводятся до пользователя тремя путями:
+Единый шаблон «не-контента» — три соседних примитива в `shared/ui/StateScreen.tsx` (плюс `Skeleton` в `shared/ui/skeleton.tsx`), а не варианты одного пропа: у каждого своя геометрия и набор слотов.
 
-- **Тосты `sonner`** — только на мутациях. `MutationCache.onError` (`app/providers/QueryProvider.tsx`) показывает `toast.error` с сообщением из общего парсера `shared/lib/api-error.ts`. `QueryCache.onError` тост **не** показывает (только логирует) — иначе фоновые refetch'и спамят, а инлайн-error-бары дублируют сообщение. `<Toaster/>` монтируется один раз в провайдерном слое; тема тостов следует за `theme-store`.
-- **Брендовый ErrorBoundary** (`app/components/ErrorBoundary.tsx`) — fallback при непойманной ошибке рендера: иллюстрация `error-state` + сообщение на токенах вместо белого экрана.
-- **Инлайн error-бары** в формах/вью — на токене `--destructive`. Security-специфичный UX (runtime block в чате, add-time block в формах) — в [frontend.md](frontend.md#security-ux).
+- **`StateScreen`** — композиция «иллюстрация (опционально) + serif-заголовок (опционально) + подпись + действие (опционально)», полноэкранная или встроенная в панель форма (`flex-1`, базовая геометрия перекрывается классом потребителя под компактные панели). Потребители: 404 (`pages/not-found`), empty-state сферы (`empty-sphere`) и артефактов (`artifacts-select`), полноэкранные/панельные error-состояния чата/сферы/артефакта (`error-state`), `ErrorBoundary`.
+- **`LoadingState`** — компактный центрированный блок без иллюстрации: `Loader2` (`lucide-react`, `animate-spin`) + подпись (дефолт — «Загрузка…»). Для панельных и Suspense-загрузок (роутер, `SecurityRouteGuard`, `ChatThread`, `SphereView`, `ArtifactView`, `SkillContextSection`) — загрузка переходное состояние, сцена здесь лишняя.
+- **`ErrorCard`** — канонная карточная форма ошибки: `rounded-lg border border-destructive/30 bg-destructive/10` + сообщение + действие «Повторить» (`onRetry`, вызывает `refetch()` квери — без него кнопка не рисуется). Для списков (`ProjectList`, `ChatList` в проекте, `ArtifactList`) и других per-query ошибок с путём восстановления.
+- **`Skeleton`** (`bg-muted animate-pulse`, канонический shadcn-примитив) — списочные загрузки: 2–3 плейсхолдера по форме будущей строки (карточка чата, строка артефакта, пункт проекта) вместо спиннера — сохраняет геометрию экрана, честнее относительно того, что появится.
+
+**Инвариант расстановки:** списки грузятся скелетонами по форме будущей строки; панели и страницы — `LoadingState`; per-query ошибки — инлайновые с путём восстановления (`ErrorCard`/`StateScreen`); тосты остаются только за мутациями.
+
+- **Тосты `sonner`** — только на мутациях. `MutationCache.onError` (`app/providers/QueryProvider.tsx`) показывает `toast.error` с сообщением из общего парсера `shared/lib/api-error.ts`, иконка успеха тостов красится токеном `--success`. `QueryCache.onError` тост **не** показывает (только логирует) — иначе фоновые refetch'и спамят, а инлайн error-состояния дублируют сообщение. `<Toaster/>` монтируется один раз в провайдерном слое; тема тостов следует за `theme-store`.
+- **`ErrorBoundary`** (`app/components/ErrorBoundary.tsx`) — fallback при непойманной ошибке рендера: композиция поверх `StateScreen` (иллюстрация `error-state` + сообщение + кнопка «обновить страницу»), своей вёрстки не несёт; `componentDidCatch → logger.error` сохранён отдельно от визуальной унификации.
+
+Security-специфичный UX (runtime block в чате, add-time block в формах) — в [frontend.md](frontend.md#security-ux).
 
 ## Границы
 

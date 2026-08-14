@@ -1,6 +1,7 @@
 import "@/test/match-media-polyfill";
 
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { delay, http, HttpResponse } from "msw";
 import { MemoryRouter, useLocation, useNavigationType } from "react-router";
 import {
@@ -133,15 +134,19 @@ describe("AppRoutes — chat screens", () => {
 // SIEM-off bundle `/security` must not exist as a route at all, and in a
 // SIEM-on bundle it must still be there, behind its RBAC guard.
 //
-// `/security` is nested under the pathless app layout, so "the route is gone"
-// is directly observable: with nothing matching, React Router renders neither
-// the page nor the chrome around it and the tree comes out empty. The SIEM-on
-// case is held at the guard's loading state (the profile request is delayed) —
-// that is enough to prove the route matched, and it keeps the lazy Security
-// page and its own network out of a test about routing.
+// Since feat-013 (design-brief блок 7) the app layout carries a catch-all
+// `path="*"`, so "the route is gone" no longer means "nothing renders": an
+// unmatched `/security` now falls through to the branded 404 inside the layout
+// — the user keeps the sidebar instead of staring at a blank document. The
+// observable difference from a working route is therefore the 404 screen in
+// place of the Security page, not an empty tree. The SIEM-on case is held at
+// the guard's loading state (the profile request is delayed) — that is enough
+// to prove the route matched, and it keeps the lazy Security page and its own
+// network out of a test about routing.
 
-const GUARD_LOADING = "Загрузка...";
+const GUARD_LOADING = "Загрузка…";
 const WELCOME_HEADING = "Добро пожаловать";
+const NOT_FOUND_HEADING = "Страница не найдена";
 
 function emptyList() {
   return HttpResponse.json({ items: [], total: 0, limit: 10, offset: 0 });
@@ -179,14 +184,16 @@ describe("AppRoutes — the /security route under the SIEM flag", () => {
     expect(await screen.findByText(GUARD_LOADING)).toBeInTheDocument();
   });
 
-  it("has no /security route at all in a SIEM-off build", () => {
+  it("answers /security with the 404 screen in a SIEM-off build", async () => {
     flags.siemEnabled = false;
 
-    const { container } = renderAt("/security");
+    renderAt("/security");
 
-    // Nothing matches, so not even the app layout renders — the deep link is a
-    // dead end rather than an empty Security page.
-    expect(container).toBeEmptyDOMElement();
+    // No route matches the URL, so the catch-all answers: the branded 404
+    // inside the app layout, neither the Security page nor its guard.
+    expect(
+      await screen.findByRole("heading", { name: NOT_FOUND_HEADING }),
+    ).toBeInTheDocument();
     expect(screen.queryByText(GUARD_LOADING)).not.toBeInTheDocument();
   });
 
@@ -200,6 +207,105 @@ describe("AppRoutes — the /security route under the SIEM flag", () => {
     expect(
       await screen.findByRole("heading", { name: WELCOME_HEADING }),
     ).toBeInTheDocument();
+  });
+});
+
+// Integration on the catch-all (feat-013, design-brief блок 7): a URL that
+// matches nothing must not be a dead end. The 404 lives *inside* the app
+// layout, so the user keeps the sidebar and one click back to the app.
+
+describe("AppRoutes — the catch-all 404", () => {
+  it("answers an unknown URL with the 404 screen", async () => {
+    setAccessToken(fakeJwt());
+    server.use(...appHandlers());
+
+    renderAppAt("/чепуха");
+
+    expect(
+      await screen.findByRole("heading", { name: NOT_FOUND_HEADING }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Такой страницы нет или она переехала. Вернитесь на главную и продолжите оттуда.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the sidebar on screen, so the user stays inside the app", async () => {
+    setAccessToken(fakeJwt());
+    server.use(...appHandlers());
+
+    renderAppAt("/projects/p1/несуществующая-вкладка");
+
+    await screen.findByRole("heading", { name: NOT_FOUND_HEADING });
+    // The sidebar is the chrome the layout provides: its actions are still
+    // there, i.e. the 404 replaced the working area only.
+    expect(
+      screen.getByRole("button", { name: "Новый проект" }),
+    ).toBeInTheDocument();
+  });
+
+  it("takes the user home from the 404, without a page reload", async () => {
+    setAccessToken(fakeJwt());
+    server.use(...appHandlers());
+    const user = userEvent.setup();
+
+    renderAppAt("/чепуха");
+    await screen.findByRole("heading", { name: NOT_FOUND_HEADING });
+
+    // CTA действия — навигационная ссылка, а не элемент с подменённой ролью:
+    // скринридер находит её среди ссылок, а `href` даёт штатные средства
+    // браузера (Enter, «открыть в новой вкладке»). Роль и адрес утверждаются
+    // до клика — переход одинаково сработал бы и у `<button role="button">`,
+    // поэтому сам по себе он семантику не сторожит.
+    const home = screen.getByRole("link", { name: "На главную" });
+    expect(home).toHaveAttribute("href", "/");
+
+    await user.click(home);
+
+    // A client-side transition: the welcome screen appears in the same tree.
+    expect(
+      await screen.findByRole("heading", { name: WELCOME_HEADING }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: NOT_FOUND_HEADING }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+// Integration on the artifacts tab index route (design-brief блок 6.2): with
+// nothing selected the viewer panel carries a prompt of its own instead of the
+// inline markup the router used to hold. Адрес артефакта — `?path=` (feat-011),
+// поэтому «ничего не выбрано» — это отсутствие query-параметра, а не индекса.
+
+describe("AppRoutes — the artifacts tab without a selection", () => {
+  const ARTIFACT_PROMPT =
+    "Выберите артефакт из списка слева, чтобы посмотреть его.";
+
+  it("prompts to pick an artifact while none is open", async () => {
+    setAccessToken(fakeJwt());
+    server.use(
+      ...appHandlers(),
+      http.get(`/api/projects/${PROJECT_ID}/artifacts`, () =>
+        HttpResponse.json({
+          items: [
+            {
+              path: "konspekt.md",
+              title: "Конспект лекции",
+              type: "md",
+              updated_at: "2026-07-01T10:00:00Z",
+            },
+          ],
+          total: 1,
+          limit: 200,
+          offset: 0,
+        }),
+      ),
+    );
+
+    renderAppAt(`/projects/${PROJECT_ID}/artifacts`);
+
+    expect(await screen.findByText(ARTIFACT_PROMPT)).toBeInTheDocument();
   });
 });
 

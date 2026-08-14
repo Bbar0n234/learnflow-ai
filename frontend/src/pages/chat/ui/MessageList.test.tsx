@@ -397,7 +397,8 @@ describe("MessageList — живость ленты", () => {
   });
 
   it("меняет строку-паузу на индикатор проверки ответа", () => {
-    useStreamStore.getState().setReviewing(true);
+    useStreamStore.getState().startStream("chat-1");
+    useStreamStore.getState().setReviewing("chat-1", true);
 
     renderFeed([]);
 

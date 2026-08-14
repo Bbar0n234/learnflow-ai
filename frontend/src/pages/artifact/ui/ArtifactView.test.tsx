@@ -1,5 +1,6 @@
 import { screen } from "@testing-library/react";
-import { http, HttpResponse } from "msw";
+import userEvent from "@testing-library/user-event";
+import { delay, http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { server } from "@/test/msw/server";
@@ -213,11 +214,92 @@ describe("ArtifactView — адресация и состояния отсутс
 
     renderViewer("konspekt.md");
 
+    // Форма ошибки — общий канон состояний (feat-013): заголовок + подпись
+    // вместо прежней инлайн-строки. Кейс сторожит не текст, а различение веток.
     expect(
-      await screen.findByText("Не удалось загрузить артефакт."),
+      await screen.findByRole("heading", {
+        name: "Не удалось загрузить артефакт",
+      }),
     ).toBeInTheDocument();
     expect(
       screen.queryByText("Файл больше не существует"),
     ).not.toBeInTheDocument();
+  });
+});
+
+// Integration (feat-013, трек T4): панель артефакта в переходных состояниях.
+// Загрузка и ошибка — «панельная» половина канона состояний: спиннер с русской
+// подписью вместо голой строки и полноэкранная карточка ошибки, из которой есть
+// выход помимо F5. Форма общая с чатом и сферой — разнобой между панелями и был
+// тем, против чего канон заведён. Ветка «файла больше нет» (404) отдельная и
+// проверяется выше: это не ошибка загрузки.
+describe("ArtifactView — переходные состояния панели", () => {
+  const DETAIL: Detail = {
+    path: "konspekt.md",
+    title: "Конспект",
+    type: "md",
+    updated_at: "2026-02-01T12:00:00Z",
+    content: "Тело конспекта",
+  };
+
+  it("сообщает о загрузке подписью панели, а не голой строкой", async () => {
+    server.use(
+      http.get(DETAIL_URL, async () => {
+        await delay(50);
+        return HttpResponse.json(DETAIL);
+      }),
+    );
+
+    renderViewer("konspekt.md");
+
+    expect(screen.getByText("Загрузка артефакта…")).toBeInTheDocument();
+
+    await screen.findByText("Тело конспекта");
+  });
+
+  it("объясняет неудачную загрузку и даёт из неё выход", async () => {
+    server.use(
+      http.get(DETAIL_URL, () =>
+        HttpResponse.json({ detail: "boom" }, { status: 500 }),
+      ),
+    );
+
+    renderViewer("konspekt.md");
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Не удалось загрузить артефакт",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Проверьте соединение и попробуйте ещё раз/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Повторить" }),
+    ).toBeInTheDocument();
+  });
+
+  it("возвращает артефакт по «Повторить»", async () => {
+    let failing = true;
+    server.use(
+      http.get(DETAIL_URL, () => {
+        if (failing) {
+          return HttpResponse.json({ detail: "boom" }, { status: 500 });
+        }
+        return HttpResponse.json(DETAIL);
+      }),
+    );
+    const user = userEvent.setup();
+
+    renderViewer("konspekt.md");
+
+    await screen.findByRole("heading", {
+      name: "Не удалось загрузить артефакт",
+    });
+    failing = false;
+    // Путь восстановления помимо F5: кнопка перезапрашивает ту же квери.
+    await user.click(screen.getByRole("button", { name: "Повторить" }));
+
+    expect(await screen.findByText("Тело конспекта")).toBeInTheDocument();
   });
 });

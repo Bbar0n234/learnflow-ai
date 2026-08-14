@@ -3,6 +3,7 @@ import { Download, Pencil } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import { ScrollArea } from "@/shared/ui/scroll-area";
 import { MarkdownRenderer } from "@/shared/ui/MarkdownRenderer";
+import { LoadingState, StateScreen } from "@/shared/ui/StateScreen";
 import {
   useArtifact,
   downloadArtifact,
@@ -15,14 +16,10 @@ export function ArtifactView() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const path = searchParams.get("path") ?? undefined;
-  const { data, isLoading, isError, error } = useArtifact(id, path);
+  const { data, isLoading, isError, error, refetch } = useArtifact(id, path);
 
   if (isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Загрузка артефакта…
-      </div>
-    );
+    return <LoadingState className="h-full" label="Загрузка артефакта…" />;
   }
 
   if (isError) {
@@ -45,9 +42,19 @@ export function ArtifactView() {
       );
     }
     return (
-      <div className="flex h-full items-center justify-center text-sm text-destructive">
-        Не удалось загрузить артефакт.
-      </div>
+      <StateScreen
+        scene="error-state"
+        alt="Иллюстрация: ошибка"
+        illustrationClassName="max-w-[280px]"
+        title="Не удалось загрузить артефакт"
+        description="Что-то пошло не так при загрузке. Проверьте соединение и попробуйте ещё раз."
+        action={
+          <Button variant="outline" onClick={() => void refetch()}>
+            Повторить
+          </Button>
+        }
+        className="h-full"
+      />
     );
   }
 

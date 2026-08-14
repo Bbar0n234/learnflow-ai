@@ -77,6 +77,7 @@ doc/
 
 | Цель | Назначение |
 |--------|---------|
+| `make bootstrap` | Установка зависимостей в свежем checkout/worktree (venv + node_modules) |
 | `make check` | Все backend-проверки: ruff + mypy (CI gate) |
 | `make check-fe` | Все frontend-проверки: ESLint + Prettier --check (CI gate) |
 | `make lint` / `make format` | Линтер / форматтер Ruff |

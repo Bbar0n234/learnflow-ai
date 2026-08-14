@@ -9,6 +9,7 @@ import {
   DialogDescription,
 } from "@/shared/ui/dialog";
 import { Button } from "@/shared/ui/button";
+import { LoadingState, ErrorCard } from "@/shared/ui/StateScreen";
 import { useProjects, type Project } from "@/shared/api/projects";
 import { CreateProjectModal } from "./CreateProjectModal";
 
@@ -23,7 +24,7 @@ interface NewChatModalProps {
  */
 export function NewChatModal({ open, onOpenChange }: NewChatModalProps) {
   const navigate = useNavigate();
-  const { data, isLoading, isError } = useProjects();
+  const { data, isLoading, isError, refetch } = useProjects();
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
 
   const projects = data?.items ?? [];
@@ -50,12 +51,13 @@ export function NewChatModal({ open, onOpenChange }: NewChatModalProps) {
           </DialogHeader>
 
           {isLoading && (
-            <p className="text-sm text-muted-foreground">Загрузка проектов…</p>
+            <LoadingState label="Загрузка проектов…" className="py-2" />
           )}
           {isError && (
-            <p className="text-sm text-destructive">
-              Не удалось загрузить список проектов
-            </p>
+            <ErrorCard
+              message="Не удалось загрузить список проектов"
+              onRetry={() => void refetch()}
+            />
           )}
           {!isLoading && !isError && projects.length === 0 && (
             <div className="flex flex-col items-center gap-3 py-2 text-center">

@@ -61,15 +61,26 @@ function yieldToEventLoop(): Promise<void> {
 }
 
 interface DoneInfo {
+  chatId: string;
   messageId: string | null;
   traceId: string | null;
 }
 
+/**
+ * Владелец во всех терминальных колбэках: потребитель хука (`ChatThread`) не
+ * перемонтируется при смене чата, поэтому колбэки, замкнутые на текущий
+ * рендер, не могут сами отличить, какому чату принадлежит завершившийся ход.
+ * Владелец — тот `chatId`, что был передан хуку в момент вызова `send()`, а не
+ * актуальный проп на момент срабатывания колбэка. Несут его все ветки без
+ * исключения, включая не-SSE (таймаут сторожа тишины, не-ok ответ, обрыв без
+ * терминального события, исключение в catch) — источник владельца один и тот
+ * же везде.
+ */
 interface UseAgentStreamOptions {
   onDone?: (info: DoneInfo) => void;
-  onError?: (detail: string) => void;
-  onSecurityBlock?: () => void;
-  onCancelled?: () => void;
+  onError?: (ownerChatId: string, detail: string) => void;
+  onSecurityBlock?: (ownerChatId: string) => void;
+  onCancelled?: (ownerChatId: string) => void;
 }
 
 export function useAgentStream(
@@ -83,11 +94,13 @@ export function useAgentStream(
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
-  // Cleanup on unmount — hard kill + reset store
+  // Cleanup on unmount — hard kill + reset store. Неохраняемый сброс: экран
+  // ушёл, эфемерное состояние чистится безусловно, без сверки владельца
+  // (owner-guard — только для терминалов потока, см. stream-store.ts).
   useEffect(() => {
     return () => {
       abortRef.current?.abort();
-      useStreamStore.getState().endStream();
+      useStreamStore.getState().reset();
     };
   }, []);
 
@@ -113,8 +126,8 @@ export function useAgentStream(
         silenceTimer = setTimeout(() => {
           timedOut = true;
           controller.abort();
-          endStream();
-          optionsRef.current?.onError?.("Превышено время ожидания");
+          endStream(chatId);
+          optionsRef.current?.onError?.(chatId, "Превышено время ожидания");
         }, SILENCE_TIMEOUT_MS);
       };
       armSilenceWatch();
@@ -134,7 +147,7 @@ export function useAgentStream(
           const token = await ensureFreshToken();
           if (!token) {
             clearTimeout(silenceTimer);
-            endStream();
+            endStream(chatId);
             return;
           }
 
@@ -156,7 +169,7 @@ export function useAgentStream(
             const freshToken = await ensureFreshToken();
             if (!freshToken) {
               clearTimeout(silenceTimer);
-              endStream();
+              endStream(chatId);
               return;
             }
             response = await fetch(
@@ -175,7 +188,7 @@ export function useAgentStream(
 
           if (!response.ok) {
             clearTimeout(silenceTimer);
-            endStream();
+            endStream(chatId);
             let body: unknown = null;
             try {
               body = await response.json();
@@ -183,6 +196,7 @@ export function useAgentStream(
               // Тело не JSON — используем категорию по статусу
             }
             optionsRef.current?.onError?.(
+              chatId,
               getProblemMessageFromBody(response.status, body),
             );
             return;
@@ -242,7 +256,7 @@ export function useAgentStream(
                 case "agent_event":
                   // Нормализация контракта в ленту — знание модели
                   // (`shared/lib/agent-feed`), а не диспетчера.
-                  applyEvent(event);
+                  applyEvent(chatId, event);
                   break;
                 case "artifact_created":
                 case "artifact_updated":
@@ -266,10 +280,10 @@ export function useAgentStream(
                   });
                   break;
                 case "final_output_review_started":
-                  setReviewing(true);
+                  setReviewing(chatId, true);
                   break;
                 case "final_output_review_complete":
-                  setReviewing(false);
+                  setReviewing(chatId, false);
                   break;
                 case "title_updated": {
                   // Только точечный патч кэша — без invalidateQueries, чтобы не
@@ -314,7 +328,7 @@ export function useAgentStream(
                   terminated = true;
                   const traceId = event.trace_id ?? null;
                   const messageId = event.message_id ?? null;
-                  endStream();
+                  endStream(chatId);
                   queryClient.invalidateQueries({
                     queryKey: queryKeys.projects.chat(projectId, chatId),
                   });
@@ -334,12 +348,12 @@ export function useAgentStream(
                     queryKey: queryKeys.projects.artifacts(projectId),
                     exact: true,
                   });
-                  optionsRef.current?.onDone?.({ messageId, traceId });
+                  optionsRef.current?.onDone?.({ chatId, messageId, traceId });
                   break;
                 }
                 case "cancelled": {
                   terminated = true;
-                  endStream();
+                  endStream(chatId);
                   // Отмена во время исполнения инструмента — основной поставщик
                   // вызовов со статусом `pending`: без рефетча detail
                   // незавершённый вызов виден только после перезагрузки
@@ -366,7 +380,7 @@ export function useAgentStream(
                     exact: true,
                   });
                   // Отмена — не ошибка: error-баннера здесь нет.
-                  optionsRef.current?.onCancelled?.();
+                  optionsRef.current?.onCancelled?.(chatId);
                   break;
                 }
                 case "security_block": {
@@ -395,13 +409,13 @@ export function useAgentStream(
                   // отрефетченная история — одну и ту же и сразу, и после
                   // перезагрузки. Транзиентного error-баннера нет: источник
                   // правды — сохранённая заглушка и заблокированный ввод.
-                  redact(REDACTED_STUB);
-                  optionsRef.current?.onSecurityBlock?.();
+                  redact(chatId, REDACTED_STUB);
+                  optionsRef.current?.onSecurityBlock?.(chatId);
                   break;
                 }
                 case "error":
                   terminated = true;
-                  endStream();
+                  endStream(chatId);
                   // Та же fallback-инвалидация списков, что на `done`: title мог
                   // успеть записаться до исключения.
                   queryClient.invalidateQueries({
@@ -418,7 +432,7 @@ export function useAgentStream(
                     exact: true,
                   });
                   if (!isCancellingRef.current) {
-                    optionsRef.current?.onError?.(event.detail);
+                    optionsRef.current?.onError?.(chatId, event.detail);
                   }
                   break;
               }
@@ -434,8 +448,8 @@ export function useAgentStream(
           clearTimeout(silenceTimer);
 
           if (!terminated) {
-            endStream();
-            optionsRef.current?.onError?.("Соединение прервано");
+            endStream(chatId);
+            optionsRef.current?.onError?.(chatId, "Соединение прервано");
           }
         } catch (err) {
           clearTimeout(silenceTimer);
@@ -443,13 +457,13 @@ export function useAgentStream(
             if (timedOut) {
               // Таймаут уже обработан в колбэке сторожа тишины
             } else if (isCancellingRef.current) {
-              endStream();
+              endStream(chatId);
             }
             return;
           }
           logger.error("[SSE stream error]", err);
-          endStream();
-          optionsRef.current?.onError?.("Ошибка соединения");
+          endStream(chatId);
+          optionsRef.current?.onError?.(chatId, "Ошибка соединения");
         }
       })();
     },

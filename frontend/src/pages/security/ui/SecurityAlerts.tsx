@@ -137,7 +137,7 @@ export function SecurityAlerts() {
                       className="hover:bg-muted/40 transition-colors"
                     >
                       <td className="px-4 py-3 text-sm font-medium">
-                        Rule #{alert.rule_id}
+                        Правило №{alert.rule_id}
                       </td>
                       <td className="px-4 py-3">
                         <SeverityBadge severity={alert.severity} />

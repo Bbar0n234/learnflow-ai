@@ -53,7 +53,7 @@ function OwnedServerRow({
           {server.api_key_hint
             ? ` (${server.api_key_hint})`
             : server.has_api_key
-              ? " (key set)"
+              ? " (ключ задан)"
               : ""}
         </p>
         {testResult && (

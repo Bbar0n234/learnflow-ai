@@ -43,6 +43,11 @@ class UploadResponse(BaseModel):
     path: str
 
 
+def _size_limit_detail(limit: int) -> str:
+    human = f"{limit // 1_000_000} МБ" if limit >= 1_000_000 else f"{limit} байт"
+    return f"Файл больше {human} — уменьшите его и попробуйте снова"
+
+
 async def _read_within_limit(file: UploadFile, limit: int) -> bytes:
     chunks: list[bytes] = []
     total = 0
@@ -52,9 +57,7 @@ async def _read_within_limit(file: UploadFile, limit: int) -> bytes:
             break
         total += len(chunk)
         if total > limit:
-            raise PayloadTooLargeError(
-                detail=f"Upload exceeds the {limit}-byte size limit"
-            )
+            raise PayloadTooLargeError(detail=_size_limit_detail(limit))
         chunks.append(chunk)
     return b"".join(chunks)
 

@@ -21,7 +21,7 @@ async def test_request_without_token_is_unauthorized(auth_client: AsyncClient) -
     response = await auth_client.get("/api/auth/me")
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Not authenticated"
+    assert response.json()["detail"] == "Требуется вход"
 
 
 @pytest.mark.integration
@@ -33,7 +33,7 @@ async def test_request_with_non_bearer_header_is_unauthorized(
     )
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Not authenticated"
+    assert response.json()["detail"] == "Требуется вход"
 
 
 @pytest.mark.integration
@@ -47,7 +47,7 @@ async def test_expired_access_token_is_unauthorized(
     )
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid or expired token"
+    assert response.json()["detail"] == "Сессия истекла, войдите снова"
 
 
 @pytest.mark.integration
@@ -61,7 +61,7 @@ async def test_wrong_signature_access_token_is_unauthorized(
     )
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid or expired token"
+    assert response.json()["detail"] == "Сессия истекла, войдите снова"
 
 
 @pytest.mark.integration
@@ -81,7 +81,7 @@ async def test_valid_signature_with_non_uuid_sub_is_unauthorized(
     )
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid or expired token"
+    assert response.json()["detail"] == "Сессия истекла, войдите снова"
 
 
 @pytest.mark.integration
@@ -101,7 +101,7 @@ async def test_valid_signature_without_sub_is_unauthorized(
     )
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid or expired token"
+    assert response.json()["detail"] == "Сессия истекла, войдите снова"
 
 
 @pytest.mark.integration
@@ -116,4 +116,4 @@ async def test_valid_token_for_missing_user_is_unauthorized(
     )
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "User not found"
+    assert response.json()["detail"] == "Пользователь не найден"

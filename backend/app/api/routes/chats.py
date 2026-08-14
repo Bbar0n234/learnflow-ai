@@ -107,7 +107,7 @@ async def delete_chat(
     except EntityNotFoundError:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     if thread_view.project_id != project.id:
-        raise HTTPException(status_code=404, detail="Chat not found")
+        raise HTTPException(status_code=404, detail="Чат не найден")
     await service.delete_chat(thread_view.thread_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

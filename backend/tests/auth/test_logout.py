@@ -47,7 +47,10 @@ async def test_logout_then_reusing_refresh_token_is_rejected(
     # (a known-but-revoked row) instead of rotating a fresh one.
     after = await do_refresh(auth_client, r1)
     assert after.status_code == 401
-    assert after.json()["detail"] == "Token reuse detected, all sessions revoked"
+    assert (
+        after.json()["detail"]
+        == "Обнаружено повторное использование токена — все сессии завершены"
+    )
 
 
 @pytest.mark.integration
@@ -58,7 +61,7 @@ async def test_logout_returns_ok_and_clears_cookie(auth_client: AsyncClient) -> 
     response = await auth_client.post("/api/auth/logout")
 
     assert response.status_code == 200
-    assert response.json()["detail"] == "Logged out"
+    assert response.json()["detail"] == "Вы вышли из аккаунта"
     assert "max-age=0" in response.headers.get("set-cookie", "").lower()
 
 
@@ -69,7 +72,7 @@ async def test_logout_without_cookie_is_idempotent(auth_client: AsyncClient) -> 
     response = await auth_client.post("/api/auth/logout")
 
     assert response.status_code == 200
-    assert response.json()["detail"] == "Logged out"
+    assert response.json()["detail"] == "Вы вышли из аккаунта"
 
 
 @pytest.mark.integration

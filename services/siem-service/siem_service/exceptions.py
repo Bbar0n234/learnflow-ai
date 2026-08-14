@@ -23,7 +23,7 @@ class AppError(Exception):
         *,
         extensions: dict[str, Any] | None = None,
     ) -> None:
-        self.detail: str = detail or "An unexpected error occurred"
+        self.detail: str = detail or "Внутренняя ошибка — попробуйте позже"
         self.extensions: dict[str, Any] = extensions or {}
         super().__init__(self.detail)
 
@@ -32,7 +32,7 @@ class NotFoundError(AppError):
     code = "entity-not-found"
     status = 404
 
-    def __init__(self, detail: str = "Resource not found") -> None:
+    def __init__(self, detail: str = "Ресурс не найден") -> None:
         super().__init__(detail)
 
 
@@ -40,5 +40,7 @@ class ConflictError(AppError):
     code = "conflict"
     status = 409
 
-    def __init__(self, detail: str = "Conflict") -> None:
+    def __init__(
+        self, detail: str = "Конфликт данных — обновите страницу и попробуйте снова"
+    ) -> None:
         super().__init__(detail)

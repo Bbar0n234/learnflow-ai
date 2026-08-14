@@ -111,7 +111,7 @@ async def _workspace_path_error_handler(
     # inside `Workspace.resolve_path`/`resolve_skill_path` — no exc_info here.
     return problem_response(
         status=422,
-        detail=f"Path {exc.path!r} is not allowed",
+        detail=f"Недопустимый путь: {exc.path!r}",
         type_=TYPE_PREFIX + "invalid-path",
         reason=exc.reason,
     )
@@ -126,7 +126,7 @@ async def _infra_exception_handler(request: Request, exc: DBAPIError) -> JSONRes
     logger.error("database error", exc_info=True)
     return problem_response(
         status=503,
-        detail="Database unavailable",
+        detail="База данных недоступна, попробуйте позже",
         type_=TYPE_PREFIX + "db-unavailable",
     )
 
@@ -137,7 +137,7 @@ async def _timeout_exception_handler(
     logger.error("dependency timeout", exc_info=True)
     return problem_response(
         status=504,
-        detail="Upstream dependency timed out",
+        detail="Внешний сервис не ответил вовремя, попробуйте позже",
         type_=TYPE_PREFIX + "timeout",
     )
 
@@ -185,7 +185,7 @@ async def _validation_exception_handler(
     ]
     return problem_response(
         status=422,
-        detail="Request validation failed",
+        detail="Запрос не прошёл валидацию",
         type_=TYPE_PREFIX + "validation-error",
         errors=safe_errors,
     )

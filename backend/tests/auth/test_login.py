@@ -45,7 +45,7 @@ async def test_register_duplicate_name_is_rejected(auth_client: AsyncClient) -> 
     response = await register(auth_client)
 
     assert response.status_code == 409
-    assert response.json()["detail"] == "Username already exists"
+    assert response.json()["detail"] == "Имя уже занято"
 
 
 @pytest.mark.integration
@@ -84,7 +84,7 @@ async def test_login_wrong_password_is_unauthorized(auth_client: AsyncClient) ->
     response = await login(auth_client, password=DEFAULT_PASSWORD + "-wrong")
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid credentials"
+    assert response.json()["detail"] == "Неверное имя или пароль"
 
 
 @pytest.mark.integration
@@ -92,4 +92,4 @@ async def test_login_unknown_user_is_unauthorized(auth_client: AsyncClient) -> N
     response = await login(auth_client, name="nobody")
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid credentials"
+    assert response.json()["detail"] == "Неверное имя или пароль"

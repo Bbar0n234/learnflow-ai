@@ -174,13 +174,13 @@ export function useChats(projectId: string | undefined) {
 export function useChat(
   projectId: string | undefined,
   chatId: string | undefined,
-  options?: { refetchOnWindowFocus?: boolean },
+  options?: { staleTime?: number },
 ) {
   return useQuery({
     queryKey: queryKeys.projects.chat(projectId, chatId),
     queryFn: () => getChat(projectId!, chatId!),
     enabled: !!projectId && !!chatId,
-    refetchOnWindowFocus: options?.refetchOnWindowFocus,
+    staleTime: options?.staleTime,
   });
 }
 

@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { ArrowLeft, Bot, Settings2, PanelRight } from "lucide-react";
 import { useProject } from "@/shared/api/projects";
-import { DEFAULT_CHAT_TITLE, useChat } from "@/shared/api/chats";
+import { DEFAULT_CHAT_TITLE } from "@/shared/api/chats";
+import { useChatHistory } from "../model/useChatHistory";
 import { TypedTitle } from "@/shared/ui/TypedTitle";
 import { ModelSelector } from "@/features/model-selector";
 import { MCPServersSection } from "@/features/mcp-servers";
@@ -36,8 +37,10 @@ export function ChatHeader({
   const { data: project } = useProject(projectId!);
   // В draft `threadId` отсутствует (маршрут `chats/new` не заводит `:cid`),
   // так что запрос уже выключен встроенным `enabled: !!chatId` в `useChat` —
-  // сетевого `GET /projects/{id}/chats/new` не происходит.
-  const { data: chat } = useChat(projectId, threadId);
+  // сетевого `GET /projects/{id}/chats/new` не происходит. Обёртка
+  // `useChatHistory` держит гейт фоновых рефетчей на время активного хода —
+  // без неё observer заголовка рефетчил бы историю в обход гейта `ChatThread`.
+  const { data: chat } = useChatHistory(projectId, threadId);
   const [modelOpen, setModelOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const title = draft ? DEFAULT_CHAT_TITLE : (chat?.title ?? "Чат");

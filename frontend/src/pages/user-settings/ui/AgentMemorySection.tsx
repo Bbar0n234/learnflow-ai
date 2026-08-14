@@ -4,7 +4,6 @@ import { useMemories } from "@/shared/api/user-memory";
 import { deleteMemory } from "@/shared/api/user-memory";
 import { queryKeys } from "@/shared/api/query-keys";
 import { Button } from "@/shared/ui/button";
-import { Switch } from "@/shared/ui/switch";
 import { LoadingState } from "@/shared/ui/StateScreen";
 
 export function AgentMemorySection() {
@@ -29,14 +28,11 @@ export function AgentMemorySection() {
         <label className="text-sm font-medium text-foreground">
           Память агента
         </label>
-        <div className="flex items-center gap-2">
-          {items.length > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {items.length} {items.length === 1 ? "запись" : "записей"}
-            </span>
-          )}
-          <Switch checked={true} onCheckedChange={() => {}} />
-        </div>
+        {items.length > 0 && (
+          <span className="text-xs text-muted-foreground">
+            {items.length} {items.length === 1 ? "запись" : "записей"}
+          </span>
+        )}
       </div>
       <p className="mb-3 text-xs text-muted-foreground">
         Факты, которые агент сохранил о вас в ходе общения.

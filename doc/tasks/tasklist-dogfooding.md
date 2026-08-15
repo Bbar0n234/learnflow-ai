@@ -27,7 +27,7 @@
 | feat-003 | D | ✅ Done | agent | Модели: cost-optimal подбор по внешним бенчмаркам, whitelist 5+, pricing seed в Langfuse |
 | feat-004 | E | 🔀 Merged → feat-011 | cross-cutting | File attachments: поглощена feat-011 — workspace снял хранение, runtime снял ingestion; контракт в design-brief feat-011 § Вложения пользователя |
 | feat-005 | F | 📋 Planned | backend | PDF-экспорт: замена wkhtmltopdf, рендер формул, фирменный стиль |
-| feat-006 | G | 📋 Planned | agent | Генерация слайдов: spike → скилл/интеграция (паттерн ADR-026) |
+| feat-006 | G | 🚧 In Progress | agent | Генерация слайдов: spike → скилл/интеграция (паттерн ADR-026) |
 | feat-007 | H | 📋 Planned | cross-cutting | Кастомные скиллы пользователя + страница библиотеки скиллов |
 | feat-008 | I | ✅ Done | cross-cutting | OAuth (Яндекс ID для РФ, + Google/GitHub вне РФ — гео-разделение по 149-ФЗ) + функциональный каркас страницы `/login` (брендовый дизайн — feat-013) |
 | feat-009 | J | ✅ Done | infra | Web search MCP: замена Firecrawl на Jina AI (hosted) |
@@ -222,7 +222,7 @@
 
 **Цель:** превращение подготовленного материала в слайды/презентацию — ключевой выходной формат преподавательского контента.
 
-**Статус:** 📋 Planned
+**Статус:** 🚧 In Progress
 **Scope:** agent (cross: Backend)
 
 #### Из backlog

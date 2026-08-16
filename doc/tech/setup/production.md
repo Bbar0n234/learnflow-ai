@@ -279,10 +279,15 @@ Executor обязателен к запуску под gVisor — второй �
 4. Проверить, что точка монтирования резолвится верно, и что оба контейнера пишут именно туда:
 
    ```bash
-   docker volume inspect learnflow-ai_workspaces --format '{{ .Mountpoint }}'   # → /mnt/workspaces-disk
+   docker volume inspect learnflow-ai_workspaces --format '{{ .Options.device }}'   # → /mnt/workspaces-disk
    docker compose exec app sh -c 'touch /workspaces/.mount-check'
    ls -la /mnt/workspaces-disk/.mount-check   # файл виден с хоста
    ```
+
+   Смотреть именно `.Options.device`, не `.Mountpoint`: у local-драйвера `Mountpoint`
+   всегда показывает служебный путь `/var/lib/docker/volumes/<имя>/_data` — туда docker
+   bind-монтирует `device` в момент использования volume контейнером, и это не признак
+   ошибки конфигурации.
 
    Если сервис `executor` уже разворачивался на этой VM раньше под volume по умолчанию (данные успели накопиться в `/var/lib/docker/volumes/…`) — перед пересозданием volume перенести содержимое: остановить стек (`docker compose down`), скопировать данные (`docker run --rm -v learnflow-ai_workspaces:/from -v /mnt/workspaces-disk:/to alpine sh -c 'cp -a /from/. /to/'` — на старом volume под старым именем, до его удаления), удалить старый volume, выполнить шаг 3, поднять стек заново.
 

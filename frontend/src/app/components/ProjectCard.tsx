@@ -14,7 +14,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
         to={`/projects/${project.id}`}
         className={({ isActive }) =>
           cn(
-            "flex flex-1 items-center gap-2 rounded-md px-3 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent",
+            "flex min-w-0 flex-1 items-center gap-2 rounded-md px-3 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent",
             isActive && "bg-sidebar-accent font-medium",
           )
         }

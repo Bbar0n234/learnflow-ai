@@ -27,18 +27,18 @@ export function ProjectLayout() {
   return (
     <div className="flex h-full flex-col">
       <header className="flex h-[56px] items-center gap-6 border-b border-border px-6">
-        <div className="flex shrink-0 items-center gap-2.5">
-          <h1 className="font-serif text-sm font-semibold text-foreground">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <h1 className="min-w-0 truncate font-serif text-sm font-semibold text-foreground">
             {projectName}
           </h1>
           {/* Чип состояния сферы — T6b (mock, L0.5, без бэкенд-контракта, group B stub) */}
           {SHOW_GROUP_B_STUBS && (
-            <span className="rounded-full bg-secondary px-2 py-0.5 font-mono text-[10px] text-secondary-foreground">
+            <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 font-mono text-[10px] text-secondary-foreground">
               {SPHERE_CHIP_VERSION} · {SPHERE_CHIP_STATUS}
             </span>
           )}
         </div>
-        <nav className="flex h-full gap-1">
+        <nav className="flex h-full shrink-0 gap-1">
           <NavLink
             to={`/projects/${id}`}
             end

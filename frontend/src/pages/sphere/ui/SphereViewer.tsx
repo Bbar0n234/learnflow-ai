@@ -34,7 +34,7 @@ export function SphereViewer({ content, onEdit }: SphereViewerProps) {
       </div>
 
       {/* Content */}
-      <ScrollArea className="flex-1 px-6 py-6">
+      <ScrollArea className="min-h-0 flex-1 px-6 py-6">
         {content ? (
           <div className="sphere-prose max-w-[680px]">
             <MarkdownRenderer>{content}</MarkdownRenderer>

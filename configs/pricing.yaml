@@ -43,10 +43,10 @@ models:
   match_pattern: (?i)^z-ai/glm-5\.2
   unit: TOKENS
   prices:
-    input: 3.92e-07
-    output: 1.232e-06
-    output_reasoning: 1.232e-06
-    input_cache_read: 7.28e-08
+    input: 9.66e-07
+    output: 3.036e-06
+    output_reasoning: 3.036e-06
+    input_cache_read: 1.932e-07
 - name: google/gemini-3.6-flash
   match_pattern: (?i)^google/gemini-3\.6-flash
   unit: TOKENS
@@ -83,10 +83,10 @@ models:
   match_pattern: (?i)^deepseek/deepseek-v4-flash
   unit: TOKENS
   prices:
-    input: 1.4e-07
-    output: 2.8e-07
-    output_reasoning: 2.8e-07
-    input_cache_read: 2.8e-08
+    input: 8.8606e-08
+    output: 1.77212e-07
+    output_reasoning: 1.77212e-07
+    input_cache_read: 1.77212e-08
 - name: minimax/minimax-m2.5
   match_pattern: (?i)^minimax/minimax-m2\.5
   unit: TOKENS

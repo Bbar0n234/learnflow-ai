@@ -1,8 +1,8 @@
 """``GET /api/auth/providers`` — what the login page is allowed to offer.
 
 This endpoint is the whole geo policy as the browser sees it, so the suite
-states the rule from both sides: a Russian client is offered the intersection of
-the Russian allow-list with the providers that are actually configured (never a
+states the rule from both sides: a restricted client is offered the intersection of
+the restricted allow-list with the providers that are actually configured (never a
 button that would 404), everyone else is offered every configured provider, and
 the password form is offered unconditionally. The country itself is taken from
 the real ``resolve_country``, either through the fallback or through a stubbed
@@ -29,7 +29,7 @@ def _registry(*names: str) -> dict[str, FakeProvider]:
 
 
 @pytest.mark.integration
-async def test_russian_client_is_offered_only_the_russian_provider(
+async def test_restricted_client_is_offered_only_an_allowed_provider(
     stand: OAuthStand,
 ) -> None:
     response = await stand.client.get(PROVIDERS_URL)
@@ -39,7 +39,7 @@ async def test_russian_client_is_offered_only_the_russian_provider(
 
 
 @pytest.mark.integration
-async def test_client_outside_russia_is_offered_every_active_provider(
+async def test_client_with_full_access_is_offered_every_active_provider(
     stand_factory: StandFactory,
 ) -> None:
     stand = await stand_factory(fallback_country="US")
@@ -54,7 +54,7 @@ async def test_client_outside_russia_is_offered_every_active_provider(
 
 
 @pytest.mark.integration
-async def test_russian_client_gets_no_buttons_when_the_russian_provider_is_off(
+async def test_restricted_client_gets_no_buttons_when_an_allowed_provider_is_off(
     stand_factory: StandFactory,
 ) -> None:
     # The allow-list is intersected with the *configured* registry: an
@@ -115,7 +115,7 @@ async def test_a_lower_case_fallback_still_restricts_the_composition(
 ) -> None:
     # GEOIP_FALLBACK_COUNTRY=ru is a plausible thing for an operator to write,
     # and before the fix it flipped fail-closed into fail-open: every degraded
-    # lookup answered a Russian client with all three providers.
+    # lookup answered a restricted client with all three providers.
     stand = await stand_factory(fallback_country=configured, geoip_reader=None)
 
     response = await stand.client.get(PROVIDERS_URL)

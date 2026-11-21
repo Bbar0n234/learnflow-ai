@@ -49,7 +49,7 @@ NotFoundError→404; ConflictError(unique/лимит)→409; SecurityPolicyViola
 Разделить барьеры в `subscriber.py`: `ValidationError`(poison) → drop + XACK (как сейчас); транзиентный инфра-сбой (`OperationalError`) → **НЕ XACK** (оставить в PEL, `_read_pending` переобработает) + bounded-счётчик попыток, чтобы не зациклить. Dead-letter — overkill, в refactor-список.
 
 ## D-ERR-8 — Frontend (обвязка сейчас, дизайн отдельно)
-В feat-007: общий парсер problem+json в `shared/lib` (обобщить `security-error.ts` на detail/title/категорию) + дефолты `QueryClient` (не ретраить 4xx, рассмотреть глобальный onError) + конвенции (включая язык сообщений — продукт русский).
+В feat-007: общий парсер problem+json в `shared/lib` (обобщить `security-error.ts` на detail/title/категорию) + дефолты `QueryClient` (не ретраить 4xx, рассмотреть глобальный onError) + конвенции (включая единый язык сообщений интерфейса).
 Отдельно (карточка во frontend-тасклист): тост/баннер-система + редизайн error-UI states. Это новый UI-объём, не cross-cutting.
 
 ## D-ERR-9 — Таймауты (финал)

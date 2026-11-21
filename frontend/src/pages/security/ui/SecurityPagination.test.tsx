@@ -10,7 +10,7 @@ import { SecurityPagination } from "./SecurityPagination";
 // Unit: the security list pager. It renders the current page summary and emits
 // offset/limit changes through callbacks. The prev/next controls are icon-only
 // buttons, so their accessible name is the only thing a screen reader has to go
-// on — in a Russian product it is Russian too (design-brief блок 2 «Заодно»).
+// on — it follows the interface locale too (design-brief блок 2 «Заодно»).
 
 function setup(over: Partial<Parameters<typeof SecurityPagination>[0]> = {}) {
   const onLimitChange = vi.fn();

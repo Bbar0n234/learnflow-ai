@@ -372,7 +372,7 @@ async def test_callback_replay_lands_on_the_expired_flow_branch(
 
 @pytest.mark.integration
 async def test_callback_geo_is_rechecked_on_the_return_leg(stand: OAuthStand) -> None:
-    # A flow may have started outside Russia and come back from a Russian
+    # A flow may have started with full access and come back from a restricted
     # address — or address the callback directly, bypassing the UI entirely.
     response = await stand.client.get(
         _callback_url("google"),

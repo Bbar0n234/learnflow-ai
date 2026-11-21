@@ -13,7 +13,7 @@
   Иллюстрации — реальные сцены (800px, RGBA data-URI, light/dark), карта SCENES_IMG
   в конце файла; переключатель темы подставляет версию сцены. Решения ревью
   архитектора применены: скроллбар 10px + hover (утв.), одна строка resolved-модели,
-  inline-edit вариант А (утв.), сфера 440px, гео-модель auth РФ/не-РФ.
+  inline-edit вариант А (утв.), сфера 440px, гео-модель auth ограниченный/полный набор.
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -895,13 +895,13 @@
     <p class="sub">Что решается: брендовая полноэкранная страница входа вместо generic-модалки AuthGate — wordmark, иллюстрация, карточка формы, провайдеры по гео. Каркас строит feat-008; здесь — дизайн.</p>
   </div>
   <div class="note">
-    Флоу кликается: переключение вход/регистрация, сабмит пустой формы показывает карточную ошибку (паттерн блока 4). <b>Гео-модель (решение архитектора):</b> РФ — только Яндекс&nbsp;ID; не-РФ — Яндекс&nbsp;ID, Google и GitHub. VK&nbsp;ID снят — регистрация приложения VK требует подтверждённое бизнес-лицо. Логотипы провайдеров — брендовые инлайн-SVG. Иллюстрация — новая сцена <span class="mono">auth-hero</span>. Копирайт черновой — финал согласуется при реализации.
+    Флоу кликается: переключение вход/регистрация, сабмит пустой формы показывает карточную ошибку (паттерн блока 4). <b>Гео-модель (решение архитектора):</b> Ограниченный набор — только Яндекс&nbsp;ID; полный набор — Яндекс&nbsp;ID, Google и GitHub. VK&nbsp;ID снят — регистрация приложения VK требует подтверждённое бизнес-лицо. Логотипы провайдеров — брендовые инлайн-SVG. Иллюстрация — новая сцена <span class="mono">auth-hero</span>. Копирайт черновой — финал согласуется при реализации.
   </div>
   <div class="controls">
     <div class="seg" id="geo">
       <span class="seg-name">Гео</span>
-      <button data-v="ru" class="on">РФ</button>
-      <button data-v="int">не-РФ</button>
+      <button data-v="ru" class="on">Ограниченный набор</button>
+      <button data-v="int">полный набор</button>
     </div>
   </div>
   <div class="auth-frame">
@@ -922,11 +922,11 @@
           <button class="btn btn-lg btn-primary" type="submit" style="width:100%" id="auth-submit">Войти</button>
         </div>
         <div class="divider"><span>или</span></div>
-        <!-- РФ: только Яндекс ID -->
+        <!-- Ограниченный набор: только Яндекс ID -->
         <div class="prov" id="prov-ru">
           <button type="button" class="prov-btn"><svg class="p-ico"><use href="#p-yandex"/></svg>Войти с Яндекс&nbsp;ID</button>
         </div>
-        <!-- не-РФ: Яндекс ID + Google + GitHub -->
+        <!-- полный набор: Яндекс ID + Google + GitHub -->
         <div class="prov hide" id="prov-int">
           <button type="button" class="prov-btn"><svg class="p-ico"><use href="#p-yandex"/></svg>Войти с Яндекс&nbsp;ID</button>
           <button type="button" class="prov-btn"><svg class="p-ico"><use href="#p-google"/></svg>Войти через Google</button>

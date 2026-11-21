@@ -8,7 +8,7 @@ const PROVIDERS_URL = "/api/auth/providers";
 // кладём (conventions: дефолтные хендлеры пусты) — каждый тест подключает
 // нужный вариант через server.use(authProvidersHandlers.<variant>()).
 export const authProvidersHandlers = {
-  // РФ-гео: серверный enforcement пропускает только Яндекс.
+  // ограниченный набор: серверный enforcement пропускает только Яндекс.
   ru: (): RequestHandler =>
     http.get(PROVIDERS_URL, () =>
       HttpResponse.json<AuthProvidersResponse>({
@@ -16,7 +16,7 @@ export const authProvidersHandlers = {
         password: true,
       }),
     ),
-  // Не-РФ-гео: все активные провайдеры.
+  // Полный набор: все активные провайдеры.
   nonRu: (): RequestHandler =>
     http.get(PROVIDERS_URL, () =>
       HttpResponse.json<AuthProvidersResponse>({

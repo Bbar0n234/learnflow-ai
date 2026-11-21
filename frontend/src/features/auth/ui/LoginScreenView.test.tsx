@@ -26,14 +26,10 @@ import { PROVIDER_LABELS } from "@/test/provider-labels";
 // с мокапом по числам сделана треком (summary T6.4); регресс вида — ручные
 // кейсы {T6.1}–{T6.8}.
 
-// Утверждённая гео-модель (design-brief, блок 8): РФ — только Яндекс ID
-// (149-ФЗ), вне РФ — Яндекс ID, Google, GitHub. VK ID снят полностью.
-const RU_PROVIDERS: readonly AuthProvider[] = ["yandex"];
-const NON_RU_PROVIDERS: readonly AuthProvider[] = [
-  "yandex",
-  "google",
-  "github",
-];
+// Политика провайдеров: ограниченный набор — только Яндекс ID;
+// полный набор — Яндекс ID, Google, GitHub. VK ID снят полностью.
+const RESTRICTED_PROVIDERS: readonly AuthProvider[] = ["yandex"];
+const FULL_PROVIDERS: readonly AuthProvider[] = ["yandex", "google", "github"];
 
 function renderScreen(overrides: Partial<LoginScreenViewProps> = {}) {
   const props: LoginScreenViewProps = {
@@ -272,7 +268,7 @@ describe("LoginScreenView — отправка формы", () => {
   it("во время отправки блокирует поля, сабмит и провайдеров", async () => {
     const { props, user } = renderScreen({
       submitting: true,
-      providers: NON_RU_PROVIDERS,
+      providers: FULL_PROVIDERS,
     });
 
     expect(screen.getByLabelText("Имя пользователя")).toBeDisabled();
@@ -359,16 +355,16 @@ describe("LoginScreenView — ошибка", () => {
 });
 
 describe("LoginScreenView — гео-состав провайдеров", () => {
-  // РФ: единственный разрешённый провайдер — Яндекс ID (149-ФЗ).
-  it("для РФ показывает только Яндекс ID", () => {
-    renderScreen({ providers: RU_PROVIDERS });
+  // Ограниченный набор: единственный разрешённый провайдер — Яндекс ID.
+  it("для ограниченного набора показывает только Яндекс ID", () => {
+    renderScreen({ providers: RESTRICTED_PROVIDERS });
 
     expect(providerButtonNames()).toEqual([PROVIDER_LABELS.yandex]);
     expect(screen.getByText("или")).toBeInTheDocument();
   });
 
-  it("вне РФ показывает Яндекс ID, Google и GitHub в порядке состава", () => {
-    renderScreen({ providers: NON_RU_PROVIDERS });
+  it("для полного набора показывает Яндекс ID, Google и GitHub в порядке состава", () => {
+    renderScreen({ providers: FULL_PROVIDERS });
 
     expect(providerButtonNames()).toEqual([
       PROVIDER_LABELS.yandex,
@@ -382,8 +378,8 @@ describe("LoginScreenView — гео-состав провайдеров", () =>
   // возвращение — ровно то, что этот кейс обязан ловить: ни в одном гео-составе
   // экран не упоминает VK ни кнопкой, ни текстом.
   const compositions: [string, readonly AuthProvider[] | undefined][] = [
-    ["РФ", RU_PROVIDERS],
-    ["вне РФ", NON_RU_PROVIDERS],
+    ["ограниченный набор", RESTRICTED_PROVIDERS],
+    ["полный набор", FULL_PROVIDERS],
     ["пустой состав", []],
     ["состав ещё грузится", undefined],
   ];
@@ -398,7 +394,7 @@ describe("LoginScreenView — гео-состав провайдеров", () =>
   });
 
   it("зовёт onProviderSelect с выбранным провайдером", async () => {
-    const { props, user } = renderScreen({ providers: NON_RU_PROVIDERS });
+    const { props, user } = renderScreen({ providers: FULL_PROVIDERS });
 
     await user.click(
       screen.getByRole("button", { name: PROVIDER_LABELS.google }),
@@ -456,7 +452,7 @@ describe("LoginScreenView — клавиатура и раскладка", () =>
   // Порядок обхода задан порядком узлов (явных `tabIndex` в экране нет):
   // имя → пароль → сабмит → провайдеры → переключатель режима.
   it("обходит форму табом в порядке чтения", async () => {
-    const { user } = renderScreen({ providers: RU_PROVIDERS });
+    const { user } = renderScreen({ providers: RESTRICTED_PROVIDERS });
 
     const order = [
       screen.getByLabelText("Имя пользователя"),

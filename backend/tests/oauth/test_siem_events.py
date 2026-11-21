@@ -189,7 +189,7 @@ async def test_a_provider_error_code_is_not_a_security_event(stand: OAuthStand) 
 @pytest.mark.integration
 async def test_a_region_refusal_is_not_a_security_event(stand: OAuthStand) -> None:
     # Showing fewer buttons in a region is policy, not an incident; it would
-    # otherwise fire on every ordinary Russian visitor.
+    # otherwise fire on every ordinary restricted visitor.
     with capture_logs() as logs:
         await stand.client.get(AUTHORIZE.format(provider="google"))
 

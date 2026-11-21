@@ -133,7 +133,7 @@ describe("SecurityRules", () => {
     const row = (await screen.findByText("brute_force_auth")).closest("tr")!;
 
     // Кнопки строки — иконки без подписи, их единственное имя для скринридера
-    // задаётся `aria-label`; в русском продукте оно русское (бриф блок 2).
+    // задаётся `aria-label`; оно соответствует языку интерфейса (бриф блок 2).
     expect(
       within(row).getByRole("button", { name: "Редактировать правило" }),
     ).toBeInTheDocument();

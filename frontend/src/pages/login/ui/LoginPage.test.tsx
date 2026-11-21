@@ -386,7 +386,7 @@ describe("LoginPage — кнопки провайдеров", () => {
     expect(follows(google, github)).toBe(true);
   });
 
-  it("в РФ-гео показывает только кнопку Яндекса", async () => {
+  it("при ограниченном наборе показывает только кнопку Яндекса", async () => {
     server.use(authProvidersHandlers.ru());
 
     renderLoginAt();

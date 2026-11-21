@@ -8,7 +8,7 @@
 
 - Запись итерации — [tasklist-dogfooding.md](../../../../../tasklist-dogfooding.md) § «feat-008 (I): OAuth + auth-экраны + 404»
 - [design-brief.md](../../design-brief.md) — архитектура, контракты, коды ошибок, env-таблица, § «Партиция треков» (границы T1)
-- Ресёрч: [research-data-model.md](../../research-data-model.md) (DDL, таблица решений), [research-legal-geo.md](../../research-legal-geo.md) (юр. рамка, выбор гео-стека), [research-provider-libs.md](../../research-provider-libs.md) (ручной httpx-слой, специфика провайдеров)
+- Ресёрч: [research-data-model.md](../../research-data-model.md) (DDL, таблица решений), [research-legal-geo.md](../../research-legal-geo.md) (политика доступа, выбор гео-стека), [research-provider-libs.md](../../research-provider-libs.md) (ручной httpx-слой, специфика провайдеров)
 - Архитектура: [auth.md](../../../../../../tech/auth.md), [backend.md](../../../../../../tech/backend.md) § Layered Architecture / Правила вызовов, [conventions/db.md](../../../../../../tech/conventions/db.md), [conventions/api.md](../../../../../../tech/conventions/api.md), [conventions.md](../../../../../../tech/conventions.md) §§ Обработка ошибок, Logging, Docker/env, [ADR-011](../../../../../../tech/adr/ADR-011-auth-architecture.md)
 
 Порядок фаз следует рамочному решению архитектора (бриф § Порядок реализации): модель+миграция → абстракция+Яндекс (сквозная проверка) → гео-gate → Google → GitHub. Промежуточное состояние `/api/auth/providers` без гео (после T1.6, до T1.7) — следствие этого порядка, не контракт: наружу трек отдаёт гео-версию.
@@ -140,7 +140,7 @@
 
 ### T1.7: Гео-gate — MMDB-reader и enforcement в трёх точках
 
-**Цель:** состав провайдеров и допустимость флоу определяются страной клиентского IP; РФ получает только российского провайдера (+ пароль), деградация — fail-closed в сторону закона.
+**Цель:** состав провайдеров и допустимость флоу определяются страной клиентского IP; ограниченный набор включает Яндекс ID и пароль, деградация — fail-closed с ограниченным набором провайдеров.
 
 **Изменения:**
 
@@ -148,7 +148,7 @@
 - `backend/app/infra/geoip.py` — открытие reader'а (`maxminddb.open_database`) и резолв страны: чтение записи через `Reader.get(ip)` с извлечением country-кода, совместимым и с плоской структурой IPinfo Lite, и с вложенной GeoLite2 (`Record` — рекурсивный union, навигация с явными isinstance-проверками). Fallback-страна применяется при: несконфигурированной/отсутствующей базе, промахе lookup'а (приватные адреса dev), **и `ValueError` от неразбираемой строки IP** (`get_client_ip` возвращает `"unknown"`, когда клиента нет). IP — строго через существующий `app.infra.client_ip.get_client_ip`, свои чтения proxy-заголовков запрещены.
 - `backend/app/config.py` + `.env.example` + `.env.local.example` + `docker-compose.yml` — `GEOIP_DB_PATH` (default `""`), `GEOIP_FALLBACK_COUNTRY` (default `RU`); в compose дополнительно read-only mount `./data/geoip`. В `.env.local.example` — путь-образец с комментарием (реальный абсолютный путь живёт в локальном `.env.local`; файл базы в worktree отсутствует и **не скачивается заново**).
 - `backend/app/main.py` (lifespan) — reader в `app.state` (mmap), graceful-деградация при отсутствии файла (warning + `None`, старт не блокируется), `close()` на shutdown рядом с остальными ресурсами.
-- Бизнес-инвариант «разрешённые для РФ провайдеры» = `{"yandex"}` — константа в коде, не env (бриф § Конфигурация).
+- Бизнес-инвариант «разрешённые для ограниченного набора провайдеры» = `{"yandex"}` — константа в коде, не env (бриф § Конфигурация).
 - Enforcement в трёх точках (`backend/app/api/routes/oauth.py`): `/providers` — RU → `{yandex} ∩ активные` (при незаполненных кредах Яндекса RU-пользователь получает только пароль, кнопки в 404 быть не должно), иначе все активные; `authorize` и `callback` — запрещённый для RU-IP провайдер → 302 `/login?error=provider_not_available_in_region` (проверка в callback обязательна: смена IP между шагами и прямое обращение мимо UI). Гео-отказ — structlog-инфо, не SIEM.
 - `README.md` — атрибуция IPinfo (CC BY-SA), как решено брифом § Гео-gate.
 
@@ -172,7 +172,7 @@
 **Verification:**
 
 - `make check` проходит.
-- С заполненными dev-кредами Google провайдер появляется в `/api/auth/providers` при не-РФ стране и отсутствует при РФ.
+- С заполненными dev-кредами Google провайдер появляется в `/api/auth/providers` при полном наборе и отсутствует при ограниченном.
 - Ручной сквозной прогон Google-флоу на dev-приложении (testing mode, redirect_uri `http://localhost:5173/api/auth/oauth/google/callback`): вход создаёт пользователя, повторный — логинит его же.
 - Гео-ветка: `authorize` Google при `GEOIP_FALLBACK_COUNTRY=RU` → `provider_not_available_in_region`.
 
@@ -191,7 +191,7 @@
 
 - `make check` проходит.
 - Ручной сквозной прогон GitHub-флоу на dev-приложении: вход создаёт пользователя; аккаунт со скрытым email даёт связку с `email = NULL` без ошибки (либо email добирается через `/user/emails`, если scope позволяет). Успешность обмена кода не ставится в зависимость от PKCE — критерий прохождения ветки — сверка `state` и полученный профиль.
-- `/api/auth/providers` при не-РФ отдаёт все три провайдера; при РФ — только `yandex`.
+- `/api/auth/providers` при полном наборе отдаёт все три провайдера; при ограниченном наборе — только `yandex`.
 
 ## Cross-cutting
 

@@ -25,7 +25,7 @@
 ### [F-FE-04] Ручное извлечение detail в AuthGate без общего хелпера 🟡
 - Локация: `src/app/components/AuthGate.tsx:55-73`
 - Правило: №3, №4
-- Текущее: семиуровневая `in`-проверка `err.response.data.detail` захардкожена, не переиспользуется (параллельно F-FE-03). Fallback «Something went wrong» в русскоязычном продукте.
+- Текущее: семиуровневая `in`-проверка `err.response.data.detail` захардкожена, не переиспользуется (параллельно F-FE-03). Fallback «Something went wrong» в локализованном интерфейсе.
 - Направление: вынести в `shared/lib` рядом с `security-error.ts`.
 
 ### [F-FE-05] `mutateAsync` без catch → unhandled rejection при создании проекта 🟡

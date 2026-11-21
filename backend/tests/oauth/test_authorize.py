@@ -3,7 +3,7 @@
 The endpoint has to get four things right at once, and the suite takes them one
 at a time: it must refuse a provider that is not configured before anything
 else happens; it must spend a per-IP budget of its own; it must not let a
-Russian client start a foreign provider's flow; and, on the happy path, it must
+restricted client start a disallowed provider's flow; and, on the happy path, it must
 hand the provider a state and an S256 challenge that match what it just sealed
 into the ``oauth_flow`` cookie — a mismatch there silently disables PKCE and the
 CSRF check while everything still looks green in a browser.
@@ -203,7 +203,7 @@ async def test_authorize_cookie_is_bound_to_the_provider_that_started_it(
 
 
 @pytest.mark.integration
-async def test_authorize_russian_client_cannot_start_a_foreign_provider(
+async def test_authorize_restricted_client_cannot_start_a_disallowed_provider(
     stand: OAuthStand,
 ) -> None:
     response = await stand.client.get(_authorize_url("google"))
@@ -219,7 +219,7 @@ async def test_authorize_russian_client_cannot_start_a_foreign_provider(
 
 
 @pytest.mark.integration
-async def test_authorize_russian_client_can_start_the_russian_provider(
+async def test_authorize_restricted_client_can_start_an_allowed_provider(
     stand: OAuthStand,
 ) -> None:
     response = await stand.client.get(_authorize_url("yandex"))
@@ -230,7 +230,7 @@ async def test_authorize_russian_client_can_start_the_russian_provider(
 
 @pytest.mark.integration
 @pytest.mark.parametrize("provider", ["google", "github", "yandex"])
-async def test_authorize_client_outside_russia_can_start_any_provider(
+async def test_authorize_client_with_full_access_can_start_any_provider(
     stand_factory: StandFactory, provider: str
 ) -> None:
     stand = await stand_factory(fallback_country="US")
@@ -337,11 +337,11 @@ async def test_authorize_geo_lookup_can_also_lift_a_restrictive_fallback(
 
 
 @pytest.mark.integration
-async def test_authorize_lower_case_fallback_still_blocks_a_foreign_provider(
+async def test_authorize_lower_case_fallback_still_blocks_a_disallowed_provider(
     stand_factory: StandFactory,
 ) -> None:
-    # GEOIP_FALLBACK_COUNTRY=ru must not read as "not Russia": before the fix
-    # every degraded lookup opened the foreign providers to Russian clients.
+    # GEOIP_FALLBACK_COUNTRY=ru must not read as "unrestricted": before the fix
+    # every degraded lookup opened the disallowed providers to restricted clients.
     stand = await stand_factory(fallback_country="ru", geoip_reader=None)
 
     response = await stand.client.get(_authorize_url("google"))

@@ -1,9 +1,9 @@
 """MMDB-backed IP → country resolution for the OAuth гео-gate.
 
-Fail-closed in the direction the law requires: any failure to resolve a
+Fail-closed under the access policy: any failure to resolve a
 country (unset/missing database, lookup miss, unparsable IP) degrades to
 ``Settings.geoip_fallback_country`` (default ``RU``) — never to "no
-restriction". Only ``app.infra.client_ip.get_client_ip`` is a legal IP
+restriction". Only ``app.infra.client_ip.get_client_ip`` is the trusted IP
 source (design-brief.md § Гео-gate).
 """
 
